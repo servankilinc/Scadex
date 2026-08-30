@@ -1,0 +1,6 @@
+@Scadex.WebAPI_HostAddress = http://localhost:5208
+
+GET {{Scadex.WebAPI_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###

@@ -1,0 +1,7 @@
+<Solution>
+  <Project Path="Scadex.Business/Scadex.Business.csproj" />
+  <Project Path="Scadex.Core/Scadex.Core.csproj" />
+  <Project Path="Scadex.DataAccess/Scadex.DataAccess.csproj" />
+  <Project Path="Scadex.Entity/Scadex.Entity.csproj" />
+  <Project Path="Scadex.WebAPI/Scadex.WebAPI.csproj" />
+</Solution>
