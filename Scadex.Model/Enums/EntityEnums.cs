@@ -206,16 +206,6 @@ public static class EntityEnums
     }
 
 
-    /// <summary>
-    /// Kameranın video akışında kullandığı sıkıştırma.
-    /// </summary>
-    public enum VideoCodec
-    {
-        H264 = 1,
-        H265 = 2
-    }
-
-
     public enum StreamProfile
     {
         /// <summary>Yüksek kalite — tam ekran / tek kamera görünümü.</summary>
