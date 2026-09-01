@@ -20,8 +20,7 @@ public class CameraProbeResultDtoValidator : AbstractValidator<CameraProbeResult
 {
     public CameraProbeResultDtoValidator()
     {
-        RuleFor(v => v.RttMs!.Value).GreaterThanOrEqualTo(0).When(v => v.RttMs.HasValue)
-            .WithMessage("Gecikme negatif olamaz");
-        RuleFor(v => v.Error).MaximumLength(512).WithMessage("Hata metni en fazla 512 karakter olabilir");
+        RuleFor(v => v.RttMs!.Value).GreaterThanOrEqualTo(0).When(v => v.RttMs.HasValue).WithMessage("Gecikme ms bilgisi negatif olamaz");
+        RuleFor(v => v.Error).NotEmpty().WithMessage("Hata metni girilmelidir");
     }
 }

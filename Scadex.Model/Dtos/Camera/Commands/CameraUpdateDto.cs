@@ -4,14 +4,6 @@ using FluentValidation;
 
 namespace Scadex.Model.Dtos.Camera.Commands;
 
-/// <summary>
-/// Kamera guncelleme. Sozlesme: <c>docs/api-contract/11-camera.md</c>
-///
-/// <b><c>CabinetId</c> YOKTUR ve degistirilemez.</b> Kamera fiziksel olarak bir
-/// kabinin icindedir; kabin degistirmek "ayni kamera" degil "baska bir kurulum"
-/// demektir ve gecmis cekimlerini (<c>CameraCapture</c>) yanlis kabine baglardi.
-/// Tasima gerekirse eski kayit pasife alinip yenisi acilir.
-/// </summary>
 public class CameraUpdateDto : IDto
 {
     public Guid Id { get; set; }
@@ -27,14 +19,7 @@ public class CameraUpdateDto : IDto
 
     public string? Username { get; set; }
 
-    /// <summary>
-    /// Yeni parola.
-    ///
-    /// <b><c>null</c> = "dokunma"</b>, mevcut parola korunur. Bos string ise
-    /// parola SILINIR. Bu ayrim sart: okuma DTO'su parolayi hic dondurmedigi
-    /// icin arayuz formu doldururken alani bos birakir; <c>null</c>'i "sil"
-    /// saymak, her duzenlemede parolayi sessizce ucururdu.
-    /// </summary>
+    /// <summary>null ise "dokunmaz", mevcut parola korunur. Bos string veya dolu ise parola güncellenir.</summary>
     [CriticalData]
     public string? Password { get; set; }
 
@@ -48,11 +33,6 @@ public class CameraUpdateDto : IDto
     public int PingIntervalSec { get; set; }
     public bool IsMonitoringEnabled { get; set; }
 
-    /// <summary>
-    /// Pasife almak icin <c>false</c>. Ayri bir DELETE ucu YOKTUR — kod tabaninin
-    /// B5'te aldigi kararla ayni: <c>Camera</c> <c>IActivatableEntity</c>'dir,
-    /// fiziksel silme interceptor'da exception atar.
-    /// </summary>
     public bool IsActive { get; set; }
 }
 
@@ -77,16 +57,14 @@ public class CameraUpdateDtoValidator : AbstractValidator<CameraUpdateDto>
         RuleFor(x => x.SubStreamChannel).GreaterThan(0).WithMessage("Tali akım kanalı sıfırdan büyük olmalı");
         RuleFor(x => x.SnapshotChannel).GreaterThan(0).WithMessage("Anlık görüntü kanalı sıfırdan büyük olmalı");
 
-        // En az bir akim acik olmali; ikisi de kapaliysa kamera hic izlenemez ve
-        // arayuz sebebini gosteremez.
-        RuleFor(x => x.MainStreamEnabled).Must((x, _) => x.MainStreamEnabled || x.SubStreamEnabled).WithMessage("Ana akım ve tali akım aynı anda kapatılamaz");
+        // En az bir akim acik olmali; ikisi de kapaliysa kamera hic izlenemez
+        RuleFor(x => x.MainStreamEnabled).Must((x, _) => x.MainStreamEnabled || x.SubStreamEnabled).WithMessage("Main stream ve Sub stream aynı anda kapatılamaz");
 
         // 5 sn'nin altinda bir yoklama araligi, kameraya faydasiz yuk bindirir;
-        // 24 saatin ustunde ise "izleniyor" demek anlamsizlasir.
-        RuleFor(x => x.PingIntervalSec).InclusiveBetween(5, 86400).WithMessage("Yoklama aralığı 5 saniye ile 24 saat arasında olmalı");
+        RuleFor(x => x.PingIntervalSec).InclusiveBetween(5, 86400).WithMessage("Yoklama aralığı 5 saniye ile 24 saat(86400sn) arasında olmalı");
 
         RuleFor(x => x.Username).MaximumLength(128).WithMessage("Kullanıcı adı en fazla 128 karakter olabilir");
-        RuleFor(x => x.Manufacturer).MaximumLength(64).WithMessage("Üretici en fazla 64 karakter olabilir");
+        RuleFor(x => x.Manufacturer).NotEmpty().MaximumLength(512).WithMessage("Üretici bilgisi girilmeli ve en fazla 512 karakter olabilir");
         RuleFor(x => x.Model).MaximumLength(64).WithMessage("Model en fazla 64 karakter olabilir");
         RuleFor(x => x.Description).MaximumLength(512).WithMessage("Açıklama en fazla 512 karakter olabilir");
     }

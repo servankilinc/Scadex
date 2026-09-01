@@ -9,7 +9,7 @@ public class CameraCreateDto : IDto
     public Guid CabinetId { get; set; }
     public string Name { get; set; } = null!;
     public string? Description { get; set; }
-    public string? Manufacturer { get; set; } = "Hikvision";
+    public string? Manufacturer { get; set; }
     public string? Model { get; set; }
 
     public string IpAddress { get; set; } = null!;
@@ -28,6 +28,7 @@ public class CameraCreateDto : IDto
     public bool SubStreamEnabled { get; set; } = true;
     public int SnapshotChannel { get; set; } = 101;
 
+    // --- monitoring ile ilgili alanlar (IpAddress hem monitoring için kullanılır hem de kamera ile haberleşmek için) ---
     public int? MonitoringPort { get; set; }
     public int PingIntervalSec { get; set; } = 300;
     public bool IsMonitoringEnabled { get; set; } = true;
@@ -54,16 +55,14 @@ public class CameraCreateDtoValidator : AbstractValidator<CameraCreateDto>
         RuleFor(x => x.SubStreamChannel).GreaterThan(0).WithMessage("Tali akım kanalı sıfırdan büyük olmalı");
         RuleFor(x => x.SnapshotChannel).GreaterThan(0).WithMessage("Anlık görüntü kanalı sıfırdan büyük olmalı");
 
-        // En az bir akim acik olmali; ikisi de kapaliysa kamera hic izlenemez ve
-        // arayuz sebebini gosteremez.
-        RuleFor(x => x.MainStreamEnabled).Must((x, _) => x.MainStreamEnabled || x.SubStreamEnabled).WithMessage("Ana akım ve tali akım aynı anda kapatılamaz");
+        // En az bir akim acik olmali; ikisi de kapaliysa kamera hic izlenemez
+        RuleFor(x => x.MainStreamEnabled).Must((x, _) => x.MainStreamEnabled || x.SubStreamEnabled).WithMessage("Main stream ve Sub stream aynı anda kapatılamaz");
 
-        // 5 sn'nin altinda bir yoklama araligi, kameraya faydasiz yuk bindirir;
-        // 24 saatin ustunde ise "izleniyor" demek anlamsizlasir.
-        RuleFor(x => x.PingIntervalSec).InclusiveBetween(5, 86400).WithMessage("Yoklama aralığı 5 saniye ile 24 saat arasında olmalı");
+        // 5 sn'nin altinda bir yoklama araligi, kameraya faydasiz yuk bindirir
+        RuleFor(x => x.PingIntervalSec).InclusiveBetween(5, 86400).WithMessage("Yoklama aralığı 5 saniye ile 24 saat(86400sn) arasında olmalı");
 
         RuleFor(x => x.Username).MaximumLength(128).WithMessage("Kullanıcı adı en fazla 128 karakter olabilir");
-        RuleFor(x => x.Manufacturer).MaximumLength(64).WithMessage("Üretici en fazla 64 karakter olabilir");
+        RuleFor(x => x.Manufacturer).NotEmpty().MaximumLength(512).WithMessage("Üretici bilgisi girilmeli ve en fazla 512 karakter olabilir");
         RuleFor(x => x.Model).MaximumLength(64).WithMessage("Model en fazla 64 karakter olabilir");
         RuleFor(x => x.Description).MaximumLength(512).WithMessage("Açıklama en fazla 512 karakter olabilir");
     }

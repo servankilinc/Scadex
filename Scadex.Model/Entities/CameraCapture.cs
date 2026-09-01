@@ -16,7 +16,7 @@ public class CameraCapture : IEntity
     public int? DurationSec { get; set; }
 
     /// <summary> Dosyanın depo anahtarı <c>wwwroot</c> altında (örn: <c>uploads/captures/2026/08/27/{guid}.jpg</c>). </summary>
-    public string? StorageKey { get; set; }
+    public string? RelativePath { get; set; }
     public long? SizeBytes { get; set; }
     /// <summary> <see cref="CaptureStatus.Failed"/> ise sebep açıklaması </summary>
     public string? FailureReason { get; set; }

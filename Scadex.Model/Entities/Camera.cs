@@ -18,6 +18,7 @@ public class Camera : IEntity, IAuditableEntity, IActivatableEntity, IMonitoredA
     public string? Model { get; set; }
 
     #region Network
+    /// <summary>Monitoring ile ilgili alanlar (IpAddress hem monitoring için kullanılır hem de görüntü için)</summary>
     public string IpAddress { get; set; } = null!;
     /// <summary>Varsayılanı 554.</summary>
     public int RtspPort { get; set; }

@@ -18,7 +18,7 @@ public class CameraCaptureCreateDtoValidator : AbstractValidator<CameraCaptureCr
     {
         RuleFor(v => v.Type).IsInEnum().WithMessage("Geçersiz çekim tipi");
 
-        RuleFor(v => v.DurationSec).NotNull().WithMessage("Klip süresi girilmeli").When(v => v.Type == CaptureType.Clip);
+        RuleFor(v => v.DurationSec).NotNull().WithMessage("Klip süresi belirtilmelidir").When(v => v.Type == CaptureType.Clip);
 
         RuleFor(v => v.DurationSec!.Value)
             .InclusiveBetween(1, AbsoluteMaxClipSeconds)

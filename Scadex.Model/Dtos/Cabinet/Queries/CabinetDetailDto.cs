@@ -15,9 +15,15 @@ public class CabinetDetailDto : IDto
     public string? NetworkIp { get; set; }
     public int? DeviceStatusId { get; set; }
     public string? DeviceStatusName { get; set; }
+    
+    #region --- IAuditableEntity ---
     public string? CreatedBy { get; set; }
     public string? UpdatedBy { get; set; }
     public DateTime? CreateDateUtc { get; set; }
     public DateTime? UpdateDateUtc { get; set; }
-    public bool IsActive { get; set; }
+    #endregion
+    
+    #region --- IActivatableEntity ---
+    public bool IsActive { get; set; } 
+    #endregion
 }

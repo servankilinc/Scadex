@@ -1,8 +1,8 @@
 using Scadex.Core.Model;
 
-namespace Scadex.Model.Entities;
+namespace Scadex.Model.Dtos.ComponentTemplate.Queries;
 
-public class ComponentTemplate : IEntity, IAuditableEntity, IActivatableEntity
+public class ComponentTemplateDetailDto : IDto
 {
     public Guid Id { get; set; }
     public string Name { get; set; } = null!;
@@ -12,6 +12,7 @@ public class ComponentTemplate : IEntity, IAuditableEntity, IActivatableEntity
     public double Height { get; set; }
     public string BackgroundColor { get; set; } = null!;
     public string? BackgroundImageUrl { get; set; }
+    public string DeviceTypeName { get; set; } = null!;
 
     #region --- IAuditableEntity ---
     public string? CreatedBy { get; set; }
@@ -22,11 +23,5 @@ public class ComponentTemplate : IEntity, IAuditableEntity, IActivatableEntity
 
     #region --- IActivatableEntity ---
     public bool IsActive { get; set; }
-    #endregion
-
-    #region *** EF Core Navigation ***
-    public virtual DeviceType? DeviceType { get; set; }
-    public virtual ICollection<ComponentTemplatePin>? ComponentTemplatePins { get; set; }
-    public virtual ICollection<Device>? Devices { get; set; }
     #endregion
 }
