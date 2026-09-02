@@ -6,4 +6,8 @@
     <Nullable>enable</Nullable>
   </PropertyGroup>
 
+  <ItemGroup>
+    <ProjectReference Include="..\Scadex.DataAccess\Scadex.DataAccess.csproj" />
+  </ItemGroup>
+
 </Project>
