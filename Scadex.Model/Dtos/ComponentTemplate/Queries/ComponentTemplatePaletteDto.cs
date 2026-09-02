@@ -12,5 +12,7 @@ public class ComponentTemplatePaletteDto : IDto
     public double Height { get; set; }
     public string BackgroundColor { get; set; } = null!;
     public string? BackgroundImageUrl { get; set; }
-    public int PinCount { get; set; }
+
+    /// <summary> Bos olabilir: pano cercevesi gibi dekoratif bir sablonun pini olmayabilir, o zaman cihaz da pinsiz dogar. </summary>
+    public List<ComponentTemplatePalettePinDto> Pins { get; set; } = [];
 }
