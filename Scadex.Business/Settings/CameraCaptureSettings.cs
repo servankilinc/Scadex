@@ -1,4 +1,4 @@
-namespace CabinetOs.Business.Settings;
+namespace Scadex.Business.Settings;
 
 public class CameraCaptureSettings
 {

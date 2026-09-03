@@ -1,3 +1,4 @@
+using AutoMapper;
 using Scadex.Core.Utils.Pagination;
 using Scadex.DataAccess.Repository;
 using Scadex.Model.Dtos.ChannelEvent.Queries;
@@ -9,6 +10,7 @@ public interface IChannelEventRepository : IRepository<ChannelEvent>, IRepositor
 {
     /// <summary> Bir kabinin olaylari — yeniden eskiye, sayfali. </summary>
     Task<PaginationResponse<ChannelEventDto>> GetPagedAsync(
+        IConfigurationProvider configurationProvider,
         Guid cabinetId,
         Guid? ioChannelId,
         DateTime? fromUtc,

@@ -17,7 +17,7 @@ public class Role : IdentityRole<Guid>, IEntity, IAuditableEntity, IActivatableE
     #endregion
 
     #region --- IActivatableEntity ---
-    public bool IsActive { get; set; }
+    public bool IsActive { get; set; } = true;
     #endregion
 
     #region *** EF Core Navigation ***
