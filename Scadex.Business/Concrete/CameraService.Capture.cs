@@ -6,6 +6,7 @@ using Scadex.Model.Dtos.Camera.Queries;
 using Scadex.Model.Entities;
 using Microsoft.Extensions.Logging;
 using static Scadex.Model.Enums.EntityEnums;
+using Scadex.Core.Utils;
 
 
 namespace Scadex.Business.Concrete;
@@ -173,15 +174,13 @@ public partial class CameraService
         if (!validationResult.IsValid)
             return Result<CameraCaptureDto>.Validation(validationResult.Failures, description: "Validation failed for CameraCaptureCreateDto");
 
-        var camera = await _unitOfWork.Cameras.GetAsync(
-            where: c => c.Id == cameraId,
-            cancellationToken: cancellationToken);
+        var camera = await _unitOfWork.Cameras.GetAsync(where: c => c.Id == cameraId, cancellationToken: cancellationToken);
 
         if (camera == null)
             return Result<CameraCaptureDto>.NotFound(description: "Kamera bulunamadi");
 
         if (!camera.IsActive)
-            return StreamValidationProblem<CameraCaptureDto>("IsActive", "Pasif kameradan çekim yapılamaz.");
+            return Result<CameraCaptureDto>.Validation(new Dictionary<string, string[]> { ["IsActive"] = ["Pasif kameradan çekim yapılamaz."] });
 
         return request.Type == CaptureType.Clip
             ? await StartClipCaptureAsync(camera, request, cancellationToken)
@@ -189,28 +188,8 @@ public partial class CameraService
     }
 
 
-    /// <summary>
-    /// Kamera basina anlik goruntu kilidi — <b>STATIC OLMAK ZORUNDA</b>.
-    ///
-    /// <c>CameraService</c> scoped'dir: her HTTP istegi kendi ornegini alir.
-    /// Alan ornek duzeyinde olsaydi her istek KENDI kilidini yaratir ve
-    /// es zamanli 8 istek kameraya 8 istek gonderirdi — yani kilidin engellemek
-    /// icin var oldugu sey aynen gerceklesirdi. (Referans projedeki hata tam
-    /// olarak buydu: <c>SnapshotService</c> transient, sozluk ornek alani.)
-    /// </summary>
-    private static readonly ConcurrentDictionary<Guid, SemaphoreSlim> SnapshotLocks = new();
 
-    private const string SnapshotCacheKeyPrefix = "snapshot_";
-    private const string SnapshotTypeCacheKeyPrefix = "snapshot_ct_";
-
-
-    /// <summary>
-    /// Anlik goruntu cekimi — senkron.
-    ///
-    /// Onbellek BILEREK ATLANIYOR: delil, istegin geldigi ana ait olmali.
-    /// Uc saniyelik de olsa onbellekten bir kare yazmak, "olay anindaki goruntu"
-    /// iddiasini sessizce yanlislardi.
-    /// </summary>
+    /// <summary> Anlik goruntu cekimi — senkron. </summary>
     private async Task<Result<CameraCaptureDto>> CaptureSnapshotAsync(Camera camera, CancellationToken cancellationToken)
     {
         var capture = NewCapture(camera.Id, CaptureType.Snapshot, durationSec: null);
@@ -222,7 +201,7 @@ public partial class CameraService
             // BASARISIZ CEKIM DE SATIR BIRAKIR: "o anda goruntu YOK" bilgisinin
             // kendisi delildir (bkz. CameraCapture.FailureReason).
             capture.Status = CaptureStatus.Failed;
-            capture.FailureReason = Truncate(snapshotResult.Error.Description, 512);
+            capture.FailureReason = snapshotResult.Error.Description.Truncate(512);
         }
         else
         {
@@ -232,7 +211,7 @@ public partial class CameraService
             if (!storeResult.IsSuccess)
             {
                 capture.Status = CaptureStatus.Failed;
-                capture.FailureReason = Truncate(storeResult.Error.Description, 512);
+                capture.FailureReason = storeResult.Error.Description.Truncate(512);
             }
             else
             {
@@ -256,19 +235,12 @@ public partial class CameraService
     /// </summary>
     private async Task<Result<CameraCaptureDto>> StartClipCaptureAsync(Camera camera, CameraCaptureCreateDto request, CancellationToken cancellationToken)
     {
-        // Klip ana akimdan alinir; tali akimin cozunurlugu delil icin yetersiz.
-        if (!camera.MainStreamEnabled)
-            return StreamValidationProblem<CameraCaptureDto>("MainStreamEnabled", "Klip ana akımdan alınır; bu kamerada ana akım kapalı.");
-
         int duration = request.DurationSec!.Value;
         if (duration > _captureSettings.MaxClipDurationSec)
-            return StreamValidationProblem<CameraCaptureDto>(
-                "DurationSec",
-                $"Klip süresi en fazla {_captureSettings.MaxClipDurationSec} saniye olabilir.");
-
+            return Result<CameraCaptureDto>.Validation(new Dictionary<string, string[]> { ["DurationSec"] = [$"Klip süresi en fazla {_captureSettings.MaxClipDurationSec} saniye olabilir."] });
+     
         if (string.IsNullOrWhiteSpace(_mediaMtxSettings.RecordRoot))
-            return Result<CameraCaptureDto>.Failure(
-                description: "Klip çekimi yapılandırılmamış: Mediamtx:RecordRoot tanımlı değil.");
+            return Result<CameraCaptureDto>.Failure(description: "Klip çekimi yapılandırılmamış: Mediamtx:RecordRoot tanımlı değil.");
 
         var capture = NewCapture(camera.Id, CaptureType.Clip, duration);
         capture.Status = CaptureStatus.Pending;
@@ -305,7 +277,7 @@ public partial class CameraService
     private async Task FailCaptureAsync(CameraCapture capture, string? reason, CancellationToken cancellationToken)
     {
         capture.Status = CaptureStatus.Failed;
-        capture.FailureReason = Truncate(reason, 512);
+        capture.FailureReason = reason?.Truncate(512);
         capture.RelativePath = null;
         await _unitOfWork.SaveChangesAsync(cancellationToken);
     }

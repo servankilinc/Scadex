@@ -2,7 +2,7 @@ using CabinetOs.Core.Utils.ResultPattern;
 using CabinetOs.Model.Dtos.Diagram.Commands;
 using CabinetOs.Model.Dtos.Diagram.Queries;
 
-namespace CabinetOs.Business.Utils.Diagram;
+namespace Scadex.Business.Utils.Diagram;
 
 /// <summary>
 /// YALNIZCA diyagram grafi. Palet okuma/yazarligi <c>IComponentTemplateService</c>'te,

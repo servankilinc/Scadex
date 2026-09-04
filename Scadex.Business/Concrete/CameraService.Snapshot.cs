@@ -1,21 +1,34 @@
-﻿using Scadex.Business.Utils.SnapshotGateway;
+﻿using Microsoft.Extensions.Caching.Distributed;
+using Scadex.Business.Utils.SnapshotGateway;
 using Scadex.Core.Utils.ResultPattern;
-using Microsoft.Extensions.Caching.Distributed;
+using System.Collections.Concurrent;
 
 namespace Scadex.Business.Concrete;
 
 public partial class CameraService
 {
+    /// <summary>
+    /// Kamera basina anlik goruntu kilidi — <b>STATIC OLMAK ZORUNDA</b>.
+    /// <c>CameraService</c> scoped'dir: her HTTP istegi kendi instance alir. SnapshotLocks instance duzeyinde olsaydi her istek KENDI kilidini yaratir dı.
+    /// </summary>
+    private static readonly ConcurrentDictionary<Guid, SemaphoreSlim> SnapshotLocks = new();
+
+    private string SnapshotCacheKey(Guid cameraId) => "scadex_snapshot_" + cameraId;
+    private string SnapshotTypeCacheKey(Guid cameraId) => "scadex_snapshot_ct_" + cameraId;
+
+
+
     /// <inheritdoc/>
     public async Task<Result<SnapshotPayload>> GetSnapshotAsync(Guid cameraId, bool fresh = false, CancellationToken cancellationToken = default)
     {
-        string cacheKey = SnapshotCacheKeyPrefix + cameraId;
-        string typeCacheKey = SnapshotTypeCacheKeyPrefix + cameraId;
+        string cacheKey = SnapshotCacheKey(cameraId);
+        string typeCacheKey = SnapshotTypeCacheKey(cameraId);
 
         if (!fresh)
         {
             var cached = await ReadCachedSnapshotAsync(cacheKey, typeCacheKey, cancellationToken);
-            if (cached != null) return Result<SnapshotPayload>.Success(cached);
+            if (cached != null) 
+                return Result<SnapshotPayload>.Success(cached);
         }
 
         var camera = await _unitOfWork.Cameras.GetAsync(where: c => c.Id == cameraId, cancellationToken: cancellationToken);
@@ -57,7 +70,8 @@ public partial class CameraService
     private async Task<SnapshotPayload?> ReadCachedSnapshotAsync(string cacheKey, string typeCacheKey, CancellationToken cancellationToken)
     {
         byte[]? content = await _cache.GetAsync(cacheKey, cancellationToken);
-        if (content == null || content.Length == 0) return null;
+        if (content == null || content.Length == 0) 
+            return null;
 
         string contentType = await _cache.GetStringAsync(typeCacheKey, cancellationToken) ?? "image/jpeg";
         return new SnapshotPayload(content, contentType);

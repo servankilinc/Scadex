@@ -149,6 +149,11 @@ public static class GlobalExtensions
 
 
     #region String Extensions
+    public static string? Truncate(this string? value, int max)
+    {
+        return value == null || value.Length <= max ? value : value[..max];
+    }
+
     public static string ToSeoFriendly(this string text)
     {
         if (string.IsNullOrWhiteSpace(text))

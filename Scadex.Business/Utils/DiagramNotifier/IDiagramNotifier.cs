@@ -1,6 +1,6 @@
 using CabinetOs.Model.Dtos.Realtime.Queries;
 
-namespace CabinetOs.Business.Utils.DiagramNotifier;
+namespace Scadex.Business.Utils.DiagramNotifier;
 
 public interface IDiagramNotifier
 {

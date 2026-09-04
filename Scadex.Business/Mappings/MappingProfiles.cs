@@ -2,6 +2,7 @@
 using Scadex.Model.Auth.SignUp;
 using Scadex.Model.Dtos.Cabinet.Commands;
 using Scadex.Model.Dtos.Cabinet.Queries;
+using Scadex.Model.Dtos.Camera.Commands;
 using Scadex.Model.Dtos.Camera.Queries;
 using Scadex.Model.Dtos.CanvasSettings.Commands;
 using Scadex.Model.Dtos.CanvasSettings.Queries;
@@ -636,6 +637,80 @@ public class MappingProfiles : Profile
             .ForMember(dest => dest.FailureReason, opt => opt.MapFrom(src => src.FailureReason))
             .ForMember(dest => dest.ExpiresAt, opt => opt.MapFrom(src => src.ExpiresAt))
             .ForMember(dest => dest.RequestedByUserId, opt => opt.MapFrom(src => src.RequestedByUserId));
+        #endregion
+
+        #region Camera
+        CreateMap<Camera, CameraDto>()
+            .ForMember(dest => dest.Id, opt => opt.MapFrom(src => src.Id))
+            .ForMember(dest => dest.CabinetId, opt => opt.MapFrom(src => src.CabinetId))
+            .ForMember(dest => dest.CabinetName, opt => opt.MapFrom(src => src.Cabinet != null ? src.Cabinet.Name : ""))
+            .ForMember(dest => dest.Name, opt => opt.MapFrom(src => src.Name))
+            .ForMember(dest => dest.Description, opt => opt.MapFrom(src => src.Description))
+            .ForMember(dest => dest.Manufacturer, opt => opt.MapFrom(src => src.Manufacturer))
+            .ForMember(dest => dest.Model, opt => opt.MapFrom(src => src.Model))
+            .ForMember(dest => dest.IpAddress, opt => opt.MapFrom(src => src.IpAddress))
+            .ForMember(dest => dest.RtspPort, opt => opt.MapFrom(src => src.RtspPort))
+            .ForMember(dest => dest.HttpPort, opt => opt.MapFrom(src => src.HttpPort))
+            .ForMember(dest => dest.HttpsPort, opt => opt.MapFrom(src => src.HttpsPort))
+            .ForMember(dest => dest.Username, opt => opt.MapFrom(src => src.Username))
+            .ForMember(dest => dest.Password, opt => opt.MapFrom(src => src.Password))
+            .ForMember(dest => dest.MainStreamChannel, opt => opt.MapFrom(src => src.MainStreamChannel))
+            .ForMember(dest => dest.SubStreamChannel, opt => opt.MapFrom(src => src.SubStreamChannel))
+            .ForMember(dest => dest.MainStreamEnabled, opt => opt.MapFrom(src => src.MainStreamEnabled))
+            .ForMember(dest => dest.SubStreamEnabled, opt => opt.MapFrom(src => src.SubStreamEnabled))
+            .ForMember(dest => dest.SnapshotChannel, opt => opt.MapFrom(src => src.SnapshotChannel))
+            .ForMember(dest => dest.MonitoringPort, opt => opt.MapFrom(src => src.MonitoringPort))
+            .ForMember(dest => dest.DeviceStatusId, opt => opt.MapFrom(src => src.DeviceStatusId))
+            .ForMember(dest => dest.DeviceStatusName, opt => opt.MapFrom(src => src.DeviceStatus != null ? src.DeviceStatus.Name : null))
+            .ForMember(dest => dest.LastSeen, opt => opt.MapFrom(src => src.LastSeen))
+            .ForMember(dest => dest.PingIntervalSec, opt => opt.MapFrom(src => src.PingIntervalSec))
+            .ForMember(dest => dest.IsMonitoringEnabled, opt => opt.MapFrom(src => src.IsMonitoringEnabled))
+            .ForMember(dest => dest.LastConnectionError, opt => opt.MapFrom(src => src.LastConnectionError))
+            .ForMember(dest => dest.IsActive, opt => opt.MapFrom(src => src.IsActive))
+            .ForMember(dest => dest.CreateDateUtc, opt => opt.MapFrom(src => src.CreateDateUtc))
+            .ForMember(dest => dest.UpdateDateUtc, opt => opt.MapFrom(src => src.UpdateDateUtc));
+
+        CreateMap<CameraCreateDto, Camera>()
+            .ForMember(dest => dest.CabinetId, opt => opt.MapFrom(src => src.CabinetId))
+            .ForMember(dest => dest.Name, opt => opt.MapFrom(src => src.Name))
+            .ForMember(dest => dest.Description, opt => opt.MapFrom(src => src.Description))
+            .ForMember(dest => dest.Manufacturer, opt => opt.MapFrom(src => src.Manufacturer))
+            .ForMember(dest => dest.Model, opt => opt.MapFrom(src => src.Model))
+            .ForMember(dest => dest.IpAddress, opt => opt.MapFrom(src => src.IpAddress))
+            .ForMember(dest => dest.RtspPort, opt => opt.MapFrom(src => src.RtspPort))
+            .ForMember(dest => dest.HttpPort, opt => opt.MapFrom(src => src.HttpPort))
+            .ForMember(dest => dest.HttpsPort, opt => opt.MapFrom(src => src.HttpsPort))
+            .ForMember(dest => dest.Username, opt => opt.MapFrom(src => src.Username))
+            .ForMember(dest => dest.Password, opt => opt.MapFrom(src => src.Password))
+            .ForMember(dest => dest.MainStreamChannel, opt => opt.MapFrom(src => src.MainStreamChannel))
+            .ForMember(dest => dest.SubStreamChannel, opt => opt.MapFrom(src => src.SubStreamChannel))
+            .ForMember(dest => dest.MainStreamEnabled, opt => opt.MapFrom(src => src.MainStreamEnabled))
+            .ForMember(dest => dest.SubStreamEnabled, opt => opt.MapFrom(src => src.SubStreamEnabled))
+            .ForMember(dest => dest.SnapshotChannel, opt => opt.MapFrom(src => src.SnapshotChannel))
+            .ForMember(dest => dest.MonitoringPort, opt => opt.MapFrom(src => src.MonitoringPort ?? src.RtspPort)) // monitoring port null ise rtsp portu kullan
+            .ForMember(dest => dest.PingIntervalSec, opt => opt.MapFrom(src => src.PingIntervalSec))
+            .ForMember(dest => dest.IsMonitoringEnabled, opt => opt.MapFrom(src => src.IsMonitoringEnabled));
+
+        CreateMap<CameraUpdateDto, Camera>()
+            .ForMember(dest => dest.Name, opt => opt.MapFrom(src => src.Name))
+            .ForMember(dest => dest.Description, opt => opt.MapFrom(src => src.Description))
+            .ForMember(dest => dest.Manufacturer, opt => opt.MapFrom(src => src.Manufacturer))
+            .ForMember(dest => dest.Model, opt => opt.MapFrom(src => src.Model))
+            .ForMember(dest => dest.IpAddress, opt => opt.MapFrom(src => src.IpAddress))
+            .ForMember(dest => dest.RtspPort, opt => opt.MapFrom(src => src.RtspPort))
+            .ForMember(dest => dest.HttpPort, opt => opt.MapFrom(src => src.HttpPort))
+            .ForMember(dest => dest.HttpsPort, opt => opt.MapFrom(src => src.HttpsPort))
+            .ForMember(dest => dest.Username, opt => opt.MapFrom(src => src.Username))
+            .ForMember(dest => dest.Password, opt => opt.Ignore()) // şifre özel iş kuralı ile mapleniyor, null ise dokunmaz, boş veya dolu ise günceller
+            .ForMember(dest => dest.MainStreamChannel, opt => opt.MapFrom(src => src.MainStreamChannel))
+            .ForMember(dest => dest.SubStreamChannel, opt => opt.MapFrom(src => src.SubStreamChannel))
+            .ForMember(dest => dest.MainStreamEnabled, opt => opt.MapFrom(src => src.MainStreamEnabled))
+            .ForMember(dest => dest.SubStreamEnabled, opt => opt.MapFrom(src => src.SubStreamEnabled))
+            .ForMember(dest => dest.SnapshotChannel, opt => opt.MapFrom(src => src.SnapshotChannel))
+            .ForMember(dest => dest.MonitoringPort, opt => opt.MapFrom(src => src.MonitoringPort ?? src.RtspPort)) // monitoring port null ise rtsp portu kullan
+            .ForMember(dest => dest.PingIntervalSec, opt => opt.MapFrom(src => src.PingIntervalSec))
+            .ForMember(dest => dest.IsMonitoringEnabled, opt => opt.MapFrom(src => src.IsMonitoringEnabled))
+            .ForMember(dest => dest.IsActive, opt => opt.MapFrom(src => src.IsActive));
         #endregion
     }
 }

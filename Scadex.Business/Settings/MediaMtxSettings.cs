@@ -4,11 +4,12 @@ public class MediaMtxSettings
 {
     public const string SectionName = "Mediamtx";
 
+    public int ApiTimeoutMs { get; set; } = 30000;
     public string ApiBaseUrl { get; set; } = "http://127.0.0.1:9997";
     public string WebRtcPublicBaseUrl { get; set; } = "http://127.0.0.1:8889";
 
-    /// <summary> Biletin omru (saniye). Kisa tutuluyor: bilet yalnizca el sikisma aninda kullanilir. </summary>
-    public int TicketTtlSeconds { get; set; } = 60;
+    /// <summary> Tokenin omru (saniye). Kisa tutuluyor: token yalnizca el sikisma aninda kullanilir. </summary>
+    public int TokenTtlSeconds { get; set; } = 60;
 
     /// <summary> 
     /// Son izleyici ilgili path'den ayrildiktan sonra MediaMTX'in kameraya olan RTSP oturumunu kapatmadan once bekledigi sure. Sekme yenilemede oturumun bastan kurulmasini engeller. 

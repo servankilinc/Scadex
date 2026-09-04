@@ -1,3 +1,4 @@
+using Scadex.Core.Utils;
 using Scadex.Core.Utils.ResultPattern;
 using Scadex.Model.Dtos.Camera.Commands;
 using DeviceStatusEnum = Scadex.Model.Enums.EntityEnums.DeviceStatus;
@@ -6,6 +7,7 @@ namespace Scadex.Business.Concrete;
 
 public partial class CameraService
 {
+    /// <inheritdoc/>
     public async Task<Result> RecordProbeResultAsync(Guid cameraId, CameraProbeResultDto result, CancellationToken cancellationToken = default)
     {
         var validationResult = await _validationService.ValidateAsync(result, cancellationToken);
@@ -18,7 +20,7 @@ public partial class CameraService
             return Result.NotFound(description: "Kamera bulunamadi");
 
         var nextStatus = result.Reachable ? (int)DeviceStatusEnum.Online : (int)DeviceStatusEnum.Offline;
-        var nextError = result.Reachable ? null : Truncate(result.Error, 512);
+        var nextError = result.Reachable ? null : result.Error?.Truncate(512);
 
         bool statusChanged = camera.DeviceStatusId != nextStatus;
         bool errorChanged = camera.LastConnectionError != nextError;
@@ -32,7 +34,7 @@ public partial class CameraService
         camera.DeviceStatusId = nextStatus;
         camera.LastConnectionError = nextError;
 
-        await _unitOfWork.SaveChangesAsync(cancellationToken);
+        await _unitOfWork.Cameras.UpdateAndSaveAsync(camera, cancellationToken);
         return Result.Success();
     }
 }

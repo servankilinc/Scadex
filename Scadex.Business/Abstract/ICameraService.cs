@@ -29,8 +29,7 @@ public interface ICameraService
 
     #region Snapshot
     /// <summary> Hiçbir yere kaydedilmeden anlik goruntu(test ve light önzileme için), kisa omurlu onbellek'de tutulur. </summary>
-    /// <param name="fresh"> <c>true</c> ise onbellek atlanir. Tekrar görüntü alınır.
-    /// </param>
+    /// <param name="fresh"> <c>true</c> ise onbellek atlanir. Tekrar görüntü alınır. NOT: eğer capture alınacaksa güncel görüntü alınmalıdır. </param>
     Task<Result<SnapshotPayload>> GetSnapshotAsync(Guid cameraId, bool fresh = false, CancellationToken cancellationToken = default);
     #endregion
 

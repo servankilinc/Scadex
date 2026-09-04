@@ -1,37 +1,25 @@
+using Microsoft.Extensions.Logging;
+using Scadex.Business.Settings;
+using Scadex.Business.Utils.CameraProtocolProfile.Resolver;
+using Scadex.Core.Utils;
+using Scadex.Core.Utils.ResultPattern;
+using Scadex.Model.Entities;
 using System.Collections.Concurrent;
 using System.Net;
 using System.Net.Http.Headers;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.RegularExpressions;
-using CabinetOs.Business.Settings;
-using CabinetOs.Business.Utils.CameraProtocolProfile;
-using CabinetOs.Core.Utils.ResultPattern;
-using CabinetOs.Model.Entities;
-using Microsoft.Extensions.Logging;
 
-namespace CabinetOs.Business.Utils.SnapshotGateway;
+namespace Scadex.Business.Utils.SnapshotGateway;
 
-/// <summary>
-/// <see cref="ISnapshotGateway"/>'in ISAPI implementasyonu.
-///
-/// Kamera Digest ister ve <c>HttpClientHandler.Credentials</c> KULLANILAMAZ
-/// (bkz. arayuzdeki gerekce: kimlik handler'a baglanir, handler havuzda
-/// paylasilir). Bu yuzden imza elle uretiliyor.
-/// </summary>
 public class IsapiSnapshotGateway : ISnapshotGateway
 {
-    /// <summary>
-    /// Named client. <c>Program.cs</c>'te sonsuz timeout ile kayitli; zaman
-    /// asimini bu sinif kendi CTS'iyle uyguluyor.
-    /// </summary>
     public const string HttpClientName = "camera-snapshot";
 
     /// <summary>
-    /// Kamera basina son gorulen challenge ve nonce sayaci.
-    ///
-    /// Challenge onbellege alinmasaydi HER anlik goruntu iki gidis-gelis olurdu
-    /// (401 al, imzala, tekrar gonder). Onbellekle normal durum tek istektir.
+    /// Kamera basina son gorulen challenge ve nonce bilgilerini onbellekte tutar. Her kamera icin tek challenge ve nonce sayaci vardir.
+    /// Challenge onbellege alinmasaydi HER anlik goruntu iki gidis-gelis olurdu (401 al, imzala, tekrar gonder). Onbellekle normal durum tek istektir.
     /// </summary>
     private readonly ConcurrentDictionary<Guid, CachedChallenge> _challengeCache = new();
 
@@ -52,22 +40,17 @@ public class IsapiSnapshotGateway : ISnapshotGateway
         _logger = logger;
     }
 
+
     public async Task<Result<SnapshotPayload>> GetSnapshotAsync(Camera camera, CancellationToken cancellationToken = default)
     {
         if (string.IsNullOrEmpty(camera.Username) || string.IsNullOrEmpty(camera.Password))
-            return CredentialProblem("Kameranın kullanıcı adı ve parolası tanımlı değil.");
+            return Result<SnapshotPayload>.Validation(new Dictionary<string, string[]> { ["Password"] = ["Kameranın kullanıcı adı ve parolası tanımlı değil"] }, description: "ISAPI kimlik doğrulaması için kullanıcı adı ve parola gerekiyor.");        
 
-        string path = _profileResolver.Resolve(camera).BuildSnapshotPath(camera);
+        string snapshotPath = _profileResolver.Resolve(camera).BuildSnapshotPath(camera);
 
-        // HTTPS BILEREK KULLANILMIYOR: HttpsPort kolonu dursa da kameralarin
-        // sertifikasi kendinden imzalidir ve dogrulamayi kapatmak, TLS'in
-        // sagladigi tek seyi ortadan kaldirirdi. Kapali ag varsayimi geregi
-        // duz HTTP kullaniliyor.
-        string url = $"http://{camera.IpAddress}:{camera.HttpPort}{path}";
+        string url = $"http://{camera.IpAddress}:{camera.HttpPort}{snapshotPath}";
 
-        // Zaman asimi CTS ile: HttpClient.Timeout da TaskCanceledException
-        // firlatir ve "kamera yavas" ile "istek iptal edildi" ayni istisnaya
-        // duserdi (ScadaCommandGateway ile ayni gerekce).
+        // NOT: Zaman asimi ile HttpClient.Timeout da TaskCanceledException firlatir ve "kamera yavas" ile "istek iptal edildi" ayni istisnaya duserdi
         using var timeoutSource = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         timeoutSource.CancelAfter(TimeSpan.FromMilliseconds(_settings.SnapshotTimeoutMs));
 
@@ -75,14 +58,13 @@ public class IsapiSnapshotGateway : ISnapshotGateway
 
         try
         {
-            using var response = await SendWithAuthAsync(client, camera, url, path, timeoutSource.Token);
+            using var response = await SendWithAuthAsync(client, camera, url, snapshotPath, timeoutSource.Token);
 
             if (response.StatusCode == HttpStatusCode.Unauthorized)
             {
-                // Onbellekteki challenge artik gecersiz; bir sonraki istek
-                // yeniden pazarlik etsin.
+                // Onbellekteki challenge artik gecersiz; bir sonraki istek yeniden senkronize etsin.
                 _challengeCache.TryRemove(camera.Id, out _);
-                return CredentialProblem("Kamera kimlik doğrulamayı reddetti. Kullanıcı adı veya parola yanlış.");
+                return Result<SnapshotPayload>.Validation(new Dictionary<string, string[]> { ["Password"] = ["Kamera kimlik doğrulamayı reddetti. Kullanıcı adı veya parola yanlış."] }, description: "ISAPI kimlik doğrulaması başarısız oldu.");
             }
 
             if (!response.IsSuccessStatusCode)
@@ -97,14 +79,11 @@ public class IsapiSnapshotGateway : ISnapshotGateway
         }
         catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
         {
-            // Cagiranin token'i iptal edilmedi => buraya yalnizca KENDI zaman
-            // asimimiz dusebilir.
-            return Result<SnapshotPayload>.Failure(
-                description: $"Kamera {_settings.SnapshotTimeoutMs / 1000.0:0.#} sn içinde yanıt vermedi.");
+            return Result<SnapshotPayload>.Failure(description: $"Kamera {_settings.SnapshotTimeoutMs / 1000.0:0.#} sn içinde yanıt vermedi.");
         }
         catch (HttpRequestException exception)
         {
-            return Result<SnapshotPayload>.Failure(description: $"Kameraya ulaşılamadı: {Truncate(exception.Message)}");
+            return Result<SnapshotPayload>.Failure(description: $"Kameraya ulaşılamadı: {exception.Message.Truncate(256)}");
         }
         catch (Exception exception) when (exception is not OperationCanceledException)
         {
@@ -114,11 +93,9 @@ public class IsapiSnapshotGateway : ISnapshotGateway
     }
 
     /// <summary>
-    /// Onbellekteki challenge ile dener; 401 gelirse yeni challenge'i alip
-    /// BIR KEZ tekrar dener. Ikinci 401 gercek bir kimlik hatasidir.
+    /// Onbellekteki challenge ile dener; 401 gelirse yeni challenge'i alip BIR KEZ tekrar dener. Ikinci 401 gercek bir kimlik hatasidir.
     /// </summary>
-    private async Task<HttpResponseMessage> SendWithAuthAsync(
-        HttpClient client, Camera camera, string url, string path, CancellationToken cancellationToken)
+    private async Task<HttpResponseMessage> SendWithAuthAsync(HttpClient client, Camera camera, string url, string path, CancellationToken cancellationToken)
     {
         using (var firstRequest = new HttpRequestMessage(HttpMethod.Get, url))
         {
@@ -200,10 +177,7 @@ public class IsapiSnapshotGateway : ISnapshotGateway
         return new AuthenticationHeaderValue("Digest", builder.ToString());
     }
 
-    /// <summary>
-    /// MD5 — Digest'in tanimi geregi. Genel amacli bir ozet secimi DEGILDIR;
-    /// protokol baska bir algoritmaya izin vermiyor.
-    /// </summary>
+    /// <summary> Protokol baska bir algoritmaya izin vermiyor. </summary>
     private static string Md5(string input) =>
         Convert.ToHexString(MD5.HashData(Encoding.UTF8.GetBytes(input))).ToLowerInvariant();
 
@@ -216,17 +190,6 @@ public class IsapiSnapshotGateway : ISnapshotGateway
         return bare.Success ? bare.Groups[1].Value : null;
     }
 
-    private static string Truncate(string text) => text.Length <= 256 ? text : text[..256];
-
-    /// <summary>
-    /// Kimlik bilgisi sorunlari 400 doner, 500 DEGIL: hata bizde degil kameranin
-    /// tanimindadir ve duzeltmesi kullanicinin elindedir. Sozluk anahtari
-    /// <c>Camera</c> alan adlariyla ayni — sozlesme geregi PascalCase.
-    /// </summary>
-    private static Result<SnapshotPayload> CredentialProblem(string message) =>
-        Result<SnapshotPayload>.Validation(
-            new Dictionary<string, string[]> { ["Password"] = [message] },
-            description: message);
 
     /// <summary>Bir kameranin challenge'i ve o challenge icin nonce sayaci.</summary>
     private sealed class CachedChallenge(string challenge)

@@ -4,7 +4,7 @@ using CabinetOs.Core.Utils;
 using CabinetOs.Model.Dtos.Scada.Commands;
 using static CabinetOs.Model.Enums.EntityEnums;
 
-namespace CabinetOs.Business.Utils.ScadaCommandGateway;
+namespace Scadex.Business.Utils.ScadaCommandGateway;
 
 /// <summary>
 /// <see cref="IScadaCommandGateway"/>'in HTTP implementasyonu — kumandanin

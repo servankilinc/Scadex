@@ -1,6 +1,6 @@
 using CabinetOs.Core.Utils.ResultPattern;
 
-namespace CabinetOs.Business.Utils.CaptureFileStore;
+namespace Scadex.Business.Utils.CaptureFileStore;
 
 /// <summary>Diske yazilan cekimin sonucu.</summary>
 /// <param name="RelativePath">

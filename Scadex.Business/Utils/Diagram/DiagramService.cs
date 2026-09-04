@@ -1,6 +1,5 @@
 using AutoMapper;
 using CabinetOs.Business.Utils;
-using CabinetOs.Business.Utils.Diagram;
 using CabinetOs.Core.Utils.ResultPattern;
 using CabinetOs.Core.Utils.Validation;
 using CabinetOs.DataAccess.UoW;
@@ -8,7 +7,7 @@ using CabinetOs.Model.Dtos.Diagram.Queries;
 using CabinetOs.Model.Dtos.Diagram.Queries.Items;
 using static CabinetOs.Model.Enums.EntityEnums;
 
-namespace CabinetOs.Business.Concrete;
+namespace Scadex.Business.Utils.Diagram;
 
 public partial class DiagramService : IDiagramService
 {
