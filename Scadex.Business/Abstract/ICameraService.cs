@@ -37,10 +37,13 @@ public interface ICameraService
     /// <summary> Kameranin son cekimleri, yeniden eskiye. </summary>
     Task<Result<ICollection<CameraCaptureDto>>> GetCapturesAsync(Guid cameraId, int take = 20, CancellationToken cancellationToken = default);
 
-    /// <summary> Anlik görüntü veya video kaydı, senkron tamamlanir; <c>Pending</c> doner ve arka planda surer. </summary>
+    /// <summary> Anlik görüntü veya video kaydı, senkron tamamlanir; <c>Pending</c> döner ve arka planda devam eder diske yazar. </summary>
     Task<Result<CameraCaptureDto>> CreateCaptureAsync(Guid cameraId, CameraCaptureCreateDto request, CancellationToken cancellationToken = default);
 
-    /// <summary> Kuyruga alinmis bir klip cekimini yurutur. Yalnizca <c>ClipCaptureWorker</c> cagirir; HTTP yolundan erisilmez. </summary>
-    Task RunClipCaptureAsync(long captureId, CancellationToken cancellationToken = default); 
+    /// <summary> 
+    /// Kuyruga alinmis bir klip cekimini yurutur. Yalnizca <c>ClipCaptureWorker</c> cagirir; HTTP yolundan erisilmez. 
+    /// Akis: gecici bir KAYIT YOLU kur → sure kadar bekle → yolu sil (segment boylece kapanir) → uretilen dosyayi kalici konuma tasi.
+    /// </summary>
+    Task RunClipCaptureAsync(long captureId, CancellationToken cancellationToken = default);
     #endregion
 }

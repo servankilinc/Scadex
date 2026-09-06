@@ -17,7 +17,6 @@ public partial class CameraService
     private string SnapshotTypeCacheKey(Guid cameraId) => "scadex_snapshot_ct_" + cameraId;
 
 
-
     /// <inheritdoc/>
     public async Task<Result<SnapshotPayload>> GetSnapshotAsync(Guid cameraId, bool fresh = false, CancellationToken cancellationToken = default)
     {
@@ -66,6 +65,7 @@ public partial class CameraService
             gate.Release();
         }
     }
+
 
     private async Task<SnapshotPayload?> ReadCachedSnapshotAsync(string cacheKey, string typeCacheKey, CancellationToken cancellationToken)
     {

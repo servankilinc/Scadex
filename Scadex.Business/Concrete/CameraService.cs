@@ -9,6 +9,7 @@ using Scadex.Business.Utils.ClipCaptureQueue;
 using Scadex.Business.Utils.MediaGateway;
 using Scadex.Business.Utils.SnapshotGateway;
 using Scadex.Core.Utils.HttpContextManager;
+using Scadex.Core.Utils.Logging;
 using Scadex.Core.Utils.ResultPattern;
 using Scadex.Core.Utils.Validation;
 using Scadex.DataAccess.UoW;
@@ -33,7 +34,7 @@ public partial class CameraService : ICameraService
     private readonly MediaMtxSettings _mediaMtxSettings;
     private readonly CameraCaptureSettings _captureSettings;
     private readonly IHttpContextManager _httpContextManager;
-    private readonly ILogger<CameraService> _logger;
+    private readonly ILoggingService _logger;
     private readonly IMapper _mapper;
 
     public CameraService(
@@ -47,7 +48,7 @@ public partial class CameraService : ICameraService
         MediaMtxSettings mediaMtxSettings,
         CameraCaptureSettings captureSettings,
         IHttpContextManager httpContextManager,
-        ILogger<CameraService> logger,
+        ILoggingService logger,
         IMapper mapper)
     {
         _unitOfWork = unitOfWork;
@@ -168,7 +169,7 @@ public partial class CameraService : ICameraService
                 var result = await _mediaGateway.DeletePathAsync(pathName, cancellationToken);
 
                 if (!result.IsSuccess)
-                    _logger.LogWarning("Kamera {CameraId} icin güncelleme sonrası {Profile} yolu medya gecidinden silinemedi: {Reason}", camera.Id, profile, result.Error.Description);
+                    _logger.LogWarning($"Kamera {camera.Id} icin güncelleme sonrası {profile} yolu medya gecidinden silinemedi: {result.Error.Description}");
             }
         }
 

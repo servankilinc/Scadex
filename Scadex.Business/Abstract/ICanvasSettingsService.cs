@@ -20,6 +20,6 @@ public interface ICanvasSettingsService
     Task<Result<ICollection<CanvasSettings>>> GetListAsync(DynamicRequest? request = default, CancellationToken cancellationToken = default);
     Task<Result<ICollection<CanvasSettingsDto>>> GetBaseListAsync(DynamicRequest? request = default, CancellationToken cancellationToken = default);
 
-    /// <summary>  Bir kabinin canvas tercihlerini yazar; kayit yoksa olusturur (upsert). </summary>
+    /// <summary> Bir kabinin canvas tercihlerini(ayarlarını) yazar; kayit yoksa olusturur (upsert). </summary>
     Task<Result<DiagramCanvasSettingsDto>> UpsertAsync(Guid cabinetId, CanvasSettingsUpsertDto request, CancellationToken cancellationToken = default);
 }
