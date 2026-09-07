@@ -1,4 +1,8 @@
 using Scadex.Core.Model;
+using Scadex.Core.Utils;
+using Scadex.Model.Dtos.DeviceCommand.Queries;
+using Scadex.Model.Dtos.Scada.Commands;
+using System.Text.Json;
 using static Scadex.Model.Enums.EntityEnums;
 
 namespace Scadex.Model.Entities;
@@ -34,4 +38,36 @@ public class DeviceCommand : IEntity, ISoftDeletableEntity, IAuditableEntity
     public virtual IoChannel? IoChannel { get; set; }
     public virtual User? RequesterUser { get; set; }
     #endregion
+
+
+    public DeviceCommandResultDto ToResultDto(int? channelNumber, string? requestedByName)
+    {
+        ScadaCommandPayload? payload = null;
+        try
+        {
+            payload = string.IsNullOrWhiteSpace(this.PayloadJson) ? null :
+                JsonSerializer.Deserialize<ScadaCommandPayload>(this.PayloadJson, ProjectJsonOptions.SerializerOptions);
+        }
+        finally { }
+
+        return new DeviceCommandResultDto
+        {
+            Id = this.Id,
+            DeviceId = this.DeviceId,
+            IoChannelId = this.IoChannelId,
+            ChannelNumber = channelNumber,
+            CommandType = this.CommandType,
+            PayloadJson = this.PayloadJson,
+            SentValue = payload?.Value,
+            ResolvedPolarity = payload?.Polarity,
+            Status = this.Status,
+            ResultMessage = this.ResultMessage,
+            SentAt = this.SentAt,
+            RespondedAt = this.RespondedAt,
+            ElapsedMs =
+                (this.SentAt is not DateTime sent || this.RespondedAt is not DateTime responded) ? 0 : (int)Math.Max(0, (responded - sent).TotalMilliseconds),
+            RequestedByUserId = this.RequestedByUserId,
+            RequestedByName = requestedByName
+        };
+    }
 }

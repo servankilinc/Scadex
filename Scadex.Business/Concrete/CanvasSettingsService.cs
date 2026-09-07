@@ -84,16 +84,12 @@ public class CanvasSettingsService : ICanvasSettingsService
         if (!validationResult.IsValid)
             return Result<DiagramCanvasSettingsDto>.Validation(validationResult.Failures, description: "Validation failed for CanvasSettingsUpsertDto");
 
-        var cabinetExists = await _unitOfWork.Cabinets.IsExistAsync(
-            where: c => c.Id == cabinetId && c.IsActive,
-            cancellationToken: cancellationToken);
+        var cabinetExists = await _unitOfWork.Cabinets.IsExistAsync(where: c => c.Id == cabinetId && c.IsActive, cancellationToken: cancellationToken);
 
         if (!cabinetExists)
             return Result<DiagramCanvasSettingsDto>.NotFound(description: "Kabin bulunamadi veya pasif durumda");
 
-        var existing = await _unitOfWork.CanvasSettings.GetAsync(
-            where: s => s.CabinetId == cabinetId,
-            cancellationToken: cancellationToken);
+        var existing = await _unitOfWork.CanvasSettings.GetAsync(where: s => s.CabinetId == cabinetId, cancellationToken: cancellationToken);
 
         if (existing == null)
         {

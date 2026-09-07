@@ -1,13 +1,14 @@
 using AutoMapper;
-using CabinetOs.Business.Utils;
-using CabinetOs.Core.Utils.ResultPattern;
-using CabinetOs.Core.Utils.Validation;
-using CabinetOs.DataAccess.UoW;
-using CabinetOs.Model.Dtos.Diagram.Queries;
-using CabinetOs.Model.Dtos.Diagram.Queries.Items;
-using static CabinetOs.Model.Enums.EntityEnums;
+using Scadex.Business.Utils;
+using Scadex.Core.Utils.ResultPattern;
+using Scadex.Core.Utils.Validation;
+using Scadex.DataAccess.UoW;
+using Scadex.Model.Dtos.Diagram.Queries;
+using Scadex.Model.Dtos.Diagram.Queries.Items;
+using Scadex.Business.Abstract;
+using static Scadex.Model.Enums.EntityEnums;
 
-namespace Scadex.Business.Utils.Diagram;
+namespace Scadex.Business.Concrete;
 
 public partial class DiagramService : IDiagramService
 {
@@ -27,22 +28,18 @@ public partial class DiagramService : IDiagramService
         var cabinet = await _unitOfWork.Cabinets.GetAsync<DiagramCabinetDto>(
             configurationProvider: _mapper.ConfigurationProvider,
             where: c => c.Id == cabinetId && c.IsActive,
-            cancellationToken: cancellationToken);
-
+            cancellationToken: cancellationToken
+        );
         if (cabinet == null)
             return Result<DiagramDto>.NotFound(description: "Kabin bulunamadi veya pasif durumda");
 
-        // Sablon ozeti cihazla birlikte tasinir (sablon pasife alinsa bile kabin
-        // dogru boyut ve renkle render olmali); Pin ve IoChannel ISoftDeletableEntity
-        // oldugu icin silinmis satirlari global query filter zaten eliyor.
         var devices = await _unitOfWork.Devices.GetAllAsync<DiagramDeviceDto>(
             configurationProvider: _mapper.ConfigurationProvider,
             where: d => d.CabinetId == cabinetId && d.IsActive,
             orderBy: q => q.OrderBy(d => d.ZIndex).ThenBy(d => d.Name),
-            cancellationToken: cancellationToken);
+            cancellationToken: cancellationToken
+        );
 
-        // Kablolar: WaypointsJson bellek icinde ayristirilir (JSON okuma SQL'e
-        // cevrilemez), bu yuzden once ara bir satir sekline projekte edilir.
         var connectionRows = await _unitOfWork.Connections.GetAllAsync(
             select: c => new ConnectionRow(
                 c.Id,
@@ -58,7 +55,8 @@ public partial class DiagramService : IDiagramService
                 c.StrokeWidth,
                 c.Routing,
                 c.WaypointsJson,
-                c.ZIndex),
+                c.ZIndex
+            ),
             // Savunmaci eleme. Iki ayri bozulma yolu var ve ikisi de React Flow'da
             // "var olmayan node'a bagli edge" hatasi uretir:
             //   1) Pin soft-delete edilmis  -> query filter pini gizler ama kablo ayakta kalir,

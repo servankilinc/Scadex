@@ -1,5 +1,6 @@
 using Scadex.Core.Model;
 using Scadex.Model.Enums;
+using static Scadex.Model.Enums.EntityEnums;
 
 namespace Scadex.Model.Dtos.Scada.Commands;
 
@@ -28,3 +29,18 @@ public class ScadaCommandEnvelope : IDto
     /// <summary>Komutun SUNUCUDA olustugu an.</summary>
     public DateTime IssuedAtUtc { get; set; }
 }
+
+#region RESULT AND DATA MODELS
+
+/// <summary> SCADA komut yazma sonucu. </summary>
+public readonly record struct ScadaCommandResponse(CommandStatus Status, string? Message);
+
+
+
+/// <summary>
+/// Gecmis kayıtların modeli. niyet ve taşınan data birlikte yazilir: yalnizca data saklansaydi, 
+/// NC kabloli bir rolenin gecmisinde <c>"0"</c> goren biri bunun "kapat" mi yoksa "ac" mi oldugunu bir daha çıkaramazdı.
+/// Pin'in fonksiyonu da gidiyor ki kablolama sonradan degisse bile o anki yorum sabit kalsın.
+/// </summary>
+public sealed record ScadaCommandPayload(bool TurnOn, string Value, PinFunction? Polarity); 
+#endregion

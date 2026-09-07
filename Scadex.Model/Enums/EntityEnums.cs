@@ -11,6 +11,16 @@ public static class EntityEnums
         Critical = 3,
         Maintenance = 4
     }
+    public static int DeviceStatusSeverityRank(int status) => status switch
+    {
+        (int)DeviceStatus.Critical => 4,
+        // Offline, Warning'den daha kotu
+        (int)DeviceStatus.Offline => 3,
+        (int)DeviceStatus.Warning => 2,
+        // Bakım durumu BILEREK yapilir; alarm degildir ama her şey normal de deüildir.
+        (int)DeviceStatus.Maintenance => 1,
+        _ => 0
+    };
 
     /// <summary>
     /// Diyagram üzerinde yer alan cihazların kategorisi.

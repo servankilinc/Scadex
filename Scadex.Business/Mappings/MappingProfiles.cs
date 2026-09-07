@@ -358,6 +358,7 @@ public class MappingProfiles : Profile
         CreateMap<ComponentTemplateCreateRequest, ComponentTemplate>()
             .ForMember(dest => dest.Name, opt => opt.MapFrom(src => src.Name))
             .ForMember(dest => dest.DeviceTypeId, opt => opt.MapFrom(src => src.DeviceTypeId))
+            .ForMember(dest => dest.ComponentTemplatePins, opt => opt.Ignore()) // pinler mappingi ayrı yapılacak
             .ForMember(dest => dest.Width, opt => opt.MapFrom(src => src.Width))
             .ForMember(dest => dest.Height, opt => opt.MapFrom(src => src.Height))
             .ForMember(dest => dest.BackgroundColor, opt => opt.MapFrom(src => src.BackgroundColor))

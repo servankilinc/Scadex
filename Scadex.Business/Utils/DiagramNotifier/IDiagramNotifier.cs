@@ -1,4 +1,4 @@
-using CabinetOs.Model.Dtos.Realtime.Queries;
+using Scadex.Model.Dtos.Realtime.Queries;
 
 namespace Scadex.Business.Utils.DiagramNotifier;
 

@@ -53,6 +53,7 @@ public readonly record struct ScadaPinAddress(EntityEnums.PinDirection Direction
         {
             EntityEnums.PinDirection.Output => $"OUT{channelNumber}",
             EntityEnums.PinDirection.Input => $"IN{channelNumber}",
+            // Bidirectional'in kart karsiligi yok: bu kanali cikis olarak surer, adres de oyle yazilir.
             _ => $"OUT{channelNumber}"
         };
 
