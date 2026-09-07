@@ -11,7 +11,10 @@ public class DeviceCommandSendRequest : IDto
 
     /// <summary>  Kanal bilgisi girilmeli çünkü tek komutu turu <see cref="DeviceCommandType.SetOutput"/> kullanılır ve o da her zaman bir cikis kanalini hedefler. </summary>
     public Guid? IoChannelId { get; set; }
-    public string? Value { get; set; }
+    /// <summary>
+    /// Gidecek degeri sunucu <c>Pin.Function</c>'daki NO/NC'den cozer ve buna uygun olarak komut gönderilir. Örn: <c>Pin.Function = NO</c> ise <c>Value = true</c> → röle kapanır, <c>false</c> → röle açılır. <br/>
+    /// </summary>
+    public bool? TurnOn { get; set; }
 }
 
 public class DeviceCommandSendRequestValidator : AbstractValidator<DeviceCommandSendRequest>
@@ -22,7 +25,6 @@ public class DeviceCommandSendRequestValidator : AbstractValidator<DeviceCommand
     {
         RuleFor(v => v.CommandType).IsInEnum().WithMessage("Geçersiz komut türü");
         RuleFor(v => v.IoChannelId).NotEmpty().WithMessage("Komut için hedef kanal zorunlu");
-        RuleFor(v => v.Value).NotEmpty().WithMessage("Komut için değer zorunlu");
-        RuleFor(v => v.Value).MaximumLength(MaxValueLength).WithMessage($"Değer en fazla {MaxValueLength} karakter olabilir");
+        RuleFor(v => v.TurnOn).NotNull().WithMessage("Komut için aç/kapat bilgisi zorunlu");
     }
 }

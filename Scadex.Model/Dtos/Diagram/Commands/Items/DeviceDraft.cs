@@ -1,6 +1,7 @@
 using FluentValidation;
 using Scadex.Core.Model;
 using Scadex.Model.Dtos.Diagram.Commands.Abstract;
+using Scadex.Model.Enums;
 
 namespace Scadex.Model.Dtos.Diagram.Commands.Items;
 
@@ -61,12 +62,11 @@ public class DevicePinDraftValidator : AbstractValidator<DevicePinDraft>
 }
 
 
-
-
-
 public class DeviceIoChannelDraft : IDto
 {
     public Guid Id { get; set; }
+    /// <summary> Yalnizca KIMLIK eslemesi icin gonderilir; Kanalın yönü. benzersizliğin parçası cunku kartta <c>IN1</c> ile <c>OUT1</c> AYRI noktalardir. </summary>
+    public EntityEnums.PinDirection Direction { get; set; }
     public int ChannelNumber { get; set; }
 }
 
@@ -75,5 +75,6 @@ public class DeviceIoChannelDraftValidator : AbstractValidator<DeviceIoChannelDr
     public DeviceIoChannelDraftValidator()
     {
         RuleFor(v => v.Id).NotEqual(Guid.Empty).WithMessage("Kanal kimligi zorunlu");
+        RuleFor(v => v.Direction).IsInEnum().WithMessage("Gecersiz kanal yonu");
     }
 }

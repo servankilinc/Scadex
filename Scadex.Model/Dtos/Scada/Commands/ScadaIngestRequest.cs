@@ -4,30 +4,24 @@ using FluentValidation;
 
 namespace Scadex.Model.Dtos.Scada.Commands;
 
-/// <summary> SCADA'nın HTTP uzerinden BIZE push ettiği telemetri bilgisi. </summary>
+/// <summary> SCADA'nın HTTP uzerinden Bize push ettiği telemetri bilgisi. </summary>
 public class ScadaIngestRequest : IDto
 {
     public Guid CabinetId { get; set; }
 
+    /// <summary> Geldigi nokta — <c>"IN1"</c>, <c>"IN7"</c>. </summary>
+    public string Pin { get; set; } = null!;
+
+    /// <summary>
+    /// Deger STRING olarak tasinir ve string olarak saklanir (<c>IoChannel.CurrentValue</c>). 
+    /// <c>null</c> gecerlidir ve "kanal var ama okunamadi" demektir; <c>"0"</c> ile ayni şey DEGILDIR.
+    /// </summary>
+    public string? Value { get; set; }
+
     /// <summary> Ölçümün SCADA tarafindaki zamani. Kritik bir bilgi değil bilgi amaclidir cunku SCADA'nin saati kaymis olabilir veya (opsiyonel old için göndermiyor olabailir scada). </summary>
     public DateTime? TimestampUtc { get; set; }
-    public List<ScadaDeviceReading> Devices { get; set; } = [];
 }
 
-public class ScadaDeviceReading
-{
-    public string ExternalCode { get; set; } = null!;
-    public EntityEnums.DeviceStatus? StatusId { get; set; }
-    public List<ScadaChannelReading> Channels { get; set; } = [];
-}
-
-public class ScadaChannelReading
-{
-    public int ChannelNumber { get; set; }
-
-    /// <summary> Burası döküman okunup iş kuralları ile işlenecek. Analog sinayaller vs. için farklı formatlarda gelebilir hex kodu gibi. </summary>
-    public string? Value { get; set; }
-}
 
 public class ScadaIngestRequestValidator : AbstractValidator<ScadaIngestRequest>
 {
@@ -35,23 +29,16 @@ public class ScadaIngestRequestValidator : AbstractValidator<ScadaIngestRequest>
     {
         RuleFor(v => v.CabinetId).NotEmpty().WithMessage("cabinetId zorunlu");
 
-        RuleFor(v => v.Devices).NotNull().WithMessage("devices zorunlu");
-        RuleForEach(v => v.Devices).ChildRules(device =>
-        {
-            device.RuleFor(d => d.ExternalCode).NotEmpty().WithMessage("externalCode zorunlu");
-            device.RuleFor(d => d.ExternalCode).MaximumLength(64).WithMessage("externalCode en fazla 64 karakter olabilir");
+        RuleFor(v => v.Pin).NotEmpty().WithMessage("pin zorunlu");
 
-            // Null gecerli ("dokunma"); dolu ise tanimli bir deger olmali.
-            device.RuleFor(d => d.StatusId).IsInEnum().When(d => d.StatusId.HasValue).WithMessage("Gecersiz cihaz durumu");
+        RuleFor(v => v.Pin)
+            .Must(pin => ScadaPinAddress.TryParse(pin, out _))
+            .When(v => !string.IsNullOrWhiteSpace(v.Pin))
+            .WithMessage("Gecersiz pin adresi. Beklenen bicim: IN1, IN2, ...");
 
-            device.RuleFor(d => d.Channels).NotNull().WithMessage("channels zorunlu");
-            device.RuleForEach(d => d.Channels).ChildRules(channel =>
-            {
-                channel.RuleFor(c => c.ChannelNumber).GreaterThan(0).WithMessage("channelNumber sifirdan buyuk olmali");
-
-                // Deger NULL olabilir: "kanal var ama okunamadi" mesru bir durum.
-                channel.RuleFor(c => c.Value).MaximumLength(256).WithMessage("value en fazla 256 karakter olabilir");
-            });
-        });
+        RuleFor(v => v.Pin)
+            .Must(pin => !ScadaPinAddress.TryParse(pin, out var address) || address.Direction == EntityEnums.PinDirection.Input)
+            .When(v => !string.IsNullOrWhiteSpace(v.Pin))
+            .WithMessage("Out pininden telemetri kabul edilmiyor; yalnizca Input pinleri (IN...) veri gonderir");
     }
 }

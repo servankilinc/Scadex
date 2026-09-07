@@ -7,6 +7,8 @@ public class IoChannel : IEntity, ISoftDeletableEntity, IAuditableEntity
 {
     public Guid Id { get; set; }
     public Guid DeviceId { get; set; }
+    public Guid CabinetId { get; set; }
+
     public int ChannelNumber { get; set; }
     public PinDirection Direction { get; set; }
     public bool IsEnabled { get; set; }
@@ -38,6 +40,7 @@ public class IoChannel : IEntity, ISoftDeletableEntity, IAuditableEntity
 
     #region *** EF Core Navigation ***
     public virtual Device? Device { get; set; }
+    public virtual Cabinet? Cabinet { get; set; }
     public virtual ICollection<Pin>? Pins { get; set; }
     public virtual ICollection<DeviceCommand>? DeviceCommands { get; set; }
     public virtual ICollection<ChannelEvent>? ChannelEvents { get; set; }

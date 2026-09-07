@@ -113,9 +113,10 @@ public class AppDbContext : IdentityDbContext<User, Role, Guid>
 
             i.HasMany(i => i.Pins).WithOne(p => p.IoChannel).HasForeignKey(p => p.IoChannelId).OnDelete(DeleteBehavior.Restrict);
             i.HasMany(i => i.DeviceCommands).WithOne(d => d.IoChannel).HasForeignKey(d => d.IoChannelId).OnDelete(DeleteBehavior.Restrict);
+            i.HasOne(i => i.Cabinet).WithMany().HasForeignKey(i => i.CabinetId).OnDelete(DeleteBehavior.Restrict);
 
-            // Restriction: Ayni cihazda ayni kanal numarasi en fazla bir tane olabilir; pasif kanallar serbesttir.
-            i.HasIndex(i => new { i.DeviceId, i.ChannelNumber }).IsUnique().HasFilter("[IsDeleted] = 0");
+            // Restriction: Bir kabinde ayni kanal numarasi en fazla bir tane olabilir; pasif kanallar serbesttir.
+            i.HasIndex(i => new { i.CabinetId, i.Direction, i.ChannelNumber }).IsUnique().HasFilter("[IsDeleted] = 0");
 
             i.HasQueryFilter(f => !f.IsDeleted);
         });

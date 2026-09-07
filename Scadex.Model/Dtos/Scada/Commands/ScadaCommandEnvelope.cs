@@ -3,7 +3,7 @@ using Scadex.Model.Enums;
 
 namespace Scadex.Model.Dtos.Scada.Commands;
 
-/// <summary> Scadex'in SCADA'ya GONDERDIGI komut govdesi — ingest'in ters yonu </summary>
+/// <summary> Scadex'in SCADA'ya GONDERDIGI komut govdesi — ingest'in ters yönü </summary>
 public class ScadaCommandEnvelope : IDto
 {
     public Guid CabinetId { get; set; }
@@ -14,11 +14,12 @@ public class ScadaCommandEnvelope : IDto
     /// </summary>
     public Guid CommandId { get; set; }
 
-    /// <summary><c>Device.ExternalCode</c> — SCADA'nin cihazi tanimasi için.</summary>
-    public string ExternalCode { get; set; } = null!;
 
-    /// <summary> Hedef kanal. Bu aşamada tek komut turu (<c>SetOutput</c>) old. için her zaman bir kanali hedefle ve hep doludur. </summary>
-    public int? ChannelNumber { get; set; }
+    /// <summary> 
+    /// Hedef kanal. Bu aşamada tek komut turu (<c>SetOutput</c>) old için her zaman bir kanali hedefler ve hep doludur.
+    /// Hedef nokta — <c>"OUT5"</c>, <c>"OUT17"</c> (LED).
+    /// </summary>
+    public string Pin { get; set; } = null!;
 
     public EntityEnums.DeviceCommandType CommandType { get; set; }
 
