@@ -10,6 +10,8 @@ namespace Scadex.Business.Utils.MediaGateway;
 /// </summary>
 public interface IMediaGateway
 {
+    public const string HttpClientName = "http_client_media_gateway";
+
     /// <summary> Live stream path'i kurar (path varsa ve ayarlarında değişiklik yoksa atlar değişiklik varsa günceller). </summary>
     Task<Result> EnsureLivePathAsync(Camera camera, StreamProfile profile, CancellationToken cancellationToken = default);
 

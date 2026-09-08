@@ -15,8 +15,6 @@ namespace Scadex.Business.Utils.SnapshotGateway;
 
 public class IsapiSnapshotGateway : ISnapshotGateway
 {
-    public const string HttpClientName = "camera-snapshot";
-
     /// <summary>
     /// Kamera basina son gorulen challenge ve nonce bilgilerini onbellekte tutar. Her kamera icin tek challenge ve nonce sayaci vardir.
     /// Challenge onbellege alinmasaydi HER anlik goruntu iki gidis-gelis olurdu (401 al, imzala, tekrar gonder). Onbellekle normal durum tek istektir.
@@ -54,7 +52,7 @@ public class IsapiSnapshotGateway : ISnapshotGateway
         using var timeoutSource = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         timeoutSource.CancelAfter(TimeSpan.FromMilliseconds(_settings.SnapshotTimeoutMs));
 
-        var client = _httpClientFactory.CreateClient(HttpClientName);
+        var client = _httpClientFactory.CreateClient(ISnapshotGateway.HttpClientName);
 
         try
         {

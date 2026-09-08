@@ -49,7 +49,7 @@ public partial class CameraService
 
         // Klasor adi Path adından belirlenir, MediaMTX recordPath'teki %path yer tutucusunu yol adiyla doldurur,
         // MediaMTX'in kayit ettigi dosya oraya gelir. Sonra biz onu bulup wwwroot altında kalıcı saklarız.
-        string tempFolder = Path.Combine(_mediaMtxSettings.RecordRoot, pathName);
+        string tempFolder = Path.Combine(_mediaGatewaySettings.RecordRoot, pathName);
 
         // Yol GERCEKTEN kuruldu mu? sonucuna göre temp klasörü silinir
         bool pathCreated = false;
@@ -60,7 +60,7 @@ public partial class CameraService
             string segmentDuration = $"{duration + (_captureSettings.ClipFinalizeGraceMs / 1000) + 5}s";
 
             // recordPath %path ICERMEK ZORUNDA
-            string recordPath = Path.Combine(_mediaMtxSettings.RecordRoot, "%path", "%Y-%m-%d_%H-%M-%S-%f").Replace('\\', '/');
+            string recordPath = Path.Combine(_mediaGatewaySettings.RecordRoot, "%path", "%Y-%m-%d_%H-%M-%S-%f").Replace('\\', '/');
 
             var ensureResult = await _mediaGateway.EnsureClipPathAsync(camera, captureId, recordPath, segmentDuration, cancellationToken);
 
@@ -181,8 +181,8 @@ public partial class CameraService
             if (duration > _captureSettings.MaxClipDurationSec)
                 return Result<CameraCaptureDto>.Validation(new Dictionary<string, string[]> { ["DurationSec"] = [$"Klip süresi en fazla {_captureSettings.MaxClipDurationSec} saniye olabilir."] });
 
-            if (string.IsNullOrWhiteSpace(_mediaMtxSettings.RecordRoot))
-                return Result<CameraCaptureDto>.Failure(description: "Klip çekimi yapılandırılmamış: Mediamtx:RecordRoot tanımlı değil.");
+            if (string.IsNullOrWhiteSpace(_mediaGatewaySettings.RecordRoot))
+                return Result<CameraCaptureDto>.Failure(description: "Klip çekimi yapılandırılmamış: Media Gateway:RecordRoot tanımlı değil.");
 
             capture.DurationSec = duration;
             capture.Status = CaptureStatus.Pending;

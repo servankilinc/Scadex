@@ -10,7 +10,6 @@ public class ScadaCommandGateway : IScadaCommandGateway
 {
     // HttpClientFactory kullanmanin sebebi, uzun omurlu tek bir <c>HttpClient</c>, SCADA'nin IP'si degistiginde eski adrese baglanmaya devam eder.
     private readonly IHttpClientFactory _httpClientFactory;
-    public const string HttpClientName = "scada";
     private const int MaxMessageLength = 512;
 
 
@@ -26,7 +25,7 @@ public class ScadaCommandGateway : IScadaCommandGateway
         try
         {
             #region Http request and read body
-            var client = _httpClientFactory.CreateClient(HttpClientName);
+            var client = _httpClientFactory.CreateClient(IScadaCommandGateway.HttpClientName);
 
             using var response = await client.PostAsJsonAsync($"{baseUrl.TrimEnd('/')}/command", envelope, ProjectJsonOptions.SerializerOptions, timeoutToken);
             await using var stream = await response.Content.ReadAsStreamAsync(timeoutToken);

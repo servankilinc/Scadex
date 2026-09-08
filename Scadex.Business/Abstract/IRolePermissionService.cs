@@ -11,6 +11,14 @@ namespace Scadex.Business.Abstract;
 
 public interface IRolePermissionService
 {
+    /// <summary>Bir rolun sahip oldugu tum izinleri, Permission bilgileriyle birlikte getirir.</summary>
+    Task<Result<ICollection<RolePermissionDto>>> GetByRoleAsync(Guid roleId, CancellationToken cancellationToken = default);
+
+    // Sync
+    /// <summary>Rolün izin kümesini verilen liste ile birebir degistirir (ekle + sil), tek transaction icinde.</summary>
+    Task<Result> SyncRolePermissionsAsync(Guid roleId, ICollection<int> permissionIds, CancellationToken cancellationToken = default);
+
+
     // Get
     Task<Result<RolePermission>> GetAsync(Expression<Func<RolePermission, bool>> where, CancellationToken cancellationToken = default);
     Task<Result<RolePermission>> GetAsync(int permissionId, Guid roleId, CancellationToken cancellationToken = default);
@@ -21,18 +29,11 @@ public interface IRolePermissionService
     Task<Result<ICollection<RolePermission>>> GetListAsync(DynamicRequest? request = default, CancellationToken cancellationToken = default);
     Task<Result<ICollection<RolePermissionDto>>> GetBaseListAsync(DynamicRequest? request = default, CancellationToken cancellationToken = default);
 
-    /// <summary>Bir rolun sahip oldugu tum izinleri, Permission bilgileriyle birlikte getirir.</summary>
-    Task<Result<ICollection<RolePermissionDto>>> GetByRoleAsync(Guid roleId, CancellationToken cancellationToken = default);
-
     // Create
     Task<Result> CreateAsync(RolePermissionCreateDto request, CancellationToken cancellationToken = default);
 
     // Delete
     Task<Result> DeleteAsync(int permissionId, Guid roleId, CancellationToken cancellationToken = default);
-
-    // Sync
-    /// <summary>Rolun izin kumesini verilen liste ile birebir degistirir (ekle + sil), tek transaction icinde.</summary>
-    Task<Result> SyncRolePermissionsAsync(Guid roleId, ICollection<int> permissionIds, CancellationToken cancellationToken = default);
 
     // Pagination / Datatable
     Task<Result<PaginationResponse<RolePermissionDto>>> PaginationAsync(DynamicPaginationRequest request, CancellationToken cancellationToken = default);

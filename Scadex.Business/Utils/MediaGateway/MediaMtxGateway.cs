@@ -12,19 +12,17 @@ namespace Scadex.Business.Utils.MediaGateway;
 
 public class MediaMtxGateway : IMediaGateway
 {
-    private readonly HttpClient _httpClient;
-    private readonly MediaMtxSettings _settings;
+    private readonly IHttpClientFactory _httpClientFactory;
+    private readonly MediaGatewaySettings _settings;
     private readonly ICameraProtocolProfileResolver _profileResolver;
     private readonly ILogger<MediaMtxGateway> _logger;
 
-    public MediaMtxGateway(HttpClient httpClient, MediaMtxSettings settings, ICameraProtocolProfileResolver profileResolver, ILogger<MediaMtxGateway> logger)
+    public MediaMtxGateway(IHttpClientFactory httpClientFactory, MediaGatewaySettings settings, ICameraProtocolProfileResolver profileResolver, ILogger<MediaMtxGateway> logger)
     {
+        _httpClientFactory = httpClientFactory;
         _settings = settings;
         _profileResolver = profileResolver;
         _logger = logger;
-        _httpClient = httpClient;
-        _httpClient.BaseAddress = new Uri(_settings.ApiBaseUrl.TrimEnd('/') + "/");
-        _httpClient.Timeout = TimeSpan.FromSeconds((_settings.ApiTimeoutMs/1000) + 10);
     }
 
 
@@ -44,13 +42,15 @@ public class MediaMtxGateway : IMediaGateway
 
         var pathName = IMediaGateway.LivePathName(camera.Id, profile);
 
+        var httpClient = _httpClientFactory.CreateClient(IMediaGateway.HttpClientName);
+
         try
         {
-            using var getResponse = await _httpClient.GetAsync($"v3/config/paths/get/{pathName}", cancellationToken);
+            using var getResponse = await httpClient.GetAsync($"v3/config/paths/get/{pathName}", cancellationToken);
 
             // path mevcut değil MediaMTX'e ekle
             if (getResponse.StatusCode == HttpStatusCode.NotFound)
-                return await ControlApiPathRequestAsync("add", pathName, payload, cancellationToken);
+                return await ControlApiPathRequestAsync(httpClient, "add", pathName, payload, cancellationToken);
 
             if (getResponse.IsSuccessStatusCode)
             {
@@ -62,7 +62,7 @@ public class MediaMtxGateway : IMediaGateway
                     return Result.Success();
 
                 // ayarlar farklı, mevcut path'i değiştir
-                return await ControlApiPathRequestAsync("replace", pathName, payload, cancellationToken);
+                return await ControlApiPathRequestAsync(httpClient, "replace", pathName, payload, cancellationToken);
             }
 
             return Result.Failure(description: $"Medya geçidi yolu okunamadı: {await ReadErrorAsync(getResponse, cancellationToken)}");
@@ -71,13 +71,13 @@ public class MediaMtxGateway : IMediaGateway
         {
             // NOT: Eklenmemiş olan CancelationTokenSource kendi zaman asimi ile iptal edilirse, OperationCanceledException fırlatır. Bu durumda, MediaMTX'in yanıt vermediğini varsayabiliriz.
             // HttpClient'in kendi zaman asimi. "Gecit sessiz" ile "gecit yok" ayirt edilebilsin diye ayri mesaj.
-            _logger.LogError("Medya gecidi sorgusu {Timeout} sn icinde yanit vermedi ({BaseAddress})", _httpClient.Timeout.TotalSeconds, _httpClient.BaseAddress);
+            _logger.LogError("Medya gecidi sorgusu {Timeout} sn icinde yanit vermedi ({BaseAddress})", httpClient.Timeout.TotalSeconds, httpClient.BaseAddress);
             return Result.Failure(description: "Medya geçidi yanıt vermiyor.");
         }
         catch (HttpRequestException exception)
         {
             // Kamera degil, MediaMTX ayakta degil.  
-            _logger.LogError(exception, "Medya gecidine ulasilamadi ({BaseAddress})", _httpClient.BaseAddress);
+            _logger.LogError(exception, "Medya gecidine ulasilamadi ({BaseAddress})", httpClient.BaseAddress);
             return Result.Failure(description: "Medya geçidine ulaşılamıyor. MediaMTX çalışmıyor olabilir.");
         }
         catch (Exception exception) when (exception is not OperationCanceledException)
@@ -110,10 +110,12 @@ public class MediaMtxGateway : IMediaGateway
 
         var pathName = IMediaGateway.ClipPathName(captureId);
 
+        var httpClient = _httpClientFactory.CreateClient(IMediaGateway.HttpClientName);
+
         try
         {
             // Video kaydı path'i doğrudan yazilir, Ad her cekimde benzersiz (clip_{captureId})
-            using var addResponse = await _httpClient.PostAsJsonAsync($"v3/config/paths/add/{pathName}", payload, cancellationToken);
+            using var addResponse = await httpClient.PostAsJsonAsync($"v3/config/paths/add/{pathName}", payload, cancellationToken);
             if (addResponse.IsSuccessStatusCode)
                 return Result.Success();
 
@@ -122,16 +124,16 @@ public class MediaMtxGateway : IMediaGateway
             if (!addError.Contains("already exists", StringComparison.OrdinalIgnoreCase))
                 return Result.Failure(description: $"Medya geçidi yolu oluşturulamadı: {addError}");
 
-            return await ControlApiPathRequestAsync("replace", pathName, payload, cancellationToken);
+            return await ControlApiPathRequestAsync(httpClient, "replace", pathName, payload, cancellationToken);
         }
         catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
         {
-            _logger.LogError("Medya gecidi {Timeout} sn icinde yanit vermedi ({BaseAddress})", _httpClient.Timeout.TotalSeconds, _httpClient.BaseAddress);
+            _logger.LogError("Medya gecidi {Timeout} sn icinde yanit vermedi ({BaseAddress})", httpClient.Timeout.TotalSeconds, httpClient.BaseAddress);
             return Result.Failure(description: "Medya geçidi yanıt vermiyor.");
         }
         catch (HttpRequestException exception)
         {
-            _logger.LogError(exception, "Medya gecidine ulasilamadi ({BaseAddress})", _httpClient.BaseAddress);
+            _logger.LogError(exception, "Medya gecidine ulasilamadi ({BaseAddress})", httpClient.BaseAddress);
             return Result.Failure(description: "Medya geçidine ulaşılamıyor. MediaMTX çalışmıyor olabilir.");
         }
         catch (Exception exception) when (exception is not OperationCanceledException)
@@ -144,9 +146,11 @@ public class MediaMtxGateway : IMediaGateway
     /// <inheritdoc/>
     public async Task<Result> DeletePathAsync(string pathName, CancellationToken cancellationToken = default)
     {
+        var httpClient = _httpClientFactory.CreateClient(IMediaGateway.HttpClientName);
+
         try
         {
-            using var response = await _httpClient.DeleteAsync($"v3/config/paths/delete/{pathName}", cancellationToken);
+            using var response = await httpClient.DeleteAsync($"v3/config/paths/delete/{pathName}", cancellationToken);
 
             // 404 = path zaten yok. Hata olarak değerlendirmeye gerek yok.
             if (response.IsSuccessStatusCode || response.StatusCode == HttpStatusCode.NotFound)
@@ -163,9 +167,9 @@ public class MediaMtxGateway : IMediaGateway
 
 
     #region Helpers
-    private async Task<Result> ControlApiPathRequestAsync(string verb, string pathName, Dictionary<string, object?> payload, CancellationToken cancellationToken)
+    private async Task<Result> ControlApiPathRequestAsync(HttpClient httpClient, string verb, string pathName, Dictionary<string, object?> payload, CancellationToken cancellationToken)
     {
-        using var response = await _httpClient.PostAsJsonAsync($"v3/config/paths/{verb}/{pathName}", payload, cancellationToken);
+        using var response = await httpClient.PostAsJsonAsync($"v3/config/paths/{verb}/{pathName}", payload, cancellationToken);
         if (response.IsSuccessStatusCode)
             return Result.Success();
 

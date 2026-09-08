@@ -56,7 +56,7 @@ public partial class CameraService
         var randomNumber = RandomNumberGenerator.GetBytes(32);
         string streamToken = Convert.ToBase64String(randomNumber).Replace('+', '-').Replace('/', '_').TrimEnd('=');
 
-        var ttl = TimeSpan.FromSeconds(_mediaMtxSettings.TokenTtlSeconds);
+        var ttl = TimeSpan.FromSeconds(_mediaGatewaySettings.TokenTtlSeconds);
 
         var expiresAt = DateTime.UtcNow.Add(ttl);
 
@@ -74,7 +74,7 @@ public partial class CameraService
 
         return Result<StreamTokenDto>.Success(new StreamTokenDto
         {
-            WhepUrl = $"{_mediaMtxSettings.WebRtcPublicBaseUrl.TrimEnd('/')}/{pathName}/whep",
+            WhepUrl = $"{_mediaGatewaySettings.WebRtcPublicBaseUrl.TrimEnd('/')}/{pathName}/whep",
             Token = streamToken,
             ExpirationUtc = expiresAt
         });

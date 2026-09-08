@@ -10,6 +10,8 @@ public sealed record SnapshotPayload(byte[] Content, string ContentType);
 
 public interface ISnapshotGateway
 {
+    public const string HttpClientName = "http_client_camera_snapshot";
+
     /// <summary>Kameradan anlik goruntu alan gecit (Hikvision'da ISAPI).</summary>
     Task<Result<SnapshotPayload>> GetSnapshotAsync(Camera camera, CancellationToken cancellationToken = default);
 }

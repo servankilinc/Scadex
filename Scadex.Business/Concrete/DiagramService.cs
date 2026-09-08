@@ -1,11 +1,11 @@
 using AutoMapper;
+using Scadex.Business.Abstract;
 using Scadex.Business.Utils;
 using Scadex.Core.Utils.ResultPattern;
 using Scadex.Core.Utils.Validation;
 using Scadex.DataAccess.UoW;
 using Scadex.Model.Dtos.Diagram.Queries;
 using Scadex.Model.Dtos.Diagram.Queries.Items;
-using Scadex.Business.Abstract;
 using static Scadex.Model.Enums.EntityEnums;
 
 namespace Scadex.Business.Concrete;
@@ -15,7 +15,6 @@ public partial class DiagramService : IDiagramService
     private readonly IUnitOfWork _unitOfWork;
     private readonly IValidationService _validationService;
     private readonly IMapper _mapper;
-
     public DiagramService(IUnitOfWork unitOfWork, IValidationService validationService, IMapper mapper)
     {
         _unitOfWork = unitOfWork;
@@ -57,15 +56,12 @@ public partial class DiagramService : IDiagramService
                 c.WaypointsJson,
                 c.ZIndex
             ),
-            // Savunmaci eleme. Iki ayri bozulma yolu var ve ikisi de React Flow'da
-            // "var olmayan node'a bagli edge" hatasi uretir:
-            //   1) Pin soft-delete edilmis  -> query filter pini gizler ama kablo ayakta kalir,
-            //      navigasyon NULL olur ve DeviceId projeksiyonu patlardi.
-            //   2) Cihaz pasife alinmis     -> pin durur ama cihaz devices[] listesinde yoktur.
-            where: c => c.CabinetId == cabinetId
-                     && c.SourcePin != null && c.TargetPin != null
-                     && c.SourcePin.Device!.IsActive && c.TargetPin.Device!.IsActive,
+            where: c =>
+                c.CabinetId == cabinetId && c.IsDeleted == false && // kabinin silinmemiş pin bağlantıları
+                c.SourcePin != null && c.SourcePin.IsDeleted != false && c.SourcePin.Device!.IsActive && // kaynak pin silinmemeiş ve cihazı aktifse
+                c.TargetPin != null && c.TargetPin.IsDeleted != false && c.TargetPin.Device!.IsActive,   // hedef pin silinmemeiş ve cihazı aktifse
             orderBy: q => q.OrderBy(c => c.ZIndex),
+            ignoreFilters: true,
             cancellationToken: cancellationToken);
 
         var connections = (connectionRows ?? [])
@@ -92,12 +88,14 @@ public partial class DiagramService : IDiagramService
             configurationProvider: _mapper.ConfigurationProvider,
             where: a => a.CabinetId == cabinetId,
             orderBy: q => q.OrderBy(a => a.ZIndex),
-            cancellationToken: cancellationToken);
+            cancellationToken: cancellationToken
+        );
 
         var canvasSettings = await _unitOfWork.CanvasSettings.GetAsync<DiagramCanvasSettingsDto>(
             configurationProvider: _mapper.ConfigurationProvider,
             where: s => s.CabinetId == cabinetId,
-            cancellationToken: cancellationToken);
+            cancellationToken: cancellationToken
+        );
 
         return Result<DiagramDto>.Success(new DiagramDto
         {
@@ -105,32 +103,22 @@ public partial class DiagramService : IDiagramService
             Devices = devices ?? [],
             Connections = connections,
             Annotations = annotations ?? [],
-            // Kayitli ayar yoksa VARSAYILAN doner ve satir OLUSTURULMAZ: bir kabini
-            // yalnizca acmak veritabanina yazmamali.
-            CanvasSettings = canvasSettings ?? CreateDefaultCanvasSettings(),
+            CanvasSettings = canvasSettings ?? new()
+            {
+                GridSize = 20,
+                SnapToGrid = true,
+                BackgroundVariant = BackgroundVariant.Dots,
+                GridColor = "#E2E8F0",
+                BackgroundColor = "#FFFFFF",
+                MinZoom = 0.2,
+                MaxZoom = 4
+            },
             FetchedAtUtc = DateTime.UtcNow
         });
     }
 
-    /// <summary>
-    /// Kayitli ayari olmayan kabinin varsayilanlari. Bu degerler sozlesmenin parcasidir
-    /// degistirilirse mevcut kabinlerin gorunumu sessizce degisir.
-    /// </summary>
-    private static DiagramCanvasSettingsDto CreateDefaultCanvasSettings() => new()
-    {
-        GridSize = 20,
-        SnapToGrid = true,
-        BackgroundVariant = BackgroundVariant.Dots,
-        GridColor = "#E2E8F0",
-        BackgroundColor = "#FFFFFF",
-        MinZoom = 0.2,
-        MaxZoom = 4
-    };
 
-    /// <summary>
-    /// Kablo satirinin ara sekli. DTO'ya dogrudan projekte edemiyoruz cunku
-    /// <c>Waypoints</c> bir JSON string'inden turer ve bu SQL'e cevrilemez.
-    /// </summary>
+    /// <summary> <c>Waypoints</c> JSON string dönüşümü SQL'e cevrilemeyeceği için ara bir model açtık </summary>
     private sealed record ConnectionRow(
         Guid Id,
         Guid CabinetId,
@@ -145,5 +133,6 @@ public partial class DiagramService : IDiagramService
         double StrokeWidth,
         EdgeRouting Routing,
         string? WaypointsJson,
-        int ZIndex);
+        int ZIndex
+    );
 }

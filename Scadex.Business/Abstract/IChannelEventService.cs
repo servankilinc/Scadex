@@ -20,5 +20,5 @@ public interface IChannelEventService
 
     /// <summary> Haber alinamayan cihazlari <c>Offline</c>'a ceker ve degisenleri yayinlar. </summary>
     /// <returns> Offline'a cekilen cihaz sayisi. </returns>
-    Task<int> SweepStaleDevicesAsync(TimeSpan staleAfter, CancellationToken cancellationToken = default);
+    Task<int> SetOfflineDevicesAsync(TimeSpan staleAfter, CancellationToken cancellationToken = default);
 }

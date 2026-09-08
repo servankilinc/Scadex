@@ -19,7 +19,7 @@ public interface ICameraService
     Task<Result> RecordProbeResultAsync(Guid cameraId, CameraProbeResultDto result, CancellationToken cancellationToken = default);
     #endregion
 
-    #region Streaming (MediaMTX)
+    #region Streaming (MediaGateway)
     /// <summary> Canli izleme token'ı uretir ve MediaMTX ilgili path'i kurar. NOT: Token path'e baglidir ve kisa omurludur. </summary>
     Task<Result<StreamTokenDto>> CreateStreamTokenAsync(Guid cameraId, StreamProfile profile, CancellationToken cancellationToken = default);
 

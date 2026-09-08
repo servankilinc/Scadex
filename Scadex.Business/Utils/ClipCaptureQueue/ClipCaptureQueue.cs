@@ -11,8 +11,11 @@ public class ClipCaptureQueue : IClipCaptureQueue
         SingleReader = true
     });
 
-    public void Enqueue(long captureId) => _channel.Writer.TryWrite(captureId);
+    /// <inheritdoc />
+    public void Enqueue(long captureId) => 
+        _channel.Writer.TryWrite(captureId);
 
+    /// <inheritdoc />
     public IAsyncEnumerable<long> ReadAllAsync(CancellationToken cancellationToken) =>
         _channel.Reader.ReadAllAsync(cancellationToken);
 }
