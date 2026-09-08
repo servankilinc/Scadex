@@ -9,10 +9,12 @@ namespace Scadex.Business.Abstract;
 
 public interface ICameraService
 {
+    #region CRUD
     Task<Result<CameraDto>> GetAsync(Guid id, CancellationToken cancellationToken = default);
     Task<Result<ICollection<CameraDto>>> GetListAsync(Guid cabinetId, bool includePassive = false, CancellationToken cancellationToken = default);
     Task<Result<CreatedDto>> CreateAsync(CameraCreateDto request, CancellationToken cancellationToken = default);
-    Task<Result> UpdateAsync(CameraUpdateDto request, CancellationToken cancellationToken = default);
+    Task<Result> UpdateAsync(CameraUpdateDto request, CancellationToken cancellationToken = default); 
+    #endregion
 
     #region Monitoring
     /// <summary> Bir yoklama (ping / TCP connect) isteği atar ve sonucunu yazar. </summary>

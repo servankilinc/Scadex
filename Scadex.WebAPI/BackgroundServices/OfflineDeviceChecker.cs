@@ -2,6 +2,8 @@ using Scadex.Business.Abstract;
 
 namespace Scadex.WebAPI.BackgroundServices;
 
+
+// TODO: Camera gibi IMonitorabel entityler için de entegre edilmesi gerekiyor
 public class OfflineDeviceChecker : BackgroundService
 {
     private readonly IServiceScopeFactory _scopeFactory;
