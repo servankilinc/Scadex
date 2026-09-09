@@ -1,13 +1,14 @@
-using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
 using Scadex.Business.Abstract;
 using Scadex.Business.Concrete;
-using Scadex.Business.Utils.TokenService;
 using Scadex.Business.Utils.CameraProtocolProfile;
-using Scadex.Business.Utils.ClipCaptureQueue;
-using Scadex.Business.Utils.SnapshotGateway;
-using Scadex.Business.Utils.ScadaCommandGateway;
 using Scadex.Business.Utils.CameraProtocolProfile.Resolver;
+using Scadex.Business.Utils.ClipCaptureQueue;
+using Scadex.Business.Utils.MediaGateway;
+using Scadex.Business.Utils.ScadaCommandGateway;
+using Scadex.Business.Utils.SnapshotGateway;
+using Scadex.Business.Utils.TokenService;
 
 namespace Scadex.Business;
 
@@ -56,6 +57,7 @@ public static class ServiceRegistration
         services.AddSingleton<ICameraProtocolProfile, HikvisionProtocolProfile>();
         services.AddSingleton<ICameraProtocolProfileResolver, CameraProtocolProfileResolver>();
 
+        services.AddScoped<IMediaGateway, MediaMtxGateway>();
         services.AddScoped<ISnapshotGateway, IsapiSnapshotGateway>();
 
         // Klip kuyrugu SINGLETON olmak zorunda

@@ -9,8 +9,10 @@ public class ScadaIngestRequest : IDto
 {
     public Guid CabinetId { get; set; }
 
-    /// <summary> Geldigi nokta — <c>"IN1"</c>, <c>"IN7"</c>. </summary>
-    public string Pin { get; set; } = null!;
+    /// <summary> <c>"I"</c> dijital giris, <c>"A"</c> analog giris. </summary>
+    public string Type { get; set; } = null!;
+
+    public int ChannelNumber { get; set; }
 
     /// <summary>
     /// Deger STRING olarak tasinir ve string olarak saklanir (<c>IoChannel.CurrentValue</c>). 
@@ -28,17 +30,11 @@ public class ScadaIngestRequestValidator : AbstractValidator<ScadaIngestRequest>
     public ScadaIngestRequestValidator()
     {
         RuleFor(v => v.CabinetId).NotEmpty().WithMessage("cabinetId zorunlu");
+        RuleFor(v => v.Type).NotEmpty().WithMessage("type zorunlu");
 
-        RuleFor(v => v.Pin).NotEmpty().WithMessage("pin zorunlu");
-
-        RuleFor(v => v.Pin)
-            .Must(pin => ScadaPinAddress.TryParse(pin, out _))
-            .When(v => !string.IsNullOrWhiteSpace(v.Pin))
-            .WithMessage("Gecersiz pin adresi. Beklenen bicim: IN1, IN2, ...");
-
-        RuleFor(v => v.Pin)
-            .Must(pin => !ScadaPinAddress.TryParse(pin, out var address) || address.Direction == EntityEnums.PinDirection.Input)
-            .When(v => !string.IsNullOrWhiteSpace(v.Pin))
-            .WithMessage("Out pininden telemetri kabul edilmiyor; yalnizca Input pinleri (IN...) veri gonderir");
+        RuleFor(v => v.Type)
+            .Must(type => ScadaPinAddress.TryParseType(type, out _))
+            .When(v => !string.IsNullOrWhiteSpace(v.Type))
+            .WithMessage("Gecersiz tip. Beklenen: \"I\" (dijital giris) veya \"A\" (analog giris)");
     }
 }

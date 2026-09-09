@@ -69,10 +69,9 @@ public class ChannelEventService : IChannelEventService
 
 
         // 2) Ayrıştırma kontrolü
-        if (!ScadaPinAddress.TryParse(request.Pin, out var pin))
-            return Result.Failure("Gecersiz pin adresi");
-
-
+        if (!ScadaPinAddress.TryParseType(request.Type, out var direction))
+            return Result.Failure("Gecersiz tip", "Invalid signal type");
+         
         // 3) Kabin kontrolü
         var cabinet = await _unitOfWork.Cabinets.GetAsync(
             where: c => c.Id == request.CabinetId && c.IsActive,
@@ -89,15 +88,15 @@ public class ChannelEventService : IChannelEventService
         var channel = await _unitOfWork.IoChannels.GetAsync(
             where: c =>
                 c.CabinetId == cabinet.Id &&
-                c.Direction == pin.Direction &&
-                c.ChannelNumber == pin.ChannelNumber &&
+                c.Direction == direction &&
+                c.ChannelNumber == request.ChannelNumber &&
                 c.IsEnabled,
             tracking: true,
             cancellationToken: cancellationToken
         );
         if (channel == null)
         {
-            _logger.LogWarning($"Kabin {cabinet.Id}: {pin.ToString()} pini tanimsiz (ya da devre disi); telemetri atlandi.");
+            _logger.LogWarning($"Kabin {cabinet.Id}: {ScadaPinAddress.Format(direction, request.ChannelNumber)} pini tanimsiz (ya da devre disi); telemetri atlandi.");
             return Result.Success();
         }
 

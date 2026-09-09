@@ -65,7 +65,8 @@ public static class EntityEnums
     {
         Input = 0,
         Output = 1,
-        Bidirectional = 2
+        Bidirectional = 2,
+        AnalogInput = 3
     }
 
     /// <summary> React Flow bir handle'ı yerleştirmek için kenarı AÇIKÇA ister; <c>RelativeX/Y</c> tek başına yetmez </summary>

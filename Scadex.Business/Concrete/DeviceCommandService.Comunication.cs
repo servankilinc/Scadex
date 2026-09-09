@@ -62,7 +62,7 @@ public partial class DeviceCommandService
             return Result<DeviceCommandResultDto>.Failure($"Kanal bu cihaza ait değil", $"channel:{channelId}, device:{deviceId}");
         if (!channel.IsEnabled)
             return Result<DeviceCommandResultDto>.Failure($"Kanal devre dışı, channel:{channelId}");
-        if (channel.Direction == PinDirection.Input)
+        if (channel.Direction != PinDirection.Output)
             return Result<DeviceCommandResultDto>.Failure($"Komut sadece Output kanallarına gönderilebilir", $"channel:{channelId}");
 
 

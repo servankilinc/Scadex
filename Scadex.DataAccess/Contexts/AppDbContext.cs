@@ -698,6 +698,12 @@ public class AppDbContext : IdentityDbContext<User, Role, Guid>
              new PinSpec("+12V", EntityEnums.HandleSide.Right, EntityEnums.PinFunction.VCC, EntityEnums.PinDirection.Input, EntityEnums.VoltageLevel.DC_12V),
              new PinSpec("GND", EntityEnums.HandleSide.Right, EntityEnums.PinFunction.GND, EntityEnums.PinDirection.Input, EntityEnums.VoltageLevel.DC_12V)]);
 
+        Template(EntityEnums.DeviceType.MeasurementDevice, "4 Kanal Analog Giris Karti", 200, 200,
+            [.. Series("AI", 4, EntityEnums.HandleSide.Left, EntityEnums.PinFunction.Analog_In, EntityEnums.PinDirection.AnalogInput, EntityEnums.VoltageLevel.Signal_5V, numberChannels: true),
+             new PinSpec("+12V", EntityEnums.HandleSide.Right, EntityEnums.PinFunction.VCC, EntityEnums.PinDirection.Input, EntityEnums.VoltageLevel.DC_12V),
+             new PinSpec("GND", EntityEnums.HandleSide.Right, EntityEnums.PinFunction.GND, EntityEnums.PinDirection.Input, EntityEnums.VoltageLevel.DC_12V)]);
+
+
         Template(EntityEnums.DeviceType.OutputModule, "8 Kanal Role Cikis Karti", 200, 260,
             [new PinSpec("+12V", EntityEnums.HandleSide.Left, EntityEnums.PinFunction.VCC, EntityEnums.PinDirection.Input, EntityEnums.VoltageLevel.DC_12V),
              new PinSpec("GND", EntityEnums.HandleSide.Left, EntityEnums.PinFunction.GND, EntityEnums.PinDirection.Input, EntityEnums.VoltageLevel.DC_12V),
