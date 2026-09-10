@@ -97,7 +97,7 @@ authInternalUsers:
 # and a payload described in the documentation.
 # If the response code is 20x, the action is allowed, otherwise
 # it is forbidden.
-authHTTPAddress: http://127.0.0.1:5263/api/MediaGateway/auth
+authHTTPAddress: http://127.0.0.1:5208/api/MediaGateway/auth
 # If the HTTP authentication URL has a self-signed or invalid certificate,
 # you can provide the fingerprint of the certificate in order to
 # validate it anyway. It can be obtained by running:

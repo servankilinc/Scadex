@@ -54,7 +54,8 @@ Scadex/
 ├─ Scadex.Business/         # Servisler, gateway'ler, mapping, ayar sınıfları
 ├─ Scadex.WebAPI/           # Controller'lar, SignalR hub, hosted service'ler, Program.cs
 │  └─ mediamtx_v1.20.1/     # Medya sunucusu (uygulama tarafından başlatılmaz)
-└─ Scadex.WebUI/            # React 19 + Vite 8 + TS 6 — şu an BOŞ iskelet
+└─ Scadex.WebUI/            # React 19 + Vite 8 + TS 6 — diyagram editörü, kamera izleme
+                            # ve auth akışı yazıldı (çözüme dahil DEĞİL, ayrı çalıştırılır)
 ```
 
 Katman yönü tek yönlüdür ve kırılmamalıdır:
@@ -94,7 +95,7 @@ bunları sırayla çağırır.
 | Mapping | AutoMapper 14 |
 | Log | Serilog (dosya sink'i, async) |
 | Medya | MediaMTX v1.20.1 (uygulamanın **dışında** çalışır) |
-| Frontend | React 19 + Vite 8 + TypeScript 6 (henüz iskelet) |
+| Frontend | React 19 + Vite 8 + TypeScript 6 — React Flow (`@xyflow/react`), TanStack Query, Redux Toolkit, shadcn + Tailwind 4, react-hook-form + zod, SignalR istemcisi, MapLibre, Recharts |
 
 ---
 
@@ -153,8 +154,9 @@ her derlemede yeni migration istemesine yol açar):
 - 5 `DeviceStatus` (renk + ikon ile), 12 `DeviceType`, 10 `Permission`
 - Admin'e tüm izinler
 - **Admin kullanıcısı: `admin` / `Admin!2345` — ilk girişten sonra değiştirin.**
-- 9 sistem şablonu + pinleri (kontrol modülü, 8 kanal giriş/röle/LED kartı, klemens,
-  güç kaynağı, şebeke girişi, sigorta, 3 telli sensör) — palet boş açılmasın diye.
+- 10 sistem şablonu + 66 pin (kontrol modülü, 8 kanal giriş/röle/LED kartı, 4 kanal analog
+  giriş kartı, klemens, güç kaynağı, şebeke girişi, sigorta, 3 telli sensör) — palet boş
+  açılmasın diye.
 
 ---
 
@@ -246,19 +248,23 @@ Kuyruk yok, retry yok — tekrarlanan bir röle darbesi, başarısız bir komutt
 politikası ile.
 
 ```json
-{ "cabinetId": "...", "pin": "IN7", "value": "1", "timestampUtc": null }
+{ "cabinetId": "...", "type": "I", "channelNumber": 7, "value": "1", "timestampUtc": null }
 ```
 
 - **İstek başına tek okuma** taşınır (toplu gönderim yoktur).
-- `pin`, `ScadaPinAddress` ile ayrıştırılır: `IN<n>` → giriş, `OUT<n>` → çıkış.
-  `IN0` geçersizdir. LED için ayrı önek yoktur — LED `OUT17..OUT24`'tür.
-- Doğrulama **yalnızca `IN...` kabul eder**: çıkıştan telemetri gelmez, sürdüğümüz rölenin
-  yankısı zaten `DeviceCommand`'da durur.
+- Adres bir **çifttir**: `type` + `channelNumber`. `ScadaPinAddress.TryParseType` yalnızca iki
+  başlık tanır — `"I"` dijital giriş (`PinDirection.Input`), `"A"` analog giriş
+  (`PinDirection.AnalogInput`). Büyük/küçük harf duyarsızdır.
+- **Çıkış başlığı (`"O"`) bilerek yoktur**: çıkıştan telemetri gelmez, sürdüğümüz rölenin
+  yankısı zaten `DeviceCommand`'da durur. Geçersiz başlık `400` döner.
+- `IN<n>` / `OUT<n>` / `AI<n>` **metinsel** adresi yalnızca **giden** komut gövdesinde
+  kullanılır (`ScadaPinAddress.Format`); ingest'te böyle bir string ayrıştırması yoktur.
+  LED için ayrı önek yoktur — LED `OUT17..OUT24`'tür.
 - Kabin pasifse veya `ScadaIsEnabled` kapalıysa istek reddedilir.
 - Tanımsız/devre dışı kanal veya bulunamayan cihaz **isteği düşürmez**: bir `Warning`
   satırı yazılır ve boş **200** döner.
-- Değişmeyen kanal değeri yazılmaz ve yayınlanmaz. Değer değiştiyse `IoChannel` güncellenir,
-  kanal **giriş** yönündeyse bir `ChannelEvent` satırı eklenir.
+- Değişmeyen kanal değeri yazılmaz ve yayınlanmaz. Değer değiştiyse `IoChannel` güncellenir ve
+  kanal **giriş yönündeyse** (`Input` ya da `AnalogInput`) bir `ChannelEvent` satırı eklenir.
 - Cihaz `LastSeen` her ingest'te güncellenir; cihaz Offline'dan Online'a çekilir (Warning /
   Critical / Maintenance durumları **korunur**, ingest bunları silmez). Cihaz durumu
   değiştiyse kabinin toplu durumu yeniden hesaplanır.
@@ -291,15 +297,16 @@ yayınlar; SignalR implementasyonu WebAPI'dedir.
 kabin + kanal + tarih aralığı, `OccurredAtUtc`'ye göre). Yazım yolu **yoktur** — satırları
 yalnızca ingest üretir.
 
-Bir satır **üç koşul birden sağlanınca** yazılır: değer gerçekten değişti **ve** kanal
-`Input` yönlü **ve** yeni değer `null` değil. Satır `Value`, `PreviousValue`, `OccurredAtUtc`
-(sahada gerçekleştiği an) ve `ReceivedAtUtc` (bize ulaştığı an) taşır.
+Bir satır **üç koşul birden sağlanınca** yazılır: değer gerçekten değişti **ve** kanal giriş
+yönlü (`Input` ya da `AnalogInput`) **ve** yeni değer `null` değil. Satır `Value`,
+`PreviousValue`, `OccurredAtUtc` (sahada gerçekleştiği an) ve `ReceivedAtUtc` (bize ulaştığı
+an) taşır.
 
 Yazılmayan üç durum ve gerekçeleri:
 
 - **Aynı değerin tekrarı.** SCADA saniyede bir `IN7 = 1` gönderirse bir saat sonra tabloda
   3600 değil **1** satır olur.
-- **Çıkış kanalları.** Ingest zaten `OUT...` adreslerini reddeder; sürdüğümüz rölenin kaydı
+- **Çıkış kanalları.** Ingest zaten `"O"` başlığını tanımaz; sürdüğümüz rölenin kaydı
   `DeviceCommand`'dadır.
 - **`null`'a düşen okuma.** "Kanal var ama okunamadı" durumunda `IoChannel.CurrentValue`
   null'a çekilir, ama `ChannelEvent.Value` non-nullable olduğu için olay satırı yazılmaz —
@@ -308,11 +315,15 @@ Yazılmayan üç durum ve gerekçeleri:
 Anlık değer bu tabloda değil, `IoChannel.CurrentValue` + `ValueUpdatedAt` alanlarında durur
 ve üzerine yazılır.
 
-**Bu bir değişim günlüğüdür, zaman serisi değildir.** Dijital 0/1 kanallarda doğru ve
-ekonomik seçimdir: durum değişimi zaten olayın kendisidir. Analog bir kanalda (sıcaklık,
-akım) ise değer neredeyse her ingest'te değişir — o zaman her ingest bir satır üretir ve
-tablo fiilen bir telemetri tablosuna dönüşür. Büyümesini sınırlayan hiçbir şey yoktur;
-bkz. § 7.
+**Dijital kanalda bu bir değişim günlüğüdür; analog kanalda fiilen telemetri tablosudur.**
+0/1 kanalda satır yalnızca durum değişince doğar — durum değişimi zaten olayın kendisidir ve
+tablo yavaş büyür. Analog bir kanalda (sıcaklık, akım) ise değer neredeyse her ingest'te
+değişir, dolayısıyla **her ingest bir satır üretir**.
+
+Bu bilinçli bir karardır (2026-09-10): analog geçmişi ayrı bir `TelemetryRecord` tablosu
+yerine aynı tabloda tutuluyor. **Bedeli:** `ChannelEvent`'in büyümesini sınırlayan tek şey
+artık saklama/temizlik işidir ve o iş **henüz yazılmadı** — bkz. § 7 ve yol haritası (j).
+Analog kanal kullanan bir kurulumda bu iş yazılana kadar tablo sınırsız büyür.
 
 ### 5.4 İzleme — kameralar
 
@@ -335,9 +346,11 @@ gelmez — bu platform onları kendisi yoklar.
 - **Kapalı bir profil sessizce diğerine düşmez.** `CreateStreamTokenAsync`, istenen profilin
   `MainStreamEnabled` / `SubStreamEnabled` bayrağı kapalıysa bilet üretmez; `400` ile
   "bu kamerada kapalı" der. Geri düşüş olsaydı 12 kutucuklu bir ızgara kamera başına
-  ~4 Mbps'ye çıkabilirdi. Hangi ekranın hangi profili isteyeceği (ızgara → sub, detay → main)
-  bir **istemci kararıdır** ve `Scadex.WebUI` henüz yazılmadığı için bugün hiçbir yerde
-  uygulanmıyor — profil `stream-ticket` çağrısında query string'den geliyor.
+  ~4 Mbps'ye çıkabilirdi. Hangi ekranın hangi profili isteyeceği bir **istemci kararıdır** ve
+  `Scadex.WebUI` bunu beklendiği gibi uyguluyor: ızgara kutucuğu `StreamProfile.Sub`
+  (`components/camera/camera-tile.tsx`), detay ekranı `StreamProfile.Main`
+  (`views/app/cameras/detail.tsx`). Profil `stream-ticket` çağrısında query string'den gider;
+  kapalı profil `hooks/use-camera-stream.ts` içinde istek atılmadan yakalanır.
 - **`SnapshotLocks` `static`'tir ve öyle kalmalıdır.** Servis scoped'dur; alan örnek bazlı
   olsaydı her istek kendi kilidini alır ve sürü koruması hiçbir işe yaramazdı. Snapshot'lar
   ayrıca `IDistributedCache` üzerinde birkaç saniye tutulur.
@@ -411,19 +424,26 @@ gerekçeyle salt okunurdur.
 
 ## 7. Şu anki durum — dürüst envanter
 
-### Hemen ilgilenilmesi gerekenler
+### Kapatılanlar
 
-1. **Çözüm şu an derlenmiyor.** `Program.cs` üç tipi bulamıyor çünkü iki `using` eksik:
-   `Scadex.WebAPI.BackgroundServices` (`OfflineDeviceChecker`, `ClipCaptureWorker`) ve
-   `Scadex.WebAPI.Hubs` (`DiagramHub`). Tipler yerinde; yalnızca import satırları eksik.
-2. **`Migrations/` klasörü yok, veritabanı hiç oluşturulmadı.** İlk `InitialCreate`
-   üretilmeli ve uygulanmalı. Seed verisi migration ile birlikte gider.
-3. **`mediamtx.yml` CabinetOS'tan kalma portu gösteriyor.** `authHTTPAddress` satırı
-   `http://127.0.0.1:5263/...` diyor, ama Scadex `5208`'de dinliyor (`launchSettings.json`).
-   Düzeltilmeden canlı izleme çalışmaz: MediaMTX auth hook'una ulaşamaz, her yayın isteği
-   reddedilir. Tek satırlık düzeltme.
-4. **AutoMapper 14.0.0** için NuGet yüksek önem dereceli güvenlik uyarısı (`NU1903`) veriyor;
-   sürüm yükseltmesi değerlendirilmeli.
+Bu blokta duran dört acil madde **kapandı** (bkz. aşağıdaki "kabul edilmiş risk" istisnası):
+
+1. ~~Çözüm derlenmiyor~~ — `Program.cs`'e eksik iki `using` eklendi
+   (`Scadex.WebAPI.BackgroundServices`, `Scadex.WebAPI.Hubs`); `dotnet build` yeşil.
+2. ~~`Migrations/` klasörü yok~~ — `InitialCreate` üretildi ve uygulandı. Doğrulandı: `Pin` ve
+   `ComponentTemplatePin` için `RelativeX/Y` 0..1 `CHECK`'leri, `CK_Connection_DistinctPins`,
+   `IX_IoChannel_CabinetId_Direction_ChannelNumber` ve `IX_Connection_SourcePinId_TargetPinId`
+   (`WHERE IsDeleted = 0`), `IX_Device_CabinetId_ExternalCode`
+   (`WHERE ExternalCode IS NOT NULL AND IsActive = 1`) migration'da yerinde. Seed indi:
+   5 DeviceStatus, 12 DeviceType, 10 Permission, **10 şablon + 66 pin**, 4 rol, admin, 1 şirket.
+3. ~~Port tutarsızlıkları~~ — **kanonik adres `http://localhost:5208`**. `mediamtx.yml`
+   (`authHTTPAddress`), `Scadex.WebUI/.env.development`, `.env.production` ve
+   `axios-helper.ts`'teki yedek değer bu adreste birleştirildi. (`src/lib/diagram/template-image.ts`
+   içindeki yorum hâlâ eski `:7042`'yi anıyor — yalnızca yorum, davranış etkilenmiyor.)
+
+**Kabul edilmiş risk — AutoMapper 14.0.0.** NuGet `NU1903` (yüksek önem, GHSA-rvv3-g6hj-g44x)
+uyarısı veriyor. **Yükseltilmeyecek:** AutoMapper 15 ticari lisans istiyor. Bu bir yapılacak iş
+değil, bilinçli bir karardır; `dotnet build` çıktısındaki 5 uyarı bu yüzden beklenen gürültüdür.
 
 ### Bilinçli boşluklar (unutulmadı, sıraya alındı)
 
@@ -442,19 +462,25 @@ gerekçeyle salt okunurdur.
   Bkz. (e).
 - **Kiracı izolasyonu yok** (§ 6'daki gerekçeyle sonradan tek noktadan gelecek).
 - **Ingest yalnızca `cabinetId` ile "kimlik doğrular"** — paylaşılan sır / imza yok.
-- **Ham telemetri geçmişi yok.** Giriş kanallarından gelen veri DB'ye *yazılır* — ama
-  `ChannelEvent` bir **değişim günlüğüdür** (§ 5.3), zaman serisi değil. "Örnekleme kesintisiz
-  miydi", "dün 14:00'te değer neydi", "şu aralığın ortalaması" gibi sorular bu tablodan
-  cevaplanamaz; `TelemetryRecord` benzeri bir tablo yoktur.
-- **`ChannelEvent` için saklama/temizlik işi yok.** Yazan tek yol ingest, silen hiçbir yol
-  yok. Dijital kanallarda tablo yavaş büyür; analog kanallarda her ingest bir satır üretir ve
-  büyüme sınırsızdır.
-- **Doğrulanmalı:** Silinmiş bir kanalın olay satırları okuma yolunda muhtemelen **tamamen
-  düşüyor.** `ChannelEventRepository.cs:49-51` yorumu türev alanların (`channelName`,
-  `deviceName`, …) null geleceğini söylüyor; ancak `ChannelEvent.IoChannelId` non-nullable
-  olduğu için EF navigasyonu zorunlu sayar ve `ProjectTo` INNER JOIN üretir — `IoChannel`'ın
-  soft-delete query filter'ıyla birleşince satırın listeden çıkması beklenir. Bu koddan
-  çıkarılmış bir sonuçtur, ölçülmemiştir; ölçüm adımları için bkz. aşağıdaki not.
+- **Ayrı bir `TelemetryRecord` tablosu yok — bilinçli.** 2026-09-10'da analog kanalların
+  geçmişinin de `ChannelEvent`'te tutulmasına karar verildi (`ChannelEventService`'teki koşul
+  `Input` **ve** `AnalogInput`'u kapsıyor). Analog kanalda tablo artık bir zaman serisi gibi
+  davranır; dijital kanalda değişim günlüğü olmayı sürdürür. "Örnekleme kesintisiz miydi"
+  sorusu hâlâ cevaplanamaz — `null`'a düşen okuma satır üretmez (§ 5.3).
+- **`ChannelEvent` için saklama/temizlik işi yok — artık ACİL.** Yazan tek yol ingest, silen
+  hiçbir yol yok. Dijital kanallarda tablo yavaş büyür, ama **2026-09-10'da analog kanallar da
+  olay üretmeye başladı** (aşağıya bakın): analogda değer neredeyse her ingest'te değiştiği
+  için her ingest bir satır demek. Analog kart kullanan bir kurulumda büyümeyi sınırlayan
+  hiçbir şey yok. Bkz. yol haritası (j).
+- **ÖLÇÜLDÜ (2026-09-10) — silinmiş kanalın olay satırları listeden tamamen düşüyor.**
+  Repository yorumunun iddia ettiği gibi "türev alanlar null gelir" **değil**: satır hiç
+  gelmiyor. `ChannelEvent.IoChannelId` non-nullable olduğu için `ProjectTo` INNER JOIN üretiyor
+  ve `IoChannel`'ın soft-delete filtresi satırı boşa düşürüyor. **Yan bulgu:** sayfalama sayacı
+  join'siz hesaplandığından `dataCount` dolu kalıyor — istemci "3 kayıt" görüp **boş tablo**
+  çiziyor. Yorum ölçüm sonucuyla düzeltildi (`ChannelEventRepository.cs`).
+  **Bugün ulaşılamaz durumdur:** hiçbir yazım yolu `IoChannel` silmiyor — cihaz silmek
+  kanalları yerinde bırakıyor (§ 5.2). Bu yüzden kod yeniden yapılandırılmadı; kanal silen bir
+  yol eklenirse olay geçmişi sessizce kaybolacağı için o gün birlikte ele alınmalı.
 - **Çekim saklama temizliği yok** — `ExpiresAt` yazılıyor ama kimse okumuyor.
 - `DeviceCommandController` generic Create/Update/Delete/Restore uçlarını taşıyor; bu,
   § 5.2'deki "tek yazım yolu" ilkesiyle gözden geçirilmesi gereken bir istisna.
@@ -463,22 +489,31 @@ gerekçeyle salt okunurdur.
 - **`docs/api-contract/` karşılığı bu depoda henüz yok.** Sözleşme dokümanı taşınana kadar
   tek doğruluk kaynağı DTO'ların kendisidir.
 
-> **Not — silinmiş kanalın olay satırları nasıl ölçülür.** Veritabanı ayağa kalktıktan sonra:
-> (1) giriş kanalı olan bir cihaz oluşturun ve `POST /api/Scada/ingest` ile değeri birkaç kez
-> değiştirerek olay satırı üretin; (2) `POST /api/ChannelEvent/list` ile satırların döndüğünü
-> görün; (3) diyagram deltasıyla o cihazı silin (kanal soft-delete olur); (4) aynı listeyi
-> tekrar çağırın. Satırlar türev alanları null olarak mı geliyor, yoksa listeden tamamen mi
-> düşüyor — sonucu yukarıdaki maddeye kesin ifadeyle yazıp "Doğrulanmalı" etiketini kaldırın.
+> **Ölçüm nasıl yapıldı.** Cihaz + giriş kanalı oluşturuldu, `POST /api/Scada/ingest` ile
+> `IN7` üç kez değiştirilerek 3 olay satırı üretildi ve listelendi. Ardından cihaz diyagram
+> deltasıyla silindi: `Device.IsActive = 0`, 10 pin `IsDeleted = 1`, **ama `IoChannel.IsDeleted`
+> hâlâ 0** — yani "cihazı silmek kanalı silmez" (§ 5.2) kuralı yüzünden liste hiç bozulmadı.
+> Senaryoyu gerçekten kurmak için kanal doğrudan SQL ile `IsDeleted = 1` yapıldı; ancak o zaman
+> liste boş döndü. Kanal geri alındı.
 
 ### Yol haritası — sırada ne var
 
-**(a)** Derleme hatalarını kapat, ilk migration'ı üret, veritabanını ayağa kaldır.
+**(a)** ~~Derleme hatalarını kapat, ilk migration'ı üret, veritabanını ayağa kaldır.~~
+**TAMAMLANDI (2026-09-10).** Duman testi geçti: login → `permission` claim'leri, palet (10
+şablon), kabin oluşturma, diyagram delta kaydı (10 pin + 8 kanal şablondan türetildi) ve
+`POST /api/Scada/ingest` → `ChannelEvent` üretimi uçtan uca çalışıyor.
 
 **(b)** İzin zorlaması: `permission` claim'ini okuyan policy/handler + kritik uçların
 işaretlenmesi (özellikle `ControlOutput` ve diyagram kaydetme).
 
-**(c) `Scadex.WebUI`'nin gerçekten yazılması** — bugün boş bir Vite iskeleti. Diyagram editörü
-(React Flow), canlı değer katmanı, kamera ızgarası ve olay listesi buraya gelecek.
+**(c) `Scadex.WebUI` — büyük kısmı yazıldı.** Diyagram editörü (React Flow; palet, ortogonal
+kablo, hizalama, özellik paneli, kaydedilmemiş değişiklik koruması), SignalR üzerinden canlı
+değer katmanı (`lib/diagram/live-store.ts` + `hooks/use-diagram-live.ts`), kamera ızgarası ve
+WHEP oynatıcı (`lib/camera/`), auth akışı ve admin ekranları (şirket, kamera, şablon) ayakta.
+
+Kalanlar: **olay listesi ekranı** — `api/channel-event.ts` ve `hooks/use-channel-events.ts`
+yazılı ama hiçbir görünüm bunları tüketmiyor; kullanıcı/rol/izin yönetimi ekranları;
+`.env.development`'taki API adresinin düzeltilmesi (bkz. § 8).
 
 **(d) `IMonitoredAsset` yoklama background servisi.** `Camera` gibi bu arayüzü uygulayan
 **tüm** varlıklar için genel bir servis — tipe özel değil, yeni bir izlenen tip eklendiğinde
@@ -533,12 +568,6 @@ okuma ya da çapraz silme mümkün değil. Değişmesi gereken yalnızca iki yer
 **(h)** Kart okuyucu ingest'i: `DeviceType.CardReader` için ayrı bir uç (`{ "cardId": "…" }`);
 kart kimliği bir ölçüm olmadığı için `IoChannel`'a yazılmaz, `ChannelEvent` üretmez.
 
-**(i)** Otomasyon / iş akışı ve geçiş kontrolü modülleri (tasarlandı, yazılmadı).
-
-**(j)** Saklama ve temizlik işleri (kanal olayları, çekim dosyaları).
-
-**(k)** CI / dağıtım.
-
 ---
 
 ## 8. Çalıştırma
@@ -566,20 +595,24 @@ Depodaki `mediamtx.yml` kısmen yamalı: `authMethod: http` ve `authHTTPExclude`
 `api` / `metrics` / `pprof` eylemleri tanımlı. Bu muafiyet kaldırılırsa MediaMTX kendi Control
 API'sini kilitler — yol açmaya çalışan her istek kimlik doğrulamaya, o da Control API'ye düşer.
 
-> ⚠️ **`authHTTPAddress` yanlış portu gösteriyor.** `mediamtx.yml:100` şu an
-> `http://127.0.0.1:5263/api/MediaGateway/auth` diyor; **5263 CabinetOS'un portudur**.
-> Scadex `launchSettings.json`'a göre `http://localhost:5208` (ve `https://localhost:7167`)
-> üzerinde dinliyor. Düzeltilmezse MediaMTX auth hook'una hiç ulaşamaz, her yayın isteği
-> reddedilir ve canlı izleme hiç çalışmaz. Bkz. § 7.
+> **`authHTTPAddress` artık doğru portu gösteriyor** (`http://127.0.0.1:5208/...`). Bu satır
+> uzun süre CabinetOS'un `5263`'ünde kalmıştı ve MediaMTX auth hook'una hiç ulaşamadığı için
+> canlı izleme çalışmıyordu. API'nin dinlediği portu değiştirirseniz **bu satırı da**
+> güncelleyin — sessizce bozulan tek yer burasıdır.
 
 ### Frontend (`Scadex.WebUI/` içinden)
 
 ```bash
 npm install
 npm run dev      # :5173 — appsettings'teki Cors:Origins ile eşleşmeli
-npm run build
+npm run build    # tsc -b && vite build — tip kontrolü bunun içindedir
 npm run lint
 ```
+
+> **Kanonik API adresi `http://localhost:5208`'dir.** `.env.development`, `.env.production` ve
+> `src/lib/axios-helper.ts`'teki yedek değer bu adreste birleştirildi; bir zamanlar üçü ayrı
+> yerlere (`5263`, `7042`) bakıyordu. Adresi değiştirirken üçünü birden güncelleyin —
+> `.env` dosyaları git'te izlendiği için tek makineye özel değişiklik yapmayın.
 
 ---
 
@@ -597,4 +630,5 @@ npm run lint
 - **§ 7'deki "bilinçli boşluklar"ı sormadan "düzeltmeyin".** Bunlar unutulmuş değil,
   sıraya alınmış maddelerdir.
 - Değişikliğin sonunda `dotnet build` yeşil olmalı; frontend'e dokunduysanız
-  `npm run typecheck && npm run lint && npm run build` de yeşil olmalı.
+  `npm run lint && npm run build` de yeşil olmalı. (`typecheck` diye ayrı bir script **yoktur**;
+  tip kontrolünü `build` içindeki `tsc -b` yapar.)

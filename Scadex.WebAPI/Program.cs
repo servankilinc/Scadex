@@ -18,6 +18,8 @@ using Scadex.DataAccess;
 using Scadex.DataAccess.Contexts;
 using Scadex.Model.Dtos.Cabinet.Commands;
 using Scadex.Model.Entities;
+using Scadex.WebAPI.BackgroundServices;
+using Scadex.WebAPI.Hubs;
 using Scadex.WebAPI.Tools;
 using Scadex.WebAPI.Utils;
 using Scalar.AspNetCore;

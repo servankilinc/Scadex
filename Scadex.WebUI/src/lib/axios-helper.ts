@@ -4,7 +4,7 @@ import type { FieldValues, Path, UseFormSetError } from 'react-hook-form';
 import { clearSession, getAccessToken } from './auth-session';
 import type { ProblemDetails } from '@/models/common/problemDetails';
 
-export const API_BASE_URL: string = import.meta.env.VITE_API_URL ?? 'https://localhost:7042';
+export const API_BASE_URL: string = import.meta.env.VITE_API_URL ?? 'http://localhost:5208';
 
 /**
  * Account uclarinin yolu SABIT ve BUYUK/KUCUK HARFE DUYARLIDIR.

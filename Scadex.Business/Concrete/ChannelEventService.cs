@@ -174,8 +174,9 @@ public class ChannelEventService : IChannelEventService
                 UpdatedAt = now
             });
 
-            // Input pinleri için ChannelEvent yazılır
-            if (channel.Direction == PinDirection.Input && request.Value != null)
+            // Input ve Analaog input pinleri için ChannelEvent(telemetri) yazılır
+            if ((channel.Direction == PinDirection.Input || channel.Direction == PinDirection.AnalogInput)
+                && request.Value != null)
             {
                 channelEvent = new ChannelEvent
                 {
