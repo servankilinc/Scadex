@@ -416,6 +416,24 @@ CRUD + `selectlist` / `pagination` / `datatable/{client,server}` uçlarını ta�
 `Pin`, `IoChannel`, `Connection`, `DiagramAnnotation`, `ComponentTemplatePin` § 5.2'deki
 gerekçeyle salt okunurdur.
 
+**Kullanıcı / rol / izin yönetimi (2026-09-11).** Ekranlar `/admin/users` ve `/admin/roles`.
+Silme yoktur (`IActivatableEntity`); pasife alma tek yoldur.
+
+- Kullanıcının rolleri tek istekte eşitlenir: `PUT /api/UserRole/user/{userId}/sync` (gövde rol
+  **adları**; `RolePermission` sync'inin aynası, tek transaction). Tanımsız ad ya da **yeni**
+  eklenen pasif rol `400`'dür (`errors.roleNames`); zaten atanmış pasif rol listede kalabilir.
+  Tekil `Assign` / `Remove` uçları duruyor.
+- Kendi hesabını pasife almak `400`'dür (`errors.IsActive`) — login `IsActive`'e baktığı için
+  yönetici kendini kilitlerdi. Pasife alınan kullanıcının refresh token'ları iptal edilir ve
+  `RefreshAuth` pasif kullanıcıyı `403` ile reddeder.
+- Pasif rol izin türetmez (`AuthService.GetPermissionCodesAsync` `IsActive` filtreler); rol
+  claim'i yine yazılır.
+- Sistem rolleri (`IsImmutable` — seed'deki dördünün hepsi) yeniden adlandırılamaz ve pasife
+  alınamaz (`403`), ama **izinleri düzenlenebilir**; kilitlenseydi izin ekranı seed rolleri için
+  işe yaramazdı.
+- `UserDetailDto` artık `UserName`, `RoleDto` artık `IsImmutable` taşır. Parola sıfırlama ucu
+  bilinçli olarak yoktur; parola yalnızca oluştururken verilir.
+
 ---
 
 ## 6. API sözleşmesi kuralları
@@ -479,6 +497,10 @@ değil, bilinçli bir karardır; `dotnet build` çıktısındaki 5 uyarı bu yü
 
 - **Yetki zorlanmıyor.** `permission` claim'i üretilip token'a konuyor, ama hiçbir
   `[Authorize(Policy = …)]` ya da handler onu okumuyor. `ControlOutput` dahil.
+- **Pasife alınan kullanıcının access token'ı süresi dolana kadar (24 sa) geçerlidir.** İstek
+  başına `IsActive` kontrolü yok; pasife alma yalnızca yeni girişi ve `RefreshAuth`'u keser.
+  Rol / izin değişikliği de aynı sebeple kullanıcının **bir sonraki** giriş ya da yenilemesinde
+  token'a yansır (§ 5.5).
 - ~~Yoklama servisi yok~~ — **yazıldı (2026-09-10)**, bkz. (d).
 - ~~MediaMTX yolları birikiyor~~ — **günlük temizlik yazıldı (2026-09-10)**, bkz. (f).
   Kalan tek birikme kaynağı: kayıt bayrağı açık kalmış **artık klip yolları** (çekimi çökmüş
@@ -571,7 +593,10 @@ eşitleniyor — `useEffect` + `reset` kalıbı bilerek kullanılmadı. Zod şem
 `FluentValidation` kurallarının **elle tutulan kopyasıdır**; codegen yok, sunucudaki kural
 değişirse şema da elle değişmeli.
 
-Kalanlar: kullanıcı/rol/izin yönetimi ekranları.
+~~Kullanıcı/rol/izin yönetimi ekranları~~ — **yazıldı (2026-09-11)**: `views/admin/users/`
+(`/admin/users`) ve `views/admin/roles/` (`/admin/roles`); kurallar § 5.5'te. Kart ızgarası +
+dialog kalıbı firma ekranıyla aynı, tek fark dialogların `useEffect` + `reset` yerine koşullu
+mount + `key` ile tazelenmesi.
 
 **(d)** ~~`IMonitoredAsset` yoklama background servisi.~~ **TAMAMLANDI (2026-09-10).**
 

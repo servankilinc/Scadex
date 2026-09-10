@@ -5,6 +5,7 @@ using Scadex.Business.Abstract;
 using Scadex.Core.BaseRequestModels;
 using Scadex.Core.Utils;
 using Scadex.Core.Utils.Datatable;
+using Scadex.Core.Utils.HttpContextManager;
 using Scadex.Core.Utils.Pagination;
 using Scadex.Core.Utils.ResultPattern;
 using Scadex.Core.Utils.Validation;
@@ -23,12 +24,14 @@ public class UserService : IUserService
     private readonly IValidationService _validationService;
     private readonly UserManager<User> _userManager;
     private readonly IMapper _mapper;
-    public UserService(IUnitOfWork unitOfWork, IValidationService validationService, UserManager<User> userManager, IMapper mapper)
+    private readonly IHttpContextManager _httpContextManager;
+    public UserService(IUnitOfWork unitOfWork, IValidationService validationService, UserManager<User> userManager, IMapper mapper, IHttpContextManager httpContextManager)
     {
         _unitOfWork = unitOfWork;
         _validationService = validationService;
         _userManager = userManager;
         _mapper = mapper;
+        _httpContextManager = httpContextManager;
     }
 
     #region Get
@@ -149,10 +152,27 @@ public class UserService : IUserService
         var validationResult = await _validationService.ValidateAsync(request, cancellationToken);
         if (!validationResult.IsValid)
             return Result.Validation(validationResult.Failures);
+
+        // Login IsActive'e baktigi icin kendini pasife alan yonetici sistemden kilitlenirdi.
+        var currentUserId = _httpContextManager.GetNameIdentifier();
+        if (!request.IsActive && currentUserId.IsSuccess && Guid.TryParse(currentUserId.Data, out var selfId) && selfId == request.Id)
+        {
+            const string message = "Kendi hesabınızı pasife alamazsınız.";
+            return Result.Validation(new Dictionary<string, string[]> { [nameof(request.IsActive)] = new[] { message } }, message: message);
+        }
+
         var entity = await _unitOfWork.Users.GetAsync(where: (f) => f.Id == request.Id, cancellationToken: cancellationToken);
         if (entity == null)
             return Result.NotFound();
+
+        bool isDeactivated = entity.IsActive && !request.IsActive;
         await _unitOfWork.Users.UpdateAndSaveAsync(_mapper.Map(request, entity), cancellationToken);
+
+        // Pasife alinan kullanicinin refresh token'lari iptal edilir: yeniden aktiflestirildiginde eski oturumla geri donmesin.
+        // Access token (24 sa) suresi dolana kadar gecerli kalir — istek basina IsActive kontrolu bilerek yok.
+        if (isDeactivated)
+            await _unitOfWork.RefreshTokens.RevokeDeviceRefreshTokensAsync(f => f.UserId == request.Id && f.IsRevoked == false, cancellationToken);
+
         return Result.Success();
     }
     #endregion

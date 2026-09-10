@@ -48,4 +48,11 @@ public class UserRoleController : BaseController
         var result = await _userRoleService.RemoveAsync(userId, roleName);
         return ToAction(result);
     }
+
+    [HttpPut("user/{userId:guid}/sync")]
+    public async Task<IActionResult> Sync(Guid userId, [FromBody] ICollection<string> roleNames, CancellationToken cancellationToken)
+    {
+        var result = await _userRoleService.SyncAsync(userId, roleNames, cancellationToken);
+        return ToAction(result);
+    }
 }

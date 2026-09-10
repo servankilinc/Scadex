@@ -5,6 +5,7 @@ namespace Scadex.Model.Dtos.User.Queries;
 public class UserDetailDto : IDto
 {
     public Guid Id { get; set; }
+    public string? UserName { get; set; }
     public string? Email { get; set; }
     public Guid CompanyId { get; set; }
     public string CompanyName { get; set; } = null!;

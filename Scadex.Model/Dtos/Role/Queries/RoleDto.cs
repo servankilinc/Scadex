@@ -6,6 +6,8 @@ public class RoleDto : IDto
 {
     public Guid Id { get; set; }
     public string Name { get; set; } = null!;
+    /// <summary> Sistem rolu: adi ve aktifligi degistirilemez (<c>RoleService.UpdateAsync</c> 403 doner). Izinleri yine duzenlenebilir. </summary>
+    public bool IsImmutable { get; set; }
     public string? CreatedBy { get; set; }
     public string? UpdatedBy { get; set; }
     public DateTime? CreateDateUtc { get; set; }

@@ -13,7 +13,9 @@ import {
   MoonIcon,
   SettingsIcon,
   ShapesIcon,
+  ShieldIcon,
   SunIcon,
+  UsersIcon,
   VideoIcon,
   Zap,
   type LucideIcon
@@ -72,6 +74,8 @@ const NAV_ITEMS: NavItem[] = [
   // (/admin/cameras) tanımlamak için.
   { title: 'Canlı İzleme', url: '/cameras', icon: VideoIcon },
   { title: 'Firmalar', url: '/admin/companies', icon: Building2Icon },
+  { title: 'Kullanıcılar', url: '/admin/users', icon: UsersIcon },
+  { title: 'Roller', url: '/admin/roles', icon: ShieldIcon },
   { title: 'Şablonlar', url: '/admin/templates', icon: ShapesIcon },
   { title: 'Kameralar', url: '/admin/cameras', icon: CameraIcon },
   { title: 'Ayarlar', url: '/admin/settings', icon: SettingsIcon }

@@ -263,7 +263,8 @@ public class AuthService : IAuthService
 
             // 3) Find user
             var user = await _unitOfWork.Users.GetAsync(where: f => f.Id == refreshAuthRequest.UserId, cancellationToken: cancellationToken);
-            if (user == null)
+            // Pasif kullanici Login'de oldugu gibi burada da reddedilir; aksi halde elindeki refresh token ile 7 gun daha oturum yenilerdi.
+            if (user == null || !user.IsActive)
             {
                 await _unitOfWork.RollbackTransactionAsync(cancellationToken);
                 return Result<RefreshAuthResponse>.Forbidden(message: "Your session has expired. Please sign in again.", description: $"User cannot found for refresh auth, userId: {refreshAuthRequest.UserId}", metadata: GlobalExtensions.Meta("Request Model", refreshAuthRequest));
@@ -356,7 +357,8 @@ public class AuthService : IAuthService
         var normalizedNames = roleNames.Select(r => r.ToUpperInvariant()).ToList();
         var roleIds = await _unitOfWork.Roles.GetAllAsync<Guid>(
             select: r => r.Id,
-            where: r => r.NormalizedName != null && normalizedNames.Contains(r.NormalizedName),
+            // Pasif rol izin turetmez. Rol claim'i (GetRolesAsync) yine yazilir; pasiflik yalnizca izin kumesini etkiler.
+            where: r => r.NormalizedName != null && normalizedNames.Contains(r.NormalizedName) && r.IsActive,
             cancellationToken: cancellationToken);
 
         if (roleIds == null || roleIds.Count == 0)

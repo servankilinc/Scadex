@@ -71,3 +71,27 @@ export const settingKeys = {
   mediaGateway: () => ['setting', 'media-gateway'] as const,
   cameraCapture: () => ['setting', 'camera-capture'] as const
 };
+
+export const userKeys = {
+  all: ['user'] as const,
+  /** Pasifler DAHİL — geri alınabilsinler diye. */
+  list: () => [...userKeys.all, 'list'] as const,
+  /** Kullanıcının rol ADLARI (Identity adla döner) — Roller dialogunun kaynağı. */
+  roles: (userId: string) => [...userKeys.all, 'roles', userId] as const
+};
+
+export const roleKeys = {
+  all: ['role'] as const,
+  list: () => [...roleKeys.all, 'list'] as const,
+  /** Bir rolün izinleri — İzinler dialogunun kaynağı. */
+  permissions: (roleId: string) => [...roleKeys.all, 'permissions', roleId] as const
+};
+
+/**
+ * İzin kataloğu seed'den gelir (`IImmutableEntity`) ve çalışma anında değişmez;
+ * `staleTime: Infinity` ile bir kez çekilir. `roleKeys`'in ALTINDA değil: rol
+ * invalidation'ı kataloğu yeniden çektirmemeli.
+ */
+export const permissionKeys = {
+  list: () => ['permission', 'list'] as const
+};
