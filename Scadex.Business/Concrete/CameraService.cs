@@ -31,8 +31,8 @@ public partial class CameraService : ICameraService
     private readonly ICaptureFileStore _captureFileStore;
     private readonly IClipCaptureQueue _clipCaptureQueue;
     private readonly IDistributedCache _cache;
-    private readonly MediaGatewaySettings _mediaGatewaySettings;
-    private readonly CameraCaptureSettings _captureSettings;
+    private readonly IMediaGatewaySettingService _mediaGatewaySettingService;
+    private readonly ICameraCaptureSettingService _captureSettingService;
     private readonly IHttpContextManager _httpContextManager;
     private readonly ILoggingService _logger;
     private readonly IMapper _mapper;
@@ -45,8 +45,8 @@ public partial class CameraService : ICameraService
         ICaptureFileStore captureFileStore,
         IClipCaptureQueue clipCaptureQueue,
         IDistributedCache cache,
-        MediaGatewaySettings mediaGatewaySettings,
-        CameraCaptureSettings captureSettings,
+        IMediaGatewaySettingService mediaGatewaySettingService,
+        ICameraCaptureSettingService captureSettingService,
         IHttpContextManager httpContextManager,
         ILoggingService logger,
         IMapper mapper)
@@ -58,8 +58,8 @@ public partial class CameraService : ICameraService
         _captureFileStore = captureFileStore;
         _clipCaptureQueue = clipCaptureQueue;
         _cache = cache;
-        _mediaGatewaySettings = mediaGatewaySettings;
-        _captureSettings = captureSettings;
+        _mediaGatewaySettingService = mediaGatewaySettingService;
+        _captureSettingService = captureSettingService;
         _httpContextManager = httpContextManager;
         _logger = logger;
         _mapper = mapper;

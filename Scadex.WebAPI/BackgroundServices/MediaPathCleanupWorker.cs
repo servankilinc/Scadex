@@ -20,7 +20,7 @@ public class MediaPathCleanupWorker : BackgroundService
     {
         _scopeFactory = scopeFactory;
         _logger = logger;
-        _runAtHour = Math.Clamp(configuration.GetValue("MediaGateway:PathCleanupHour", DefaultRunAtHour), 0, 23);
+        _runAtHour = Math.Clamp(configuration.GetValue("Jobs:MediaPathCleanupHour", DefaultRunAtHour), 0, 23);
     }
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)

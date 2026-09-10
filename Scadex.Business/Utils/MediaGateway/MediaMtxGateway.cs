@@ -1,4 +1,5 @@
 using Microsoft.Extensions.Logging;
+using Scadex.Business.Abstract;
 using Scadex.Business.Settings;
 using Scadex.Business.Utils.CameraProtocolProfile.Resolver;
 using Scadex.Core.Utils.ResultPattern;
@@ -13,22 +14,33 @@ namespace Scadex.Business.Utils.MediaGateway;
 public class MediaMtxGateway : IMediaGateway
 {
     private readonly IHttpClientFactory _httpClientFactory;
-    private readonly MediaGatewaySettings _settings;
+    private readonly IMediaGatewaySettingService _mediaGatewaySettingService;
     private readonly ICameraProtocolProfileResolver _profileResolver;
     private readonly ILogger<MediaMtxGateway> _logger;
 
-    public MediaMtxGateway(IHttpClientFactory httpClientFactory, MediaGatewaySettings settings, ICameraProtocolProfileResolver profileResolver, ILogger<MediaMtxGateway> logger)
+    public MediaMtxGateway(IHttpClientFactory httpClientFactory, IMediaGatewaySettingService mediaGatewaySettingService, ICameraProtocolProfileResolver profileResolver, ILogger<MediaMtxGateway> logger)
     {
         _httpClientFactory = httpClientFactory;
-        _settings = settings;
+        _mediaGatewaySettingService = mediaGatewaySettingService;
         _profileResolver = profileResolver;
         _logger = logger;
+    }
+
+    private HttpClient CreateConfiguredClient(MediaGatewaySettings settings)
+    {
+        var httpClient = _httpClientFactory.CreateClient(IMediaGateway.HttpClientName);
+
+        httpClient.BaseAddress = new Uri(settings.ApiBaseUrl.TrimEnd('/') + "/");
+        httpClient.Timeout = TimeSpan.FromMilliseconds(settings.ApiTimeoutMs);
+
+        return httpClient;
     }
 
 
     /// <inheritdoc/>
     public async Task<Result> EnsureLivePathAsync(Camera camera, StreamProfile profile, CancellationToken cancellationToken = default)
     {
+        var settings = await _mediaGatewaySettingService.GetSettingsAsync(cancellationToken);
         var rtspUrl = _profileResolver.Resolve(camera).BuildRtspUrl(camera, profile);
 
         var payload = new Dictionary<string, object?>
@@ -36,13 +48,13 @@ public class MediaMtxGateway : IMediaGateway
             ["source"] = rtspUrl,
             // Talep uzerine baglan: izleyicisi olmayan bir kamera icin RTSP oturumu acik tutulmaz "SourceOnDemandCloseAfter" saniye sonra RTSP oturumu kapatilir.
             ["sourceOnDemand"] = true,
-            ["sourceOnDemandCloseAfter"] = _settings.SourceOnDemandCloseAfter,
-            ["rtspTransport"] = _settings.RtspTransport
+            ["sourceOnDemandCloseAfter"] = settings.SourceOnDemandCloseAfter,
+            ["rtspTransport"] = settings.RtspTransport
         };
 
         var pathName = IMediaGateway.LivePathName(camera.Id, profile);
 
-        var httpClient = _httpClientFactory.CreateClient(IMediaGateway.HttpClientName);
+        var httpClient = CreateConfiguredClient(settings);
 
         try
         {
@@ -90,7 +102,9 @@ public class MediaMtxGateway : IMediaGateway
     /// <inheritdoc/>
     public async Task<Result> EnsureClipPathAsync(Camera camera, long captureId, string recordPath, string segmentDuration, CancellationToken cancellationToken = default)
     {
-        // Video kaydı her zaman Main stream'den alinir: 
+        var settings = await _mediaGatewaySettingService.GetSettingsAsync(cancellationToken);
+
+        // Video kaydı her zaman Main stream'den alinir:
         var rtspUrl = _profileResolver.Resolve(camera).BuildRtspUrl(camera, StreamProfile.Main);
 
         var payload = new Dictionary<string, object?>
@@ -98,7 +112,7 @@ public class MediaMtxGateway : IMediaGateway
             ["source"] = rtspUrl,
             // Talep BEKLENMEZ: kaydin hemen baslamasi gerekiyor, yoksa ilk izleyici gelene kadar hicbir sey yazilmaz.
             ["sourceOnDemand"] = false,
-            ["rtspTransport"] = _settings.RtspTransport,
+            ["rtspTransport"] = settings.RtspTransport,
             ["record"] = true,
             ["recordPath"] = recordPath,
             // fmp4 -> tarayicinin dogrudan oynatabildigi .mp4 dosyasi.
@@ -110,7 +124,7 @@ public class MediaMtxGateway : IMediaGateway
 
         var pathName = IMediaGateway.ClipPathName(captureId);
 
-        var httpClient = _httpClientFactory.CreateClient(IMediaGateway.HttpClientName);
+        var httpClient = CreateConfiguredClient(settings);
 
         try
         {
@@ -146,7 +160,7 @@ public class MediaMtxGateway : IMediaGateway
     /// <inheritdoc/>
     public async Task<Result> DeletePathAsync(string pathName, CancellationToken cancellationToken = default)
     {
-        var httpClient = _httpClientFactory.CreateClient(IMediaGateway.HttpClientName);
+        var httpClient = CreateConfiguredClient(await _mediaGatewaySettingService.GetSettingsAsync(cancellationToken));
 
         try
         {
@@ -169,7 +183,7 @@ public class MediaMtxGateway : IMediaGateway
     /// <inheritdoc/>
     public async Task<Result<IReadOnlyList<MediaPathInfo>>> ListPathsAsync(CancellationToken cancellationToken = default)
     {
-        var httpClient = _httpClientFactory.CreateClient(IMediaGateway.HttpClientName);
+        var httpClient = CreateConfiguredClient(await _mediaGatewaySettingService.GetSettingsAsync(cancellationToken));
 
         try
         {

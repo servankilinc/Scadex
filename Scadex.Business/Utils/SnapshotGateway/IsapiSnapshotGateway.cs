@@ -1,5 +1,5 @@
 using Microsoft.Extensions.Logging;
-using Scadex.Business.Settings;
+using Scadex.Business.Abstract;
 using Scadex.Business.Utils.CameraProtocolProfile.Resolver;
 using Scadex.Core.Utils;
 using Scadex.Core.Utils.ResultPattern;
@@ -23,18 +23,18 @@ public class IsapiSnapshotGateway : ISnapshotGateway
 
     private readonly IHttpClientFactory _httpClientFactory;
     private readonly ICameraProtocolProfileResolver _profileResolver;
-    private readonly CameraCaptureSettings _settings;
+    private readonly ICameraCaptureSettingService _cameraCaptureSettingService;
     private readonly ILogger<IsapiSnapshotGateway> _logger;
 
     public IsapiSnapshotGateway(
         IHttpClientFactory httpClientFactory,
         ICameraProtocolProfileResolver profileResolver,
-        CameraCaptureSettings settings,
+        ICameraCaptureSettingService cameraCaptureSettingService,
         ILogger<IsapiSnapshotGateway> logger)
     {
         _httpClientFactory = httpClientFactory;
         _profileResolver = profileResolver;
-        _settings = settings;
+        _cameraCaptureSettingService = cameraCaptureSettingService;
         _logger = logger;
     }
 
@@ -42,7 +42,9 @@ public class IsapiSnapshotGateway : ISnapshotGateway
     public async Task<Result<SnapshotPayload>> GetSnapshotAsync(Camera camera, CancellationToken cancellationToken = default)
     {
         if (string.IsNullOrEmpty(camera.Username) || string.IsNullOrEmpty(camera.Password))
-            return Result<SnapshotPayload>.Validation(new Dictionary<string, string[]> { ["Password"] = ["Kameranın kullanıcı adı ve parolası tanımlı değil"] }, description: "ISAPI kimlik doğrulaması için kullanıcı adı ve parola gerekiyor.");        
+            return Result<SnapshotPayload>.Validation(new Dictionary<string, string[]> { ["Password"] = ["Kameranın kullanıcı adı ve parolası tanımlı değil"] }, description: "ISAPI kimlik doğrulaması için kullanıcı adı ve parola gerekiyor.");
+
+        var cameraCaptureSettings = await _cameraCaptureSettingService.GetSettingsAsync(cancellationToken);
 
         string snapshotPath = _profileResolver.Resolve(camera).BuildSnapshotPath(camera);
 
@@ -50,7 +52,7 @@ public class IsapiSnapshotGateway : ISnapshotGateway
 
         // NOT: Zaman asimi ile HttpClient.Timeout da TaskCanceledException firlatir ve "kamera yavas" ile "istek iptal edildi" ayni istisnaya duserdi
         using var timeoutSource = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-        timeoutSource.CancelAfter(TimeSpan.FromMilliseconds(_settings.SnapshotTimeoutMs));
+        timeoutSource.CancelAfter(TimeSpan.FromMilliseconds(cameraCaptureSettings.SnapshotTimeoutMs));
 
         var client = _httpClientFactory.CreateClient(ISnapshotGateway.HttpClientName);
 
@@ -77,7 +79,7 @@ public class IsapiSnapshotGateway : ISnapshotGateway
         }
         catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
         {
-            return Result<SnapshotPayload>.Failure(description: $"Kamera {_settings.SnapshotTimeoutMs / 1000.0:0.#} sn içinde yanıt vermedi.");
+            return Result<SnapshotPayload>.Failure(description: $"Kamera {cameraCaptureSettings.SnapshotTimeoutMs / 1000.0:0.#} sn içinde yanıt vermedi.");
         }
         catch (HttpRequestException exception)
         {

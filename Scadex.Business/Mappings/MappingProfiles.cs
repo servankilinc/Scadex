@@ -1,11 +1,16 @@
 ﻿using AutoMapper;
+using Scadex.Business.Settings;
 using Scadex.Model.Auth.SignUp;
 using Scadex.Model.Dtos.Cabinet.Commands;
 using Scadex.Model.Dtos.Cabinet.Queries;
 using Scadex.Model.Dtos.Camera.Commands;
 using Scadex.Model.Dtos.Camera.Queries;
+using Scadex.Model.Dtos.CameraCaptureSetting.Commands;
+using Scadex.Model.Dtos.CameraCaptureSetting.Queries;
 using Scadex.Model.Dtos.CanvasSettings.Commands;
 using Scadex.Model.Dtos.CanvasSettings.Queries;
+using Scadex.Model.Dtos.MediaGatewaySetting.Commands;
+using Scadex.Model.Dtos.MediaGatewaySetting.Queries;
 using Scadex.Model.Dtos.ChannelEvent.Queries;
 using Scadex.Model.Dtos.Company.Commands;
 using Scadex.Model.Dtos.Company.Queries;
@@ -713,5 +718,82 @@ public class MappingProfiles : Profile
             .ForMember(dest => dest.IsMonitoringEnabled, opt => opt.MapFrom(src => src.IsMonitoringEnabled))
             .ForMember(dest => dest.IsActive, opt => opt.MapFrom(src => src.IsActive));
         #endregion
+
+        #region MediaGatewaySetting
+        // Entity -> calisma zamani ayar nesnesi (onbellege bu konuyor)
+        CreateMap<MediaGatewaySetting, MediaGatewaySettings>()
+            .ForMember(dest => dest.ApiTimeoutMs, opt => opt.MapFrom(src => src.ApiTimeoutMs))
+            .ForMember(dest => dest.ApiBaseUrl, opt => opt.MapFrom(src => src.ApiBaseUrl))
+            .ForMember(dest => dest.WebRtcPublicBaseUrl, opt => opt.MapFrom(src => src.WebRtcPublicBaseUrl))
+            .ForMember(dest => dest.TokenTtlSeconds, opt => opt.MapFrom(src => src.TokenTtlSeconds))
+            .ForMember(dest => dest.SourceOnDemandCloseAfter, opt => opt.MapFrom(src => src.SourceOnDemandCloseAfter))
+            .ForMember(dest => dest.RtspTransport, opt => opt.MapFrom(src => src.RtspTransport))
+            .ForMember(dest => dest.RecordRoot, opt => opt.MapFrom(src => src.RecordRoot));
+
+        // Ayar nesnesi -> ekran DTO'su. Sure alani MediaMTX bicimindedir ("10s"),
+        // istemciye SANIYE olarak cikar.
+        CreateMap<MediaGatewaySettings, MediaGatewaySettingDto>()
+            .ForMember(dest => dest.ApiTimeoutMs, opt => opt.MapFrom(src => src.ApiTimeoutMs))
+            .ForMember(dest => dest.ApiBaseUrl, opt => opt.MapFrom(src => src.ApiBaseUrl))
+            .ForMember(dest => dest.WebRtcPublicBaseUrl, opt => opt.MapFrom(src => src.WebRtcPublicBaseUrl))
+            .ForMember(dest => dest.TokenTtlSeconds, opt => opt.MapFrom(src => src.TokenTtlSeconds))
+            .ForMember(dest => dest.SourceOnDemandCloseAfterSec, opt => opt.MapFrom(src => ParseSeconds(src.SourceOnDemandCloseAfter)))
+            .ForMember(dest => dest.RtspTransport, opt => opt.MapFrom(src => src.RtspTransport))
+            .ForMember(dest => dest.RecordRoot, opt => opt.MapFrom(src => src.RecordRoot));
+
+        // Guncelleme DTO'su -> entity. Tek satirlik tablo oldugu icin Id ASLA yazilmaz;
+        // audit alanlarini interceptor dolduruyor. Sure SANIYEDEN MediaMTX bicimine cevrilir.
+        CreateMap<MediaGatewaySettingUpdateDto, MediaGatewaySetting>()
+            .ForMember(dest => dest.Id, opt => opt.Ignore())
+            .ForMember(dest => dest.ApiTimeoutMs, opt => opt.MapFrom(src => src.ApiTimeoutMs))
+            .ForMember(dest => dest.ApiBaseUrl, opt => opt.MapFrom(src => src.ApiBaseUrl.TrimEnd('/')))
+            .ForMember(dest => dest.WebRtcPublicBaseUrl, opt => opt.MapFrom(src => src.WebRtcPublicBaseUrl.TrimEnd('/')))
+            .ForMember(dest => dest.TokenTtlSeconds, opt => opt.MapFrom(src => src.TokenTtlSeconds))
+            .ForMember(dest => dest.SourceOnDemandCloseAfter, opt => opt.MapFrom(src => src.SourceOnDemandCloseAfterSec + "s"))
+            .ForMember(dest => dest.RtspTransport, opt => opt.MapFrom(src => src.RtspTransport))
+            .ForMember(dest => dest.RecordRoot, opt => opt.MapFrom(src => src.RecordRoot))
+            .ForMember(dest => dest.CreatedBy, opt => opt.Ignore())
+            .ForMember(dest => dest.UpdatedBy, opt => opt.Ignore())
+            .ForMember(dest => dest.CreateDateUtc, opt => opt.Ignore())
+            .ForMember(dest => dest.UpdateDateUtc, opt => opt.Ignore());
+        #endregion
+
+        #region CameraCaptureSetting
+        CreateMap<CameraCaptureSetting, CameraCaptureSettings>()
+            .ForMember(dest => dest.SnapshotTimeoutMs, opt => opt.MapFrom(src => src.SnapshotTimeoutMs))
+            .ForMember(dest => dest.SnapshotCacheSeconds, opt => opt.MapFrom(src => src.SnapshotCacheSeconds))
+            .ForMember(dest => dest.CaptureRoot, opt => opt.MapFrom(src => src.CaptureRoot))
+            .ForMember(dest => dest.CaptureRetentionDays, opt => opt.MapFrom(src => src.CaptureRetentionDays))
+            .ForMember(dest => dest.MaxClipDurationSec, opt => opt.MapFrom(src => src.MaxClipDurationSec))
+            .ForMember(dest => dest.ClipFinalizeGraceMs, opt => opt.MapFrom(src => src.ClipFinalizeGraceMs));
+
+        CreateMap<CameraCaptureSettings, CameraCaptureSettingDto>()
+            .ForMember(dest => dest.SnapshotTimeoutMs, opt => opt.MapFrom(src => src.SnapshotTimeoutMs))
+            .ForMember(dest => dest.SnapshotCacheSeconds, opt => opt.MapFrom(src => src.SnapshotCacheSeconds))
+            .ForMember(dest => dest.CaptureRoot, opt => opt.MapFrom(src => src.CaptureRoot))
+            .ForMember(dest => dest.CaptureRetentionDays, opt => opt.MapFrom(src => src.CaptureRetentionDays))
+            .ForMember(dest => dest.MaxClipDurationSec, opt => opt.MapFrom(src => src.MaxClipDurationSec))
+            .ForMember(dest => dest.ClipFinalizeGraceMs, opt => opt.MapFrom(src => src.ClipFinalizeGraceMs));
+
+        CreateMap<CameraCaptureSettingUpdateDto, CameraCaptureSetting>()
+            .ForMember(dest => dest.Id, opt => opt.Ignore())
+            .ForMember(dest => dest.SnapshotTimeoutMs, opt => opt.MapFrom(src => src.SnapshotTimeoutMs))
+            .ForMember(dest => dest.SnapshotCacheSeconds, opt => opt.MapFrom(src => src.SnapshotCacheSeconds))
+            .ForMember(dest => dest.CaptureRoot, opt => opt.MapFrom(src => src.CaptureRoot.Trim('/')))
+            .ForMember(dest => dest.CaptureRetentionDays, opt => opt.MapFrom(src => src.CaptureRetentionDays))
+            .ForMember(dest => dest.MaxClipDurationSec, opt => opt.MapFrom(src => src.MaxClipDurationSec))
+            .ForMember(dest => dest.ClipFinalizeGraceMs, opt => opt.MapFrom(src => src.ClipFinalizeGraceMs))
+            .ForMember(dest => dest.CreatedBy, opt => opt.Ignore())
+            .ForMember(dest => dest.UpdatedBy, opt => opt.Ignore())
+            .ForMember(dest => dest.CreateDateUtc, opt => opt.Ignore())
+            .ForMember(dest => dest.UpdateDateUtc, opt => opt.Ignore());
+        #endregion
     }
+
+    /// <summary>
+    /// <c>"10s"</c> → <c>10</c>. Yazma yolu her zaman bu bicimi urettigi icin ayristirma
+    /// basit tutuldu; beklenmedik bir deger 0 doner ve ekranda gorulur.
+    /// </summary>
+    private static int ParseSeconds(string? value) =>
+        int.TryParse(value?.TrimEnd('s'), out int seconds) ? seconds : 0;
 }

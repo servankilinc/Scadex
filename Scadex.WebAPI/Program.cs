@@ -246,13 +246,7 @@ builder.Services.AddHttpClient(ISnapshotGateway.HttpClientName, client =>
     client.Timeout = Timeout.InfiniteTimeSpan;
 });
 
-//  CameraSnapshot
-builder.Services.AddHttpClient(IMediaGateway.HttpClientName, client =>
-{
-    var apiBaseUrl = builder.Configuration.GetSection("MediaGateway:ApiBaseUrl").Get<string>() ?? "http://127.0.0.1:9997";
-    client.BaseAddress = new Uri(apiBaseUrl.TrimEnd('/') + "/");
-    client.Timeout = TimeSpan.FromSeconds(5);
-});
+builder.Services.AddHttpClient(IMediaGateway.HttpClientName);
 #endregion
 
 
@@ -274,7 +268,8 @@ builder.Services.AddHostedService<CaptureRetentionWorker>();
 
 #region ------- Kamera / medya gecidi -------
 // Cekim dosyalarinin diske yazan servis.
-builder.Services.AddSingleton<ICaptureFileStore, CaptureFileStore>();
+// SCOPED: cekim koku artik veritabanindaki ayardan okunuyor, o servis de scoped.
+builder.Services.AddScoped<ICaptureFileStore, CaptureFileStore>();
 #endregion
 
 

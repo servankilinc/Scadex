@@ -457,9 +457,8 @@ değil, bilinçli bir karardır; `dotnet build` çıktısındaki 5 uyarı bu yü
 - ~~MediaMTX yolları birikiyor~~ — **günlük temizlik yazıldı (2026-09-10)**, bkz. (f).
   Kalan tek birikme kaynağı: kayıt bayrağı açık kalmış **artık klip yolları** (çekimi çökmüş
   olanlar) bilerek korunuyor, dolayısıyla temizlenmiyor.
-- **Ayarlar uzaktan düzenlenemiyor.** `MediaGatewaySettings` ve `CameraCaptureSettings`
-  yalnızca `appsettings.json`'da; değiştirmek dosya erişimi + yeniden başlatma istiyor.
-  Bkz. (e).
+- ~~Ayarlar uzaktan düzenlenemiyor~~ — **veritabanına taşındı (2026-09-10)**, bkz. (e).
+  Kalan: ayar **ekranı** yok, bugün yalnızca API var.
 - **Kiracı izolasyonu yok** (§ 6'daki gerekçeyle sonradan tek noktadan gelecek).
 - **Ingest yalnızca `cabinetId` ile "kimlik doğrular"** — paylaşılan sır / imza yok.
 - **Ayrı bir `TelemetryRecord` tablosu yok — bilinçli.** 2026-09-10'da analog kanalların
@@ -483,7 +482,7 @@ değil, bilinçli bir karardır; `dotnet build` çıktısındaki 5 uyarı bu yü
   kanalları yerinde bırakıyor (§ 5.2). Bu yüzden kod yeniden yapılandırılmadı; kanal silen bir
   yol eklenirse olay geçmişi sessizce kaybolacağı için o gün birlikte ele alınmalı.
 - ~~Çekim saklama temizliği yok~~ — **yazıldı (2026-09-10)**. `CaptureRetentionWorker` her gün
-  `Cameras:RetentionSweepHour` saatinde (varsayılan 04:00) süresi dolmuş çekimlerin
+  `Jobs:CaptureRetentionSweepHour` saatinde (varsayılan 04:00) süresi dolmuş çekimlerin
   **dosyasını** siler. **Satır silinmez:** `RelativePath` null'lanır, çekimin yapıldığı bilgisi
   geçmişte kalır. Dosya silinemezse `RelativePath` korunur — kolonu null'lamak, diskte duran
   dosyayı bir daha bulunamaz hâle getirip kalıcı çöp bırakırdı.
@@ -552,21 +551,40 @@ Doğrulandı: ulaşılabilir hedef → `DeviceStatusId = 1 (Online)`, `LastSeen`
 `LastConnectionError` null; kapalı port → `DeviceStatusId = 0 (Offline)`,
 `LastConnectionError = "Baglanti hatasi (ConnectionRefused): …"`.
 
-**(e) `MediaGatewaySettings` ve `CameraCaptureSettings` veritabanına taşınır.** Tip başına
-**tek satırlık tablo**; API + ekran üzerinden uzaktan düzenlenebilir, önbellekli bir sağlayıcı
-üzerinden okunur. `appsettings.json` bölümleri yalnızca ilk tohumlama / geri düşüş değeri olur.
-İki tuzak:
-   - `Program.cs`'te `MediaGateway:ApiBaseUrl` adlandırılmış `HttpClient`'ın `BaseAddress`'ine
-     **açılışta pişiriliyor** — ayar uzaktan değişebilir olunca adres çağrı anında çözülmeli.
-   - Aynı yerde `Timeout` **5 sn olarak hard-code**; `MediaGatewaySettings.ApiTimeoutMs`
-     (varsayılan 30000) hiç kullanılmıyor. Taşıma sırasında bu tutarsızlık da kapatılmalı.
-   - Bugün her iki ayar `ServiceRegistration.cs`'te `.Get<T>()` ile **singleton anlık
-     görüntü** olarak kayıtlı ve tüketicilere somut tip olarak enjekte ediliyor; araya
-     sağlayıcı soyutlaması girmesi gerekecek.
+**(e)** ~~`MediaGatewaySettings` ve `CameraCaptureSettings` veritabanına taşınır.~~
+**TAMAMLANDI (2026-09-10).**
+
+Tip başına **tek satırlık tablo** (`MediaGatewaySetting`, `CameraCaptureSetting`; `Id = 1`),
+migration ile tohumlanır. Okuma yolu ayar nesnesi başına **ayrı bir servistir** —
+`IMediaGatewaySettingService` ve `ICameraCaptureSettingService` — ve `ICacheService` ile
+önbeleklenir; her yazma kendi anahtarını düşürür.
+
+- **`appsettings.json` bu ayarları ARTIK HİÇ TAŞIMAZ.** `MediaGateway` ve `Cameras` bölümleri
+  kaldırıldı; geri düşüş de okunmuyor. Satır bulunamazsa sınıf varsayılanlarına (seed ile aynı
+  değerler) düşülür ve `Warning` loglanır. Buraya bölüm geri eklemek sessizce yok sayılır.
+- **Adlandırılmış `HttpClient` yine `Program.cs`'te kurulur**, ama `BaseAddress` ve `Timeout`
+  orada **verilmez**: `MediaMtxGateway` her `CreateClient` çağrısından sonra ikisini de
+  ayardan uygular (`CreateConfiguredClient`). `CreateClient` her çağrıda yeni bir `HttpClient`
+  döndürdüğü için bu güvenlidir — kullanılmış bir client'ın `Timeout`'unu değiştirmek istisna
+  atardı. Böylece **açılışta pişen adres** ve **5 sn hard-code `Timeout`** (ki
+  `ApiTimeoutMs` hiç okunmuyordu) tuzaklarının ikisi de kapandı.
+- `ServiceRegistration.cs`'teki `.Get<T>()` **singleton anlık görüntü** kayıtları kaldırıldı.
+  `ICaptureFileStore` singleton'dan **scoped**'a çekildi (çekim kökü artık scoped bir
+  servisten geliyor).
+- **Süre alanı sözleşmesi:** istemci `sourceOnDemandCloseAfterSec` olarak **saniye** gönderir;
+  MediaMTX'in istediği `"10s"` biçimine çeviri yalnızca servis içinde yapılır.
+- Uçlar: `GET|PUT /api/MediaGatewaySetting`, `GET|PUT /api/CameraCaptureSetting`. Tablo tek
+  satırlık olduğu için kimlik taşıyan uç yoktur.
+
+**Doğrulandı (yeniden başlatma olmadan):** `MaxClipDurationSec` 600 → 5 yapıldıktan hemen sonra
+10 sn'lik klip isteği `400` ile reddedildi; `ApiBaseUrl` boş bir porta çevrildiğinde
+`stream-ticket` yeni adrese gidip başarısız oldu, eski adrese düşmedi.
+
+**Kalan:** ayar ekranı (`Scadex.WebUI`) henüz yazılmadı; bugün yalnızca API var.
 
 **(f)** ~~Günlük MediaMTX yol temizliği background servisi.~~ **TAMAMLANDI (2026-09-10).**
 
-`MediaPathCleanupWorker` her gün `MediaGateway:PathCleanupHour` saatinde (varsayılan 03:00,
+`MediaPathCleanupWorker` her gün `Jobs:MediaPathCleanupHour` saatinde (varsayılan 03:00,
 yerel saat) çalışır. `IMediaGateway.ListPathsAsync` eklendi: `v3/config/paths/list` (kayıt
 bayrağı) ile `v3/paths/list` (izleyici sayısı) **birleştirilerek** okunur — yalnızca birine
 bakmak ya kayıttaki ya da izlenen yolu kaçırırdı. İki uç da sayfalı olduğu için liste sonuna

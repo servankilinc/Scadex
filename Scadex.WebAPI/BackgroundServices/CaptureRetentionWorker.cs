@@ -15,7 +15,7 @@ public class CaptureRetentionWorker : BackgroundService
     {
         _scopeFactory = scopeFactory;
         _logger = logger;
-        _runAtHour = Math.Clamp(configuration.GetValue("Cameras:RetentionSweepHour", DefaultRunAtHour), 0, 23);
+        _runAtHour = Math.Clamp(configuration.GetValue("Jobs:CaptureRetentionSweepHour", DefaultRunAtHour), 0, 23);
     }
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)

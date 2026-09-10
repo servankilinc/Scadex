@@ -16,5 +16,5 @@ public interface ICaptureFileStore
     void TryDeleteTempDirectory(string fullPath);
 
     /// <summary> Saklama suresi dolmus bir cekim dosyasini siler. </summary>
-    bool TryDeleteCapture(string relativePath);
+    Task<bool> TryDeleteCaptureAsync(string relativePath, CancellationToken cancellationToken = default);
 }

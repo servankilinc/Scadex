@@ -51,9 +51,11 @@ public partial class CameraService
             var result = await _snapshotGateway.GetSnapshotAsync(camera, cancellationToken);
             if (!result.IsSuccess) return result;
 
+            var captureSettings = await _captureSettingService.GetSettingsAsync(cancellationToken);
+
             var options = new DistributedCacheEntryOptions
             {
-                AbsoluteExpirationRelativeToNow = TimeSpan.FromSeconds(_captureSettings.SnapshotCacheSeconds)
+                AbsoluteExpirationRelativeToNow = TimeSpan.FromSeconds(captureSettings.SnapshotCacheSeconds)
             };
             await _cache.SetAsync(cacheKey, result.Data.Content, options, cancellationToken);
             await _cache.SetStringAsync(typeCacheKey, result.Data.ContentType, options, cancellationToken);

@@ -44,12 +44,15 @@ public partial class CameraService
             return;
         }
 
+        var mediaGatewaySettings = await _mediaGatewaySettingService.GetSettingsAsync(cancellationToken);
+        var captureSettings = await _captureSettingService.GetSettingsAsync(cancellationToken);
+
         int duration = capture.DurationSec ?? 0;
         string pathName = IMediaGateway.ClipPathName(captureId);
 
         // Klasor adi Path adından belirlenir, MediaMTX recordPath'teki %path yer tutucusunu yol adiyla doldurur,
         // MediaMTX'in kayit ettigi dosya oraya gelir. Sonra biz onu bulup wwwroot altında kalıcı saklarız.
-        string tempFolder = Path.Combine(_mediaGatewaySettings.RecordRoot, pathName);
+        string tempFolder = Path.Combine(mediaGatewaySettings.RecordRoot, pathName);
 
         // Yol GERCEKTEN kuruldu mu? sonucuna göre temp klasörü silinir
         bool pathCreated = false;
@@ -57,10 +60,10 @@ public partial class CameraService
         try
         {
             // Segment suresi klip suresinden UZUN: boylece istenen sure tek bir dosyaya duser. Esit olsaydi rotasyon tam sinirda gerceklesip goruntuyu iki dosyaya bolebilirdi.
-            string segmentDuration = $"{duration + (_captureSettings.ClipFinalizeGraceMs / 1000) + 5}s";
+            string segmentDuration = $"{duration + (captureSettings.ClipFinalizeGraceMs / 1000) + 5}s";
 
             // recordPath %path ICERMEK ZORUNDA
-            string recordPath = Path.Combine(_mediaGatewaySettings.RecordRoot, "%path", "%Y-%m-%d_%H-%M-%S-%f").Replace('\\', '/');
+            string recordPath = Path.Combine(mediaGatewaySettings.RecordRoot, "%path", "%Y-%m-%d_%H-%M-%S-%f").Replace('\\', '/');
 
             var ensureResult = await _mediaGateway.EnsureClipPathAsync(camera, captureId, recordPath, segmentDuration, cancellationToken);
 
@@ -75,11 +78,11 @@ public partial class CameraService
             // Kaydin FIILEN basladigi an
             capture.CapturedAtUtc = DateTime.UtcNow;
 
-            await Task.Delay(TimeSpan.FromMilliseconds(duration * 1000 + _captureSettings.ClipFinalizeGraceMs), cancellationToken);
+            await Task.Delay(TimeSpan.FromMilliseconds(duration * 1000 + captureSettings.ClipFinalizeGraceMs), cancellationToken);
 
             // Path silmek MediaMTX'in kaydi sonlandirmasini saglar: fmp4 segmenti ancak kapandiginda oynatilabilir hale gelir.
             await _mediaGateway.DeletePathAsync(pathName, cancellationToken);
-            await Task.Delay(TimeSpan.FromMilliseconds(_captureSettings.ClipFinalizeGraceMs), cancellationToken);
+            await Task.Delay(TimeSpan.FromMilliseconds(captureSettings.ClipFinalizeGraceMs), cancellationToken);
 
             string? clipFile = FindNewestClip(tempFolder);
             if (clipFile == null)
@@ -128,6 +131,7 @@ public partial class CameraService
         if (camera == null)
             return Result<CameraCaptureDto>.NotFound(description: "Kamera bulunamadi veya pasif durumda.");
 
+        var captureSettings = await _captureSettingService.GetSettingsAsync(cancellationToken);
 
         // 2) Capture oluşturulur
         var identifier = _httpContextManager.GetNameIdentifier();
@@ -141,7 +145,7 @@ public partial class CameraService
             CapturedAtUtc = DateTime.UtcNow,
             DurationSec = null,
             // saklanma süresi
-            ExpiresAt = _captureSettings.CaptureRetentionDays > 0 ? DateTime.UtcNow.AddDays(_captureSettings.CaptureRetentionDays) : null,
+            ExpiresAt = captureSettings.CaptureRetentionDays > 0 ? DateTime.UtcNow.AddDays(captureSettings.CaptureRetentionDays) : null,
             RequestedByUserId = currentUserId
         };
 
@@ -178,10 +182,11 @@ public partial class CameraService
         else if (request.Type == CaptureType.Clip)
         {
             int duration = request.DurationSec.HasValue ? request.DurationSec.Value : 5; // varsayılan klip süresi 5 saniye
-            if (duration > _captureSettings.MaxClipDurationSec)
-                return Result<CameraCaptureDto>.Validation(new Dictionary<string, string[]> { ["DurationSec"] = [$"Klip süresi en fazla {_captureSettings.MaxClipDurationSec} saniye olabilir."] });
+            if (duration > captureSettings.MaxClipDurationSec)
+                return Result<CameraCaptureDto>.Validation(new Dictionary<string, string[]> { ["DurationSec"] = [$"Klip süresi en fazla {captureSettings.MaxClipDurationSec} saniye olabilir."] });
 
-            if (string.IsNullOrWhiteSpace(_mediaGatewaySettings.RecordRoot))
+            var mediaGatewaySettings = await _mediaGatewaySettingService.GetSettingsAsync(cancellationToken);
+            if (string.IsNullOrWhiteSpace(mediaGatewaySettings.RecordRoot))
                 return Result<CameraCaptureDto>.Failure(description: "Klip çekimi yapılandırılmamış: Media Gateway:RecordRoot tanımlı değil.");
 
             capture.DurationSec = duration;
@@ -222,7 +227,7 @@ public partial class CameraService
         {
             // Dosya silinemediyse RelativePath KORUNUR: kolonu null'lamak, diskte duran
             // dosyayi bir daha bulunamaz hale getirir ve kalici cop birakirdi.
-            if (!_captureFileStore.TryDeleteCapture(capture.RelativePath!)) continue;
+            if (!await _captureFileStore.TryDeleteCaptureAsync(capture.RelativePath!, cancellationToken)) continue;
 
             capture.RelativePath = null;
             purged++;

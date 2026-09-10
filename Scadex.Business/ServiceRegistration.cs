@@ -38,6 +38,8 @@ public static class ServiceRegistration
         services.AddScoped<IDiagramAnnotationService, DiagramAnnotationService>();
         services.AddScoped<IDeviceStatusService, DeviceStatusService>();
         services.AddScoped<IDeviceTypeService, DeviceTypeService>();
+        services.AddScoped<IMediaGatewaySettingService, MediaGatewaySettingService>();
+        services.AddScoped<ICameraCaptureSettingService, CameraCaptureSettingService>();
         #endregion
 
         services.AddScoped<IDiagramService, DiagramService>();
@@ -48,14 +50,7 @@ public static class ServiceRegistration
         // Yoklanabilir her entity servisi içim buraya bir kayıt ekle;
         services.AddScoped<IMonitoredAssetProbeSource, CameraProbeSource>();
 
-        #region KAMERA / MEDYA
-        services.AddSingleton(
-            configuration.GetSection(Settings.MediaGatewaySettings.SectionName).Get<Settings.MediaGatewaySettings>()
-            ?? new Settings.MediaGatewaySettings());
-
-        services.AddSingleton(
-            configuration.GetSection(Settings.CameraCaptureSettings.SectionName).Get<Settings.CameraCaptureSettings>()
-            ?? new Settings.CameraCaptureSettings());
+        #region KAMERA / MEDYA        
 
         services.AddSingleton<ICameraProtocolProfile, HikvisionProtocolProfile>();
         services.AddSingleton<ICameraProtocolProfileResolver, CameraProtocolProfileResolver>();

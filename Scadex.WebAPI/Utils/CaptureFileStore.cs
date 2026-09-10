@@ -1,4 +1,4 @@
-using Scadex.Business.Settings;
+using Scadex.Business.Abstract;
 using Scadex.Business.Utils.CaptureFileStore;
 using Scadex.Core.Utils.ResultPattern;
 
@@ -7,13 +7,13 @@ namespace Scadex.WebAPI.Utils;
 public sealed class CaptureFileStore : ICaptureFileStore
 {
     private readonly IWebHostEnvironment _environment;
-    private readonly CameraCaptureSettings _settings;
+    private readonly ICameraCaptureSettingService _cameraCaptureSettingService;
     private readonly ILogger<CaptureFileStore> _logger;
 
-    public CaptureFileStore(IWebHostEnvironment environment, CameraCaptureSettings settings, ILogger<CaptureFileStore> logger)
+    public CaptureFileStore(IWebHostEnvironment environment, ICameraCaptureSettingService cameraCaptureSettingService, ILogger<CaptureFileStore> logger)
     {
         _environment = environment;
-        _settings = settings;
+        _cameraCaptureSettingService = cameraCaptureSettingService;
         _logger = logger;
     }
 
@@ -24,7 +24,7 @@ public sealed class CaptureFileStore : ICaptureFileStore
 
         try
         {
-            var (fullPath, relativePath) = BuildTargetPath(extension);
+            var (fullPath, relativePath) = BuildTargetPath(await CaptureRootAsync(cancellationToken), extension);
             await File.WriteAllBytesAsync(fullPath, content, cancellationToken);
             return Result<StoredCapture>.Success(new StoredCapture(relativePath, content.LongLength));
         }
@@ -44,7 +44,7 @@ public sealed class CaptureFileStore : ICaptureFileStore
                 return Result<StoredCapture>.Failure(description: "Klip dosyası bulunamadı.");
 
             long size = new FileInfo(sourceFullPath).Length;
-            var (fullPath, relativePath) = BuildTargetPath(".mp4");
+            var (fullPath, relativePath) = BuildTargetPath(await CaptureRootAsync(cancellationToken), ".mp4");
 
             File.Move(sourceFullPath, fullPath, overwrite: false);
 
@@ -72,14 +72,14 @@ public sealed class CaptureFileStore : ICaptureFileStore
     }
 
     /// <inheritdoc />
-    public bool TryDeleteCapture(string relativePath)
+    public async Task<bool> TryDeleteCaptureAsync(string relativePath, CancellationToken cancellationToken = default)
     {
         if (string.IsNullOrWhiteSpace(relativePath)) return false;
 
         try
         {
             string webRoot = _environment.WebRootPath ?? Path.Combine(_environment.ContentRootPath, "wwwroot");
-            string captureRoot = Path.GetFullPath(Path.Combine(webRoot, _settings.CaptureRoot.Trim('/').Replace('/', Path.DirectorySeparatorChar)));
+            string captureRoot = Path.GetFullPath(Path.Combine(webRoot, (await CaptureRootAsync(cancellationToken)).Replace('/', Path.DirectorySeparatorChar)));
             string fullPath = Path.GetFullPath(Path.Combine(webRoot, relativePath.TrimStart('/').Replace('/', Path.DirectorySeparatorChar)));
 
             // Yol cekim kokunun DISINA cikiyorsa dokunulmaz. Deger bizim yazdigimiz
@@ -104,9 +104,13 @@ public sealed class CaptureFileStore : ICaptureFileStore
     }
 
     #region Helpers
-    private (string FullPath, string RelativePath) BuildTargetPath(string extension)
+    /// <summary>Çekim kökü artık veritabanından gelir; her kullanımda tazelenir.</summary>
+    private async Task<string> CaptureRootAsync(CancellationToken cancellationToken) =>
+        (await _cameraCaptureSettingService.GetSettingsAsync(cancellationToken)).CaptureRoot.Trim('/');
+
+    private (string FullPath, string RelativePath) BuildTargetPath(string captureRoot, string extension)
     {
-        string relativeFolder = $"{_settings.CaptureRoot.Trim('/')}/{DateTime.UtcNow:yyyy/MM/dd}";
+        string relativeFolder = $"{captureRoot}/{DateTime.UtcNow:yyyy/MM/dd}";
         string fileName = $"{Guid.NewGuid():N}{extension}";
 
         string webRoot = _environment.WebRootPath ?? Path.Combine(_environment.ContentRootPath, "wwwroot");

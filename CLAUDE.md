@@ -111,6 +111,13 @@ Bunlar tek bir dosyaya bakarak görülemez; gerekçeleri PROJECT_OVERVIEW.md §5
   numaraları boşlukludur. **`DictionaryKeyPolicy` bilerek `null`** — `ProblemDetails.errors`
   anahtarları PascalCase kalır (`"Devices.Upserted[0].Pins"`); iki taraftan birini "düzeltmeyin".
   `null` alanlar gövdeden düşmez (`DefaultIgnoreCondition = Never`).
+- **Medya geçidi ve kamera çekim ayarları `appsettings.json`'da DEĞİL, veritabanındadır.**
+  Tip başına tek satırlık tablo + ayar nesnesi başına ayrı servis
+  (`IMediaGatewaySettingService`, `ICameraCaptureSettingService`), `ICacheService` ile
+  önbeleklenir, her yazma kendi anahtarını düşürür. `appsettings.json`'a `MediaGateway` /
+  `Cameras` bölümü geri eklemeyin — **okunmuyor**, sessizce yok sayılır.
+  Adlandırılmış `HttpClient` yine `Program.cs`'te kurulur ama `BaseAddress`/`Timeout` orada
+  **verilmez**; `MediaMtxGateway.CreateConfiguredClient` her çağrıda ayardan uygular.
 - **Yoklama (ayakta mı) akışının HTTP yüzeyi yoktur ve tipe özel değildir.**
   `MonitoredAssetProbeWorker` kayıtlı her `IMonitoredAssetProbeSource` üzerinden döner; yeni
   bir izlenen tip eklemek = yeni kaynak + tek satır DI kaydı, worker'a dokunulmaz. Sonda
