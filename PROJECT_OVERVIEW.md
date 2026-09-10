@@ -364,8 +364,9 @@ gelmez — bu platform onları kendisi yoklar.
   **kameranın kendisi değiştiğinde** silinir: `CameraService.UpdateAsync`, bağlantıyı etkileyen
   bir alan (IP, RTSP portu, kullanıcı adı, parola, stream kanalları) değiştiğinde ya da kamera
   pasife alındığında iki profilin yolunu da düşürür — aksi halde MediaMTX eski bilgilerle
-  bağlanmaya çalışıp zaman aşımına düşerdi. Ama **hiç dokunulmayan bir kameranın yolu sonsuza
-  kadar kalır**, izleyicisi olmasa bile. Günlük temizlik işi sırada; bkz. § 7 yol haritası (f).
+  bağlanmaya çalışıp zaman aşımına düşerdi. Hiç dokunulmayan bir kameranın yolunu ise artık
+  **`MediaPathCleanupWorker` gün sonunda düşürür**; izleyicisi olan ve kayıt yapan yollara
+  dokunmaz (bkz. § 7 (f)).
 - Çekim dosyaları `wwwroot/uploads/captures/…` altına düşer ve bu yüzden **kimlik doğrulaması
   olmadan** servis edilir; tek koruma tahmin edilemez `Guid` dosya adıdır.
 - **Kamera parolası düz metin saklanır ve okuma DTO'sunda düz metin döner** (kapalı ağ; bu
@@ -452,9 +453,9 @@ değil, bilinçli bir karardır; `dotnet build` çıktısındaki 5 uyarı bu yü
 - **Yetki zorlanmıyor.** `permission` claim'i üretilip token'a konuyor, ama hiçbir
   `[Authorize(Policy = …)]` ya da handler onu okumuyor. `ControlOutput` dahil.
 - ~~Yoklama servisi yok~~ — **yazıldı (2026-09-10)**, bkz. (d).
-- **MediaMTX yolları birikiyor.** Canlı izleme yolları yalnızca kamera güncellendiğinde ya da
-  pasife alındığında düşüyor; hiç dokunulmayan bir kameranınki kalıcı. Düzenli temizlik işi
-  yok. Bkz. (f).
+- ~~MediaMTX yolları birikiyor~~ — **günlük temizlik yazıldı (2026-09-10)**, bkz. (f).
+  Kalan tek birikme kaynağı: kayıt bayrağı açık kalmış **artık klip yolları** (çekimi çökmüş
+  olanlar) bilerek korunuyor, dolayısıyla temizlenmiyor.
 - **Ayarlar uzaktan düzenlenemiyor.** `MediaGatewaySettings` ve `CameraCaptureSettings`
   yalnızca `appsettings.json`'da; değiştirmek dosya erişimi + yeniden başlatma istiyor.
   Bkz. (e).
@@ -554,12 +555,27 @@ Doğrulandı: ulaşılabilir hedef → `DeviceStatusId = 1 (Online)`, `LastSeen`
      görüntü** olarak kayıtlı ve tüketicilere somut tip olarak enjekte ediliyor; araya
      sağlayıcı soyutlaması girmesi gerekecek.
 
-**(f) Günlük MediaMTX yol temizliği background servisi.** Her gün gün sonunda MediaMTX
-üzerindeki yolları düşürür. **İstisnalar:** aktif izleyicisi (`readers`) olan yollar ve kayıt
-(`record: true`) durumundaki yollar — devam eden klip çekimleri bu ikinci kuralla korunur.
-`IMediaGateway`'e bir **yol listeleme** yeteneği eklenmesi gerekir; bugün yalnızca
-`EnsureLivePathAsync` / `EnsureClipPathAsync` / `DeletePathAsync` var. MediaMTX tarafında
-çalışma zamanı durumu `v3/paths/list`, yapılandırma `v3/config/paths/list` uçlarındadır.
+**(f)** ~~Günlük MediaMTX yol temizliği background servisi.~~ **TAMAMLANDI (2026-09-10).**
+
+`MediaPathCleanupWorker` her gün `MediaGateway:PathCleanupHour` saatinde (varsayılan 03:00,
+yerel saat) çalışır. `IMediaGateway.ListPathsAsync` eklendi: `v3/config/paths/list` (kayıt
+bayrağı) ile `v3/paths/list` (izleyici sayısı) **birleştirilerek** okunur — yalnızca birine
+bakmak ya kayıttaki ya da izlenen yolu kaçırırdı. İki uç da sayfalı olduğu için liste sonuna
+kadar okunur.
+
+**Üç koruma kuralı** (şüpheli her durumda korur — yanlış silmenin bedeli, beklemenin
+bedelinden büyüktür):
+
+1. **Bizim üretmediğimiz yollara hiç dokunulmaz.** Yalnızca `cam_` / `clip_` önekli adlar
+   aday olur (`IMediaGateway.IsManagedPathName`). Bu kural şart: `mediamtx.yml` içinde
+   **`all_others`** adında bir girdi var ve silinseydi geçit komple yapılandırmasız kalırdı.
+2. **`record: true` olan yol asla silinmez** — devam eden klip çekimleri böyle korunur; yolu
+   düşürmek yazılmakta olan segmenti yarıda keserdi. Çekimi çökmüş bir artık klip yolu da bu
+   kurala takılır (ikisi ayırt edilemiyor), bu yüzden korunur ve görünür olsun diye loglanır.
+3. **İzleyicisi olan (`readers > 0`) yol silinmez** — birinin ekranındaki yayın kesilirdi.
+
+Doğrulandı (gerçek MediaMTX v1.20.1 üzerinde): izleyicisiz `cam_…_sub` **silindi**,
+`record: true` olan `clip_999` **korundu**, `all_others` **hiç dokunulmadı**.
 
 **(g) Klip çekiminin paralelleştirilmesi.** Aynı kamerada da farklı kamerada da eşzamanlı klip
 alınabilmeli. **İnceleme yapıldı: temp dosya okuma tarafı bunu zaten destekliyor** —

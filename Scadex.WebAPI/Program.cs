@@ -264,6 +264,9 @@ builder.Services.AddHostedService<ClipCaptureWorker>();
 
 // IMonitoredAsset uygulayan varliklarin TCP yoklamasi.
 builder.Services.AddHostedService<MonitoredAssetProbeWorker>();
+
+// MediaMTX'te birikmis canli izleme yollarinin gunluk temizligi.
+builder.Services.AddHostedService<MediaPathCleanupWorker>();
 #endregion
 
 #region ------- Kamera / medya gecidi -------

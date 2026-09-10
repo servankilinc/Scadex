@@ -116,6 +116,10 @@ Bunlar tek bir dosyaya bakarak görülemez; gerekçeleri PROJECT_OVERVIEW.md §5
   bir izlenen tip eklemek = yeni kaynak + tek satır DI kaydı, worker'a dokunulmaz. Sonda
   **yalnızca TCP connect** yapar — ICMP dalı bilerek yoktur, `MonitoringPort` null ise varlık
   atlanır. Buraya "şimdi dene" tarzı bir uç eklemeyin.
+- **MediaMTX yol temizliği üç şeyi asla silmez:** bizim üretmediğimiz adlar (yalnızca `cam_` /
+  `clip_` önekliler adaydır — `mediamtx.yml`'deki **`all_others`** silinseydi geçit
+  yapılandırmasız kalırdı), `record: true` olan yollar (devam eden klip çekimi) ve
+  `readers > 0` olan yollar. Bu kuralları gevşetmeyin; `MediaPathCleanupWorker.ShouldDelete`.
 - **Rate limit politika adı `Program.cs`'te tanımlı değilse o uç HER istekte 500 döner.**
   Bir `[EnableRateLimiting]` adını silmeden/değiştirmeden önce `RateLimiterKey`'e bakın.
   Politikalar: `Default`, `Scada`, `MediaGateway`.

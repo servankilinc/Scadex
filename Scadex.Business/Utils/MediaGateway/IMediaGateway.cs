@@ -23,11 +23,25 @@ public interface IMediaGateway
     /// <summary> Yolu siler. </summary>
     Task<Result> DeletePathAsync(string pathName, CancellationToken cancellationToken = default);
 
+    /// <summary> Path listesini sağlar </summary>
+    Task<Result<IReadOnlyList<MediaPathInfo>>> ListPathsAsync(CancellationToken cancellationToken = default);
+
     #region Static Path Name Generators
+    private const string LivePathPrefix = "cam_";
+    private const string ClipPathPrefix = "clip_";
+
     /// <summary> Canli izleme yolunun adi. <c>Id</c>'den turetilir </summary>
-    static string LivePathName(Guid cameraId, StreamProfile profile) => $"cam_{cameraId:N}_{profile.ToString().ToLowerInvariant()}";
+    static string LivePathName(Guid cameraId, StreamProfile profile) => $"{LivePathPrefix}{cameraId:N}_{profile.ToString().ToLowerInvariant()}";
 
     /// <summary> Klip cekiminin gecici path adı. </summary>
-    static string ClipPathName(long captureId) => $"clip_{captureId}";
+    static string ClipPathName(long captureId) => $"{ClipPathPrefix}{captureId}";
+
+    /// <summary> Yol BIZIM urettigimiz bir yol mu? Temizlik yalnizca bunlara uygulanır. </summary>
+    static bool IsManagedPathName(string pathName) =>
+        pathName.StartsWith(LivePathPrefix, StringComparison.Ordinal) ||
+        pathName.StartsWith(ClipPathPrefix, StringComparison.Ordinal);
+
+    /// <summary> Yol bir klip cekimine mi ait? </summary>
+    static bool IsClipPathName(string pathName) => pathName.StartsWith(ClipPathPrefix, StringComparison.Ordinal);
     #endregion
 }

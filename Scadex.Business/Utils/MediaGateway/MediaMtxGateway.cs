@@ -166,7 +166,103 @@ public class MediaMtxGateway : IMediaGateway
     }
 
 
+    /// <inheritdoc/>
+    public async Task<Result<IReadOnlyList<MediaPathInfo>>> ListPathsAsync(CancellationToken cancellationToken = default)
+    {
+        var httpClient = _httpClientFactory.CreateClient(IMediaGateway.HttpClientName);
+
+        try
+        {
+            // Iki liste AYRI seylerdir ve ikisi de gerekli:
+            //  - v3/config/paths/list  -> yapilandirma (record bayragi burada) ve silinebilir olanlar
+            //  - v3/paths/list         -> calisma zamani (izleyici sayisi burada)
+            // Yalnizca birine bakmak, ya kayittaki yolu ya da izlenen yolu kacirir.
+            var configItems = await ReadPathItemsAsync(httpClient, "v3/config/paths/list", cancellationToken);
+            if (configItems is null)
+                return Result<IReadOnlyList<MediaPathInfo>>.Failure(description: "Medya geçidi yapılandırma yolları okunamadı.");
+
+            var runtimeItems = await ReadPathItemsAsync(httpClient, "v3/paths/list", cancellationToken) ?? [];
+
+            var runtimeByName = new Dictionary<string, JsonElement>(StringComparer.Ordinal);
+            foreach (var item in runtimeItems)
+            {
+                if (item.TryGetProperty("name", out var runtimeName) && runtimeName.GetString() is { } key)
+                    runtimeByName[key] = item;
+            }
+
+            var paths = new List<MediaPathInfo>(configItems.Count);
+
+            foreach (var config in configItems)
+            {
+                if (!config.TryGetProperty("name", out var nameElement) || nameElement.GetString() is not { } name)
+                    continue;
+
+                bool recordEnabled = config.TryGetProperty("record", out var record) && record.ValueKind == JsonValueKind.True;
+
+                int readerCount = 0;
+                bool isReady = false;
+
+                if (runtimeByName.TryGetValue(name, out var runtime))
+                {
+                    if (runtime.TryGetProperty("readers", out var readers) && readers.ValueKind == JsonValueKind.Array)
+                        readerCount = readers.GetArrayLength();
+
+                    isReady = runtime.TryGetProperty("ready", out var ready) && ready.ValueKind == JsonValueKind.True;
+                }
+
+                paths.Add(new MediaPathInfo(name, IsConfigured: true, readerCount, recordEnabled, isReady));
+            }
+
+            return Result<IReadOnlyList<MediaPathInfo>>.Success(paths);
+        }
+        catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
+        {
+            _logger.LogError("Medya gecidi yol listesi {Timeout} sn icinde yanit vermedi ({BaseAddress})", httpClient.Timeout.TotalSeconds, httpClient.BaseAddress);
+            return Result<IReadOnlyList<MediaPathInfo>>.Failure(description: "Medya geçidi yanıt vermiyor.");
+        }
+        catch (HttpRequestException exception)
+        {
+            _logger.LogError(exception, "Medya gecidine ulasilamadi ({BaseAddress})", httpClient.BaseAddress);
+            return Result<IReadOnlyList<MediaPathInfo>>.Failure(description: "Medya geçidine ulaşılamıyor. MediaMTX çalışmıyor olabilir.");
+        }
+        catch (Exception exception) when (exception is not OperationCanceledException)
+        {
+            _logger.LogError(exception, "Medya gecidi yol listesi okunurken beklenmeyen hata");
+            return Result<IReadOnlyList<MediaPathInfo>>.Failure(description: "Medya geçidi yolları listelenemedi.");
+        }
+    }
+
+
     #region Helpers
+    /// <summary>
+    /// Control API'nin sayfali liste uclarini bastan sona okur.
+    /// <c>itemCount</c> sayfa basina sinirli oldugu icin TEK istek yetmez;
+    /// eksik okunan bir sayfa, temizlikte "izleyicisi yok" sanilan bir yola yol acardi.
+    /// </summary>
+    private static async Task<List<JsonElement>?> ReadPathItemsAsync(HttpClient httpClient, string route, CancellationToken cancellationToken)
+    {
+        var items = new List<JsonElement>();
+
+        for (int page = 0; ; page++)
+        {
+            using var response = await httpClient.GetAsync($"{route}?page={page}", cancellationToken);
+            if (!response.IsSuccessStatusCode) return null;
+
+            var body = await response.Content.ReadFromJsonAsync<JsonElement>(cancellationToken);
+
+            if (body.TryGetProperty("items", out var pageItems) && pageItems.ValueKind == JsonValueKind.Array)
+            {
+                foreach (var item in pageItems.EnumerateArray())
+                    items.Add(item.Clone());
+            }
+
+            int pageCount = body.TryGetProperty("pageCount", out var pc) && pc.ValueKind == JsonValueKind.Number ? pc.GetInt32() : 1;
+            if (page + 1 >= pageCount) break;
+        }
+
+        return items;
+    }
+
     private async Task<Result> ControlApiPathRequestAsync(HttpClient httpClient, string verb, string pathName, Dictionary<string, object?> payload, CancellationToken cancellationToken)
     {
         using var response = await httpClient.PostAsJsonAsync($"v3/config/paths/{verb}/{pathName}", payload, cancellationToken);
