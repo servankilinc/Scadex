@@ -342,7 +342,7 @@ classDiagram
 flowchart LR
     subgraph OKUMA["📥 Telemetri"]
         KART["Kontrol kartı<br/>3 baytlık çerçeve"] --> SC["SCADA"]
-        SC -->|"POST /api/Scada/ingest<br/>{cabinetId, type, channelNumber, value}"| ING["ChannelEventService<br/>.IngestAsync"]
+        SC -->|"POST /api/Scada/ingest<br/>{macAddress, type, channelNumber, value}"| ING["ChannelEventService<br/>.IngestAsync"]
         ING --> CV["IoChannel.CurrentValue<br/>Device.LastSeen / Status<br/>Cabinet.ScadaLastIngestAt"]
         ING -->|"yalnızca DİJİTAL giriş<br/>ve değer değiştiyse"| CE["ChannelEvent"]
         CV --> HUB["SignalR /hubs/diagram"]
@@ -460,7 +460,8 @@ Hepsi `Backend/CabinetOs.Model/Entities/` altındadır. Audit alanları (`Create
 | `Rotation` / `ZIndex` / `IsLocked` / `IsVisible` | | çizim durumu |
 | `CabinetId` / `ComponentTemplateId` | `Guid` | ikisi de **insert-only** — farklı değer göndermek 400 |
 | `DeviceStatusId` | `int?` | telemetriyle yazılır |
-| `IpAddress` / `MacAddress` | `string?` | |
+| `IpAddress` | `string?` | `MacAddress` ile birlikte diyagram deltasından yazılır; benzersizlik kısıtı yok |
+| `MacAddress` | `string?` | `DeviceType.ControlModule` cihazlarda **ingest'in kabin çözümlemesidir** — SCADA bu adresi gönderir, sunucu birebir string eşleşmesiyle kabini bulur. **Sistem genelinde benzersiz** (`IX_Device_MacAddress`, `WHERE MacAddress IS NOT NULL AND IsActive = 1`) — kabin bazlı değil |
 | `ExternalCode` | `string?` | **çözümlemede kullanılmıyor** — yalnız gösterim |
 | `LastSeen` | `DateTime?` | bayat süpürücüsünün baktığı alan |
 | `IsActive` | `bool` | |

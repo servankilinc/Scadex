@@ -66,6 +66,7 @@ public partial class DiagramService
             CascadeConnections = await LoadCascadeConnectionsAsync(cabinetId, deletedDeviceIds, cancellationToken),
             PinPairCandidates = await LoadPinPairCandidatesAsync(cabinetId, referencedPinIds, cancellationToken),
             DeviceExternalCodes = await LoadDeviceExternalCodesAsync(cabinetId, request, cancellationToken),
+            DeviceMacAddresses = await LoadDeviceMacAddressesAsync(request, cancellationToken),
             NewPins = BuildNewPinRefs(newDevices, templatePins),
             ClaimedPinIds = await LoadClaimedPinIdsAsync(newDevices, cancellationToken),
             ClaimedIoChannelIds = await LoadClaimedIoChannelIdsAsync(newDevices, cancellationToken),
@@ -374,6 +375,34 @@ public partial class DiagramService
         return rows.ToDictionary(r => r.Id, r => r.ExternalCode);
     }
 
+    /// <summary>
+    /// Gonderilen MAC adreslerinin SAHIPLERI — <c>IX_Device_MacAddress</c>
+    /// (unique, WHERE MacAddress IS NOT NULL AND IsActive = 1).
+    ///
+    /// <b>Neden kabinle daraltilmiyor.</b> Dis kod index'i kabin bazlidir, MAC index'i
+    /// GLOBALDIR: bir fiziksel kartin tek MAC'i vardir ve ingest kabini bu adresten cozer.
+    /// Dolayisiyla carpisma baska bir kabindeki cihazla da olabilir; sorgu kabinle degil,
+    /// GONDERILEN ADRESLERLE daraltilir. Gonderide hic adres yoksa sorgu ATILMAZ.
+    /// </summary>
+    private async Task<Dictionary<Guid, string>> LoadDeviceMacAddressesAsync(DiagramSaveRequest request, CancellationToken cancellationToken)
+    {
+        var submitted = request.Devices.Upserted
+            .Select(d => d.MacAddress)
+            .Where(mac => !string.IsNullOrWhiteSpace(mac))
+            .Select(mac => mac!)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        if (submitted.Count == 0) return [];
+
+        var rows = await _unitOfWork.Devices.GetAllAsync(
+            select: d => new DeviceMacRow(d.Id, d.MacAddress!),
+            where: d => d.IsActive && d.MacAddress != null && submitted.Contains(d.MacAddress),
+            cancellationToken: cancellationToken) ?? [];
+
+        return rows.ToDictionary(r => r.Id, r => r.MacAddress);
+    }
+
     // ==================== REFERANS DOGRULAMA ====================
 
     /// <summary>
@@ -393,6 +422,7 @@ public partial class DiagramService
 
         ValidateDevices(request, context, errors);
         ValidateDeviceExternalCodes(request, context, errors);
+        ValidateDeviceMacAddresses(request, context, errors);
         ValidateConnections(request, context, errors);
         ValidateAnnotations(request, context, errors);
 
@@ -682,6 +712,36 @@ public partial class DiagramService
     }
 
     /// <summary>
+    /// MAC adreslerinin benzersizligi — <c>IX_Device_MacAddress</c>. Index KABIN BAZLI
+    /// DEGIL GLOBALDIR: bir fiziksel kartin tek MAC'i vardir ve ingest kabini bu adresten
+    /// cozer; ayni adres iki cihaza dusseydi telemetri yanlis kabine yazilirdi. Bu yuzden
+    /// hata mesaji "bu kabinde" demez — carpisan cihaz baska bir kabinde olabilir.
+    /// </summary>
+    private static void ValidateDeviceMacAddresses(DiagramSaveRequest request, SaveContext context, Dictionary<string, List<string>> errors)
+    {
+        var upsertedIds = request.Devices.Upserted.Select(d => d.Id).ToHashSet();
+        // OrdinalIgnoreCase: SQL Server'in varsayilan collation'i buyuk/kucuk harf duyarsiz,
+        // yani "aa:bb.." ile "AA:BB.." index'te AYNI satirdir. On kontrol de oyle saymali.
+        var macAddresses = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        foreach (var (deviceId, macAddress) in context.DeviceMacAddresses)
+        {
+            // Silinen cihaz index filtresinden duser, yazilan cihazin YENI degeri
+            // asagida eklenecek — ikisi de mevcut adres sayilmaz.
+            if (context.DeletedDeviceIds.Contains(deviceId) || upsertedIds.Contains(deviceId)) continue;
+            macAddresses.Add(macAddress);
+        }
+
+        for (int i = 0; i < request.Devices.Upserted.Count; i++)
+        {
+            var macAddress = request.Devices.Upserted[i].MacAddress;
+            if (string.IsNullOrWhiteSpace(macAddress)) continue;
+            if (!macAddresses.Add(macAddress))
+                AddError(errors, $"Devices.Upserted[{i}].MacAddress", "Bu MAC adresi baska bir cihaza kayitli");
+        }
+    }
+
+    /// <summary>
     /// Bir kablo ucunu cozer. Iki kaynak vardir: DB'deki KALICI pinler ve AYNI
     /// GONDERIDE dogacak pinler — Id'leri istemci urettigi icin bir cihaz
     /// birakilip ona ayni kaydetmede kablo cizilebiliyor.
@@ -832,8 +892,9 @@ public partial class DiagramService
     /// <c>Update()</c> cagirmak butun kolonlari degismis isaretler ve telemetri
     /// alanlarini eski degerleriyle geri yazma riski dogurur.
     ///
-    /// <c>DeviceStatusId</c> / <c>LastSeen</c> / <c>IpAddress</c> / <c>MacAddress</c>
-    /// burada DOKUNULMAZ — taslakta zaten yoklar.
+    /// <c>DeviceStatusId</c> / <c>LastSeen</c> burada DOKUNULMAZ — taslakta zaten yoklar,
+    /// telemetriyle yazilirlar. <c>MacAddress</c> / <c>IpAddress</c> ise taslakta VARDIR:
+    /// MAC, SCADA ingest'inin kabini cozdugu adrestir ve operatorun girebilmesi gerekir.
     /// </summary>
     private static void WriteDevice(Device device, DeviceDraft draft)
     {
@@ -845,6 +906,8 @@ public partial class DiagramService
         device.IsLocked = draft.IsLocked;
         device.IsVisible = draft.IsVisible;
         device.ExternalCode = draft.ExternalCode;
+        device.MacAddress = draft.MacAddress;
+        device.IpAddress = draft.IpAddress;
     }
 
     private static void WriteConnection(Connection connection, ConnectionDraft draft)
@@ -972,6 +1035,8 @@ public partial class DiagramService
         public required List<Connection> CascadeConnections { get; init; }
         /// <summary>Kabindeki aktif cihazlarin dis kodlari (yalnizca gerektiginde okunur).</summary>
         public required Dictionary<Guid, string> DeviceExternalCodes { get; init; }
+        /// <summary>Gonderilen MAC adreslerinin sahipleri — KABIN GENELI DEGIL, SISTEM GENELI.</summary>
+        public required Dictionary<Guid, string> DeviceMacAddresses { get; init; }
         /// <summary>Cift cakismasi icin bakilacak mevcut kablolar.</summary>
         public required List<PinPairRow> PinPairCandidates { get; init; }
         /// <summary>Bu gonderide DOGACAK pinler — kablo uclari bunlari da gosterebilir.</summary>
@@ -994,6 +1059,8 @@ public partial class DiagramService
     private sealed record PinPairRow(Guid Id, Guid SourcePinId, Guid TargetPinId);
 
     private sealed record DeviceCodeRow(Guid Id, string ExternalCode);
+
+    private sealed record DeviceMacRow(Guid Id, string MacAddress);
 
     private sealed record ChannelAddressRow(PinDirection Direction, int ChannelNumber, string DeviceName);
 }

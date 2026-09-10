@@ -15,8 +15,10 @@ public class DiagramDeviceDto : IDto
     public bool IsVisible { get; set; }
     public bool IsActive { get; set; }
     public Guid ComponentTemplateId { get; set; }
-    /// <summary>SCADA tarafindaki kimlik; ingest bu kodla cihaz cozumler.</summary>
+    /// <summary>SCADA tarafindaki kimlik; YALNIZCA GOSTERIM icindir, cozumlemede kullanilmaz.</summary>
     public string? ExternalCode { get; set; }
+    public string? MacAddress { get; set; }
+    public string? IpAddress { get; set; }
     public int? DeviceStatusId { get; set; }
     public string? DeviceStatusName { get; set; }
     public DateTime? LastSeen { get; set; }

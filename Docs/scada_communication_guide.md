@@ -130,11 +130,11 @@ SCADA bu çerçeveleri ayrıştırıp **her çerçeve için bir HTTP isteği** a
 
 | Gelen çerçeve | `POST /api/Scada/ingest` gövdesi |
 |---|---|
-| `'I' 7 1` | `{ "cabinetId": "…", "type": "I", "channelNumber": 7, "value": "1" }` |
-| `'A' 1 235` | `{ "cabinetId": "…", "type": "A", "channelNumber": 1, "value": "235" }` |
+| `'I' 7 1` | `{ "macAddress": "AA:BB:CC:DD:EE:FF", "type": "I", "channelNumber": 7, "value": "1" }` |
+| `'A' 1 235` | `{ "macAddress": "AA:BB:CC:DD:EE:FF", "type": "A", "channelNumber": 1, "value": "235" }` |
 | `'O' 5 0` | Gönderilmez — gövdede ifade edilemez |
 
-`cabinetId` çerçevede yoktur; SCADA yapılandırmasından gelir (bir kabin = bir kontrol kartı = bir soket). Değer string olarak taşınır. Tam sözleşme, kısıtlar ve hata kodları: **`docs/api-contract/07-scada-ingest.md`**.
+`macAddress` çerçevede yoktur; **kontrol kartının kendi MAC adresidir** (bir kabin = bir kontrol kartı = bir soket). CabinetOS bu adresle eşleşen `DeviceType.ControlModule` cihazını bulup kabini oradan çözer — saha CabinetOS'un ürettiği kabin `Guid`'ini bilemez, ama MAC adresi iki tarafta da bilinen ortak değerdir. Eşleşme **birebir string karşılaştırmasıdır**: adres CabinetOS'ta nasıl kayıtlıysa (`Device.MacAddress`) çerçeveye de öyle yazılmalıdır; ayraç (`:` / `-`) ya da harf farkı eşleşmeyi bozar ve istek **404** döner. Değer string olarak taşınır. Tam sözleşme, kısıtlar ve hata kodları: **`docs/api-contract/07-scada-ingest.md`**.
 
 ---
 

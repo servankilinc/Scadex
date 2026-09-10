@@ -211,7 +211,19 @@ aggregate'in controller'ında durur.
   adresi işgal eden cihazın **adını** da söyler.
 - **Bir cihazı silmek kanallarını serbest bırakmaz.** Cihaz `IsActive = false` olur, pinleri
   ve kabloları düşer, ama `IoChannel` satırları yerinde kalır — dolayısıyla `IN1` işgal
-  edilmeye devam eder. `ExternalCode` ise serbest kalır (index filtresi `IsActive = 1`).
+  edilmeye devam eder. `ExternalCode` ve `MacAddress` ise serbest kalır (index filtreleri
+  `IsActive = 1`).
+- **`macAddress` / `ipAddress` deltada taşınır (2026-09-10).** MAC, SCADA ingest'inin kabini
+  çözdüğü adrestir (§ 5.3) ve operatörün girebilmesi gerekir; ikisi de cihaz özellik
+  panelinden yazılır. `deviceStatusId` / `lastSeen` ise **taslakta yoktur** ve `WriteDevice`'ta
+  dokunulmaz — onlar telemetriyle yazılır.
+- **`macAddress` benzersizliği kabin geneli değil, SİSTEM GENELİDİR**
+  (`IX_Device_MacAddress`, unique, `WHERE MacAddress IS NOT NULL AND IsActive = 1`). Bir
+  fiziksel kartın tek MAC'i vardır ve ingest kabini bu adresten çözer; aynı adres iki kabinde
+  olsaydı telemetri yanlış kabine yazılırdı. Bu yüzden çarpışma **başka bir kabindeki** cihazla
+  da olabilir ve `LoadDeviceMacAddressesAsync` kabinle değil gönderilen adreslerle daraltılır.
+  Çakışma `400` döner (`Devices.Upserted[i].MacAddress`) — `ExternalCode`'daki gibi, DB
+  kısıtına çarpıp 500 üretmemek için.
 - Karşılığı bulunamayan `deleted` kimlikleri **sessizce atlanır** ve sayılmaz — istemciyi
   "bu kayıt sunucuya gitti mi" bilgisini taşımaktan kurtaran karar budur. Buna karşılık
   `upserted`'da başka kabine ait ya da silinmiş/pasif bir kimlik `400`'dür: soft-delete
@@ -248,9 +260,15 @@ Kuyruk yok, retry yok — tekrarlanan bir röle darbesi, başarısız bir komutt
 politikası ile.
 
 ```json
-{ "cabinetId": "...", "type": "I", "channelNumber": 7, "value": "1", "timestampUtc": null }
+{ "macAddress": "AA:BB:CC:DD:EE:FF", "type": "I", "channelNumber": 7, "value": "1", "timestampUtc": null }
 ```
 
+- **Kabin `macAddress`'ten çözülür, gövdede `cabinetId` YOKTUR (2026-09-10).** Sahadaki SCADA
+  bizim ürettiğimiz kabin `Guid`'ini bilemez; bildiğimiz ortak değer kartın MAC adresidir.
+  Sunucu, gelen adresle **birebir eşleşen** (`Device.MacAddress == macAddress`), aktif ve
+  şablonu `DeviceType.ControlModule` olan cihazı arar ve o cihazın `CabinetId`'sini kullanır.
+  Karşılığı yoksa **404** döner. Karşılaştırma ham string karşılaştırmasıdır: adres veritabanına
+  **nasıl kaydedildiyse SCADA da öyle göndermek zorundadır** (normalizasyon/ayraç toleransı yok).
 - **İstek başına tek okuma** taşınır (toplu gönderim yoktur).
 - Adres bir **çifttir**: `type` + `channelNumber`. `ScadaPinAddress.TryParseType` yalnızca iki
   başlık tanır — `"I"` dijital giriş (`PinDirection.Input`), `"A"` analog giriş
@@ -468,7 +486,15 @@ değil, bilinçli bir karardır; `dotnet build` çıktısındaki 5 uyarı bu yü
 - ~~Ayarlar uzaktan düzenlenemiyor~~ — **veritabanına taşındı ve ekranı yazıldı (2026-09-10)**,
   bkz. (e). `/admin/settings`; kaydedilen değer yeniden başlatma olmadan etkili.
 - **Kiracı izolasyonu yok** (§ 6'daki gerekçeyle sonradan tek noktadan gelecek).
-- **Ingest yalnızca `cabinetId` ile "kimlik doğrular"** — paylaşılan sır / imza yok.
+- **Ingest yalnızca `macAddress` ile "kimlik doğrular"** — paylaşılan sır / imza yok. MAC
+  adresi taklit edilebilir bir değerdir; kimlik doğrulama değil, adresleme yapar.
+- ~~`Device.MacAddress`'in yazım yolu yok~~ — **diyagram deltasına eklendi (2026-09-10)**,
+  `IpAddress` ile birlikte; bkz. § 5.2. Kalan risk: `IX_Device_MacAddress` **global** olduğu
+  için ileride gelecek **kiracı izolasyonu** (companyId global query filter) ile çakışır —
+  ön doğrulama başka kiracının cihazını göremez hale gelirken DB kısıtı global kalır ve
+  yinelenen MAC `400` yerine `500` üretir. O filtre eklendiğinde `LoadDeviceMacAddressesAsync`
+  `IgnoreQueryFilters` ile çalışmalıdır (§ 6'daki "hiçbir yerde `IgnoreQueryFilters`
+  çağrılmaz" kuralının bilinen tek istisnası bu olacak).
 - **Ayrı bir `TelemetryRecord` tablosu yok — bilinçli.** 2026-09-10'da analog kanalların
   geçmişinin de `ChannelEvent`'te tutulmasına karar verildi (`ChannelEventService`'teki koşul
   `Input` **ve** `AnalogInput`'u kapsıyor). Analog kanalda tablo artık bir zaman serisi gibi

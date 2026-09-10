@@ -507,6 +507,8 @@ public class MappingProfiles : Profile
             .ForMember(dest => dest.IsActive, opt => opt.MapFrom(src => src.IsActive))
             .ForMember(dest => dest.ComponentTemplateId, opt => opt.MapFrom(src => src.ComponentTemplateId))
             .ForMember(dest => dest.ExternalCode, opt => opt.MapFrom(src => src.ExternalCode))
+            .ForMember(dest => dest.MacAddress, opt => opt.MapFrom(src => src.MacAddress))
+            .ForMember(dest => dest.IpAddress, opt => opt.MapFrom(src => src.IpAddress))
             .ForMember(dest => dest.DeviceStatusId, opt => opt.MapFrom(src => src.DeviceStatusId))
             .ForMember(dest => dest.DeviceStatusName, opt => opt.MapFrom(src => src.DeviceStatus != default ? src.DeviceStatus.Name : default))
             .ForMember(dest => dest.LastSeen, opt => opt.MapFrom(src => src.LastSeen))

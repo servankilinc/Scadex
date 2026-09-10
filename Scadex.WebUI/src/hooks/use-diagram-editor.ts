@@ -318,6 +318,8 @@ export function useDiagramEditor(cabinetId: string, graph: DiagramDto): DiagramE
         isActive: true,
         componentTemplateId: template.id,
         externalCode: null,
+        macAddress: null,
+        ipAddress: null,
         deviceStatusId: null,
         deviceStatusName: null,
         lastSeen: null,
@@ -488,6 +490,11 @@ export function useDiagramEditor(cabinetId: string, graph: DiagramDto): DiagramE
         // Dış kod KOPYALANMAZ: `IX_Device_CabinetId_ExternalCode` benzersiz ve
         // kopya kaydedilirken çakışırdı. Yeni kodu kullanıcı verir.
         externalCode: null,
+        // Ağ adresleri de KOPYALANMAZ. `IX_Device_MacAddress` sistem genelinde
+        // benzersiz olduğu için kopya zaten çakışırdı; ötesinde bir MAC tek bir
+        // fiziksel karta aittir — kopyalanması anlamsızdır.
+        macAddress: null,
+        ipAddress: null,
         // Canlı durum da kopyalanmaz: yeni cihaz henüz hiç telemetri görmedi.
         // `null`, `Offline` ile AYNI ŞEY DEĞİL.
         deviceStatusId: null,

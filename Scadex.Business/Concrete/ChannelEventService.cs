@@ -11,6 +11,7 @@ using Scadex.Model.Dtos.Realtime.Queries;
 using Scadex.Model.Dtos.Scada.Commands;
 using Scadex.Model.Entities;
 using DeviceStatus = Scadex.Model.Enums.EntityEnums.DeviceStatus;
+using DeviceType = Scadex.Model.Enums.EntityEnums.DeviceType;
 using PinDirection = Scadex.Model.Enums.EntityEnums.PinDirection;
 
 namespace Scadex.Business.Concrete;
@@ -72,19 +73,35 @@ public class ChannelEventService : IChannelEventService
         if (!ScadaPinAddress.CheckAndParseIngestPin(request.Type, out var direction))
             return Result.Failure("Gecersiz tip", "Invalid signal type");
          
-        // 3) Kabin kontrolü
+        // 3) SCADA MAC adresiyle eslesen kontrol modülünden bulunur
+        var cabinetId = await _unitOfWork.Devices.GetAsync(
+            select: d => d.CabinetId,
+            where: d =>
+                d.IsActive &&
+                d.MacAddress == request.MacAddress &&
+                d.ComponentTemplate!.DeviceTypeId == (int)DeviceType.ControlModule,
+            cancellationToken: cancellationToken
+        );
+        if (cabinetId == Guid.Empty)
+        {
+            _logger.LogWarning($"MAC {request.MacAddress}: eslesen kontrol modulu yok (ya da pasif); telemetri atlandi.");
+            return Result.NotFound(description: "Bu MAC adresine kayitli kontrol modulu bulunamadi");
+        }
+
+
+        // 4) Kabin kontrolü
         var cabinet = await _unitOfWork.Cabinets.GetAsync(
-            where: c => c.Id == request.CabinetId && c.IsActive,
+            where: c => c.Id == cabinetId && c.IsActive,
             tracking: true,
             cancellationToken: cancellationToken
         );
         if (cabinet == null)
             return Result.NotFound(description: "Kabin bulunamadi veya pasif durumda");
         if (!cabinet.ScadaIsEnabled)
-            return Result.Failure($"Bu kabinde({request.CabinetId}) SCADA kapalı.");
+            return Result.Failure($"Bu kabinde({cabinet.Id}) SCADA kapalı.");
 
 
-        // 4) Kanal kontrolü
+        // 5) Kanal kontrolü
         var channel = await _unitOfWork.IoChannels.GetAsync(
             where: c =>
                 c.CabinetId == cabinet.Id &&
@@ -101,7 +118,7 @@ public class ChannelEventService : IChannelEventService
         }
 
 
-        // 5) Cihaz(Component) kontrolü
+        // 6) Cihaz(Component) kontrolü
         var device = await _unitOfWork.Devices.GetAsync(
             where: d => d.Id == channel.DeviceId,
             tracking: true,
@@ -114,7 +131,7 @@ public class ChannelEventService : IChannelEventService
         }
 
 
-        // 6) Cihaz durum değişimi kontrolü
+        // 7) Cihaz durum değişimi kontrolü
         var statusChanges = new List<DeviceStatusChange>();
         bool deviceStatusChanged = false;
 
@@ -138,7 +155,7 @@ public class ChannelEventService : IChannelEventService
         }
 
 
-        // 7) Kabin bilgilerinin güncellenmesi: kabin durumu, kabindeki cihazların en kotü durumuna göre belirlenir.
+        // 8) Kabin bilgilerinin güncellenmesi: kabin durumu, kabindeki cihazların en kotü durumuna göre belirlenir.
         if (deviceStatusChanged)
         {
             // kabinin cihazlarının durumlarını alıp kabin status bilgisi için en kotü durumu bulunur.
@@ -154,7 +171,7 @@ public class ChannelEventService : IChannelEventService
         cabinet.ScadaLastIngestAt = now;
 
 
-        // 8) Kanal değeri değişimi kontrolü ve değeri değişen kanallar için ChannelEvent insert ve client'lara bildirim.
+        // 9) Kanal değeri değişimi kontrolü ve değeri değişen kanallar için ChannelEvent insert ve client'lara bildirim.
         var channelChanges = new List<ChannelValueChange>();
         ChannelEvent? channelEvent = null;
 
@@ -193,11 +210,11 @@ public class ChannelEventService : IChannelEventService
         }
 
 
-        // 9) Değişiklikler kalıcı olarak yazılır
+        // 10) Değişiklikler kalıcı olarak yazılır
         await _unitOfWork.SaveChangesAsync(cancellationToken);
 
 
-        // 10) kalıcı olarak yazılan olaylar ve durum degisiklikleri, client'lara bildirilir.
+        // 11) kalıcı olarak yazılan olaylar ve durum degisiklikleri, client'lara bildirilir.
         if (channelChanges.Count > 0)
             await _notifier.ChannelValuesChangedAsync(cabinet.Id, channelChanges, cancellationToken);
 

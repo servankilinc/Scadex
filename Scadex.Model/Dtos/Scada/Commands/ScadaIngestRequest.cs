@@ -7,7 +7,7 @@ namespace Scadex.Model.Dtos.Scada.Commands;
 /// <summary> SCADA'nın HTTP uzerinden Bize push ettiği telemetri bilgisi. </summary>
 public class ScadaIngestRequest : IDto
 {
-    public Guid CabinetId { get; set; }
+    public string MacAddress { get; set; } = null!;
 
     /// <summary> <c>"I"</c> dijital giris, <c>"A"</c> analog giris. </summary>
     public string Type { get; set; } = null!;
@@ -29,7 +29,8 @@ public class ScadaIngestRequestValidator : AbstractValidator<ScadaIngestRequest>
 {
     public ScadaIngestRequestValidator()
     {
-        RuleFor(v => v.CabinetId).NotEmpty().WithMessage("cabinetId zorunlu");
+        RuleFor(v => v.MacAddress).NotEmpty().WithMessage("macAddress zorunlu");
+        RuleFor(v => v.MacAddress).MaximumLength(64).WithMessage("macAddress en fazla 64 karakter olabilir");
         RuleFor(v => v.Type).NotEmpty().WithMessage("type zorunlu");
 
         RuleFor(v => v.Type)

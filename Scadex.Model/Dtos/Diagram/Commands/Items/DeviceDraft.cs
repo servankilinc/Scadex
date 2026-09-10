@@ -18,6 +18,10 @@ public class DeviceDraft : IDto, IIdentifiableDraft
     public bool IsVisible { get; set; } = true;
     public string? ExternalCode { get; set; }
 
+    public string? MacAddress { get; set; }
+
+    public string? IpAddress { get; set; }
+
     /// <summary> Olusacak pinlerin KIMLIKLERI — yalnizca OLUSTURMADA doldurulur. </summary>
     public List<DevicePinDraft> Pins { get; set; } = [];
 
@@ -34,6 +38,9 @@ public class DeviceDraftValidator : AbstractValidator<DeviceDraft>
         RuleFor(v => v.Name).NotEmpty().WithMessage("Cihaz adi zorunlu");
         RuleFor(v => v.Name).MaximumLength(128).WithMessage("Cihaz adi en fazla 128 karakter olabilir");
         RuleFor(v => v.ExternalCode).MaximumLength(64).WithMessage("Dis kod en fazla 64 karakter olabilir");
+   
+        RuleFor(v => v.MacAddress).MaximumLength(17).WithMessage("MAC adresi en fazla 17 karakter olabilir");
+        RuleFor(v => v.IpAddress).MaximumLength(45).WithMessage("IP adresi en fazla 45 karakter olabilir");
 
         RuleForEach(v => v.Pins).SetValidator(new DevicePinDraftValidator());
         RuleForEach(v => v.IoChannels).SetValidator(new DeviceIoChannelDraftValidator());

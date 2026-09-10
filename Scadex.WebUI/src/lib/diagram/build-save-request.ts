@@ -76,6 +76,8 @@ function toDeviceDraft(node: DeviceNode): DeviceDraft {
     isLocked: device.isLocked,
     isVisible: device.isVisible,
     externalCode: device.externalCode,
+    macAddress: device.macAddress,
+    ipAddress: device.ipAddress,
     // `componentTemplatePinId` tipte null olabilir ama BURADA olamaz: gönderilen
     // pinler `instantiate-template-pins.ts`'in şablondan ürettikleridir ve o alanı
     // daima doldurur. Null gelseydi sunucu şema karşılaştırmasında zaten 400'e

@@ -179,6 +179,16 @@ function DeviceForm({ node, editor }: { node: Extract<DiagramNode, { type: 'temp
         <TextInput id='device-external-code' value={device.externalCode ?? ''} onCommit={value => onChange({ externalCode: value || null })} />
       </Field>
 
+      {/* Boş girdi burada da null'a çevrilir — aynı gerekçe, bu kez
+          `IX_Device_MacAddress` için. */}
+      <Field label='MAC adresi' htmlFor='device-mac-address' hint='SCADA kontrol modülünü bu adresle tanır.'>
+        <TextInput id='device-mac-address' value={device.macAddress ?? ''} onCommit={value => onChange({ macAddress: value || null })} />
+      </Field>
+
+      <Field label='IP adresi' htmlFor='device-ip-address'>
+        <TextInput id='device-ip-address' value={device.ipAddress ?? ''} onCommit={value => onChange({ ipAddress: value || null })} />
+      </Field>
+
       <Field label='Dönüş (°)' htmlFor='device-rotation'>
         <NumberInput id='device-rotation' value={device.rotation} min={0} max={359} onCommit={rotation => onChange({ rotation })} />
       </Field>

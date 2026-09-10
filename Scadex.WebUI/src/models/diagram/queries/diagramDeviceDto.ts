@@ -21,8 +21,14 @@ export interface DiagramDeviceDto {
   isVisible: boolean;
   isActive: boolean;
   componentTemplateId: string;
-  /** SCADA tarafındaki kimlik; ingest bu kodla cihaz çözümler. */
+  /** SCADA tarafındaki kimlik; YALNIZCA GÖSTERİM içindir, çözümlemede kullanılmaz. */
   externalCode: string | null;
+  /**
+   * Kontrol modüllerinde SCADA ingest'inin kabini çözdüğü adres; kanal ise
+   * `(direction, channelNumber)` çiftinden çözülür.
+   */
+  macAddress: string | null;
+  ipAddress: string | null;
   /** Null = hiç telemetri alınmadı. 0 DEĞİL — 0 `DeviceStatus.Offline`'dır. */
   deviceStatusId: DeviceStatus | null;
   deviceStatusName: string | null;

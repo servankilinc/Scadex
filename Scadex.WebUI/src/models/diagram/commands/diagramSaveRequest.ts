@@ -80,6 +80,12 @@ export interface DeviceDraft {
   isVisible: boolean;
   externalCode: string | null;
   /**
+   * Kontrol modüllerinde SCADA ingest'inin kabini çözdüğü adres. Sistem genelinde
+   * benzersizdir (`IX_Device_MacAddress`); çakışırsa sunucu 400 döner.
+   */
+  macAddress: string | null;
+  ipAddress: string | null;
+  /**
    * Yalnızca OLUŞTURMADA doldurulur; mevcut bir cihazda dolu gönderilirse 400
    * (pinleri zaten var). "Bu cihaz yeni mi" sorusunu `lib/diagram/unsaved-store.ts`
    * cevaplar — Id'nin kendisi cevaplayamaz.
