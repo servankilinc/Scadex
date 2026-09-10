@@ -901,6 +901,8 @@ public partial class DiagramService
         device.Name = draft.Name;
         device.CoordinateX = draft.CoordinateX;
         device.CoordinateY = draft.CoordinateY;
+        device.Width = draft.Width;
+        device.Height = draft.Height;
         device.Rotation = draft.Rotation;
         device.ZIndex = draft.ZIndex;
         device.IsLocked = draft.IsLocked;

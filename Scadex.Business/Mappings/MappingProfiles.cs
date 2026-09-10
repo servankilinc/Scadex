@@ -505,6 +505,9 @@ public class MappingProfiles : Profile
             .ForMember(dest => dest.IsLocked, opt => opt.MapFrom(src => src.IsLocked))
             .ForMember(dest => dest.IsVisible, opt => opt.MapFrom(src => src.IsVisible))
             .ForMember(dest => dest.IsActive, opt => opt.MapFrom(src => src.IsActive))
+            // Boyut override'i: null ise istemci Template.Width/Height'a duser.
+            .ForMember(dest => dest.Width, opt => opt.MapFrom(src => src.Width))
+            .ForMember(dest => dest.Height, opt => opt.MapFrom(src => src.Height))
             .ForMember(dest => dest.ComponentTemplateId, opt => opt.MapFrom(src => src.ComponentTemplateId))
             .ForMember(dest => dest.ExternalCode, opt => opt.MapFrom(src => src.ExternalCode))
             .ForMember(dest => dest.MacAddress, opt => opt.MapFrom(src => src.MacAddress))

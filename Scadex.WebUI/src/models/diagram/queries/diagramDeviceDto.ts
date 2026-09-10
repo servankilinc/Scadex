@@ -7,7 +7,7 @@ import type { DiagramTemplateDto } from './diagramTemplateDto';
 /**
  * Canvas'ta bir React Flow node'u olarak render edilen cihaz.
  * `position` = (coordinateX, coordinateY), `draggable` = !isLocked,
- * `hidden` = !isVisible, boyut `template`'ten gelir.
+ * `hidden` = !isVisible, boyut `width ?? template.width` (bkz. `deviceSize`).
  */
 export interface DiagramDeviceDto {
   id: string;
@@ -20,6 +20,13 @@ export interface DiagramDeviceDto {
   isLocked: boolean;
   isVisible: boolean;
   isActive: boolean;
+  /**
+   * Cihaz bazlı boyut override'ı. `null` = şablonun ölçüsü geçerli — bir varsayılan
+   * kopyası DEĞİL: şablon sonradan büyürse override'sız cihazlar onunla birlikte
+   * büyür. Opsiyonel (`?`) değil, çünkü sunucu null alanları gövdeden düşürmüyor.
+   */
+  width: number | null;
+  height: number | null;
   componentTemplateId: string;
   /** SCADA tarafındaki kimlik; YALNIZCA GÖSTERİM içindir, çözümlemede kullanılmaz. */
   externalCode: string | null;

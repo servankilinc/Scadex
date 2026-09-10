@@ -14,6 +14,9 @@ public class DiagramDeviceDto : IDto
     public bool IsLocked { get; set; }
     public bool IsVisible { get; set; }
     public bool IsActive { get; set; }
+
+    public double? Width { get; set; }
+    public double? Height { get; set; }
     public Guid ComponentTemplateId { get; set; }
     /// <summary>SCADA tarafindaki kimlik; YALNIZCA GOSTERIM icindir, cozumlemede kullanilmaz.</summary>
     public string? ExternalCode { get; set; }

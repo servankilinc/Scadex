@@ -12,6 +12,11 @@ public class DeviceDraft : IDto, IIdentifiableDraft
     public string Name { get; set; } = null!;
     public double CoordinateX { get; set; }
     public double CoordinateY { get; set; }
+
+    /// <summary> <c>null</c> "dokunma" DEGIL, "sablon  boyutuna don" demektir. </summary>
+    public double? Width { get; set; }
+    public double? Height { get; set; }
+
     public double Rotation { get; set; }
     public int ZIndex { get; set; }
     public bool IsLocked { get; set; }
@@ -41,6 +46,9 @@ public class DeviceDraftValidator : AbstractValidator<DeviceDraft>
    
         RuleFor(v => v.MacAddress).MaximumLength(17).WithMessage("MAC adresi en fazla 17 karakter olabilir");
         RuleFor(v => v.IpAddress).MaximumLength(45).WithMessage("IP adresi en fazla 45 karakter olabilir");
+
+        RuleFor(v => v.Width).GreaterThan(0).When(v => v.Width.HasValue).WithMessage("Genislik sifirdan buyuk olmali");
+        RuleFor(v => v.Height).GreaterThan(0).When(v => v.Height.HasValue).WithMessage("Yukseklik sifirdan buyuk olmali");
 
         RuleForEach(v => v.Pins).SetValidator(new DevicePinDraftValidator());
         RuleForEach(v => v.IoChannels).SetValidator(new DeviceIoChannelDraftValidator());

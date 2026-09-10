@@ -22,15 +22,29 @@ export function toRfNodes(diagram: Pick<DiagramDto, 'devices' | 'annotations'>):
   return [...diagram.annotations.map(toAnnotationNode), ...diagram.devices.map(toDeviceNode)];
 }
 
+/**
+ * Cihazın EFEKTİF kutu ölçüsü: kendi override'ı varsa o, yoksa şablonunki.
+ *
+ * Boyut node'un içeriğinden türetilemez — pin konumları kutu ölçüsünün 0..1
+ * kesri olarak saklandığı için ölçünün önceden bilinmesi zorunlu.
+ *
+ * **Tek fonksiyon olması bilinçli.** Aynı fallback üç yerde birden gerekiyor
+ * (`toDeviceNode`, `updateDevice`, özellikler paneli); `??`'ü üç kez yazmak,
+ * birinin unutulduğu anda "panelde 200 yazıyor ama canvas 120" durumunu üretirdi.
+ */
+export function deviceSize(device: DiagramDeviceDto): { width: number; height: number } {
+  return {
+    width: device.width ?? device.template.width,
+    height: device.height ?? device.template.height
+  };
+}
+
 export function toDeviceNode(device: DiagramDeviceDto): DeviceNode {
   return {
     id: device.id,
     type: 'template',
     position: { x: device.coordinateX, y: device.coordinateY },
-    // Boyut ŞABLONDAN gelir, node'un içeriğinden değil: pin konumları şablon
-    // boyutunun 0..1 kesri olarak saklandığı için kutu ölçüsü bilinmek zorunda.
-    width: device.template.width,
-    height: device.template.height,
+    ...deviceSize(device),
     zIndex: device.zIndex,
     draggable: !device.isLocked,
     hidden: !device.isVisible,

@@ -26,7 +26,7 @@ import { MIN_ALIGN } from '@/lib/diagram/align';
 import { ANNOTATION_FONT_SIZE_MAX, ANNOTATION_FONT_SIZE_MIN, ANNOTATION_TEXT_MAX } from '@/lib/diagram/annotation-defaults';
 import { useLiveChannel, useLiveDevice } from '@/lib/diagram/live-store';
 import { removeWaypoint } from '@/lib/diagram/waypoints';
-import type { DiagramNode } from '@/lib/diagram/to-rf-nodes';
+import { deviceSize, type DiagramNode } from '@/lib/diagram/to-rf-nodes';
 import { cn } from '@/lib/utils';
 import { AlignToolbar } from './align-toolbar';
 import { CommandHistory } from './command-history';
@@ -167,6 +167,11 @@ function DeviceForm({ node, editor }: { node: Extract<DiagramNode, { type: 'temp
 
   const onChange = (patch: Partial<DiagramDeviceDto>) => editor.updateDevice(node.id, patch);
 
+  // Girdilerde EFEKTİF ölçü gösterilir: override yokken kutu boş kalsaydı
+  // kullanıcı "kaç piksel?" sorusunu ancak şablona bakarak cevaplardı.
+  const size = deviceSize(device);
+  const hasSizeOverride = device.width != null || device.height != null;
+
   return (
     <div className='flex flex-col gap-3'>
       <Field label='Ad' htmlFor='device-name'>
@@ -192,6 +197,46 @@ function DeviceForm({ node, editor }: { node: Extract<DiagramNode, { type: 'temp
       <Field label='Dönüş (°)' htmlFor='device-rotation'>
         <NumberInput id='device-rotation' value={device.rotation} min={0} max={359} onCommit={rotation => onChange({ rotation })} />
       </Field>
+
+      {/* Boyut cihaz BAZINDA override edilir; `null` bırakıldığında şablonun ölçüsü
+          geçerlidir. En-boy oranı serbest: pinler kutunun 0..1 kesriyle, arka plan
+          görseli de `object-fill` ile konumlandığı için ikisi aynı oranda esner ve
+          pin klemensten KAYMAZ — yalnızca çizim yamulur.
+
+          `key` ŞART: `NumberInput` taslağını yalnızca mount'ta kuruyor ve
+          `DeviceForm` sadece `key={node.id}` ile remount oluyor. Bu olmasaydı
+          "şablon boyutuna dön"e basıldığında kutu küçülür ama girdideki sayı eski
+          değerde donup kalırdı. */}
+      <div className='grid grid-cols-2 gap-2'>
+        <Field label='Genişlik' htmlFor='device-width' hint={hasSizeOverride ? undefined : 'Şablon ölçüsü'}>
+          <NumberInput
+            key={`device-width-${size.width}`}
+            id='device-width'
+            value={Math.round(size.width)}
+            min={1}
+            max={COORDINATE_LIMIT}
+            onCommit={width => onChange({ width })}
+          />
+        </Field>
+        <Field label='Yükseklik' htmlFor='device-height'>
+          <NumberInput
+            key={`device-height-${size.height}`}
+            id='device-height'
+            value={Math.round(size.height)}
+            min={1}
+            max={COORDINATE_LIMIT}
+            onCommit={height => onChange({ height })}
+          />
+        </Field>
+      </div>
+
+      {/* İki eksen BİRLİKTE sıfırlanır: "genişlik şablondan, yükseklik elle" gibi
+          bir ara durum anlaşılmaz olurdu. */}
+      {hasSizeOverride && (
+        <Button size='xs' variant='outline' className='self-start' onClick={() => onChange({ width: null, height: null })}>
+          Şablon boyutuna dön
+        </Button>
+      )}
 
       {/* Konum artık SALT OKUNUR DEĞİL. Ok tuşlarıyla itmenin (nudge) arayüz
           karşılığı bu: kutuyu piksel piksel dürtmek yerine hedef koordinatı
@@ -220,7 +265,8 @@ function DeviceForm({ node, editor }: { node: Extract<DiagramNode, { type: 'temp
       <dl className='text-muted-foreground grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 border-t pt-3 text-xs'>
         <ReadOnly term='Şablon' value={device.template.name} />
         <ReadOnly term='Tip' value={DeviceTypeLabels[device.template.deviceTypeId]} />
-        <ReadOnly term='Boyut' value={`${device.template.width} × ${device.template.height}`} />
+        {/* Override varken "geri dönersem ne olacak" sorusunun cevabı YALNIZCA burada. */}
+        <ReadOnly term='Şablon boyutu' value={`${device.template.width} × ${device.template.height}`} />
         {/* Sıfır artık "henüz üretilmedi" demek DEĞİL: pinler cihaz bırakılır
             bırakılmaz doğuyor, dolayısıyla sıfır gerçekten pinsiz bir şablondur. */}
         <ReadOnly term='Pin' value={String(device.pins.length)} />

@@ -14,6 +14,28 @@ namespace Scadex.DataAccess.Migrations
         protected override void Up(MigrationBuilder migrationBuilder)
         {
             migrationBuilder.CreateTable(
+                name: "CameraCaptureSettings",
+                columns: table => new
+                {
+                    Id = table.Column<int>(type: "int", nullable: false)
+                        .Annotation("SqlServer:Identity", "1, 1"),
+                    SnapshotTimeoutMs = table.Column<int>(type: "int", nullable: false),
+                    SnapshotCacheSeconds = table.Column<int>(type: "int", nullable: false),
+                    CaptureRoot = table.Column<string>(type: "nvarchar(max)", nullable: false),
+                    CaptureRetentionDays = table.Column<int>(type: "int", nullable: false),
+                    MaxClipDurationSec = table.Column<int>(type: "int", nullable: false),
+                    ClipFinalizeGraceMs = table.Column<int>(type: "int", nullable: false),
+                    CreatedBy = table.Column<string>(type: "nvarchar(max)", nullable: true),
+                    UpdatedBy = table.Column<string>(type: "nvarchar(max)", nullable: true),
+                    CreateDateUtc = table.Column<DateTime>(type: "datetime2", nullable: true),
+                    UpdateDateUtc = table.Column<DateTime>(type: "datetime2", nullable: true)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_CameraCaptureSettings", x => x.Id);
+                });
+
+            migrationBuilder.CreateTable(
                 name: "Company",
                 columns: table => new
                 {
@@ -65,6 +87,29 @@ namespace Scadex.DataAccess.Migrations
                 constraints: table =>
                 {
                     table.PrimaryKey("PK_DeviceType", x => x.Id);
+                });
+
+            migrationBuilder.CreateTable(
+                name: "MediaGatewaySettings",
+                columns: table => new
+                {
+                    Id = table.Column<int>(type: "int", nullable: false)
+                        .Annotation("SqlServer:Identity", "1, 1"),
+                    ApiTimeoutMs = table.Column<int>(type: "int", nullable: false),
+                    ApiBaseUrl = table.Column<string>(type: "nvarchar(max)", nullable: false),
+                    WebRtcPublicBaseUrl = table.Column<string>(type: "nvarchar(max)", nullable: false),
+                    TokenTtlSeconds = table.Column<int>(type: "int", nullable: false),
+                    SourceOnDemandCloseAfter = table.Column<string>(type: "nvarchar(max)", nullable: false),
+                    RtspTransport = table.Column<string>(type: "nvarchar(max)", nullable: false),
+                    RecordRoot = table.Column<string>(type: "nvarchar(max)", nullable: false),
+                    CreatedBy = table.Column<string>(type: "nvarchar(max)", nullable: true),
+                    UpdatedBy = table.Column<string>(type: "nvarchar(max)", nullable: true),
+                    CreateDateUtc = table.Column<DateTime>(type: "datetime2", nullable: true),
+                    UpdateDateUtc = table.Column<DateTime>(type: "datetime2", nullable: true)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_MediaGatewaySettings", x => x.Id);
                 });
 
             migrationBuilder.CreateTable(
@@ -570,11 +615,13 @@ namespace Scadex.DataAccess.Migrations
                     Name = table.Column<string>(type: "nvarchar(max)", nullable: false),
                     DeviceStatusId = table.Column<int>(type: "int", nullable: true),
                     IpAddress = table.Column<string>(type: "nvarchar(max)", nullable: true),
-                    MacAddress = table.Column<string>(type: "nvarchar(max)", nullable: true),
+                    MacAddress = table.Column<string>(type: "nvarchar(450)", nullable: true),
                     ExternalCode = table.Column<string>(type: "nvarchar(450)", nullable: true),
                     LastSeen = table.Column<DateTime>(type: "datetime2", nullable: true),
                     CoordinateX = table.Column<double>(type: "float", nullable: false),
                     CoordinateY = table.Column<double>(type: "float", nullable: false),
+                    Width = table.Column<double>(type: "float", nullable: true),
+                    Height = table.Column<double>(type: "float", nullable: true),
                     Rotation = table.Column<double>(type: "float", nullable: false),
                     ZIndex = table.Column<int>(type: "int", nullable: false),
                     IsLocked = table.Column<bool>(type: "bit", nullable: false),
@@ -853,6 +900,11 @@ namespace Scadex.DataAccess.Migrations
                 });
 
             migrationBuilder.InsertData(
+                table: "CameraCaptureSettings",
+                columns: new[] { "Id", "CaptureRetentionDays", "CaptureRoot", "ClipFinalizeGraceMs", "CreateDateUtc", "CreatedBy", "MaxClipDurationSec", "SnapshotCacheSeconds", "SnapshotTimeoutMs", "UpdateDateUtc", "UpdatedBy" },
+                values: new object[] { 1, 30, "uploads/captures", 3000, null, null, 600, 3, 5000, null, null });
+
+            migrationBuilder.InsertData(
                 table: "Company",
                 columns: new[] { "Id", "CreateDateUtc", "CreatedBy", "Description", "IsActive", "Name", "UpdateDateUtc", "UpdatedBy" },
                 values: new object[] { new Guid("1a86b7a5-b6ed-436b-b4ce-13eec3a57a0b"), null, null, "", true, "System", null, null });
@@ -887,6 +939,11 @@ namespace Scadex.DataAccess.Migrations
                     { 11, "Power", null, null, "Mains", null, null },
                     { 12, "Power", null, null, "CircuitBreaker", null, null }
                 });
+
+            migrationBuilder.InsertData(
+                table: "MediaGatewaySettings",
+                columns: new[] { "Id", "ApiBaseUrl", "ApiTimeoutMs", "CreateDateUtc", "CreatedBy", "RecordRoot", "RtspTransport", "SourceOnDemandCloseAfter", "TokenTtlSeconds", "UpdateDateUtc", "UpdatedBy", "WebRtcPublicBaseUrl" },
+                values: new object[] { 1, "http://127.0.0.1:9997", 30000, null, null, "C:\\Scadex\\mediamtx-records", "tcp", "10s", 60, null, null, "http://127.0.0.1:8889" });
 
             migrationBuilder.InsertData(
                 table: "Permission",
@@ -1136,6 +1193,13 @@ namespace Scadex.DataAccess.Migrations
                 column: "DeviceStatusId");
 
             migrationBuilder.CreateIndex(
+                name: "IX_Device_MacAddress",
+                table: "Device",
+                column: "MacAddress",
+                unique: true,
+                filter: "[MacAddress] IS NOT NULL AND [IsActive] = 1");
+
+            migrationBuilder.CreateIndex(
                 name: "IX_DeviceCommand_DeviceId",
                 table: "DeviceCommand",
                 column: "DeviceId");
@@ -1246,6 +1310,9 @@ namespace Scadex.DataAccess.Migrations
                 name: "CameraCapture");
 
             migrationBuilder.DropTable(
+                name: "CameraCaptureSettings");
+
+            migrationBuilder.DropTable(
                 name: "CanvasSettings");
 
             migrationBuilder.DropTable(
@@ -1259,6 +1326,9 @@ namespace Scadex.DataAccess.Migrations
 
             migrationBuilder.DropTable(
                 name: "DiagramAnnotation");
+
+            migrationBuilder.DropTable(
+                name: "MediaGatewaySettings");
 
             migrationBuilder.DropTable(
                 name: "ProjectArchives");

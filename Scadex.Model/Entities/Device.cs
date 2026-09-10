@@ -17,6 +17,10 @@ public class Device : IEntity, IAuditableEntity, IActivatableEntity
     // ------------ Tasarım props ------------
     public double CoordinateX { get; set; }
     public double CoordinateY { get; set; }
+
+    public double? Width { get; set; }
+    public double? Height { get; set; }
+
     public double Rotation { get; set; }
     public int ZIndex { get; set; }
     public bool IsLocked { get; set; }

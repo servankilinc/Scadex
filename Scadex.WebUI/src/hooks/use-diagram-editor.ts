@@ -20,7 +20,7 @@ import {
 } from '@/lib/diagram/journal';
 import { cascadePosition, newAnnotationDraft } from '@/lib/diagram/annotation-defaults';
 import { toRfEdge, type DiagramEdge } from '@/lib/diagram/to-rf-edges';
-import { toAnnotationNode, toDeviceNode, toRfNodes, type DiagramNode } from '@/lib/diagram/to-rf-nodes';
+import { deviceSize, toAnnotationNode, toDeviceNode, toRfNodes, type DiagramNode } from '@/lib/diagram/to-rf-nodes';
 import { toRfEdges } from '@/lib/diagram/to-rf-edges';
 import { AnnotationShape, EdgeRouting, LineStyle, WireType } from '@/models/enums';
 import { newId } from '@/lib/sequential-id';
@@ -316,6 +316,11 @@ export function useDiagramEditor(cabinetId: string, graph: DiagramDto): DiagramE
         isLocked: false,
         isVisible: true,
         isActive: true,
+        // Şablon ölçüsü BURAYA KOPYALANMAZ: kopyalamak override'ı hemen
+        // materyalize eder ve şablon sonradan büyütüldüğünde bu cihaz geride
+        // kalırdı. null = "şablonu takip et".
+        width: null,
+        height: null,
         componentTemplateId: template.id,
         externalCode: null,
         macAddress: null,
@@ -357,9 +362,15 @@ export function useDiagramEditor(cabinetId: string, graph: DiagramDto): DiagramE
           // `draggable` React Flow'un okuduğu yerlerdir; yalnızca `data`'yı
           // yazmak, "kilitle" düğmesine basıldığında cihazın sürüklenmeye devam
           // etmesi demek olurdu — kaydedip sayfayı yenileyene kadar.
+          //
+          // `width`/`height` de aynı sebeple burada: RF kutu ölçüsünü node
+          // kökünden okur, `data`'dan değil. Bu satır olmasaydı panelde girilen
+          // genişlik canvas'ta hiç değişmezdi. Hizalama araç çubuğu da buraya
+          // bağlı — `align-toolbar.tsx > toBox` yine `node.width`'i okuyor.
           return {
             ...node,
             data: { device },
+            ...deviceSize(device),
             zIndex: device.zIndex,
             hidden: !device.isVisible,
             draggable: !device.isLocked
@@ -500,6 +511,10 @@ export function useDiagramEditor(cabinetId: string, graph: DiagramDto): DiagramE
         deviceStatusId: null,
         deviceStatusName: null,
         lastSeen: null,
+        // Boyut override'ı `...source` ile KOPYALANIR ve bu bilinçlidir: 300×80'e
+        // getirdiği bir cihazın kopyasının 120×60 doğmasını kimse beklemez.
+        // Benzersizlik kısıtı olmadığı için sıfırlamaya da gerek yok.
+        //
         // Pin ŞEMASI kaynaktan gelir, KİMLİKLERİ tazelenir: taşınsalardı kopyaya
         // çizilen kablo kaynağa bağlanırdı. Kablolar kopyalanmıyor, yalnızca cihaz.
         pins,

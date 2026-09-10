@@ -14,6 +14,12 @@ import type { DiagramEdge } from './to-rf-edges';
  * Koordinat React Flow'dan, geri kalan DTO'dan okunur. Sürükleme sırasında konumu
  * RF kendi tutar (`node.position`).
  *
+ * **Boyut bu ayrımın DIŞINDADIR.** Köşeden esnetme (`NodeResizer`) yok, yani RF
+ * kutu ölçüsünü hiç sahiplenmiyor; `node.width` yalnızca `deviceSize`'ın ürettiği
+ * EFEKTİF değerdir. Onu göndermek her kaydetmede şablon ölçüsünü kalıcı bir
+ * override olarak yazar ve "şablona dön"ü etkisiz kılardı — bu yüzden boyut
+ * DTO'dan (`device.width`) okunur.
+ *
  * Aile başına TEK bir taslak üreticisi var: oluşturma ile güncelleme aynı gövdeyi
  * gönderir, farkı sunucu Id'ye bakarak anlar.
  */
@@ -43,7 +49,9 @@ export function buildSaveRequest(nodes: DiagramNode[], edges: DiagramEdge[], jou
   }
   annotations.deleted = [...journal.annotations.deleted];
 
-  return { devices, connections, annotations };
+  // Anahtar `diagramAnnotations`: sunucudaki property adının camelCase hali.
+  // Yerel değişken `annotations` kalıyor — defter ailesi öyle adlanıyor.
+  return { devices, connections, diagramAnnotations: annotations };
 }
 
 function deviceNode(node: DiagramNode | undefined): DeviceNode | null {
@@ -75,6 +83,9 @@ function toDeviceDraft(node: DeviceNode): DeviceDraft {
     zIndex: device.zIndex,
     isLocked: device.isLocked,
     isVisible: device.isVisible,
+    // `node.width` DEĞİL — bkz. dosya başındaki not.
+    width: device.width,
+    height: device.height,
     externalCode: device.externalCode,
     macAddress: device.macAddress,
     ipAddress: device.ipAddress,

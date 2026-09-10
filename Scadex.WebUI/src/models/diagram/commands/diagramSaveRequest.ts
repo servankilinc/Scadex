@@ -78,6 +78,16 @@ export interface DeviceDraft {
   zIndex: number;
   isLocked: boolean;
   isVisible: boolean;
+  /**
+   * Cihaz bazlı boyut override'ı. `null` göndermek "dokunma" DEĞİL, "şablon
+   * boyutuna dön" demektir — sunucu değeri olduğu gibi yazar.
+   *
+   * Efektif ölçü (`node.width`) DEĞİL, DTO'daki override gönderilir: efektif
+   * değeri göndermek her kaydetmede şablon ölçüsünü kalıcı bir override olarak
+   * yazar ve "şablona dön"ü sonsuza dek etkisiz kılardı.
+   */
+  width: number | null;
+  height: number | null;
   externalCode: string | null;
   /**
    * Kontrol modüllerinde SCADA ingest'inin kabini çözdüğü adres. Sistem genelinde
@@ -141,14 +151,24 @@ export interface AnnotationDraft {
  * `cabinetId` ROTADAN gider, gövdede YOKTUR.
  *
  * Taslaklar TAM durumdur, patch değil. Burada OLMAYAN alanlar sunucuda
- * dokunulmadan kalır — `deviceStatusId` / `lastSeen` (telemetri) ve `ipAddress` /
- * `macAddress` (cihaz yönetimi) bilerek dışarıda: kaydetmek SCADA'nın yazdığı
- * değerleri ezmemeli.
+ * dokunulmadan kalır — `deviceStatusId` / `lastSeen` bilerek dışarıda: onları
+ * telemetri yazar ve kaydetmek SCADA'nın yazdığı değerleri ezmemeli.
+ *
+ * `macAddress` / `ipAddress` ise 2026-09-10'dan beri taslakta VARDIR: MAC, SCADA
+ * ingest'inin kabini çözdüğü adrestir ve operatörün panelden girebilmesi gerekir.
  */
 export interface DiagramSaveRequest {
   devices: EntityDelta<DeviceDraft>;
   connections: EntityDelta<ConnectionDraft>;
-  annotations: EntityDelta<AnnotationDraft>;
+  /**
+   * Anahtar `annotations` DEĞİL: sunucudaki property `DiagramAnnotations` ve
+   * gövde camelCase ile bağlanıyor. Eşleşmezse aile sessizce BOŞ delta olarak
+   * bağlanır — istek 200 döner, notlar kaydedilmez, hiçbir hata görünmez.
+   *
+   * Okuma yolundaki `DiagramDto.annotations` ile karışmasın: o ayrı bir sözleşme
+   * ve orada anahtar gerçekten `annotations`.
+   */
+  diagramAnnotations: EntityDelta<AnnotationDraft>;
 }
 
 export function emptyDelta<T>(): EntityDelta<T> {
@@ -160,5 +180,5 @@ export function isDeltaEmpty(delta: EntityDelta<unknown>): boolean {
 }
 
 export function isSaveRequestEmpty(request: DiagramSaveRequest): boolean {
-  return isDeltaEmpty(request.devices) && isDeltaEmpty(request.connections) && isDeltaEmpty(request.annotations);
+  return isDeltaEmpty(request.devices) && isDeltaEmpty(request.connections) && isDeltaEmpty(request.diagramAnnotations);
 }

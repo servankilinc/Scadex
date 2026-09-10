@@ -12,8 +12,8 @@ using Scadex.DataAccess.Contexts;
 namespace Scadex.DataAccess.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    [Migration("20260910135448_SettingsToDatabase")]
-    partial class SettingsToDatabase
+    [Migration("20260910214152_InitialCreate")]
+    partial class InitialCreate
     {
         /// <inheritdoc />
         protected override void BuildTargetModel(ModelBuilder modelBuilder)
@@ -1668,6 +1668,9 @@ namespace Scadex.DataAccess.Migrations
                     b.Property<string>("ExternalCode")
                         .HasColumnType("nvarchar(450)");
 
+                    b.Property<double?>("Height")
+                        .HasColumnType("float");
+
                     b.Property<string>("IpAddress")
                         .HasColumnType("nvarchar(max)");
 
@@ -1684,7 +1687,7 @@ namespace Scadex.DataAccess.Migrations
                         .HasColumnType("datetime2");
 
                     b.Property<string>("MacAddress")
-                        .HasColumnType("nvarchar(max)");
+                        .HasColumnType("nvarchar(450)");
 
                     b.Property<string>("Name")
                         .IsRequired()
@@ -1699,6 +1702,9 @@ namespace Scadex.DataAccess.Migrations
                     b.Property<string>("UpdatedBy")
                         .HasColumnType("nvarchar(max)");
 
+                    b.Property<double?>("Width")
+                        .HasColumnType("float");
+
                     b.Property<int>("ZIndex")
                         .HasColumnType("int");
 
@@ -1707,6 +1713,10 @@ namespace Scadex.DataAccess.Migrations
                     b.HasIndex("ComponentTemplateId");
 
                     b.HasIndex("DeviceStatusId");
+
+                    b.HasIndex("MacAddress")
+                        .IsUnique()
+                        .HasFilter("[MacAddress] IS NOT NULL AND [IsActive] = 1");
 
                     b.HasIndex("CabinetId", "ExternalCode")
                         .IsUnique()
