@@ -45,6 +45,9 @@ public static class ServiceRegistration
         services.AddScoped<ICameraService, CameraService>();
         services.AddScoped<IScadaCommandGateway, ScadaCommandGateway>();
 
+        // Yoklanabilir her entity servisi içim buraya bir kayıt ekle;
+        services.AddScoped<IMonitoredAssetProbeSource, CameraProbeSource>();
+
         #region KAMERA / MEDYA
         services.AddSingleton(
             configuration.GetSection(Settings.MediaGatewaySettings.SectionName).Get<Settings.MediaGatewaySettings>()

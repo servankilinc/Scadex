@@ -111,6 +111,11 @@ Bunlar tek bir dosyaya bakarak görülemez; gerekçeleri PROJECT_OVERVIEW.md §5
   numaraları boşlukludur. **`DictionaryKeyPolicy` bilerek `null`** — `ProblemDetails.errors`
   anahtarları PascalCase kalır (`"Devices.Upserted[0].Pins"`); iki taraftan birini "düzeltmeyin".
   `null` alanlar gövdeden düşmez (`DefaultIgnoreCondition = Never`).
+- **Yoklama (ayakta mı) akışının HTTP yüzeyi yoktur ve tipe özel değildir.**
+  `MonitoredAssetProbeWorker` kayıtlı her `IMonitoredAssetProbeSource` üzerinden döner; yeni
+  bir izlenen tip eklemek = yeni kaynak + tek satır DI kaydı, worker'a dokunulmaz. Sonda
+  **yalnızca TCP connect** yapar — ICMP dalı bilerek yoktur, `MonitoringPort` null ise varlık
+  atlanır. Buraya "şimdi dene" tarzı bir uç eklemeyin.
 - **Rate limit politika adı `Program.cs`'te tanımlı değilse o uç HER istekte 500 döner.**
   Bir `[EnableRateLimiting]` adını silmeden/değiştirmeden önce `RateLimiterKey`'e bakın.
   Politikalar: `Default`, `Scada`, `MediaGateway`.

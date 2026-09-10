@@ -261,6 +261,9 @@ builder.Services.AddHostedService<OfflineDeviceChecker>();
 
 // HTTP istegini Klip, suresi kadar bekletmek yerine iş buraya dusuyor.
 builder.Services.AddHostedService<ClipCaptureWorker>();
+
+// IMonitoredAsset uygulayan varliklarin TCP yoklamasi.
+builder.Services.AddHostedService<MonitoredAssetProbeWorker>();
 #endregion
 
 #region ------- Kamera / medya gecidi -------

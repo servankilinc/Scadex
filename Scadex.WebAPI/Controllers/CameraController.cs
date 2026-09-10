@@ -49,14 +49,6 @@ public class CameraController : BaseController
     }
     #endregion
 
-    #region Monitoring
-    [HttpPost("{id:guid}/probe-result")]
-    public async Task<IActionResult> RecordProbeResult(Guid id, CameraProbeResultDto request, CancellationToken cancellationToken)
-    {
-        var result = await _cameraService.RecordProbeResultAsync(id, request, cancellationToken);
-        return ToAction(result);
-    }
-    #endregion
 
     #region Streaming (MediaGateway)
     [HttpPost("{id:guid}/stream-ticket")]

@@ -3,6 +3,7 @@ using Scadex.Core.Utils.ResultPattern;
 using Scadex.Model.Dtos.Camera.Commands;
 using Scadex.Model.Dtos.Camera.Queries;
 using Scadex.Model.Dtos.Common;
+using Scadex.Model.Dtos.Monitoring.Commands;
 using static Scadex.Model.Enums.EntityEnums;
 
 namespace Scadex.Business.Abstract;
@@ -17,8 +18,8 @@ public interface ICameraService
     #endregion
 
     #region Monitoring
-    /// <summary> Bir yoklama (ping / TCP connect) isteği atar ve sonucunu yazar. </summary>
-    Task<Result> RecordProbeResultAsync(Guid cameraId, CameraProbeResultDto result, CancellationToken cancellationToken = default);
+    /// <summary> Bir ping (TCP connect) sonucunu yazar. </summary>
+    Task<Result> RecordProbeResultAsync(Guid cameraId, MonitoredAssetProbeResultDto result, CancellationToken cancellationToken = default);
     #endregion
 
     #region Streaming (MediaGateway)

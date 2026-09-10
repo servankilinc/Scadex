@@ -1,5 +1,5 @@
 import http from '@/lib/axios-helper';
-import type { CameraCreateRequest, CameraDto, CameraProbeResultRequest, CameraUpdateRequest } from '@/models/camera';
+import type { CameraCreateRequest, CameraDto, CameraUpdateRequest } from '@/models/camera';
 import type { CreatedDto } from '@/models/common/createdDto';
 
 const CAMERA_ROUTE = '/api/Camera';
@@ -41,13 +41,3 @@ export async function updateCamera(request: CameraUpdateRequest): Promise<void> 
   return http.put(CAMERA_ROUTE, request);
 }
 
-/**
- * Bir yoklama denemesinin sonucunu yazar.
- *
- * Bunu çağıran arka plan servisi HENÜZ YAZILMADI — kullanıcı kendisi yazacak.
- * Fonksiyon, arayüzden elle "şimdi dene" gibi bir akış istendiğinde ya da o
- * servis tarayıcı tarafından tetiklendiğinde kullanılmak üzere burada.
- */
-export async function recordCameraProbeResult(id: string, request: CameraProbeResultRequest): Promise<void> {
-  return http.post(`${CAMERA_ROUTE}/${id}/probe-result`, request);
-}

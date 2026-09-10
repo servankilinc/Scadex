@@ -375,8 +375,10 @@ gelmez — bu platform onları kendisi yoklar.
   veri değil, bir kurulum varsayımıdır.
 
 Uçlar: `GET|POST|PUT /api/Camera`, `GET /api/Camera/cabinet/{cabinetId}`,
-`POST /{id}/probe-result` *(kaldırılacak — bkz. § 7 (d))*, `POST /{id}/stream-ticket`,
-`GET /{id}/snapshot`, `POST /{id}/capture`, `GET /{id}/captures`.
+`POST /{id}/stream-ticket`, `GET /{id}/snapshot`, `POST /{id}/capture`, `GET /{id}/captures`.
+
+**Yoklamanın HTTP yüzeyi yoktur.** Kameranın ayakta olup olmadığını `MonitoredAssetProbeWorker`
+yazar (§ 7 (d)); istemci durumu `CameraDto.deviceStatusId` üzerinden okur.
 
 ### 5.5 Generic CRUD tarafı
 
@@ -449,11 +451,7 @@ değil, bilinçli bir karardır; `dotnet build` çıktısındaki 5 uyarı bu yü
 
 - **Yetki zorlanmıyor.** `permission` claim'i üretilip token'a konuyor, ama hiçbir
   `[Authorize(Policy = …)]` ya da handler onu okumuyor. `ControlOutput` dahil.
-- **Yoklama servisi yok.** Bugün `Camera.DeviceStatusId`'yi hiçbir şey yazmadığı için her
-  kamera "Yoklanmadı" görünür (`null`, ki bu `Offline` ile aynı şey değildir). Yoklama
-  kameraya özel bir iş **değildir**: `IMonitoredAsset`'i uygulayan tüm varlıklar için genel
-  bir background servisin işidir ve frontend'in tetiklediği bir akış olmayacaktır — mevcut
-  `POST /api/Camera/{id}/probe-result` ucu o servisle birlikte kaldırılacak. Bkz. (d).
+- ~~Yoklama servisi yok~~ — **yazıldı (2026-09-10)**, bkz. (d).
 - **MediaMTX yolları birikiyor.** Canlı izleme yolları yalnızca kamera güncellendiğinde ya da
   pasife alındığında düşüyor; hiç dokunulmayan bir kameranınki kalıcı. Düzenli temizlik işi
   yok. Bkz. (f).
@@ -515,20 +513,34 @@ Kalanlar: **olay listesi ekranı** — `api/channel-event.ts` ve `hooks/use-chan
 yazılı ama hiçbir görünüm bunları tüketmiyor; kullanıcı/rol/izin yönetimi ekranları;
 `.env.development`'taki API adresinin düzeltilmesi (bkz. § 8).
 
-**(d) `IMonitoredAsset` yoklama background servisi.** `Camera` gibi bu arayüzü uygulayan
-**tüm** varlıklar için genel bir servis — tipe özel değil, yeni bir izlenen tip eklendiğinde
-servisin değişmesi gerekmemeli. `MonitoringPort` doluysa TCP connect, boşsa saf ICMP ping;
-periyot varlık başına `PingIntervalSec`, `IsMonitoringEnabled` kapalıysa varlık atlanır.
-**Dikkat:** `IMonitoredAsset.MonitoringPort` dokümantasyonu "null → ICMP ping" diyor, ama
-`CameraCreateDto`/`CameraUpdateDto` mapping'leri alanı `MonitoringPort ?? RtspPort` ile
-dolduruyor — yani API üzerinden oluşturulan bir kamerada bu alan **hiçbir zaman null olmuyor**
-ve ICMP dalı fiilen ölü. Servis yazılırken bu ikisi uzlaştırılmalı: ya mapping'deki geri düşüş
-kaldırılmalı ya da ICMP dalı beklentisi.
-Sonuç `CameraService.RecordProbeResultAsync`'in bugünkü politikasıyla yazılır: durum
-değişmedikçe yazma, `LastSeen` bilinçli istisna.
-**`POST /api/Camera/{id}/probe-result` ucu kaldırılır** — yoklama frontend'in tetiklediği bir
-akış değildir; sonuç yalnızca bu servisin çağırdığı servis metoduna yazılır. Metot kalır,
-HTTP yüzeyi gider. Taklit edilecek hosted service kalıbı: `OfflineDeviceChecker`.
+**(d)** ~~`IMonitoredAsset` yoklama background servisi.~~ **TAMAMLANDI (2026-09-10).**
+
+`MonitoredAssetProbeWorker` (WebAPI/BackgroundServices) `OfflineDeviceChecker` kalıbını izler.
+**Tipe özel değildir:** kayıtlı her `IMonitoredAssetProbeSource` üzerinden döner, tipleri hiç
+bilmez. Yeni bir izlenen tip eklemek = yeni bir kaynak implementasyonu + tek satırlık DI kaydı;
+worker değişmez. Bugünkü tek kaynak `CameraProbeSource`.
+
+Alınan kararlar:
+
+- **ICMP dalı yok** — sonda yalnızca TCP connect yapar. `MonitoringPort` null ise varlık
+  atlanır ve bir `Warning` loglanır; `IMonitoredAsset.MonitoringPort` doc'u buna göre
+  düzeltildi. `MonitoringPort ?? RtspPort` mapping'i **korundu**, dolayısıyla API üzerinden
+  oluşturulan kamerada alan zaten hiç null olmuyor.
+- **Periyot varlık başınadır** (`PingIntervalSec`); worker `Monitoring:SweepIntervalSeconds`
+  (30 sn) aralıklarla tur atar ve yalnızca periyodu dolanları yoklar. Son yoklama anı
+  **bellekte** tutulur — bunun için kolon yok ve `LastSeen` uygun değil, çünkü o yalnızca
+  ulaşıldığında yazılıyor; ona bakılsaydı erişilemeyen varlık her turda yeniden yoklanırdı.
+- Sonuç `CameraService.RecordProbeResultAsync`'in bugünkü politikasıyla yazılır: durum
+  değişmedikçe yazma, `LastSeen` bilinçli istisna.
+- **`POST /api/Camera/{id}/probe-result` kaldırıldı** — yoklama frontend'in tetiklediği bir
+  akış değildir. Servis metodu kaldı, HTTP yüzeyi gitti; `CameraProbeResultDto` yerine
+  tip-bağımsız `MonitoredAssetProbeResultDto` geçti. Frontend'deki `recordCameraProbeResult`
+  ve TS aynası da silindi.
+- **Yol boyunca bulunan hata:** eski 
+
+Doğrulandı: ulaşılabilir hedef → `DeviceStatusId = 1 (Online)`, `LastSeen` dolu,
+`LastConnectionError` null; kapalı port → `DeviceStatusId = 0 (Offline)`,
+`LastConnectionError = "Baglanti hatasi (ConnectionRefused): …"`.
 
 **(e) `MediaGatewaySettings` ve `CameraCaptureSettings` veritabanına taşınır.** Tip başına
 **tek satırlık tablo**; API + ekran üzerinden uzaktan düzenlenebilir, önbellekli bir sağlayıcı
