@@ -13,5 +13,5 @@ public class PaginationResponse<TData>
     public int PageCount { get; set; }
     public IList<TData> Data { get; set; }
     public bool HasPrevious => Page > 1;
-    public bool HasNext => Page + 1 < PageCount;
+    public bool HasNext => Page < PageCount;
 }

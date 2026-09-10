@@ -7,6 +7,7 @@ import {
   CheckIcon,
   ChevronsUpDown,
   CpuIcon,
+  HistoryIcon,
   LogOut,
   MonitorIcon,
   MoonIcon,
@@ -65,6 +66,7 @@ interface NavItem {
 
 const NAV_ITEMS: NavItem[] = [
   { title: 'Kabinler', url: '/cabinets', icon: CpuIcon },
+  { title: 'Olay Geçmişi', url: '/events', icon: HistoryIcon },
   // Canlı izleme, kamera TANIMINDAN ayrı bir madde: biri izlemek, diğeri
   // (/admin/cameras) tanımlamak için.
   { title: 'Canlı İzleme', url: '/cameras', icon: VideoIcon },

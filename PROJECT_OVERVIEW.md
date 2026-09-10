@@ -518,9 +518,18 @@ kablo, hizalama, özellik paneli, kaydedilmemiş değişiklik koruması), Signal
 değer katmanı (`lib/diagram/live-store.ts` + `hooks/use-diagram-live.ts`), kamera ızgarası ve
 WHEP oynatıcı (`lib/camera/`), auth akışı ve admin ekranları (şirket, kamera, şablon) ayakta.
 
-Kalanlar: **olay listesi ekranı** — `api/channel-event.ts` ve `hooks/use-channel-events.ts`
-yazılı ama hiçbir görünüm bunları tüketmiyor; kullanıcı/rol/izin yönetimi ekranları;
-`.env.development`'taki API adresinin düzeltilmesi (bkz. § 8).
+~~Olay listesi ekranı~~ — **yazıldı (2026-09-10)**: `views/app/events/`, rota `/events`.
+Kabin zorunlu (sunucu kabinsiz isteği 400'lüyor), kanal ve tarih aralığı isteğe bağlı, sayfa
+boyutu 25'te sabit. Yazarken **iki mevcut hata** çıktı ve düzeltildi:
+
+- `PaginationResponse.HasNext` bir eksik sayıyordu (`Page + 1 < PageCount`). 36 satır / 25 =
+  2 sayfa kurulumunda 1. sayfada `false` dönüp **son sayfayı erişilemez** kılıyordu; artık
+  `Page < PageCount`. Bugüne kadar hiçbir istemci bu alanı okumadığı için görünür etkisi yoktu.
+- Damgalar `datetime2` sütunundan `DateTimeKind.Unspecified` olarak dönüyor, dolayısıyla JSON'da
+  **`Z` soneki yok** (`"2026-09-10T09:06:56.4089716"`). Çıplak `new Date(...)` bunu yerel saat
+  sayıp damgayı kaydırır; ekran eksikse `Z`'yi ekleyen bir yardımcı kullanıyor.
+
+Kalanlar: kullanıcı/rol/izin yönetimi ekranları; ayar ekranı (bkz. (e)).
 
 **(d)** ~~`IMonitoredAsset` yoklama background servisi.~~ **TAMAMLANDI (2026-09-10).**
 

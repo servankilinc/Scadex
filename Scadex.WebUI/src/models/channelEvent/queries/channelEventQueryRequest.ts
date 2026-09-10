@@ -15,7 +15,11 @@ export interface ChannelEventQueryRequest {
   /** `occurredAtUtc <=` (dahil) — ISO 8601. */
   toUtc?: string | null;
   page?: number;
-  /** Sunucu tavanı **200**; aşılırsa 400. */
+  /**
+   * Sunucu tavanı **1000** (`QueryablePaginationExtension.MaxPageSize`) ve aşan
+   * değer 400 DÖNDÜRMEZ, sessizce kırpılır — gelen yanıttaki `pageSize`
+   * gönderdiğinizden küçük olabilir.
+   */
   pageSize?: number;
 }
 

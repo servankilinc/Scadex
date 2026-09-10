@@ -177,6 +177,14 @@ Bir şeyin çalıştığını varsaymadan önce doğrulayın:
   değer neredeyse her ingest'te değiştiği için **her ingest bir satır** demektir. Saklama /
   temizlik işi **bilinçli olarak ertelendi** — proje sahibi sonra ekleyecek. Tablo analog
   kurulumda sınırsız büyür; **sormadan bir silme işi yazmayın.**
+- **Sunucudan gelen `...Utc` damgalarında `Z` soneki YOKTUR.** Kolonlar `datetime2`, EF onları
+  `DateTimeKind.Unspecified` döndürüyor ve System.Text.Json sonek koymuyor:
+  `"occurredAtUtc":"2026-09-10T09:06:56.4089716"`. Frontend'de çıplak `new Date(damga)` bunu
+  **yerel saat** sayar ve değeri saat farkı kadar kaydırır. Eksikse `Z` eklenmeli — örnek:
+  `views/app/events/index.tsx > toUtcDate`. **Aynı hata `command-history.tsx`'te duruyor**
+  (`new Date(command.sentAt)`, `SentAt` de `datetime2`): veritabanından okunan komut saatleri
+  UTC+3'te üç saat ileri görünür. Sormadan düzeltmeyin, ama yeni ekranlarda tekrarlamayın.
+
 - **PROJECT_OVERVIEW.md §5.3'teki ingest gövdesi eskimiştir.** Doküman
   `{ cabinetId, pin: "IN7", value }` diyor; **gerçek sözleşme**
   `{ cabinetId, type: "I"|"A", channelNumber, value, timestampUtc }`

@@ -77,6 +77,12 @@ const router = createBrowserRouter([
                 ]
               },
               {
+                // Olay gecmisi barrel'da: agir bagimliligi yok, duz bir tablo.
+                path: 'events',
+                Component: AppViews.ChannelEvents,
+                handle: { crumb: 'Olay Geçmişi' }
+              },
+              {
                 // Canlı izleme. Diyagramla aynı gerekçeyle LAZY ve barrel'a
                 // KONMADI: WebRTC/WHEP kodu, hiç kamera izlemeyen kullanıcının
                 // ana paketine girmemeli.
