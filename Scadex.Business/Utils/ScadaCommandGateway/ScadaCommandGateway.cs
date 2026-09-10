@@ -26,7 +26,7 @@ public class ScadaCommandGateway : IScadaCommandGateway
             #region Http request and read body
             var client = _httpClientFactory.CreateClient(IScadaCommandGateway.HttpClientName);
 
-            // Kartin yolu gercekten "/updat" — firmware'deki yazim hatasi boyle, "/update" yazilirsa 404 doner.
+            // using var response = await client.PostAsJsonAsync($"{baseUrl.TrimEnd('/')}/command", envelope, ProjectJsonOptions.SerializerOptions, timeoutToken);
             string url = $"{baseUrl.TrimEnd('/')}/updat" +
                          $"?output={envelope.ChannelNumber}" +
                          $"&state={Uri.EscapeDataString(envelope.Value ?? string.Empty)}";

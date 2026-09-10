@@ -33,7 +33,7 @@ public class ScadaIngestRequestValidator : AbstractValidator<ScadaIngestRequest>
         RuleFor(v => v.Type).NotEmpty().WithMessage("type zorunlu");
 
         RuleFor(v => v.Type)
-            .Must(type => ScadaPinAddress.TryParseType(type, out _))
+            .Must(type => ScadaPinAddress.CheckAndParseIngestPin(type, out _))
             .When(v => !string.IsNullOrWhiteSpace(v.Type))
             .WithMessage("Gecersiz tip. Beklenen: \"I\" (dijital giris) veya \"A\" (analog giris)");
     }

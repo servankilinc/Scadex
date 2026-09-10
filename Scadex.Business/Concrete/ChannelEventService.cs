@@ -69,7 +69,7 @@ public class ChannelEventService : IChannelEventService
 
 
         // 2) Ayrıştırma kontrolü
-        if (!ScadaPinAddress.TryParseType(request.Type, out var direction))
+        if (!ScadaPinAddress.CheckAndParseIngestPin(request.Type, out var direction))
             return Result.Failure("Gecersiz tip", "Invalid signal type");
          
         // 3) Kabin kontrolü

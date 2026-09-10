@@ -4,30 +4,20 @@ using static Scadex.Model.Enums.EntityEnums;
 
 namespace Scadex.Model.Dtos.Scada.Commands;
 
-/// <summary>
-/// Scadex'in karta GONDERDIGI komutun parametreleri — ingest'in ters yönü.
-/// Kart komutu query string ile aldigi icin buradaki alanlarin YALNIZCA <see cref="ChannelNumber"/> ve
-/// <see cref="Value"/> alanlari tele cikar; digerleri <c>DeviceCommand</c> satirinda kayit altinda kalir.
-/// </summary>
+/// <summary> Scadex'in karta GONDERDIGI komutun parametreleri — ingest'in ters yönü. </summary>
 public class ScadaCommandEnvelope : IDto
 {
     /// <summary>Tele cikmaz: bir kabin = bir kart oldugu icin hedef zaten kartin adresinde ortuktur.</summary>
     public Guid CabinetId { get; set; }
 
     /// <summary>
-    /// Tele cikmaz — kart bunu gormez, yalnizca kayit icindir.
-    /// Araya TEKRAR TESPITI yapabilen bir SCADA katmani girerse tasinacak kimlik budur: biz kac kez
-    /// gonderirsek gonderelim degismeyen bir kimlik olmadan tekrarlanan bir paketin roleyi iki kez
-    /// surmesi engellenemez. Bugun boyle bir katman da, retry de yok.
+    /// <see cref="CommandId"/>: SCADA tarafinda TEKRAR TESPITI icin tasinir yani biz bir retry mekanizması kurarsak ve scada içinde komut kontrolü varsa biz kaç kez 
+    /// gönderirsek gönderelim sadece 1 kez çalıştırır. örenğin tekrarlanan bir paketin roleyi iki kez surmemesi SCADA'nin elindedir ve bunu ancak degismeyen bir kimlikle yapabilir.
     /// </summary>
     public Guid CommandId { get; set; }
 
 
-    /// <summary>
-    /// Hedef nokta numarasi — kartin <c>output=</c> parametresine ham olarak gider.
-    /// Bu aşamada tek komut turu (<c>SetOutput</c>) old için her zaman bir kanali hedefler ve hep doludur.
-    /// Adres uzayi duzdur: <c>1-16</c> role, <c>17-24</c> LED.
-    /// </summary>
+    /// <summary> Hedef nokta numarasi — kartin <c>output=</c> parametresine ham olarak gider. Adresler örenğin: <c>1-16</c> role, <c>17-24</c> LED. </summary>
     public int ChannelNumber { get; set; }
 
     /// <summary>Tele cikmaz: tek komut turu (<c>SetOutput</c>) old icin kartin ayrica bilmesine gerek yok.</summary>
