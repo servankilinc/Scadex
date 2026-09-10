@@ -4,29 +4,39 @@ using static Scadex.Model.Enums.EntityEnums;
 
 namespace Scadex.Model.Dtos.Scada.Commands;
 
-/// <summary> Scadex'in SCADA'ya GONDERDIGI komut govdesi — ingest'in ters yönü </summary>
+/// <summary>
+/// Scadex'in karta GONDERDIGI komutun parametreleri — ingest'in ters yönü.
+/// Kart komutu query string ile aldigi icin buradaki alanlarin YALNIZCA <see cref="ChannelNumber"/> ve
+/// <see cref="Value"/> alanlari tele cikar; digerleri <c>DeviceCommand</c> satirinda kayit altinda kalir.
+/// </summary>
 public class ScadaCommandEnvelope : IDto
 {
+    /// <summary>Tele cikmaz: bir kabin = bir kart oldugu icin hedef zaten kartin adresinde ortuktur.</summary>
     public Guid CabinetId { get; set; }
 
     /// <summary>
-    /// <see cref="CommandId"/>: SCADA tarafinda TEKRAR TESPITI icin tasinir yani biz bir retry mekanizması kurarsak ve scada içinde komut kontrolü varsa biz kaç kez 
-    /// gönderirsek gönderelim sadece 1 kez çalıştırır. örenğin tekrarlanan bir paketin roleyi iki kez surmemesi SCADA'nin elindedir ve bunu ancak degismeyen bir kimlikle yapabilir.
+    /// Tele cikmaz — kart bunu gormez, yalnizca kayit icindir.
+    /// Araya TEKRAR TESPITI yapabilen bir SCADA katmani girerse tasinacak kimlik budur: biz kac kez
+    /// gonderirsek gonderelim degismeyen bir kimlik olmadan tekrarlanan bir paketin roleyi iki kez
+    /// surmesi engellenemez. Bugun boyle bir katman da, retry de yok.
     /// </summary>
     public Guid CommandId { get; set; }
 
 
-    /// <summary> 
-    /// Hedef kanal. Bu aşamada tek komut turu (<c>SetOutput</c>) old için her zaman bir kanali hedefler ve hep doludur.
-    /// Hedef nokta — <c>"OUT5"</c>, <c>"OUT17"</c> (LED).
+    /// <summary>
+    /// Hedef nokta numarasi — kartin <c>output=</c> parametresine ham olarak gider.
+    /// Bu aşamada tek komut turu (<c>SetOutput</c>) old için her zaman bir kanali hedefler ve hep doludur.
+    /// Adres uzayi duzdur: <c>1-16</c> role, <c>17-24</c> LED.
     /// </summary>
-    public string Pin { get; set; } = null!;
+    public int ChannelNumber { get; set; }
 
+    /// <summary>Tele cikmaz: tek komut turu (<c>SetOutput</c>) old icin kartin ayrica bilmesine gerek yok.</summary>
     public EntityEnums.DeviceCommandType CommandType { get; set; }
 
+    /// <summary>Kartin <c>state=</c> parametresine giden deger. NO/NC cozumu ustte yapilmistir; burada tersleme YOKTUR.</summary>
     public string? Value { get; set; }
 
-    /// <summary>Komutun SUNUCUDA olustugu an.</summary>
+    /// <summary>Tele cikmaz. Komutun SUNUCUDA olustugu an.</summary>
     public DateTime IssuedAtUtc { get; set; }
 }
 

@@ -279,8 +279,16 @@ politikası ile.
   `NoResponse`'u `Failed`'dan ayırt edilebilir kılan şey budur.
 - Eşleme: 2xx → `Succeeded`, 4xx/5xx → `Failed` (gövde `ResultMessage`'a), zaman aşımı /
   bağlantı hatası → `NoResponse`. **Resilience/retry handler'ı bilerek kayıtlı değildir.**
-- Gövde `{cabinetId, commandId, pin, commandType, value, issuedAtUtc}` olarak
-  `{ScadaBaseUrl}/command` adresine gider. `commandId` SCADA tarafında tekrar tespiti içindir.
+- Komut, kartın kendi web sunucusuna **query string ile** gider — gövde yoktur:
+  `GET {ScadaBaseUrl}/updat?output=<kanal>&state=<0|1>`. Yoldaki `/updat` yazımı firmware'de
+  böyledir, `/update` değildir.
+- Tele yalnızca **kanal numarası ve değer** çıkar. `ScadaCommandEnvelope`'un taşıdığı
+  `cabinetId` (bir kabin = bir kart olduğu için adreste örtük), `commandId`, `commandType` ve
+  `issuedAtUtc` karta gitmez; `DeviceCommand` satırında kayıt altında kalır. `commandId`'nin
+  tekrar tespiti anlamı, araya böyle bir kontrol yapan bir SCADA katmanı girerse doğar —
+  bugün ne o katman ne de retry vardır.
+- Değerdeki NO/NC terslemesi `DeviceCommandService` içinde çözülür; geçit hiçbir tersleme
+  yapmaz, `state` parametresine geleni olduğu gibi yazar.
 - Bu aşamada tek komut türü vardır: `SetOutput = 1`.
 
 **Canlılık:** Push-only bir sistemde sessizliği yalnızca zaman tespit edebilir.
@@ -562,7 +570,10 @@ Alınan kararlar:
   akış değildir. Servis metodu kaldı, HTTP yüzeyi gitti; `CameraProbeResultDto` yerine
   tip-bağımsız `MonitoredAssetProbeResultDto` geçti. Frontend'deki `recordCameraProbeResult`
   ve TS aynası da silindi.
-- **Yol boyunca bulunan hata:** eski 
+- **Yol boyunca bulunan hata:** eski `CameraProbeResultDtoValidator`, `Error` alanına koşulsuz
+  bir `NotEmpty()` koyuyordu — yani **başarılı** bir yoklama (`Reachable = true`, `Error = null`)
+  doğrulamadan hiçbir zaman geçemezdi. Yeni DTO'da kural `.When(v => !v.Reachable)` ile
+  koşullandırıldı.
 
 Doğrulandı: ulaşılabilir hedef → `DeviceStatusId = 1 (Online)`, `LastSeen` dolu,
 `LastConnectionError` null; kapalı port → `DeviceStatusId = 0 (Offline)`,
@@ -597,7 +608,7 @@ migration ile tohumlanır. Okuma yolu ayar nesnesi başına **ayrı bir servisti
 10 sn'lik klip isteği `400` ile reddedildi; `ApiBaseUrl` boş bir porta çevrildiğinde
 `stream-ticket` yeni adrese gidip başarısız oldu, eski adrese düşmedi.
 
-**Kalan:** ayar ekranı (`Scadex.WebUI`) henüz yazılmadı; bugün yalnızca API var.
+Ekranı da yazıldı — bkz. (c).
 
 **(f)** ~~Günlük MediaMTX yol temizliği background servisi.~~ **TAMAMLANDI (2026-09-10).**
 
@@ -648,6 +659,15 @@ oturumu** açar; kameranın eşzamanlı oturum limiti aşılırsa çekim "Medya 
 
 **(h)** Kart okuyucu ingest'i: `DeviceType.CardReader` için ayrı bir uç (`{ "cardId": "…" }`);
 kart kimliği bir ölçüm olmadığı için `IoChannel`'a yazılmaz, `ChannelEvent` üretmez.
+
+**(i)** Otomasyon / iş akışı ve geçiş kontrolü modülleri (tasarlandı, yazılmadı).
+
+**(j)** ~~Saklama ve temizlik işleri.~~ **KISMEN TAMAMLANDI (2026-09-10).** Çekim dosyaları için
+`CaptureRetentionWorker` yazıldı. **Kanal olayları için hâlâ hiçbir temizlik yok ve bu bilinçli**
+— proje sahibi saklama politikasını kendisi ekleyecek; yukarıdaki "bilinçli boşluklar"a bakın ve
+sormadan bir silme işi yazmayın.
+
+**(k)** CI / dağıtım.
 
 ---
 

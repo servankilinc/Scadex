@@ -104,7 +104,7 @@ public partial class DeviceCommandService
             {
                 CommandId = command.Id,
                 CabinetId = cabinet.Id,
-                Pin = ScadaPinAddress.Format(channel.Direction, channel.ChannelNumber), // "OUT1", "OUT2" gibi SCADA'ya iletilir
+                ChannelNumber = channel.ChannelNumber, // karta "output=1", "output=2" olarak iletilir
                 CommandType = request.CommandType,
                 Value = sentValue,
                 IssuedAtUtc = DateTime.UtcNow

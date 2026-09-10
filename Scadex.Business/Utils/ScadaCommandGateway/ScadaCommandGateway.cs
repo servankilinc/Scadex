@@ -1,4 +1,3 @@
-using System.Net.Http.Json;
 using System.Text;
 using Scadex.Core.Utils;
 using Scadex.Model.Dtos.Scada.Commands;
@@ -27,7 +26,12 @@ public class ScadaCommandGateway : IScadaCommandGateway
             #region Http request and read body
             var client = _httpClientFactory.CreateClient(IScadaCommandGateway.HttpClientName);
 
-            using var response = await client.PostAsJsonAsync($"{baseUrl.TrimEnd('/')}/command", envelope, ProjectJsonOptions.SerializerOptions, timeoutToken);
+            // Kartin yolu gercekten "/updat" — firmware'deki yazim hatasi boyle, "/update" yazilirsa 404 doner.
+            string url = $"{baseUrl.TrimEnd('/')}/updat" +
+                         $"?output={envelope.ChannelNumber}" +
+                         $"&state={Uri.EscapeDataString(envelope.Value ?? string.Empty)}";
+
+            using var response = await client.GetAsync(url, timeoutToken);
             await using var stream = await response.Content.ReadAsStreamAsync(timeoutToken);
 
             var buffer = new byte[512]; // en fazla 512 byte okuyup mesajı kısaltacağız. SCADA'nın uzun hata mesajları olabilir.
