@@ -71,6 +71,38 @@ public sealed class CaptureFileStore : ICaptureFileStore
         }
     }
 
+    /// <inheritdoc />
+    public bool TryDeleteCapture(string relativePath)
+    {
+        if (string.IsNullOrWhiteSpace(relativePath)) return false;
+
+        try
+        {
+            string webRoot = _environment.WebRootPath ?? Path.Combine(_environment.ContentRootPath, "wwwroot");
+            string captureRoot = Path.GetFullPath(Path.Combine(webRoot, _settings.CaptureRoot.Trim('/').Replace('/', Path.DirectorySeparatorChar)));
+            string fullPath = Path.GetFullPath(Path.Combine(webRoot, relativePath.TrimStart('/').Replace('/', Path.DirectorySeparatorChar)));
+
+            // Yol cekim kokunun DISINA cikiyorsa dokunulmaz. Deger bizim yazdigimiz
+            // bir kolondan geliyor, ama silme geri alinamaz: bozuk/elle degistirilmis
+            // tek bir satirin wwwroot disinda bir dosyayi silmesine izin verilemez.
+            if (!fullPath.StartsWith(captureRoot + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase))
+            {
+                _logger.LogWarning("Cekim dosyasi cekim kokunun disinda, silinmedi: {Path}", relativePath);
+                return false;
+            }
+
+            if (File.Exists(fullPath))
+                File.Delete(fullPath);
+
+            return true;
+        }
+        catch (Exception exception)
+        {
+            _logger.LogWarning(exception, "Cekim dosyasi silinemedi: {Path}", relativePath);
+            return false;
+        }
+    }
+
     #region Helpers
     private (string FullPath, string RelativePath) BuildTargetPath(string extension)
     {

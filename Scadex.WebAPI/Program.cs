@@ -267,6 +267,9 @@ builder.Services.AddHostedService<MonitoredAssetProbeWorker>();
 
 // MediaMTX'te birikmis canli izleme yollarinin gunluk temizligi.
 builder.Services.AddHostedService<MediaPathCleanupWorker>();
+
+// Saklama suresi dolmus cekim DOSYALARININ gunluk siler.
+builder.Services.AddHostedService<CaptureRetentionWorker>();
 #endregion
 
 #region ------- Kamera / medya gecidi -------

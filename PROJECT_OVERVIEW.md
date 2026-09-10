@@ -322,7 +322,7 @@ değişir, dolayısıyla **her ingest bir satır üretir**.
 
 Bu bilinçli bir karardır (2026-09-10): analog geçmişi ayrı bir `TelemetryRecord` tablosu
 yerine aynı tabloda tutuluyor. **Bedeli:** `ChannelEvent`'in büyümesini sınırlayan tek şey
-artık saklama/temizlik işidir ve o iş **henüz yazılmadı** — bkz. § 7 ve yol haritası (j).
+artık saklama/temizlik işidir ve o iş **bilinçli olarak ertelenmiştir** — bkz. § 7.
 Analog kanal kullanan bir kurulumda bu iş yazılana kadar tablo sınırsız büyür.
 
 ### 5.4 İzleme — kameralar
@@ -356,9 +356,9 @@ gelmez — bu platform onları kendisi yoklar.
   ayrıca `IDistributedCache` üzerinde birkaç saniye tutulur.
 - **Klipler yalnızca ileriye dönüktür**; olay öncesi görüntü kapsanmaz — bu, sürekli kayıt
   tamponu isterdi ve "7/24 kayıt değiliz" gerekçesiyle çelişirdi. `ClipCaptureWorker` hosted
-  service'i HTTP isteğini klip süresi kadar bekletmemek için vardır. **Bugün seri çalışır:**
-  kuyruktaki ikinci çekim, birincinin `Task.Delay(klip süresi)`'si bitene kadar başlamaz.
-  Paralelleştirme sırada — bkz. § 7 yol haritası (g).
+  service'i HTTP isteğini klip süresi kadar bekletmemek için vardır. **Paralel çalışır**
+  (2026-09-10): kuyruktan alınan her çekim kendi görevinde başlar, eşzamanlılık sınırı yoktur.
+  Bkz. § 7 yol haritası (g).
 - **MediaMTX yolları düzenli olarak temizlenmez.** Klip yolları (`clip_{captureId}`) çekim
   akışının `finally` bloğunda düşürülür. Canlı izleme yolları (`cam_{id}_{profile}`) yalnızca
   **kameranın kendisi değiştiğinde** silinir: `CameraService.UpdateAsync`, bağlantıyı etkileyen
@@ -368,7 +368,8 @@ gelmez — bu platform onları kendisi yoklar.
   **`MediaPathCleanupWorker` gün sonunda düşürür**; izleyicisi olan ve kayıt yapan yollara
   dokunmaz (bkz. § 7 (f)).
 - Çekim dosyaları `wwwroot/uploads/captures/…` altına düşer ve bu yüzden **kimlik doğrulaması
-  olmadan** servis edilir; tek koruma tahmin edilemez `Guid` dosya adıdır.
+  olmadan** servis edilir; tek koruma tahmin edilemez `Guid` dosya adıdır. Süresi dolan
+  dosyaları `CaptureRetentionWorker` siler; `CameraCapture` satırı kalır (§ 7).
 - **Kamera parolası düz metin saklanır ve okuma DTO'sunda düz metin döner** (kapalı ağ; bu
   aşamada gizlenmesi istenmedi). Bilinçli olarak bir koruyucu/şifreleme katmanı yoktur.
   `PUT`'ta parola üç durumludur: `null` = dokunma, `""` = temizle, dolu = değiştir.
@@ -466,11 +467,12 @@ değil, bilinçli bir karardır; `dotnet build` çıktısındaki 5 uyarı bu yü
   `Input` **ve** `AnalogInput`'u kapsıyor). Analog kanalda tablo artık bir zaman serisi gibi
   davranır; dijital kanalda değişim günlüğü olmayı sürdürür. "Örnekleme kesintisiz miydi"
   sorusu hâlâ cevaplanamaz — `null`'a düşen okuma satır üretmez (§ 5.3).
-- **`ChannelEvent` için saklama/temizlik işi yok — artık ACİL.** Yazan tek yol ingest, silen
-  hiçbir yol yok. Dijital kanallarda tablo yavaş büyür, ama **2026-09-10'da analog kanallar da
-  olay üretmeye başladı** (aşağıya bakın): analogda değer neredeyse her ingest'te değiştiği
-  için her ingest bir satır demek. Analog kart kullanan bir kurulumda büyümeyi sınırlayan
-  hiçbir şey yok. Bkz. yol haritası (j).
+- **`ChannelEvent` için saklama/temizlik işi YOK — bilinçli olarak ertelendi (2026-09-10).**
+  Yazan tek yol ingest, silen hiçbir yol yok. Dijital kanallarda tablo yavaş büyür, ama aynı
+  gün **analog kanallar da olay üretmeye başladı**: analogda değer neredeyse her ingest'te
+  değiştiği için her ingest bir satır demek. Yani analog kart kullanan bir kurulumda tablonun
+  büyümesini sınırlayan hiçbir şey yok ve **bu bilinerek kabul edildi** — saklama politikasını
+  proje sahibi sonra kendisi ekleyecek. Sormadan bir silme işi yazmayın.
 - **ÖLÇÜLDÜ (2026-09-10) — silinmiş kanalın olay satırları listeden tamamen düşüyor.**
   Repository yorumunun iddia ettiği gibi "türev alanlar null gelir" **değil**: satır hiç
   gelmiyor. `ChannelEvent.IoChannelId` non-nullable olduğu için `ProjectTo` INNER JOIN üretiyor
@@ -480,7 +482,14 @@ değil, bilinçli bir karardır; `dotnet build` çıktısındaki 5 uyarı bu yü
   **Bugün ulaşılamaz durumdur:** hiçbir yazım yolu `IoChannel` silmiyor — cihaz silmek
   kanalları yerinde bırakıyor (§ 5.2). Bu yüzden kod yeniden yapılandırılmadı; kanal silen bir
   yol eklenirse olay geçmişi sessizce kaybolacağı için o gün birlikte ele alınmalı.
-- **Çekim saklama temizliği yok** — `ExpiresAt` yazılıyor ama kimse okumuyor.
+- ~~Çekim saklama temizliği yok~~ — **yazıldı (2026-09-10)**. `CaptureRetentionWorker` her gün
+  `Cameras:RetentionSweepHour` saatinde (varsayılan 04:00) süresi dolmuş çekimlerin
+  **dosyasını** siler. **Satır silinmez:** `RelativePath` null'lanır, çekimin yapıldığı bilgisi
+  geçmişte kalır. Dosya silinemezse `RelativePath` korunur — kolonu null'lamak, diskte duran
+  dosyayı bir daha bulunamaz hâle getirip kalıcı çöp bırakırdı.
+  **Açık uç:** `Status` `Available` olarak kalıyor; süresi dolmuş bir çekim ancak
+  `RelativePath == null` **ve** `ExpiresAt` geçmişte olmasından anlaşılıyor. Ayrı bir
+  `CaptureStatus.Expired` değeri eklenmedi (sözleşme değişikliği olurdu).
 - `DeviceCommandController` generic Create/Update/Delete/Restore uçlarını taşıyor; bu,
   § 5.2'deki "tek yazım yolu" ilkesiyle gözden geçirilmesi gereken bir istisna.
 - **Test paketi yok.** Otomatik kontroller yalnızca `dotnet build` ve frontend tarafında
@@ -577,21 +586,30 @@ bedelinden büyüktür):
 Doğrulandı (gerçek MediaMTX v1.20.1 üzerinde): izleyicisiz `cam_…_sub` **silindi**,
 `record: true` olan `clip_999` **korundu**, `all_others` **hiç dokunulmadı**.
 
-**(g) Klip çekiminin paralelleştirilmesi.** Aynı kamerada da farklı kamerada da eşzamanlı klip
-alınabilmeli. **İnceleme yapıldı: temp dosya okuma tarafı bunu zaten destekliyor** —
-`ClipPathName(captureId)` = `clip_{captureId}` olduğu için geçici klasör
-(`RecordRoot/clip_{captureId}`), `FindNewestClip` taraması, `TryDeleteTempDirectory` ve
-`finally`'deki `DeletePathAsync`'in hepsi **capture bazlıdır**, kamera bazlı değil; çapraz
-okuma ya da çapraz silme mümkün değil. Değişmesi gereken yalnızca iki yer:
-   - `ClipCaptureWorker`'ın seri `await foreach` döngüsü (her çekim öncekinin
-     `Task.Delay(klip süresi)`'sini bekliyor) — ayrıca sınıfın "**Sıralı çalışır**, paralel
-     degil" XML doc'u güncellenmeli.
-   - `ClipCaptureQueue`'daki `SingleReader = true` bayrağı — çok tüketiciye geçilirse
-     kaldırılmalı.
+**(g)** ~~Klip çekiminin paralelleştirilmesi.~~ **TAMAMLANDI (2026-09-10).**
 
-   Karar: **sınırsız paralel**, eşzamanlılık sınırı yok. Risk: aynı kameradan eşzamanlı
-   çekimler `sourceOnDemand: false` ile **ayrı ayrı RTSP oturumu** açar; kameranın eşzamanlı
-   oturum limiti aşılırsa çekim "Medya geçidi klip dosyası üretmedi" ile düşer.
+`ClipCaptureWorker` kuyruktan aldığı her çekimi kendi görevinde başlatır; öncekinin
+`Task.Delay(klip süresi)`'sini beklemez. **Sınırsız paralel**, eşzamanlılık sınırı yok.
+
+- **Çakışma yok**, çünkü akıştaki her şey çekim bazlıdır: yol adı `clip_{captureId}`, geçici
+  klasör `RecordRoot/clip_{captureId}`, `FindNewestClip` taraması, `TryDeleteTempDirectory` ve
+  `finally`'deki `DeletePathAsync`. Her çekim ayrıca **kendi DI scope'unu** açar — `DbContext`
+  paylaşılamaz.
+- **`SingleReader = true` KALDI.** Kaldırılması "çok tüketiciye geçilirse" şartına bağlıydı;
+  geçilmedi: kanalı okuyan hâlâ tek bir döngü, paralellik okumada değil **işlemede**. Bayrağın
+  yorumu bunu açıklayacak şekilde güncellendi.
+- Kapanışta devam eden çekimler beklenir (`Task.WhenAll`) — yarıda kesilen çekim, düşürülmemiş
+  bir MediaMTX yolu ve silinmemiş bir geçici klasör bırakırdı.
+- Görevler beklenmediği için istisnalar görev **içinde** yakalanır; aksi halde gözlenmemiş
+  istisna olarak kaybolurdu.
+
+**Ölçüldü:** iki klip çekimi arka arkaya kuyruğa alındı; `CapturedAtUtc` (yol kurulduktan hemen
+sonra yazılır) damgaları **5,8 ms** arayla düştü. Seri çalışsaydı ikincisi ~12 sn sonra
+başlayacaktı. Her iki çekimin `finally` bloğu da kendi yolunu düşürdü.
+
+**Kalan risk:** aynı kameradan eşzamanlı çekimler `sourceOnDemand: false` ile **ayrı ayrı RTSP
+oturumu** açar; kameranın eşzamanlı oturum limiti aşılırsa çekim "Medya geçidi klip dosyası
+üretmedi" ile düşer.
 
 **(h)** Kart okuyucu ingest'i: `DeviceType.CardReader` için ayrı bir uç (`{ "cardId": "…" }`);
 kart kimliği bir ölçüm olmadığı için `IoChannel`'a yazılmaz, `ChannelEvent` üretmez.

@@ -201,6 +201,39 @@ public partial class CameraService
     }
 
 
+    /// <inheritdoc/>
+    public async Task<int> PurgeExpiredCaptureFilesAsync(CancellationToken cancellationToken = default)
+    {
+        var now = DateTime.UtcNow;
+
+        // SATIR SILINMEZ, yalnizca dosya. Cekimin yapildigi bilgisi gecmiste kalir;
+        // dosyanin gittigi RelativePath'in null olmasindan anlasilir.
+        // ExpiresAt null olan cekim suresizdir (CaptureRetentionDays = 0).
+        var expired = await _unitOfWork.CameraCaptures.GetAllAsync(
+            where: c => c.ExpiresAt != null && c.ExpiresAt <= now && c.RelativePath != null,
+            tracking: true,
+            cancellationToken: cancellationToken) ?? [];
+
+        if (expired.Count == 0) return 0;
+
+        int purged = 0;
+
+        foreach (var capture in expired)
+        {
+            // Dosya silinemediyse RelativePath KORUNUR: kolonu null'lamak, diskte duran
+            // dosyayi bir daha bulunamaz hale getirir ve kalici cop birakirdi.
+            if (!_captureFileStore.TryDeleteCapture(capture.RelativePath!)) continue;
+
+            capture.RelativePath = null;
+            purged++;
+        }
+
+        if (purged > 0)
+            await _unitOfWork.SaveChangesAsync(cancellationToken);
+
+        return purged;
+    }
+
     #region Helpers
     /// <summary>
     /// Gecici klasordeki en yeni klip dosyasi.

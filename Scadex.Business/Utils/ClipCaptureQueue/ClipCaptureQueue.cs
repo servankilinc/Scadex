@@ -6,8 +6,8 @@ public class ClipCaptureQueue : IClipCaptureQueue
 {
     private readonly Channel<long> _channel = Channel.CreateUnbounded<long>(new UnboundedChannelOptions
     {
-        // Tek tuketici var (ClipCaptureWorker); bunu bildirmek kanalin daha ucuz
-        // bir yol secmesini saglar.
+        // Kanaldan okuyan TEK bir dongu var (ClipCaptureWorker); bunu bildirmek  kanalin daha ucuz bir yol secmesini saglar.
+        // Birden fazla dongu ayni kanali okumaya baslarsa bu bayrak KALDIRILMALI.
         SingleReader = true
     });
 

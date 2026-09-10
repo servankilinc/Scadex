@@ -164,11 +164,12 @@ Bir şeyin çalıştığını varsaymadan önce doğrulayın:
 - **`npm run lint` şu an kırmızı:** 21 mevcut hata (11 `react-hooks/refs`,
   8 `react-refresh/only-export-components`, 2 `react-hooks/set-state-in-effect`). Kendi
   değişikliğinizin yeni hata eklemediğini doğrulayın; bu 21'i temizlemek ayrı bir iştir.
-- **`ChannelEvent` analog kanalda telemetri tablosuna dönüşür ve temizleyen bir iş yoktur.**
+- **`ChannelEvent` analog kanalda telemetri tablosuna dönüşür ve temizleyen bir iş YOKTUR.**
   2026-09-10 kararı: olay satırı hem `Input` hem `AnalogInput` için yazılır
   (`ChannelEventService`). Dijital kanalda satır yalnızca durum değişince doğar; analogda
   değer neredeyse her ingest'te değiştiği için **her ingest bir satır** demektir. Saklama /
-  temizlik işi henüz yazılmadı — analog kart kullanan bir kurulumda tablo sınırsız büyür.
+  temizlik işi **bilinçli olarak ertelendi** — proje sahibi sonra ekleyecek. Tablo analog
+  kurulumda sınırsız büyür; **sormadan bir silme işi yazmayın.**
 - **PROJECT_OVERVIEW.md §5.3'teki ingest gövdesi eskimiştir.** Doküman
   `{ cabinetId, pin: "IN7", value }` diyor; **gerçek sözleşme**
   `{ cabinetId, type: "I"|"A", channelNumber, value, timestampUtc }`

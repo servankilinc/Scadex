@@ -14,4 +14,7 @@ public interface ICaptureFileStore
 
     /// <summary> Media Gateway'in klip icin kullandigi gecici klasoru siler. </summary>
     void TryDeleteTempDirectory(string fullPath);
+
+    /// <summary> Saklama suresi dolmus bir cekim dosyasini siler. </summary>
+    bool TryDeleteCapture(string relativePath);
 }

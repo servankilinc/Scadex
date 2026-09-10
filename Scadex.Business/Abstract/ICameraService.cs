@@ -48,5 +48,8 @@ public interface ICameraService
     /// Akis: gecici bir KAYIT YOLU kur → sure kadar bekle → yolu sil (segment boylece kapanir) → uretilen dosyayi kalici konuma tasi.
     /// </summary>
     Task RunClipCaptureAsync(long captureId, CancellationToken cancellationToken = default);
+
+    /// <summary> Saklama suresi dolmus cekimlerin DOSYASINI siler ve </summary>
+    Task<int> PurgeExpiredCaptureFilesAsync(CancellationToken cancellationToken = default);
     #endregion
 }
