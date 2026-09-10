@@ -457,8 +457,8 @@ değil, bilinçli bir karardır; `dotnet build` çıktısındaki 5 uyarı bu yü
 - ~~MediaMTX yolları birikiyor~~ — **günlük temizlik yazıldı (2026-09-10)**, bkz. (f).
   Kalan tek birikme kaynağı: kayıt bayrağı açık kalmış **artık klip yolları** (çekimi çökmüş
   olanlar) bilerek korunuyor, dolayısıyla temizlenmiyor.
-- ~~Ayarlar uzaktan düzenlenemiyor~~ — **veritabanına taşındı (2026-09-10)**, bkz. (e).
-  Kalan: ayar **ekranı** yok, bugün yalnızca API var.
+- ~~Ayarlar uzaktan düzenlenemiyor~~ — **veritabanına taşındı ve ekranı yazıldı (2026-09-10)**,
+  bkz. (e). `/admin/settings`; kaydedilen değer yeniden başlatma olmadan etkili.
 - **Kiracı izolasyonu yok** (§ 6'daki gerekçeyle sonradan tek noktadan gelecek).
 - **Ingest yalnızca `cabinetId` ile "kimlik doğrular"** — paylaşılan sır / imza yok.
 - **Ayrı bir `TelemetryRecord` tablosu yok — bilinçli.** 2026-09-10'da analog kanalların
@@ -529,7 +529,15 @@ boyutu 25'te sabit. Yazarken **iki mevcut hata** çıktı ve düzeltildi:
   **`Z` soneki yok** (`"2026-09-10T09:06:56.4089716"`). Çıplak `new Date(...)` bunu yerel saat
   sayıp damgayı kaydırır; ekran eksikse `Z`'yi ekleyen bir yardımcı kullanıyor.
 
-Kalanlar: kullanıcı/rol/izin yönetimi ekranları; ayar ekranı (bkz. (e)).
+~~Ayar ekranı~~ — **yazıldı (2026-09-10)**: `views/admin/settings/`, rota `/admin/settings`.
+İki ayrı form (medya geçidi, kamera çekimi) tek ekranda; sekme değil kart, çünkü uçlar,
+tablolar ve önbellek anahtarları da ayrı ve bir grubu kaydetmek diğerine dokunmuyor.
+Formlar sunucu verisiyle `useForm({ values, resetOptions: { keepDirtyValues: true } })` ile
+eşitleniyor — `useEffect` + `reset` kalıbı bilerek kullanılmadı. Zod şemaları sunucudaki
+`FluentValidation` kurallarının **elle tutulan kopyasıdır**; codegen yok, sunucudaki kural
+değişirse şema da elle değişmeli.
+
+Kalanlar: kullanıcı/rol/izin yönetimi ekranları.
 
 **(d)** ~~`IMonitoredAsset` yoklama background servisi.~~ **TAMAMLANDI (2026-09-10).**
 

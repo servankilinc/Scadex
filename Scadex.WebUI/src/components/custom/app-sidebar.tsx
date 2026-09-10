@@ -11,6 +11,7 @@ import {
   LogOut,
   MonitorIcon,
   MoonIcon,
+  SettingsIcon,
   ShapesIcon,
   SunIcon,
   VideoIcon,
@@ -72,7 +73,8 @@ const NAV_ITEMS: NavItem[] = [
   { title: 'Canlı İzleme', url: '/cameras', icon: VideoIcon },
   { title: 'Firmalar', url: '/admin/companies', icon: Building2Icon },
   { title: 'Şablonlar', url: '/admin/templates', icon: ShapesIcon },
-  { title: 'Kameralar', url: '/admin/cameras', icon: CameraIcon }
+  { title: 'Kameralar', url: '/admin/cameras', icon: CameraIcon },
+  { title: 'Ayarlar', url: '/admin/settings', icon: SettingsIcon }
 ];
 
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {

@@ -110,7 +110,8 @@ const router = createBrowserRouter([
                   { index: true, Component: AdminViews.Home },
                   { path: 'companies', Component: AdminViews.Companies, handle: { crumb: 'Firmalar' } },
                   { path: 'templates', Component: AdminViews.ComponentTemplates, handle: { crumb: 'Şablonlar' } },
-                  { path: 'cameras', Component: AdminViews.Cameras, handle: { crumb: 'Kameralar' } }
+                  { path: 'cameras', Component: AdminViews.Cameras, handle: { crumb: 'Kameralar' } },
+                  { path: 'settings', Component: AdminViews.Settings, handle: { crumb: 'Ayarlar' } }
                 ]
               }
               // #endregion

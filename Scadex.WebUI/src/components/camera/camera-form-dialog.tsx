@@ -241,7 +241,7 @@ export function CameraFormDialog(props: Props) {
                 />
               </Field>
               <FieldDescription className='mt-2'>
-                Yoklamayı yapan servis henüz yazılmadı; bu ayar o servis geldiğinde etkili olacak.
+                Kapalıyken kamera hiç yoklanmaz ve durumu olduğu yerde donar. İzleme portu boşsa da atlanır.
               </FieldDescription>
 
               {isEdit && (

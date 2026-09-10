@@ -59,3 +59,15 @@ export const channelEventKeys = {
    */
   list: (request: ChannelEventQueryRequest) => [...channelEventKeys.all, 'list', request] as const
 };
+
+/**
+ * Sistem ayarları.
+ *
+ * Ayar grupları AYRI anahtarlar altında: sunucuda da ayrı tablo, ayrı servis ve ayrı
+ * önbellek anahtarı var. Ortak bir `all` ile invalidate etmek, medya geçidini
+ * kaydeden kullanıcıya kamera ayarlarını da yeniden çektirirdi.
+ */
+export const settingKeys = {
+  mediaGateway: () => ['setting', 'media-gateway'] as const,
+  cameraCapture: () => ['setting', 'camera-capture'] as const
+};

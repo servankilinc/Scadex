@@ -118,6 +118,9 @@ Bunlar tek bir dosyaya bakarak görülemez; gerekçeleri PROJECT_OVERVIEW.md §5
   `Cameras` bölümü geri eklemeyin — **okunmuyor**, sessizce yok sayılır.
   Adlandırılmış `HttpClient` yine `Program.cs`'te kurulur ama `BaseAddress`/`Timeout` orada
   **verilmez**; `MediaMtxGateway.CreateConfiguredClient` her çağrıda ayardan uygular.
+  Ekranı `/admin/settings`; zod şemaları (`models/mediaGatewaySetting`,
+  `models/cameraCaptureSetting`) sunucudaki `FluentValidation` kurallarının **elle tutulan
+  kopyasıdır** — sunucudaki kuralı değiştirirseniz şemayı da değiştirin, codegen yok.
 - **Yoklama (ayakta mı) akışının HTTP yüzeyi yoktur ve tipe özel değildir.**
   `MonitoredAssetProbeWorker` kayıtlı her `IMonitoredAssetProbeSource` üzerinden döner; yeni
   bir izlenen tip eklemek = yeni kaynak + tek satır DI kaydı, worker'a dokunulmaz. Sonda
