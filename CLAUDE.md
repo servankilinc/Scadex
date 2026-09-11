@@ -51,8 +51,8 @@ Bilinmesi gerekenler:
   frontend ayrı çalıştırılır.
 - **Test paketi yoktur.** Otomatik kontrol yalnızca `dotnet build` ve frontend tarafında
   `npm run lint` + `npm run build`. Davranış, uygulamayı çalıştırarak doğrulanır — bir
-  değişikliğin çalıştığını iddia etmeden önce gerçekten çalıştırın. (Her ikisi de bugün
-  kırmızı; aşağıdaki "bilinen tutarsızlıklar"a bakın.)
+  değişikliğin çalıştığını iddia etmeden önce gerçekten çalıştırın. (`npm run lint` ve
+  `npm run build` bugün yeşil; yeşil kalmalı.)
 - **`npm run typecheck` diye bir script yoktur** (`build` zaten `tsc -b` çalıştırır).
 - MediaMTX uygulama tarafından başlatılmaz; ayrı süreçtir
   (`Scadex.WebAPI/mediamtx_v1.20.1/mediamtx.exe`).
@@ -178,9 +178,11 @@ Bir şeyin çalıştığını varsaymadan önce doğrulayın:
 - **AutoMapper 14.0.0 `NU1903` uyarısı kabul edilmiş risktir, yapılacak iş değildir** —
   AutoMapper 15 ticari lisans istiyor, bu yüzden yükseltilmeyecek. `dotnet build` çıktısındaki
   5 uyarı beklenen gürültüdür; "düzeltmeye" çalışmayın.
-- **`npm run lint` şu an kırmızı:** 21 mevcut hata (11 `react-hooks/refs`,
-  8 `react-refresh/only-export-components`, 2 `react-hooks/set-state-in-effect`). Kendi
-  değişikliğinizin yeni hata eklemediğini doğrulayın; bu 21'i temizlemek ayrı bir iştir.
+- **`npm run lint` yeşil (0 hata, 0 uyarı).** Vendored shadcn/mapcn kodu (`src/components/ui/**`)
+  için `react-refresh/only-export-components`, `react-hooks/refs` ve
+  `react-hooks/set-state-in-effect` `eslint.config.js`'te bilerek kapalıdır — o dosyaları lint
+  için yeniden yazmayın, upstream'den ayrışır. Uygulama kodunda kurallar açıktır; lint'i
+  `queueMicrotask`/`requestAnimationFrame` ile atlatmayın.
 - **`ChannelEvent` analog kanalda telemetri tablosuna dönüşür ve temizleyen bir iş YOKTUR.**
   2026-09-10 kararı: olay satırı hem `Input` hem `AnalogInput` için yazılır
   (`ChannelEventService`). Dijital kanalda satır yalnızca durum değişince doğar; analogda
@@ -190,10 +192,10 @@ Bir şeyin çalıştığını varsaymadan önce doğrulayın:
 - **Sunucudan gelen `...Utc` damgalarında `Z` soneki YOKTUR.** Kolonlar `datetime2`, EF onları
   `DateTimeKind.Unspecified` döndürüyor ve System.Text.Json sonek koymuyor:
   `"occurredAtUtc":"2026-09-10T09:06:56.4089716"`. Frontend'de çıplak `new Date(damga)` bunu
-  **yerel saat** sayar ve değeri saat farkı kadar kaydırır. Eksikse `Z` eklenmeli — örnek:
-  `views/app/events/index.tsx > toUtcDate`. **Aynı hata `command-history.tsx`'te duruyor**
-  (`new Date(command.sentAt)`, `SentAt` de `datetime2`): veritabanından okunan komut saatleri
-  UTC+3'te üç saat ileri görünür. Sormadan düzeltmeyin, ama yeni ekranlarda tekrarlamayın.
+  **yerel saat** sayar ve değeri saat farkı kadar kaydırır. Eksikse `Z` eklenmeli — ortak
+  yardımcı: `src/lib/utils.ts > toUtcDate` ve `formatUtcDateTime`. Bu fonksiyonlar `events`,
+  `home` ve `command-history.tsx` içerisinde kullanılmaktadır. Yeni ekranlarda da mutlaka bu
+  yardımcıyı kullanın.
 
 - **Ingest gövdesinde `cabinetId` YOKTUR; kabin MAC adresinden çözülür.** Gerçek sözleşme
   `{ macAddress, type: "I"|"A", channelNumber, value, timestampUtc }` (`ScadaIngestRequest`).

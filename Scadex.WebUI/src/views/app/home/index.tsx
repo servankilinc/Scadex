@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { getCabinetList } from '@/api/cabinet';
 import { cabinetKeys } from '@/api/query-keys';
@@ -8,6 +8,7 @@ import { X, Info, Activity, Clock, MapPin } from 'lucide-react';
 import type { CabinetDetailDto } from '@/models/cabinet';
 import CabinetIdleIcon from '@/assets/cabinet-idle-2.png';
 import { DashboardMetrics } from './dashboard-metrics';
+import { formatUtcDateTime } from '@/lib/utils';
 
 export default function Home() {
   const { data: cabinets = [], isLoading } = useQuery({
@@ -37,12 +38,15 @@ export default function Home() {
     };
   }, [cabinets]);
 
-  // Data yüklendikten sonra haritayı kabinlerin ortasına çek
-  useEffect(() => {
-    if (validCabinets.length > 0) {
-      setViewport(prev => ({ ...prev, center }));
-    }
-  }, [center, validCabinets.length]);
+  const [hasAutoCentered, setHasAutoCentered] = useState(false);
+
+  // Data yüklendikten sonra haritayı kabinlerin ortasına çek (yalnızca ilk yüklemede;
+  // sonraki refetch'ler operatörün kaydırdığı haritayı geri çekmesin). Effect yerine
+  // render sırasında ayarlanır — effect içinde setState fazladan bir render kaskadı doğurur.
+  if (!hasAutoCentered && validCabinets.length > 0) {
+    setHasAutoCentered(true);
+    setViewport(prev => ({ ...prev, center }));
+  }
 
   if (isLoading) {
     return <div className="flex h-full items-center justify-center text-muted-foreground">Harita yükleniyor...</div>;
@@ -146,7 +150,7 @@ export default function Home() {
                     <p className="text-sm font-medium text-muted-foreground">Son Güncelleme</p>
                     <p className="flex items-center gap-1.5 text-sm">
                       <Clock className="size-3.5" />
-                      {new Date(selectedCabinet.updateDateUtc).toLocaleString()}
+                      {formatUtcDateTime(selectedCabinet.updateDateUtc)}
                     </p>
                   </div>
                 )}

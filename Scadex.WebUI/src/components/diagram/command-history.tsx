@@ -3,7 +3,7 @@ import { useDeviceCommands } from '@/hooks/use-device-commands';
 import { useIsUnsaved } from '@/lib/diagram/unsaved-store';
 import { CommandStatus, CommandStatusLabels, DeviceCommandTypeLabels } from '@/models/enums';
 import type { DeviceCommandResultDto } from '@/models/deviceCommand';
-import { cn } from '@/lib/utils';
+import { cn, toUtcDate } from '@/lib/utils';
 
 /**
  * Seçili cihazın son kumandaları.
@@ -49,6 +49,7 @@ export function CommandHistory({ deviceId }: { deviceId: string }) {
 
 function CommandRow({ command }: { command: DeviceCommandResultDto }) {
   const { icon: Icon, tone } = STATUS_STYLE[command.status];
+  const sentAtDate = toUtcDate(command.sentAt);
 
   return (
     <li className='flex flex-col gap-0.5 text-xs'>
@@ -58,8 +59,8 @@ function CommandRow({ command }: { command: DeviceCommandResultDto }) {
           {DeviceCommandTypeLabels[command.commandType]}
           {command.channelNumber != null && <span className='text-muted-foreground font-mono'> · CH{command.channelNumber}</span>}
         </span>
-        <span className='text-muted-foreground ml-auto shrink-0 font-mono text-[10px]' title={command.sentAt ? new Date(command.sentAt).toLocaleString('tr-TR') : undefined}>
-          {command.sentAt ? new Date(command.sentAt).toLocaleTimeString('tr-TR') : '—'}
+        <span className='text-muted-foreground ml-auto shrink-0 font-mono text-[10px]' title={sentAtDate ? sentAtDate.toLocaleString('tr-TR') : undefined}>
+          {sentAtDate ? sentAtDate.toLocaleTimeString('tr-TR') : '—'}
         </span>
       </div>
 

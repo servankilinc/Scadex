@@ -12,6 +12,7 @@ import { useChannelEvents } from '@/hooks/use-channel-events';
 import { useDiagramGraph } from '@/hooks/use-diagram-graph';
 import { PinDirectionLabels } from '@/models/enums';
 import type { ChannelEventDto } from '@/models/channelEvent';
+import { formatUtcDateTime } from '@/lib/utils';
 
 /** Kanal filtresinde "hepsi" için sentinel — Base UI Select boş string'i "seçim yok" sayar. */
 const ALL_CHANNELS = 'all';
@@ -247,7 +248,7 @@ function EventRow({ event }: { event: ChannelEventDto }) {
 
   return (
     <tr className='border-t [&>td]:px-3 [&>td]:py-2'>
-      <td className='font-mono text-xs whitespace-nowrap'>{formatUtc(event.occurredAtUtc)}</td>
+      <td className='font-mono text-xs whitespace-nowrap'>{formatUtcDateTime(event.occurredAtUtc)}</td>
 
       <td className='max-w-[14rem] truncate'>
         {/* Türev alanlar null = kaynak kanal silinmiş. Olay satırı DURUR (silinmiş
@@ -274,26 +275,11 @@ function EventRow({ event }: { event: ChannelEventDto }) {
             damgasız
           </Badge>
         ) : (
-          formatUtc(event.receivedAtUtc)
+          formatUtcDateTime(event.receivedAtUtc)
         )}
       </td>
     </tr>
   );
-}
-
-/**
- * Sunucu damgaları `datetime2` sütunundan okunuyor ve EF onları
- * `DateTimeKind.Unspecified` ile döndürüyor; System.Text.Json da bu yüzden sona
- * `Z` KOYMUYOR. Çıplak `new Date(...)` böyle bir metni YEREL saat sayar ve damgayı
- * saat farkı kadar kaydırır. Eksik olduğunda `Z`'yi burada ekliyoruz — alanın adı
- * (`...Utc`) zaten sözleşmenin kendisi.
- */
-function toUtcDate(value: string): Date {
-  return new Date(/(?:Z|[+-]\d{2}:?\d{2})$/i.test(value) ? value : `${value}Z`);
-}
-
-function formatUtc(value: string): string {
-  return toUtcDate(value).toLocaleString('tr-TR');
 }
 
 /** `datetime-local` girdisi (yerel saat) → sunucunun beklediği UTC ISO. Boşsa filtre yok. */
