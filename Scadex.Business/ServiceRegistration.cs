@@ -42,6 +42,8 @@ public static class ServiceRegistration
         services.AddScoped<ICameraCaptureSettingService, CameraCaptureSettingService>();
         #endregion
 
+        services.AddScoped<ICardReadService, CardReadService>();        
+
         services.AddScoped<IDiagramService, DiagramService>();
         services.AddScoped<IChannelEventService, ChannelEventService>();
         services.AddScoped<ICameraService, CameraService>();

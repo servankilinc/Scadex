@@ -31,8 +31,13 @@ dotnet build Scadex.slnx
 dotnet run --project Scadex.WebAPI          # http://localhost:5208 + https://localhost:7167
                                             # OpenAPI: /openapi/v1.json — Scalar UI: /scalar
 
-dotnet ef migrations add <Ad> --project Scadex.DataAccess --startup-project Scadex.WebAPI
-dotnet ef database update     --project Scadex.DataAccess --startup-project Scadex.WebAPI
+# İki DbContext var: --context ZORUNLU (vermezseniz "More than one DbContext was found")
+dotnet ef migrations add <Ad> --project Scadex.DataAccess --startup-project Scadex.WebAPI --context AppDbContext
+dotnet ef database update     --project Scadex.DataAccess --startup-project Scadex.WebAPI --context AppDbContext
+
+# Sinyalizasyon modülü (signalization şeması, kendi migration geçmişi)
+dotnet ef migrations add <Ad> --project Scadex.Signalization --startup-project Scadex.WebAPI --context SignalizationDbContext --output-dir Data/Migrations
+dotnet ef database update     --project Scadex.Signalization --startup-project Scadex.WebAPI --context SignalizationDbContext
 
 dotnet user-secrets set "TokenSettings:SecurityKey" "<64+ karakter>" --project Scadex.WebAPI
 ```
@@ -47,8 +52,8 @@ npm run lint
 
 Bilinmesi gerekenler:
 
-- **`Scadex.WebUI` çözüme dahil değildir.** `Scadex.slnx` yalnızca 5 .NET projesini taşır;
-  frontend ayrı çalıştırılır.
+- **`Scadex.WebUI` çözüme dahil değildir.** `Scadex.slnx` yalnızca 6 .NET projesini taşır
+  (5 çekirdek katman + `Scadex.Signalization` modülü); frontend ayrı çalıştırılır.
 - **Test paketi yoktur.** Otomatik kontrol yalnızca `dotnet build` ve frontend tarafında
   `npm run lint` + `npm run build`. Davranış, uygulamayı çalıştırarak doğrulanır — bir
   değişikliğin çalıştığını iddia etmeden önce gerçekten çalıştırın. (`npm run lint` ve
@@ -77,6 +82,50 @@ uzantısı vardır; `Program.cs` bunları sırayla çağırır.
   yapar. Dış dünyaya açılan gateway'ler `Utils/` altında.
 - **WebAPI** — `BaseController`'dan türeyen ince controller'lar, `DiagramHub`, hosted
   service'ler, exception middleware.
+
+### Müşteri modülleri — `Scadex.Signalization`
+
+```
+Core → Model → DataAccess → Business → WebAPI
+                                ↑          │
+                    Scadex.Signalization ←─┘   (yalnızca WebAPI referans alır, Program.cs kaydeder)
+```
+
+Firmaya özel iş (sinyalizasyon operatör işlemi takibi) çekirdeğe **girmez**, bu class library'de
+durur. Ayrıntı: PROJECT_OVERVIEW.md § 10.
+
+- **Modül kurulum başına açılır: `Modules:Signalization:Enabled`** (tanımsız = kapalı).
+  `appsettings.json`'da `false`, `appsettings.Development.json`'da `true`; müşteri kurulumu kendi
+  ortam dosyasında ya da `Modules__Signalization__Enabled=true` ile açar. Firma kimliği kodda
+  sorulmaz. Kayıt `Program.cs`'te `AddControllers()` zincirindedir
+  (`.AddSignalizationModule(configuration)`), çünkü kapalıyken **iki şey birden** yapılmalı:
+  servisler/arka plan işleri/observer kaydedilmez **ve** modülün controller'ları ApplicationPart
+  listesinden çıkarılır (uçlar 404, OpenAPI'de yok). Yalnızca servisleri koşullamak yetmez —
+  assembly referans olduğu için controller'lar otomatik keşfedilir ve DI hatasıyla her istekte 500
+  döner. **Yeni modül = aynı kalıp**: `Modules:<Ad>:Enabled` + `.Add<Ad>Module(...)` tek satırı;
+  reflection ile modül keşfi yapmayın. Frontend'deki `VITE_MODULES` bunun aynasıdır ve **ayrıca**
+  ayarlanır.
+- `dotnet ef` tasarım zamanında `Development` ortamını kullanır; modül orada açık olduğu için
+  `--context SignalizationDbContext` komutları çalışır. Modülü Development'ta kapatırsanız EF
+  context'i bulamaz.
+
+- **Çekirdek modülü bilmez.** Tek temas noktası `IScadaEventObserver` (Business/Utils/ScadaEvents):
+  ingest (değer gerçekten değişince) ve `POST /api/Scada/card` gözlemcileri `SaveChanges`'ten
+  SONRA çağırır. Gözlemci **sıcak yoldadır — yalnızca kuyruğa bırakır**; içinde SCADA'ya komut
+  göndermek, kart isteğini bekleyen SCADA kartıyla kilitlenme demektir.
+- **Modül çekirdek tablolarına doğrudan YAZMAZ.** Komut `IDeviceCommandService.SendAsync`, kare
+  `ICameraService.CreateCaptureAsync`, rol ataması `IUserRoleService.SyncAsync` üzerinden gider;
+  çekirdeği `IUnitOfWork` ile yalnızca **projeksiyonla okur**.
+- **Kendi context'i, kendi şeması:** `SignalizationDbContext`, `signalization` şeması,
+  `signalization.__EFMigrationsHistory`. Çekirdeğe referanslar (CabinetId, IoChannelId, UserId, CameraId…)
+  **FK değildir**; bütünlük yapılandırma kaydında servis doğrulamasıyla sağlanır.
+  `RepositoryBase` Identity context'ine bağlı olduğu için modülde kullanılmaz.
+- **"Bu kabin modülün mü" kodda sorulmaz:** `signalization.Cabinet` satırı yoksa olay yok sayılır.
+- **Kapı sanaldır; ilişki `IoChannel`'a kurulur, `Device`'a değil** (Device kartın tamamıdır).
+- Modül controller'ları `BaseController`'ı miras alamaz (WebAPI'de); `SignalizationControllerBase`
+  aynı ProblemDetails sözleşmesini Core'un `GetProblemDetail`'i ile kurar. Modül uçlarına
+  **bilinçli olarak rate limit takılmaz** (2026-09-11 kararı) — `[EnableRateLimiting]` eklemeyin;
+  eklenirse politika adı modülün kendi kaydında da tanımlanmalı, yoksa uç her istekte 500 döner.
 
 **Büyük servisler `#region` ile değil, partial sınıflara bölünür** — gruplama birimi dosyadır:
 `CameraService.cs` + `.Streaming` + `.Snapshot` + `.Capture` + `.Monitoring`,
@@ -139,7 +188,8 @@ Bunlar tek bir dosyaya bakarak görülemez; gerekçeleri PROJECT_OVERVIEW.md §5
   `readers > 0` olan yollar. Bu kuralları gevşetmeyin; `MediaPathCleanupWorker.ShouldDelete`.
 - **Rate limit politika adı `Program.cs`'te tanımlı değilse o uç HER istekte 500 döner.**
   Bir `[EnableRateLimiting]` adını silmeden/değiştirmeden önce `RateLimiterKey`'e bakın.
-  Politikalar: `Default`, `Scada`, `MediaGateway`.
+  Politikalar: `Default`, `Scada`, `MediaGateway`. Sinyalizasyon modülünün uçlarında politika
+  yoktur (bilinçli).
 - **Hiçbir servis metodu `companyId` almaz, hiçbir yerde `IgnoreQueryFilters` çağrılmaz** —
   çok kiracılılık sonradan imza değiştirmeden tek bir global query filter olarak gelsin diye.
 - **409 / optimistic concurrency / `rowVersion` yoktur** — son yazan kazanır.
@@ -177,7 +227,8 @@ Bir şeyin çalıştığını varsaymadan önce doğrulayın:
   içindeki bir yorum hâlâ eski `:7042`'yi anıyor — yalnızca yorum.)
 - **AutoMapper 14.0.0 `NU1903` uyarısı kabul edilmiş risktir, yapılacak iş değildir** —
   AutoMapper 15 ticari lisans istiyor, bu yüzden yükseltilmeyecek. `dotnet build` çıktısındaki
-  5 uyarı beklenen gürültüdür; "düzeltmeye" çalışmayın.
+  proje başına birer `NU1903` (modül AutoMapper'ı Business'tan geçişli aldığı için 6 proje)
+  beklenen gürültüdür; "düzeltmeye" çalışmayın.
 - **`npm run lint` yeşil (0 hata, 0 uyarı).** Vendored shadcn/mapcn kodu (`src/components/ui/**`)
   için `react-refresh/only-export-components`, `react-hooks/refs` ve
   `react-hooks/set-state-in-effect` `eslint.config.js`'te bilerek kapalıdır — o dosyaları lint
@@ -205,6 +256,14 @@ Bir şeyin çalıştığını varsaymadan önce doğrulayın:
   string** karşılaştırmasıdır — ayraç/harf normalizasyonu bilerek yoktur, adres veritabanındaki
   yazımıyla gönderilmelidir. `ScadaPinAddress.CheckAndParseIngestPin` yalnızca `"I"` ve `"A"`
   kabul eder; `IN<n>`/`OUT<n>` metni yalnızca **giden** komut gövdesinde (`Format`) kullanılır.
+- **Kart okuma ayrı bir uçtur: `POST /api/Scada/card` → `{ macAddress, cardId, timestampUtc }`
+  (2026-09-11).** Kart numarası ölçüm değildir: `IoChannel`'a yazılmaz, `ChannelEvent` üretmez,
+  çekirdek hiçbir satır yazmaz. Kabin ingest ile aynı yoldan MAC'ten çözülür
+  (`IDeviceRepository.GetCabinetIdByControlModuleMacAsync`), kart **aktif** kullanıcının
+  `User.IdentityCardId`'siyle ham string olarak eşlenir ve sonuç gözlemcilere iletilir. Tanımsız
+  kart SCADA için hata değildir (200). `IdentityCardId` aktif kullanıcılar arasında tekildir
+  (`IX_User_IdentityCardId`, filtreli); `""` sunucuda `null`'a çekilir — çekmezseniz ikinci boş
+  kart 500 üretir.
 - **`MacAddress` / `IpAddress` artık diyagram deltasıyla yazılır (2026-09-10).** `DeviceDraft`
   bu iki alanı taşır, `WriteDevice` yazar, editörde cihaz özellik panelinden girilir. Bunlar
   `DeviceStatusId` / `LastSeen` gibi telemetri alanı **değildir** — o ikisi hâlâ taslakta yok

@@ -2588,6 +2588,10 @@ namespace Scadex.DataAccess.Migrations
                         .IsRequired()
                         .HasColumnType("nvarchar(max)");
 
+                    b.Property<string>("IdentityCardId")
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)");
+
                     b.Property<bool>("IsActive")
                         .HasColumnType("bit");
 
@@ -2633,6 +2637,10 @@ namespace Scadex.DataAccess.Migrations
                     b.HasKey("Id");
 
                     b.HasIndex("CompanyId");
+
+                    b.HasIndex("IdentityCardId")
+                        .IsUnique()
+                        .HasFilter("[IdentityCardId] IS NOT NULL AND [IsActive] = 1");
 
                     b.HasIndex("NormalizedEmail")
                         .HasDatabaseName("EmailIndex");

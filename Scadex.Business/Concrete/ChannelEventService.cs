@@ -2,6 +2,7 @@ using AutoMapper;
 using Microsoft.Extensions.Logging;
 using Scadex.Business.Abstract;
 using Scadex.Business.Utils.DiagramNotifier;
+using Scadex.Business.Utils.ScadaEvents;
 using Scadex.Core.Utils.Pagination;
 using Scadex.Core.Utils.ResultPattern;
 using Scadex.Core.Utils.Validation;
@@ -9,9 +10,9 @@ using Scadex.DataAccess.UoW;
 using Scadex.Model.Dtos.ChannelEvent.Queries;
 using Scadex.Model.Dtos.Realtime.Queries;
 using Scadex.Model.Dtos.Scada.Commands;
+using Scadex.Model.Dtos.Scada.Events;
 using Scadex.Model.Entities;
 using DeviceStatus = Scadex.Model.Enums.EntityEnums.DeviceStatus;
-using DeviceType = Scadex.Model.Enums.EntityEnums.DeviceType;
 using PinDirection = Scadex.Model.Enums.EntityEnums.PinDirection;
 
 namespace Scadex.Business.Concrete;
@@ -23,14 +24,16 @@ public class ChannelEventService : IChannelEventService
     private readonly IDiagramNotifier _notifier;
     private readonly ILogger<ChannelEventService> _logger;
     private readonly IMapper _mapper;
+    private readonly IEnumerable<IScadaEventObserver> _observers;
 
-    public ChannelEventService(IUnitOfWork unitOfWork, IValidationService validationService, IDiagramNotifier notifier, ILogger<ChannelEventService> logger, IMapper mapper)
+    public ChannelEventService(IUnitOfWork unitOfWork, IValidationService validationService, IDiagramNotifier notifier, ILogger<ChannelEventService> logger, IMapper mapper, IEnumerable<IScadaEventObserver> observers)
     {
         _unitOfWork = unitOfWork;
         _validationService = validationService;
         _notifier = notifier;
         _logger = logger;
         _mapper = mapper;
+        _observers = observers;
     }
 
     /// <inheritdoc />
@@ -74,14 +77,7 @@ public class ChannelEventService : IChannelEventService
             return Result.Failure("Gecersiz tip", "Invalid signal type");
          
         // 3) SCADA MAC adresiyle eslesen kontrol modülünden bulunur
-        var cabinetId = await _unitOfWork.Devices.GetAsync(
-            select: d => d.CabinetId,
-            where: d =>
-                d.IsActive &&
-                d.MacAddress == request.MacAddress &&
-                d.ComponentTemplate!.DeviceTypeId == (int)DeviceType.ControlModule,
-            cancellationToken: cancellationToken
-        );
+        var cabinetId = await _unitOfWork.Devices.GetCabinetIdByControlModuleMacAsync(request.MacAddress, cancellationToken);
         if (cabinetId == Guid.Empty)
         {
             _logger.LogWarning($"MAC {request.MacAddress}: eslesen kontrol modulu yok (ya da pasif); telemetri atlandi.");
@@ -174,10 +170,25 @@ public class ChannelEventService : IChannelEventService
         // 9) Kanal değeri değişimi kontrolü ve değeri değişen kanallar için ChannelEvent insert ve client'lara bildirim.
         var channelChanges = new List<ChannelValueChange>();
         ChannelEvent? channelEvent = null;
+        ChannelChangedNotification? observerNotification = null;
 
         if (!string.Equals(channel.CurrentValue, request.Value, StringComparison.Ordinal))
         {
             var previousValue = channel.CurrentValue;
+
+            // Eğer dinleyicilere varsa iletilecek bilgiler
+            observerNotification = new ChannelChangedNotification
+            {
+                CabinetId = cabinet.Id,
+                IoChannelId = channel.Id,
+                DeviceId = channel.DeviceId,
+                Direction = channel.Direction,
+                ChannelNumber = channel.ChannelNumber,
+                Value = request.Value,
+                PreviousValue = previousValue,
+                OccurredAtUtc = request.TimestampUtc ?? now,
+                ReceivedAtUtc = now
+            };
 
             channel.CurrentValue = request.Value;
             channel.ValueUpdatedAt = now;
@@ -229,6 +240,10 @@ public class ChannelEventService : IChannelEventService
             LastSeen = cabinet.LastSeen,
             ScadaLastIngestAt = cabinet.ScadaLastIngestAt
         }, cancellationToken);
+
+        // 12) Feğişen kanal, Scadex'in dış modüllerine (dinleyicilere) yayınlanır
+        if (observerNotification != null)
+            await _observers.PublishAsync(o => o.OnChannelChangedAsync(observerNotification, cancellationToken), _logger, nameof(IScadaEventObserver.OnChannelChangedAsync));
 
         return Result.Success();
     }

@@ -8,6 +8,7 @@ public class UserUpdateDto : IDto
     public Guid Id { get; set; }
     public string FullName { get; set; } = null!;
     public string? PhoneNumber { get; set; }
+    public string? IdentityCardId { get; set; }
     public bool IsActive { get; set; }
 }
 
@@ -18,5 +19,6 @@ public class UserUpdateDtoValidator : AbstractValidator<UserUpdateDto>
         RuleFor(v => v.Id).NotNull().WithMessage("Field cannot be null");
         RuleFor(v => v.Id).NotEqual(Guid.Empty).WithMessage("Field mus be a valid guid value");
         RuleFor(v => v.FullName).MinimumLength(4).WithMessage("Lütfen geçerli bir kullanıcı ism soyismi giriniz");
+        RuleFor(v => v.IdentityCardId).MaximumLength(64).WithMessage("Kart numarası en fazla 64 karakter olabilir");
     }
 }

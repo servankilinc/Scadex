@@ -26,17 +26,27 @@ export async function getUserList(): Promise<UserDetailDto[]> {
  * (firmadaki gibi "Create `{ id }` döndürür" kuralının istisnası). Kullanıcı aktif doğar.
  */
 export async function createUser(request: UserCreateRequest): Promise<void> {
-  return http.post(USER_ROUTE, { ...request, email: emptyToNull(request.email), phoneNumber: emptyToNull(request.phoneNumber) });
+  return http.post(USER_ROUTE, {
+    ...request,
+    email: emptyToNull(request.email),
+    phoneNumber: emptyToNull(request.phoneNumber),
+    identityCardId: emptyToNull(request.identityCardId)
+  });
 }
 
 /**
  * Başarıda gövdesiz 200 döner.
  *
- * `GET /{id}/update` ucu BİLEREK kullanılmıyor: `UserUpdateDto`'nun dört alanı da
+ * `GET /{id}/update` ucu BİLEREK kullanılmıyor: `UserUpdateDto`'nun tüm alanları
  * listede zaten var. Kendi hesabını pasife almak 400'dür (`errors.IsActive`).
  */
 export async function updateUser(request: UserUpdateRequest): Promise<void> {
-  return http.put(USER_ROUTE, { ...request, phoneNumber: emptyToNull(request.phoneNumber) });
+  return http.put(USER_ROUTE, {
+    ...request,
+    phoneNumber: emptyToNull(request.phoneNumber),
+    // Boş gönderim kartı KALDIRIR (sunucu "" → null yapar); alan her zaman gönderilir.
+    identityCardId: emptyToNull(request.identityCardId)
+  });
 }
 
 /** Kullanıcının rol ADLARI — Identity kimlik değil ad döndürür. */

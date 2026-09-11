@@ -8,6 +8,8 @@ export interface UserDetailDto {
   companyName: string;
   fullName: string;
   phoneNumber: string | null;
+  /** Kart okuyucudan gelen ham kart kimliği; kart tanımlı değilse `null`. */
+  identityCardId: string | null;
   createdBy: string | null;
   updatedBy: string | null;
   /** `Z` soneki YOK (`datetime2`) — gösterilecekse `toUtcDate` ile. */

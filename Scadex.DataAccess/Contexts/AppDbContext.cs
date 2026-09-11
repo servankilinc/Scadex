@@ -67,6 +67,10 @@ public class AppDbContext : IdentityDbContext<User, Role, Guid>
             u.HasKey(u => u.Id);
             u.HasMany(u => u.DeviceCommands).WithOne(d => d.RequesterUser).HasForeignKey(d => d.RequestedByUserId).OnDelete(DeleteBehavior.Restrict);
             u.HasMany(u => u.RefreshTokens).WithOne(r => r.User).HasForeignKey(r => r.UserId).OnDelete(DeleteBehavior.Cascade);
+
+            u.Property(u => u.IdentityCardId).HasMaxLength(64);
+            // Restriction: Bir kart en fazla bir aktif kullanıcıya ait olabilir; pasif kullanıcının kartı serbesttir (devredilebilir).
+            u.HasIndex(u => u.IdentityCardId).IsUnique().HasFilter("[IdentityCardId] IS NOT NULL AND [IsActive] = 1");
         });
         modelBuilder.Entity<Role>(r =>
         {

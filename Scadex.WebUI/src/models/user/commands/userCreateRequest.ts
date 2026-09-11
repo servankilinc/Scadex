@@ -10,6 +10,8 @@ export const userCreateRequestSchema = z.object({
   // Sunucuda `string?` ve kural yalnızca doluysa işler; boş metin `api/user.ts`'te null'a çevrilir.
   email: z.union([z.literal(''), z.email('Geçerli bir e-posta adresi giriniz')]).optional(),
   phoneNumber: z.string().trim().optional(),
+  // Kart okuyucudan gelen ham kimlik; sunucuda aktif kullanıcılar arasında tekil (çakışma 400, `errors.IdentityCardId`).
+  identityCardId: z.string().trim().max(64, 'Kart numarası en fazla 64 karakter olabilir').optional(),
   password: z.string().min(4, 'Parola en az 4 karakter olmalı')
 });
 

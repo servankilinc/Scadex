@@ -1,6 +1,5 @@
 using FluentValidation;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
-using Microsoft.AspNetCore.Diagnostics;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.IdentityModel.Tokens;
@@ -18,6 +17,7 @@ using Scadex.DataAccess;
 using Scadex.DataAccess.Contexts;
 using Scadex.Model.Dtos.Cabinet.Commands;
 using Scadex.Model.Entities;
+using Scadex.Signalization;
 using Scadex.WebAPI.BackgroundServices;
 using Scadex.WebAPI.Hubs;
 using Scadex.WebAPI.Tools;
@@ -274,7 +274,9 @@ builder.Services.AddScoped<ICaptureFileStore, CaptureFileStore>();
 
 
 builder.Services.AddControllers()
-    .AddJsonOptions(options => options.JsonSerializerOptions.SetByProjectSettings());
+    .AddJsonOptions(options => options.JsonSerializerOptions.SetByProjectSettings())
+    // Musteri/kurum modülleri — her birinin kendi "Modules:<Ad>:Enabled" ayarı kapalıysa servisleri de enpoinleri de yüklenmez. Yeni modül= buraya bir satır.
+    .AddSignalizationModule(builder.Configuration);
 
 builder.Services.AddOpenApi(options =>
 {

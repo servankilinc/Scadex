@@ -11,6 +11,7 @@ public class UserCreateDto : IDto
     public Guid CompanyId { get; set; }
     public string FullName { get; set; } = null!;
     public string? PhoneNumber { get; set; }
+    public string? IdentityCardId { get; set; }
 
     [CriticalData]
     public string Password { get; set; } = null!;
@@ -25,5 +26,6 @@ public class UserCreateDtoValidator : AbstractValidator<UserCreateDto>
         RuleFor(v => v.FullName).MinimumLength(4).WithMessage("Lütfen geçerli bir kullanıcı ism soyismi giriniz");
         RuleFor(v => v.Email).EmailAddress().When(v => !string.IsNullOrWhiteSpace(v.Email)).WithMessage("Geçerli bir e-posta adresi giriniz");
         RuleFor(v => v.Password).NotEmpty().MinimumLength(4).WithMessage("Parola en az 4 karakter olmalı");
+        RuleFor(v => v.IdentityCardId).MaximumLength(64).WithMessage("Kart numarası en fazla 64 karakter olabilir");
     }
 }

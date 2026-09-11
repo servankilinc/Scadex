@@ -54,6 +54,8 @@ Scadex/
 ├─ Scadex.Business/         # Servisler, gateway'ler, mapping, ayar sınıfları
 ├─ Scadex.WebAPI/           # Controller'lar, SignalR hub, hosted service'ler, Program.cs
 │  └─ mediamtx_v1.20.1/     # Medya sunucusu (uygulama tarafından başlatılmaz)
+├─ Scadex.Signalization/    # Müşteri modülü: sinyalizasyon operatör işlemi takibi (§ 10)
+│                           # — kendi context'i (signalization şeması), uçları, arka plan işleri
 └─ Scadex.WebUI/            # React 19 + Vite 8 + TS 6 — diyagram editörü, kamera izleme
                             # ve auth akışı yazıldı (çözüme dahil DEĞİL, ayrı çalıştırılır)
 ```
@@ -289,6 +291,32 @@ politikası ile.
 - Sonuç olarak SignalR'a `ChannelValuesChanged`, `DeviceStatusChanged` ve
   `CabinetStatusChanged` yayınlanır.
 
+**Kart okuma (SCADA → biz, 2026-09-11):** `POST /api/Scada/card`, ingest ile aynı controller
+(`[AllowAnonymous]`, `Scada` rate-limit politikası).
+
+```json
+{ "macAddress": "AA:BB:CC:DD:EE:FF", "cardId": "04A2B9C1", "timestampUtc": null }
+```
+
+- Kart numarası bir **ölçüm değildir**: `IoChannel`'a yazılmaz, `ChannelEvent` üretmez; çekirdek
+  **hiçbir satır yazmaz**. Okuyucu kimliği taşınmaz — kartın ne anlama geldiğine gözlemci karar verir.
+- Kabin ingest ile **aynı** yoldan çözülür (`IDeviceRepository.GetCabinetIdByControlModuleMacAsync`;
+  ingest'in 3. adımı da artık bunu kullanır). Bilinmeyen MAC 404, kabin pasif/SCADA kapalıysa red.
+- Kart, **aktif** kullanıcının `User.IdentityCardId`'siyle ham string olarak eşlenir. Tanımsız kart
+  SCADA için hata değildir (200) — kullanıcısız iletilir; güvenlik incelemesi ham kimliği ister.
+- `User.IdentityCardId`: aktif kullanıcılar arasında tekil (`IX_User_IdentityCardId`, filtre
+  `IdentityCardId IS NOT NULL AND IsActive = 1`), pasif kullanıcının kartı devredilebilir. Servis
+  `""`'ı `null`'a çeker ve çakışmayı DB kısıtından önce 400 ile yakalar (`errors.IdentityCardId`).
+  Kullanıcı ekranında (`/admin/users`) yazılır.
+
+**Gözlemci kancası — `IScadaEventObserver` (2026-09-11).** Çekirdek dışı modüllerin SCADA
+olaylarını dinlediği tek nokta (Business/Utils/ScadaEvents). Ingest, değer **gerçekten
+değişince** `OnChannelChangedAsync`, kart ucu `OnCardPresentedAsync` çağırır — ikisi de veri
+yazıldıktan ve SignalR yayınından **sonra**. Kayıtlı gözlemci yoksa maliyet sıfırdır; bir
+gözlemcinin istisnası loglanır ve isteği düşürmez. **Sözleşme:** gözlemci sıcak yoldadır, yalnızca
+kendi kuyruğuna bırakıp döner. İçinde SCADA'ya komut göndermek yasaktır: SCADA kartı bizim
+yanıtımızı beklerken aynı kartın web sunucusunu çağırmak tek iş parçacıklı firmware'de kilitlenmedir.
+
 **Komut (biz → SCADA):** `POST /api/Device/{deviceId}/command`, geçmiş için
 `GET /api/Device/{deviceId}/commands`.
 
@@ -463,7 +491,9 @@ Silme yoktur (`IActivatableEntity`); pasife alma tek yoldur.
   SCADA'nın tek IP'sini paylaştığı için varsayılan sınır boğardı), `MediaGateway` (300/5 sn).
   **Bir attribute'ta adı geçen politika `Program.cs`'te tanımlı değilse middleware istisna
   atar ve o uç HER istekte 500 döner** — politika adı silmeden/yeniden adlandırmadan önce
-  `RateLimiterKey`'e bakın.
+  `RateLimiterKey`'e bakın. **İstisna:** Sinyalizasyon modülünün uçlarına (§ 10) bilinçli olarak
+  politika takılmaz (2026-09-11 kararı); `Program.cs`'te genel bir limit olmadığı için bu uçlar
+  sınırsızdır, yalnızca `[Authorize]` arkasındadır.
 - `AddJwtBearer`'ın `OnMessageReceived`'ı token'ı query string'den okur, ama **yalnızca
   `/hubs` yolları için** (WebSocket el sıkışması Authorization header taşıyamaz). Bunu
   normal uçlara genişletmeyin.
@@ -497,6 +527,11 @@ değil, bilinçli bir karardır; `dotnet build` çıktısındaki 5 uyarı bu yü
 
 - **Yetki zorlanmıyor.** `permission` claim'i üretilip token'a konuyor, ama hiçbir
   `[Authorize(Policy = …)]` ya da handler onu okumuyor. `ControlOutput` dahil.
+  **Eklenirken dikkat (2026-09-11):** denetim **controller/policy katmanında** yapılmalı,
+  `DeviceCommandService.SendAsync` içinde değil. Sinyalizasyon motoru (§ 10) kilit ve siren
+  komutlarını HTTP kullanıcısı olmadan bu servisten gönderir; servis içi bir izin kontrolü onu
+  bloke ederdi. Cihaz bazlı izin (kullanıcı şu cihaza komut gönderebilir) ile fiziksel geçiş
+  yetkisi (operatör hangi kapıyı açabilir) farklı sorulardır ve çakışmaz.
 - **Pasife alınan kullanıcının access token'ı süresi dolana kadar (24 sa) geçerlidir.** İstek
   başına `IsActive` kontrolü yok; pasife alma yalnızca yeni girişi ve `RefreshAuth`'u keser.
   Rol / izin değişikliği de aynı sebeple kullanıcının **bir sonraki** giriş ya da yenilemesinde
@@ -708,10 +743,12 @@ başlayacaktı. Her iki çekimin `finally` bloğu da kendi yolunu düşürdü.
 oturumu** açar; kameranın eşzamanlı oturum limiti aşılırsa çekim "Medya geçidi klip dosyası
 üretmedi" ile düşer.
 
-**(h)** Kart okuyucu ingest'i: `DeviceType.CardReader` için ayrı bir uç (`{ "cardId": "…" }`);
-kart kimliği bir ölçüm olmadığı için `IoChannel`'a yazılmaz, `ChannelEvent` üretmez.
+**(h)** ~~Kart okuyucu ingest'i.~~ **TAMAMLANDI (2026-09-11)** — `POST /api/Scada/card`, § 5.3.
+Okuyucu kimliği gövdede yok: kartın hangi kapıyı açacağına gözlemci (modül) karar veriyor.
 
-**(i)** Otomasyon / iş akışı ve geçiş kontrolü modülleri (tasarlandı, yazılmadı).
+**(i)** Geçiş kontrolü — **müşteriye özel modül olarak yazıldı (2026-09-11)**, bkz. § 10.
+Genel otomasyon / iş akışı motoru (`Docs/data-structor.md` § 4.1) hâlâ yazılmadı; gelirse
+modülün yayınladığı olayları tetikleyici olarak tüketebilir.
 
 **(j)** ~~Saklama ve temizlik işleri.~~ **KISMEN TAMAMLANDI (2026-09-10).** Çekim dosyaları için
 `CaptureRetentionWorker` yazıldı. **Kanal olayları için hâlâ hiçbir temizlik yok ve bu bilinçli**
@@ -784,3 +821,136 @@ npm run lint
 - Değişikliğin sonunda `dotnet build` yeşil olmalı; frontend'e dokunduysanız
   `npm run lint && npm run build` de yeşil olmalı. (`typecheck` diye ayrı bir script **yoktur**;
   tip kontrolünü `build` içindeki `tsc -b` yapar.)
+
+---
+
+## 10. Müşteri modülleri — `Scadex.Signalization` (2026-09-11)
+
+Bir sinyalizasyon müşterisi için **operatör işlemi takibi**: dış kapı açılır → kamera 1 sn arayla
+5 kare çeker, sayaç başlar → operatör kart okutur, kurumunun iç kapı kilidi açılır → iç kapı
+anahtarı (switch) açılışı/kapanışı doğrular → iç kapı kapalıyken kart tekrar okutulunca kapı
+kilitlenir ve kabin sireni çalar → dış kapı kapanınca siren susar, işlem biter ve raporlanır.
+
+### Neden ayrı bir modül (genel workflow motoru değil)
+
+Senaryo durum tutan bir oturum makinesidir (korelasyon, kimlik, kapı bazlı yetki, anahtar
+doğrulaması, zamanlı çekim). Genel bir düğüm grafiği motoru bunu ancak BPM motoruna dönüşerek
+taşıyabilirdi; `Docs/data-structor.md` § 4.3 de geçiş kontrolünü workflow'dan ayrı bir modül
+olarak tasarlamıştı. Firmaya özel iş çekirdeğe **girmez**:
+
+```
+Core → Model → DataAccess → Business → WebAPI
+                                ↑          │
+                    Scadex.Signalization ←─┘   (yalnızca WebAPI referans alır; Modules:Signalization:Enabled ile yüklenir)
+```
+
+Çekirdeğe eklenen üç şey de **genel amaçlıdır**: `User.IdentityCardId`, `POST /api/Scada/card`,
+`IScadaEventObserver` (§ 5.3).
+
+### Modül açma/kapama — `Modules:Signalization:Enabled`
+
+Modül **kurulum başına** açılır; firma kimliği kodda sorulmaz. Tanımsız = kapalı:
+`appsettings.json`'da `false`, `appsettings.Development.json`'da `true`. Modülü kullanan müşteri
+kurulumu kendi ortam dosyasında ya da `Modules__Signalization__Enabled=true` ile açar.
+
+Kayıt `Program.cs`'te `AddControllers()` zincirindedir: `.AddSignalizationModule(configuration)`.
+MVC builder'a bağlanmasının sebebi, kapalıyken iki şeyin birden yapılması gerekmesidir:
+
+- Context, servisler, üç arka plan işi ve `IScadaEventObserver`
+  **kaydedilmez**. Modülün migration'ı uygulanmamış bir kurulumda zamanlayıcı 2 sn'de bir hata
+  loglamaz; ingest kuyruğa olay bırakmaz; kart okuması "kayıtlı gözlemci yok" uyarısıyla loglanır.
+- Modülün controller'ları **ApplicationPart listesinden çıkarılır**. Assembly WebAPI'nin referansı
+  olduğu için controller'lar otomatik keşfedilir; yalnızca servisler koşullansaydı uçlar her
+  istekte DI hatasıyla 500 dönerdi. Çıkarılınca 404 döner ve OpenAPI'de görünmezler. Açıkken
+  assembly açıkça eklenir (iki kez eklenmez — uçlar belirsiz eşleşirdi).
+
+**Yeni modül aynı kalıbı izler:** `Modules:<Ad>:Enabled` + zincire `.Add<Ad>Module(...)` satırı.
+Reflection ile modül keşfi bilinçli olarak yok — kompozisyon kökündeki açık liste, neyin
+yüklendiğini okunur tutar. Frontend'deki `VITE_MODULES` bunun aynasıdır ve ayrıca ayarlanır.
+`dotnet ef` tasarım zamanında `Development` ortamını kullanır; modül orada açık olduğu için
+modülün migration komutları çalışır.
+
+**Doğrulandı (2026-09-11):** Production ortamında (kapalı) modül uçları 404, OpenAPI'de yok,
+modül işleri başlamadı, çekirdek uçlar/ingest/kart 200. Development'ta (açık) uçlar 200, üç iş
+başladı, dış kapı açılıp kapanınca oturum açılıp kapandı.
+
+### Kararlar
+
+- **Kimlik = mevcut `User`**, ayrı Operator tablosu yok. **Kurum = rol**: Belediye / Emniyet /
+  Sinyalizasyon çekirdekte *veri* olarak açılan rollerdir; modül hangi rolün "kurum rolü"
+  olduğunu `signalization.Authority` tablosunda bilir. Böylece ikinci bir yetki yapısı doğmaz.
+  **Bir personelin tek kurumu vardır** → kabin başına tek iç kapısı. Modülün operatör ekranı
+  (`PUT /api/SignalOperator/{userId}/authority`) diğer kurum rollerini çıkarıp seçileni ekler ve
+  bunu çekirdeğin rol sync'i ile yazar; `/admin/users`'tan elle iki kurum rolü verilmişse kart
+  `MultipleAuthorities` ile reddedilir.
+- **Kapı sanaldır; ilişki kanala (`IoChannel`) kurulur, `Device`'a değil.** `Device` bir kartın
+  tamamıdır — üç kurumun anahtarları aynı giriş kartında, kilitleri aynı röle kartında durabilir;
+  yetki karta bağlansaydı belediye operatörü emniyet kilidine de yetkili olurdu.
+  `SignalInnerDoor` = anahtar kanalı + kilit kanalı + ad + kurum; `SignalOuterDoor` = anahtar
+  kanalı + kamera. Diyagramdaki saha cihazı yalnızca **etiket** olarak kullanılır (tek adımlık
+  kablo; klemens üzerinden izleme yok).
+- **Hiyerarşi:** kabin (ortak siren) → dış kapılar (anahtar, kamera) → iç kapılar (kurum, anahtar,
+  kilit). Kabinde her kurumun en fazla bir aktif iç kapısı olur — kart okuma bu sayede tek kapıya
+  çözülür. Okuyucu kimliği gövdede yoktur.
+- **Oturum dış kapı başınadır**; iki dış kapı aynı anda bağımsız oturum taşır
+  (`IX_OperatorSession_OuterDoorId`, unique, `WHERE EndedAtUtc IS NULL`).
+- **Kilit tipi sürekli (aç / kilitle).** Darbeli kilit kapsam dışı. `UnlockTurnsOn` kilidin
+  kendi mantığıdır (fail-secure/fail-safe); NO/NC terslemesi ayrıca çekirdekte çözülür.
+  ⚠ Rölenin hem NO hem NC pini olan bir şablonda kilit/siren kanalının pini diyagramda
+  **kablolu olmalıdır**, yoksa çekirdek komutu reddeder ("Output pini çözülemedi") ve olay
+  `CommandFailed` olarak görünür.
+- **Siren kabin başına tektir ve ortaktır.** Oturumlar yalnızca **talep** açar/kapatır; fiziksel
+  siren "en az bir açık talep var mı" sorusuna **uzlaştırılır** (`SignalCabinetState`). Talep:
+  kartla kilitleme başarılı **ve** o dış kapının ardındaki tüm iç kapılar kilitliyse açılır;
+  `SirenDurationSec` dolunca, ilgili dış kapı kapanınca ya da aynı dış kapının ardında kilit
+  yeniden açılınca kapanır. İki talep aynı anda açıkken siren ikisi de kapanana kadar çalar ve
+  SCADA'ya tek "aç", tek "kapat" gider.
+- **Oturum sonu:** dış kapı kapanırken kilitsiz iç kapının anahtarı kapalıysa otomatik kilitlenir
+  (`AutoLocked`), açıksa kilitlenmez ve `InnerDoorLeftOpen` bayrağı konur.
+- **Kartsız giriş:** `AwaitingCardTimeoutSec` içinde yetkili kart okutulmazsa `UnauthorizedEntry`
+  bayrağı; oturum kapanmaz. `UnauthorizedEntry` ve `ForcedOpen` **güvenlik uyarısıdır**
+  (`AlertFlags`, DTO'da `hasAlert`): canlı panelde vurgulanır. **Onay akışı yoktur**
+  (2026-09-11 kararı) — bayrak oturum kaydında kalıcıdır, rapordan `flags` filtresiyle bulunur.
+  Uyarılı bir oturum iki yoklama arasında açılıp kapanırsa canlı panelde görünmeyebilir; kayıt kalır.
+  `SessionEventType` 16 boştur (eski `AlertAcknowledged`) — numara başka bir tipe verilmez.
+
+### Çalışma zamanı
+
+- `SignalizationScadaObserver` yalnızca kuyruğa bırakır. `SignalEventWorker` **kabin bazında
+  sıralı, kabinler arasında paralel** işler (kabin başına bir şerit): durum makinesinde yarış
+  olmaz, bir kabinde SCADA'nın 180 sn'lik zaman aşımı diğerlerini bekletmez.
+- `EntrySnapshotWorker` kareleri şeridin **dışında**, başlangıçtan başlangıca `T0 + i × aralık`
+  zamanlamasıyla çeker (`ICameraService.CreateCaptureAsync` — snapshot önbelleğini atlar).
+- `SignalTimerWorker` 2 sn'de bir tarar (siren süresi, kart bekleme, azami oturum süresi) ve
+  kararları **aynı kabin şeridine** bırakır. Süreler veritabanında (`*DueAtUtc`) — yeniden
+  başlatmada kaybolmaz; hassasiyet ±2 sn.
+- Komutlar `IDeviceCommandService.SendAsync`'ten geçer, **retry yoktur**; başarısız komutta kapı
+  durumu değişmez, `CommandFailed` olayı ve bayrağı yazılır.
+
+### Uçlar
+
+| Uç | Not |
+|---|---|
+| `GET` · `PUT /api/SignalAuthority` | Kurum ↔ rol; PUT tam liste, aktif iç kapıda kullanılan kurum pasife alınamaz |
+| `GET /api/SignalOperator` · `PUT /api/SignalOperator/{userId}/authority` | Tek kurum seçimi, çekirdeğin rol sync'iyle yazılır |
+| `GET` · `PUT /api/SignalCabinet/{cabinetId}` · `GET …/options` | Yapılandırma ağacı (tam ağaç, Guid'i istemci üretir, çıkan kapı pasife); seçenekler kanalları kullanım bilgisi ve kablo etiketiyle verir |
+| `GET /api/OperatorSession/open` | Canlı panel: yalnızca açık oturumlar; aşama türetilir, `hasAlert` güvenlik uyarısını gösterir |
+| `POST /api/OperatorSession/list` · `GET /{id}` · `POST /summary` | Rapor: sayfalı liste, detay (zaman çizelgesi, kapı özeti, kareler), operatör/kurum/kabin özeti |
+
+### Bilinen sonuçlar
+
+- Kare dosyaları global `CaptureRetentionDays`'e tabidir; süresi dolunca rapordaki görüntü gider
+  (satır kalır). Kanıt kalıcı olsun isteniyorsa ayar 0 yapılmalı.
+- Aynı kurumdan iki operatör aynı kapıda çalışırsa, kapı kapalıyken okutulan ikinci kart kilitler.
+- Kurum yetkisi tüm kabinlerde geçerlidir; kabin bazlı kısıt gelecekteki izin sistemine kalır.
+- Bellek içi kuyruk: yeniden başlatmada işlenmemiş SCADA olayı kaybolabilir (zamanlayıcı işleri
+  kaybolmaz).
+
+### Doğrulandı (2026-09-11, sahte SCADA + sahte kamera ile)
+
+Tek operatör akışı (5 kare ~1 sn arayla, aç → doğrula → kilitle → siren → dış kapı kapanınca
+sus), iki operatör (siren yalnızca hepsi kilitliyken, yeniden açılışta susar), paralel dış kapılar
+ve ortak siren (tek aç / tek kapat), siren zaman aşımı, kartsız giriş (kalıcı uyarı bayrağı), red gerekçeleri
+(`UnknownCard`, `NoAuthority`, `MultipleAuthorities`), `ForcedOpen`, kapı açıkken kilitleme
+reddi, SCADA 500'de `CommandFailed` ve tek deneme, `InnerDoorLeftOpen`, yapılandırma doğrulama
+400'leri ve yapılandırmasız kabinde çekirdeğin değişmeden çalışması.

@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Controller, useForm } from 'react-hook-form';
+import { Controller, useForm, type UseFormRegisterReturn } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { PencilIcon, PlusIcon, ShieldIcon, UserIcon } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
@@ -95,6 +95,7 @@ function UserCard({ user, isSelf, onEdit, onRoles }: { user: UserDetailDto; isSe
 
       <CardContent className='flex flex-col gap-3'>
         {user.email && <p className='truncate text-sm text-muted-foreground'>{user.email}</p>}
+        {user.identityCardId && <p className='truncate text-xs text-muted-foreground'>Kart: {user.identityCardId}</p>}
 
         {/* Pasif kayitlar listede GORUNUR — geri alinabilsin diye. */}
         {(isSelf || !user.isActive) && (
@@ -119,6 +120,22 @@ function UserCard({ user, isSelf, onEdit, onRoles }: { user: UserDetailDto; isSe
   );
 }
 
+/**
+ * Kart okuyucudan gelen HAM kart kimliği. Sunucu ham string karşılaştırması yapar
+ * (normalizasyon yok) — SCADA'nın gönderdiği yazımla girilmeli. Aktif kullanıcılar
+ * arasında tekildir; pasif kullanıcının kartı başkasına verilebilir.
+ */
+function IdentityCardField({ id, registration, error }: { id: string; registration: UseFormRegisterReturn; error?: string }) {
+  return (
+    <Field>
+      <FieldLabel htmlFor={id}>Kart numarası</FieldLabel>
+      <Input id={id} autoComplete='off' {...registration} />
+      <FieldDescription>İsteğe bağlı; kart okuyucunun gönderdiği biçimde girin. Boş bırakmak kartı kaldırır.</FieldDescription>
+      {error && <FieldError>{error}</FieldError>}
+    </Field>
+  );
+}
+
 // ─────────────────────────────────────────────────────────── yeni kullanıcı
 
 function UserCreateDialog({ onClose }: { onClose: () => void }) {
@@ -129,7 +146,7 @@ function UserCreateDialog({ onClose }: { onClose: () => void }) {
 
   const form = useForm<UserCreateRequest>({
     resolver: zodResolver(userCreateRequestSchema),
-    defaultValues: { userName: '', fullName: '', companyId: '', email: '', phoneNumber: '', password: '' }
+    defaultValues: { userName: '', fullName: '', companyId: '', email: '', phoneNumber: '', identityCardId: '', password: '' }
   });
 
   const mutation = useCreateUser();
@@ -202,6 +219,8 @@ function UserCreateDialog({ onClose }: { onClose: () => void }) {
               {errors.phoneNumber && <FieldError>{errors.phoneNumber.message}</FieldError>}
             </Field>
 
+            <IdentityCardField id='user-card' registration={form.register('identityCardId')} error={errors.identityCardId?.message} />
+
             <Field>
               <FieldLabel htmlFor='user-password'>Parola</FieldLabel>
               <Input id='user-password' type='password' autoComplete='new-password' {...form.register('password')} />
@@ -226,12 +245,18 @@ function UserCreateDialog({ onClose }: { onClose: () => void }) {
 // ─────────────────────────────────────────────────────────── kullanıcı düzenle
 
 /**
- * `GET /{id}/update` ucuna gerek YOK: `UserUpdateDto`'nun dört alanı da listede var.
+ * `GET /{id}/update` ucuna gerek YOK: `UserUpdateDto`'nun tüm alanları listede var.
  */
 function UserEditDialog({ user, isSelf, onClose }: { user: UserDetailDto; isSelf: boolean; onClose: () => void }) {
   const form = useForm<UserUpdateRequest>({
     resolver: zodResolver(userUpdateRequestSchema),
-    defaultValues: { id: user.id, fullName: user.fullName, phoneNumber: user.phoneNumber ?? '', isActive: user.isActive }
+    defaultValues: {
+      id: user.id,
+      fullName: user.fullName,
+      phoneNumber: user.phoneNumber ?? '',
+      identityCardId: user.identityCardId ?? '',
+      isActive: user.isActive
+    }
   });
 
   const mutation = useUpdateUser();
@@ -267,6 +292,8 @@ function UserEditDialog({ user, isSelf, onClose }: { user: UserDetailDto; isSelf
               <Input id='user-edit-phone' type='tel' {...form.register('phoneNumber')} />
               {errors.phoneNumber && <FieldError>{errors.phoneNumber.message}</FieldError>}
             </Field>
+
+            <IdentityCardField id='user-edit-card' registration={form.register('identityCardId')} error={errors.identityCardId?.message} />
 
             <div className='rounded-lg border p-3'>
               <Field orientation='horizontal'>

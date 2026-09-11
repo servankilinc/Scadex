@@ -11,6 +11,7 @@ public class UserDetailDto : IDto
     public string CompanyName { get; set; } = null!;
     public string FullName { get; set; } = null!;
     public string? PhoneNumber { get; set; }
+    public string? IdentityCardId { get; set; }
     public string? CreatedBy { get; set; }
     public string? UpdatedBy { get; set; }
     public DateTime? CreateDateUtc { get; set; }

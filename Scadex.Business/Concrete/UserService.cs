@@ -128,6 +128,12 @@ public class UserService : IUserService
         if (!string.IsNullOrWhiteSpace(request.Email) && await _userManager.FindByEmailAsync(request.Email) != null)
             return Result.Validation(new Dictionary<string, string[]> { [nameof(request.Email)] = new[] { "Bu e-posta adresi zaten kullaniliyor." } }, message: "Bu e-posta adresi zaten kullaniliyor.");
 
+        // Kullanıcı kartı normalize edilir ve benzersiz olmalı
+        request.IdentityCardId = NormalizeIdentityCardId(request.IdentityCardId);
+        var cardConflict = await ValidateIdentityCardIdAsync(request.IdentityCardId, excludeUserId: null, cancellationToken);
+        if (cardConflict != null)
+            return cardConflict;
+
         var user = _mapper.Map<User>(request);
         user.IsActive = true;
         var identityResult = await _userManager.CreateAsync(user, request.Password);
@@ -165,6 +171,15 @@ public class UserService : IUserService
         if (entity == null)
             return Result.NotFound();
 
+        // Pasife alinan kullanicinin karti index filtresi disinda kalir; cakisma yalnizca aktif kalacak kullanicida aranir.
+        request.IdentityCardId = NormalizeIdentityCardId(request.IdentityCardId);
+        if (request.IsActive)
+        {
+            var cardConflict = await ValidateIdentityCardIdAsync(request.IdentityCardId, excludeUserId: request.Id, cancellationToken);
+            if (cardConflict != null)
+                return cardConflict;
+        }
+
         bool isDeactivated = entity.IsActive && !request.IsActive;
         await _unitOfWork.Users.UpdateAndSaveAsync(_mapper.Map(request, entity), cancellationToken);
 
@@ -194,6 +209,30 @@ public class UserService : IUserService
     {
         var result = await _unitOfWork.Users.DatatableServerSideAsync<UserDetailDto>(configurationProvider: _mapper.ConfigurationProvider, datatableRequest: request, include: i => i.Include(x => x.Company), cancellationToken: cancellationToken);
         return Result<DatatableResponseServerSide<UserDetailDto>>.Success(result);
+    }
+    #endregion
+
+    #region Helpers
+    /// <summary> boş kart id metni <c>null</c>'a çekilir(Db de veri varsa benzersiz olmlaı boş string çakışma yaratır dı) </summary>
+    private static string? NormalizeIdentityCardId(string? identityCardId) => string.IsNullOrWhiteSpace(identityCardId) ? null : identityCardId.Trim();
+
+    /// <summary> Kartin baska bir AKTIF kullanicida olup olmadigini kontrol eder yoksa çakışma oluşur </summary>
+    private async Task<Result?> ValidateIdentityCardIdAsync(string? identityCardId, Guid? excludeUserId, CancellationToken cancellationToken)
+    {
+        if (identityCardId == null)
+            return null;
+
+        var owner = await _unitOfWork.Users.GetAsync(
+            select: u => new { u.Id, u.FullName },
+            where: u => u.IsActive && u.IdentityCardId == identityCardId && (excludeUserId == null || u.Id != excludeUserId),
+            cancellationToken: cancellationToken
+        );
+
+        if (owner == null)
+            return null;
+
+        string message = $"Bu kart numarası başka bir aktif kullanıcıya ({owner.FullName}) tanımlı.";
+        return Result.Validation(new Dictionary<string, string[]> { [nameof(UserCreateDto.IdentityCardId)] = new[] { message } }, message: message);
     }
     #endregion
 }

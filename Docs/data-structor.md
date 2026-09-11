@@ -858,6 +858,21 @@ NotificationChannelType  Email=0, SMS=1, Webhook=2, Telegram=3, PushNotification
 
 ### 4.3 Access Control (kart okuyucu ile giriş)
 
+> **UYGULANDI — müşteriye özel modül olarak (2026-09-11): `Scadex.Signalization`,
+> `signalization` şeması.** Ayrıntı ve kararlar `PROJECT_OVERVIEW.md` § 10'dadır. Aşağıdaki referans
+> modelden **bilinçli sapmalar**:
+> - `AccessCard` / `AccessCardCabinet` **yok**: kart `User.IdentityCardId`'dir, kapı yetkisi
+>   **rol** üzerinden (`signalization.Authority` = kurum ↔ rol). İkinci bir yetki yapısı açılmadı.
+> - `AccessControlConfig` tek satır değil, **ağaç**: `signalization.Cabinet` (ortak siren, süreler) →
+>   `OuterDoor` (anahtar kanalı, kamera) → `InnerDoor` (kurum, anahtar kanalı, kilit kanalı).
+>   Kabinde birden fazla dış kapı ve her dış kapının ardında birden fazla iç kapı olabilir.
+> - Oturum kabin başına değil **dış kapı başına** (`OperatorSession`, tekil açık oturum indeksi
+>   `OuterDoorId` üzerinde). `Status` + `[Flags]` uyarı bayrakları; aşama türetilir.
+> - `CameraCapture`'a `AccessSessionId` **eklenmedi** (çekirdek kirlenirdi): bağ modülde
+>   `OperatorSessionCapture` tablosunda.
+> - Kart ucu `{ cabinetId, cardId }` değil `{ macAddress, cardId }` (§ 5.3 ingest ile aynı çözüm).
+> - Hareket sensörü yok; oturumu dış kapı anahtarı açar.
+
 **Neden yok.** Kart okuyucu, kapı sensörü ve kilit **kanal olarak** modellenebiliyor (`DeviceType.CardReader = 10` zaten var), ama oturum durum makinesi ve kart yönetimi ayrı bir modüldür.
 
 #### Model

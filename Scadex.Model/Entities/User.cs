@@ -11,6 +11,7 @@ public class User : IdentityUser<Guid>, IEntity, IAuditableEntity, IActivatableE
     //public string? PhoneNumber { get; set; }
     public Guid CompanyId { get; set; }
     public string FullName { get; set; } = null!;
+    public string? IdentityCardId { get; set; }
 
     #region --- IAuditableEntity ---
     public string? CreatedBy { get; set; }

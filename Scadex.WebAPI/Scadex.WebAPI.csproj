@@ -18,6 +18,10 @@
 
   <ItemGroup>
     <ProjectReference Include="..\Scadex.Business\Scadex.Business.csproj" />
+    
+	<!-- MODULES -->
+    <ProjectReference Include="..\Scadex.Signalization\Scadex.Signalization.csproj" />
+    <!-- MODULES -->
   </ItemGroup>
 
 </Project>

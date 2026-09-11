@@ -3,5 +3,6 @@
   <Project Path="Scadex.Core/Scadex.Core.csproj" />
   <Project Path="Scadex.DataAccess/Scadex.DataAccess.csproj" />
   <Project Path="Scadex.Model/Scadex.Model.csproj" />
+  <Project Path="Scadex.Signalization/Scadex.Signalization.csproj" Id="80c89038-9fcd-48a4-b8d3-f1d4dcc19862" />
   <Project Path="Scadex.WebAPI/Scadex.WebAPI.csproj" />
 </Solution>
