@@ -37,7 +37,7 @@ public partial class SignalCabinetService : ISignalCabinetService
     {
         var cabinet = await _unitOfWork.Cabinets.GetAsync(select: c => new { c.Id, c.Name }, where: c => c.Id == cabinetId, cancellationToken: cancellationToken);
         if (cabinet == null)
-            return Result<SignalCabinetDto>.NotFound(description: "Kabin bulunamadi");
+            return Result<SignalCabinetDto>.NotFound(message: "Kabin bulunamadı.");
 
         var config = await _db.Cabinets.AsNoTracking()
             .Include(c => c.OuterDoors!).ThenInclude(d => d.InnerDoors!).ThenInclude(i => i.State)
@@ -99,7 +99,7 @@ public partial class SignalCabinetService : ISignalCabinetService
     {
         bool cabinetExists = await _unitOfWork.Cabinets.IsExistAsync(where: c => c.Id == cabinetId, cancellationToken: cancellationToken);
         if (!cabinetExists)
-            return Result<SignalCabinetOptionsDto>.NotFound(description: "Kabin bulunamadi");
+            return Result<SignalCabinetOptionsDto>.NotFound(message: "Kabin bulunamadı.");
 
         // Silinmis (pasif) kartin kanallari yerinde kalir (§5.2) ama secenek olarak sunulmaz.
         var channels = await _unitOfWork.IoChannels.GetAllAsync(

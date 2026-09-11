@@ -85,7 +85,7 @@ public class SignalOperatorService : ISignalOperatorService
     {
         var user = await _unitOfWork.Users.GetAsync(select: u => new { u.Id }, where: u => u.Id == userId && u.IsActive, cancellationToken: cancellationToken);
         if (user == null)
-            return Result.NotFound(description: "Kullanıcı bulunamadı veya pasif durumda");
+            return Result.NotFound(message: "Kullanıcı bulunamadı veya pasif durumda.");
 
         var authorities = await _db.Authorities.AsNoTracking().Where(a => a.IsActive).ToListAsync(cancellationToken);
         var roleNames = await LoadRoleNamesAsync(authorities.Select(a => a.RoleId), cancellationToken);
@@ -103,7 +103,7 @@ public class SignalOperatorService : ISignalOperatorService
 
         var current = await _userRoleService.GetRolesOfUserAsync(userId, cancellationToken);
         if (!current.IsSuccess)
-            return Result.NotFound(description: "Kullanıcının rolleri okunamadı");
+            return Result.NotFound(message: "Kullanıcının rolleri okunamadı.");
 
         // Kurum disi roller korunur; TUM kurum rolleri cikarilir ve (varsa) secilen eklenir — tek kurum kurali kaynaginda.
         var authorityRoleKeys = roleNames.Values.Select(n => n.ToUpperInvariant()).ToHashSet();

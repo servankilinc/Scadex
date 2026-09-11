@@ -22,6 +22,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { ReactQueryDevtools } from '@tanstack/react-query-devtools';
 import { ApiError } from '@/lib/axios-helper.ts';
 import RequireAuth from '@/components/custom/require-auth.tsx';
+import { enabledModules } from '@/modules';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -100,6 +101,12 @@ const router = createBrowserRouter([
                   }
                 ]
               },
+              // #endregion
+
+              // #region (1b) Müşteri modülleri
+              // Tek birleştirme noktası: `VITE_MODULES` ile açık modüllerin rotaları. Ekranları
+              // modülün kendi manifestosunda `lazy` — kapalı modül ana pakete ekran kodu taşımaz.
+              ...enabledModules.flatMap(module => module.routes),
               // #endregion
 
               // #region (2) Admin-Layer

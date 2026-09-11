@@ -1,8 +1,10 @@
+import { Suspense } from 'react';
 import { Outlet } from 'react-router';
 import { SidebarInset, SidebarProvider, SidebarTrigger } from '@/components/ui/sidebar';
 import { Separator } from '@/components/ui/separator';
 import { AppSidebar } from '@/components/custom/app-sidebar';
 import AppBreadcrumb from '@/components/custom/app-breadcrumb';
+import { enabledModules } from '@/modules';
 
 /**
  * Uygulamanın TEK layout'u.
@@ -37,6 +39,15 @@ export default function AppLayout() {
           </main>
         </div>
       </SidebarInset>
+      {/* Açık modüllerin ekransız eklentileri (örn. canlı uyarı yoklayıcısı): oturum
+          açık olduğu sürece hangi sayfada olunursa olsun BİR KEZ çalışırlar. */}
+      {enabledModules.map(({ key, LayoutExtension }) =>
+        LayoutExtension ? (
+          <Suspense key={key} fallback={null}>
+            <LayoutExtension />
+          </Suspense>
+        ) : null
+      )}
     </SidebarProvider>
   );
 }

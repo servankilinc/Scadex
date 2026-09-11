@@ -57,7 +57,7 @@ public partial class OperatorSessionService
             .FirstOrDefaultAsync(s => s.Id == sessionId, cancellationToken);
 
         if (session == null)
-            return Result<OperatorSessionDetailDto>.NotFound(description: "Oturum bulunamadı");
+            return Result<OperatorSessionDetailDto>.NotFound(message: "İşlem bulunamadı.");
 
         var operators = (session.Operators ?? []).OrderBy(o => o.FirstCardAtUtc).ToList();
         var events = (session.Events ?? []).OrderBy(e => e.OccurredAtUtc).ThenBy(e => e.Id).ToList();

@@ -19,7 +19,7 @@ public partial class SignalCabinetService
 
         var cabinet = await _unitOfWork.Cabinets.GetAsync(select: c => new { c.Id, c.IsActive }, where: c => c.Id == cabinetId, cancellationToken: cancellationToken);
         if (cabinet == null || !cabinet.IsActive)
-            return Result.NotFound(description: "Kabin bulunamadi veya pasif durumda");
+            return Result.NotFound(message: "Kabin bulunamadı veya pasif durumda.");
 
         // 2) Referans dogrulamasi — transaction ACILMADAN once (acip geri almak yerine hic acmamak).
         var errors = await ValidateReferencesAsync(cabinetId, request, cancellationToken);

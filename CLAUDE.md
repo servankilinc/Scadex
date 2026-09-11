@@ -209,6 +209,7 @@ Bunlar tek bir dosyaya bakarak görülemez; gerekçeleri PROJECT_OVERVIEW.md §5
 | `src/lib/camera/` | WHEP oynatıcı, stream bütçesi, oturum ve kare yakalama |
 | `src/lib/signalr/` | `diagram-hub.ts` — `/hubs/diagram` istemcisi |
 | `src/views/{auth,app,admin}/` | Ekranlar; `src/layouts/` bunları sarar |
+| `src/modules/` | Müşteri modülleri. `index.ts > REGISTRY` + `VITE_MODULES` tek birleştirme noktası; her modülün manifestosu (`AppModule`) rota/menü/layout eklentisi verir, ekranları `lazy`. Modül kendi `api/ models/ hooks/ views/` klasörlerini taşır, sorgu anahtarları `['signalization', …]` altında |
 
 Yığın: React 19 + Vite 8 + TS 6, React Flow (`@xyflow/react`), TanStack Query, Redux Toolkit,
 shadcn + Tailwind 4, react-hook-form + zod, MapLibre, Recharts.

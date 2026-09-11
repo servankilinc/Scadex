@@ -46,6 +46,11 @@ import { useCurrentUser } from '@/lib/auth-session';
 import { logout } from '@/api/auth';
 import { useAppDispatch, useAppSelector } from '@/hooks';
 import { setTheme, type Theme } from '@/store/reducers/themeSlice';
+import { enabledModules } from '@/modules';
+import type { ModuleNavItem } from '@/modules/types';
+
+/** Modül menüsüyle aynı biçim — çekirdek ve modül maddeleri tek bileşenle çizilir. */
+type NavItem = ModuleNavItem;
 
 /**
  * Uygulama kenar çubuğu.
@@ -60,12 +65,6 @@ import { setTheme, type Theme } from '@/store/reducers/themeSlice';
  * olmayan bağlantıdan kötüdür. `/admin` kendisi hâlâ boş olduğu için listede
  * yok; yalnızca gerçekten çalışan `/admin/templates` var.
  */
-
-interface NavItem {
-  title: string;
-  url: string;
-  icon: LucideIcon;
-}
 
 const NAV_ITEMS: NavItem[] = [
   { title: 'Kabinler', url: '/cabinets', icon: CpuIcon },
@@ -101,7 +100,11 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
       </SidebarHeader>
 
       <SidebarContent>
-        <MainNav />
+        <NavGroup label='Uygulama' items={NAV_ITEMS} />
+        {/* Açık müşteri modülleri kendi grubunda (VITE_MODULES); kapalıysa hiç görünmez. */}
+        {enabledModules.map(module => (
+          <NavGroup key={module.key} label={module.title} items={module.navItems} />
+        ))}
       </SidebarContent>
 
       <SidebarFooter>
@@ -111,14 +114,14 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   );
 }
 
-function MainNav() {
+function NavGroup({ label, items }: { label: string; items: NavItem[] }) {
   const { pathname } = useLocation();
 
   return (
     <SidebarGroup>
-      <SidebarGroupLabel>Uygulama</SidebarGroupLabel>
+      <SidebarGroupLabel>{label}</SidebarGroupLabel>
       <SidebarMenu>
-        {NAV_ITEMS.map(item => (
+        {items.map(item => (
           <SidebarMenuItem key={item.url}>
             <SidebarMenuButton
               tooltip={item.title}

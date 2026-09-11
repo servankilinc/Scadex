@@ -874,6 +874,46 @@ modülün migration komutları çalışır.
 modül işleri başlamadı, çekirdek uçlar/ingest/kart 200. Development'ta (açık) uçlar 200, üç iş
 başladı, dış kapı açılıp kapanınca oturum açılıp kapandı.
 
+### Arayüz — `Scadex.WebUI/src/modules/signalization/`
+
+Çekirdek arayüz modülü tanımaz; tek birleştirme noktası `src/modules/index.ts`'teki `REGISTRY` ve
+`VITE_MODULES` (virgülle ayrılmış adlar, `.env.*`). Açık modülün manifestosu (`AppModule`:
+rotalar, menü maddeleri, `LayoutExtension`) üç yerden okunur: `main.tsx` (AppLayout altına
+rotalar), `app-sidebar.tsx` (kendi menü grubu), `layouts/app.tsx` (ekransız eklenti). Manifesto
+ana pakete girer ama ekran içermez — bütün ekranlar ve uyarı yoklayıcısı `lazy`; kapalı kurulum
+modül kodunu indirmez. Backend'de kapalı modülü burada açmak ekranların 404 almasıdır; canlı
+yoklama 404'te kendini durdurur.
+
+| Rota | Ekran |
+|---|---|
+| `/signalization/sessions` | Canlı panel (açık oturumlar, 5 sn yoklama, geçen süre sayacı) + filtreli sayfalı geçmiş (kabin, durum, bayrak, kurum, operatör, tarih) |
+| `/signalization/sessions/:id` | Özet, operatörler, iç kapı özeti, büyütülebilir giriş kareleri, zaman çizelgesi; açık oturumda 3 sn yoklama |
+| `/signalization/report` | Dönem özeti (KPI + operatör / kurum / kabin kırılımı, Recharts) |
+| `/signalization/cabinets?cabinetId=` | Kabin → dış kapı → iç kapı ağaç editörü (tam ağaç kaydı) |
+| `/signalization/authorities` | Kurum ↔ rol listesi (tam liste kaydı; çıkarılan pasife alınır, geri alınabilir) |
+| `/signalization/operators` | Aktif kullanıcılar, kart no, tek kurum seçimi (seçim anında kaydedilir) |
+
+- **Canlı uyarı** `session-alert-watcher` ile: layout'a bir kez takılır, `/open`'ı 10 sn'de bir
+  (sekme arka plandayken de) yoklar ve `hasAlert` taşıyan her açık oturum için **oturum başına bir
+  kez** kalıcı bir bildirim çıkarır ("Detay" eylemiyle). Onay yok; bildirimi kapatmak bayrağa
+  dokunmaz. SignalR olayı bilerek eklenmedi.
+- **Ağaç formunun hata yolları:** sunucu anahtarı `OuterDoors[0].InnerDoors[1].LockIoChannelId`
+  biçimindedir; çekirdeğin `handleFormApiError`'ı yalnızca ilk harfi küçülttüğü için modül kendi
+  çeviricisini kullanır (`lib.ts > toFormPath` → `outerDoors.0.innerDoors.1.lockIoChannelId`).
+- Form kimlik alanları `doorId` / `authorityId` adını taşır: `useFieldArray` kendi `id`
+  anahtarını üretir. Zod şemaları sunucu validator'larının elle tutulan kopyasıdır; editör ayrıca
+  sunucunun gövde içi iki referans kuralını (kanal tek kapıda, kurum kabinde tek iç kapıda) erken
+  gösterir.
+- Kapı editörü kaydedilmemiş değişiklikle çıkışı engeller (uygulama içi gezinme + kabin
+  değiştirme `useBlocker`, sekme kapatma `beforeunload`).
+- Galeri, satırı `Available` görünen ama dosyası diskte olmayan kareyi kırık resim yerine
+  "Dosya sunucuda bulunamadı" olarak gösterir.
+
+**Doğrulandı (2026-09-11):** headless Edge + CDP ile altı ekran, filtreler, galeri, kayıt
+(sunucudan geri okunarak), istemci doğrulamaları, çıkış engeli ve kartsız giriş bildirimi
+(başka bir sayfadayken) uçtan uca çalıştırıldı; konsol hatası yok. `npm run build` modül
+ekranlarını ayrı parçalara böler.
+
 ### Kararlar
 
 - **Kimlik = mevcut `User`**, ayrı Operator tablosu yok. **Kurum = rol**: Belediye / Emniyet /
