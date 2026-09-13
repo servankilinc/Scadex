@@ -79,8 +79,16 @@ bunları sırayla çağırır.
 
 **Büyük servisler partial sınıflara bölünür, `#region` ile değil — gruplama birimi dosyadır:**
 `CameraService.cs` + `.Streaming` + `.Snapshot` + `.Capture` + `.Monitoring`,
-`DiagramService.cs` + `.Save` + `.SaveHelpers`,
-`DeviceCommandService.cs` + `.Comunication`.
+`DeviceCommandService.cs` + `.Comunication`,
+`DiagramService.cs` + `.Save` + `.SaveContext` + `.SaveDevices` + `.SaveDevicePins` +
+`.SaveConnections` + `.SaveAnnotations`.
+
+Sonuncusu kalıbın nasıl ölçeklendiğini gösterir: büyük bir boru hattı önce **faza**
+(`.Save` orkestrasyon, `.SaveContext` dağıtıcılar + paylaşılan bağlam + akış haritası),
+sonra **aileye** (cihaz / pin-kanal / kablo / not) bölünür. Her aile dosyası kendi
+yükleme → doğrulama → uygulama dilimini baştan sona taşır; böylece "cihaza ne oluyor?"
+sorusunun cevabı tek dosyadadır. Silme sırası ve gerekçesi yalnızca `.SaveContext`
+içindeki `ApplyDeletions` dağıtıcısında yaşar.
 
 ---
 

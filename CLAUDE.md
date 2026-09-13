@@ -129,7 +129,16 @@ durur. Ayrıntı: PROJECT_OVERVIEW.md § 10.
 
 **Büyük servisler `#region` ile değil, partial sınıflara bölünür** — gruplama birimi dosyadır:
 `CameraService.cs` + `.Streaming` + `.Snapshot` + `.Capture` + `.Monitoring`,
-`DiagramService.cs` + `.Save` + `.SaveHelpers`, `DeviceCommandService.cs` + `.Comunication`.
+`DeviceCommandService.cs` + `.Comunication`,
+`DiagramService.cs` + `.Save` + `.SaveContext` + `.SaveDevices` + `.SaveDevicePins` +
+`.SaveConnections` + `.SaveAnnotations`.
+
+Diyagram kaydetme iki eksende bölünür: `.Save` orkestrasyon (transaction, iki
+`SaveChangesAsync`), `.SaveContext` dört dağıtıcı + üç ailenin de okuduğu `SaveContext` +
+**akış haritası**; aile dosyalarının her biri kendi **yükleme → doğrulama → uygulama**
+dikey dilimini taşır. Nereye ne ekleneceğini `.SaveContext` başındaki haritadan okuyun.
+**`.Save` dosyasına tek satır bile eklemeyin** — `Result.Validation` `[CallerLineNumber]`
+ile hata metadata'sı üretiyor, satır kaydırmak üretimdeki kayıtların izini değiştirir.
 
 ## Kırılmaması gereken kurallar
 

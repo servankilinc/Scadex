@@ -25,15 +25,11 @@ public class ChannelEventRepository : RepositoryBase<ChannelEvent, AppDbContext>
         PaginationRequest pagination,
         CancellationToken cancellationToken = default)
     {
-        var query = _context.ChannelEvents
-            .AsNoTracking()
-            .Where(e => e.CabinetId == cabinetId);
+        var query = _context.ChannelEvents.AsNoTracking().Where(e => e.CabinetId == cabinetId);
 
         if (ioChannelId.HasValue)
             query = query.Where(e => e.IoChannelId == ioChannelId.Value);
 
-        // Aralik OccurredAtUtc uzerinden — kullanicinin sordugu sey "saha ne
-        // zaman oldu", "bize ne zaman ulasti" degil.
         if (fromUtc.HasValue)
             query = query.Where(e => e.OccurredAtUtc >= fromUtc.Value);
 
@@ -41,25 +37,7 @@ public class ChannelEventRepository : RepositoryBase<ChannelEvent, AppDbContext>
             query = query.Where(e => e.OccurredAtUtc <= toUtc.Value);
 
         return await query
-            // Esitlikte Id kirilir: ayni damgayi tasiyan iki olay (tek ingest
-            // govdesinde gelen iki kanal) aksi halde her sayfalamada yer
-            // degistirebilir ve bir satir iki kez ya da hic gorunmezdi.
             .OrderByDescending(e => e.OccurredAtUtc)
-            .ThenByDescending(e => e.Id)
-            // Alan listesi MappingProfiles -> ChannelEvent bolumunde.
-            //
-            // OLCULDU (2026-09-10): soft-delete edilmis bir kanalin olaylari
-            // "turev alanlari null" olarak DEGIL, LISTEDEN TAMAMEN DUSEREK
-            // kaybolur. Sebep: ChannelEvent.IoChannelId non-nullable oldugu icin
-            // EF navigasyonu zorunlu sayar ve ProjectTo INNER JOIN uretir;
-            // IoChannel'in IsDeleted query filter'i da o join'i bosa dusurur.
-            // Ustelik sayfalama sayaci join'siz hesaplandigi icin dataCount
-            // dolu kalir: istemci "3 kayit" gorup bos tablo cizer.
-            //
-            // BUGUN ULASILAMAZ: hicbir yazim yolu IoChannel'i silmiyor — cihaz
-            // silmek kanallari yerinde birakiyor (bkz. DiagramService.SaveHelpers,
-            // LoadCabinetChannelAddressesAsync). Kanal silen bir yol eklenirse
-            // olay gecmisi SESSIZCE kaybolur; o gun burasi da ele alinmali.
             .ProjectTo<ChannelEventDto>(configurationProvider)
             .ToPaginateAsync(pagination, cancellationToken);
     }
