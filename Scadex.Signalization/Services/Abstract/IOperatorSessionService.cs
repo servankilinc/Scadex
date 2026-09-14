@@ -1,6 +1,6 @@
 using Scadex.Core.Utils.Pagination;
 using Scadex.Core.Utils.ResultPattern;
-using Scadex.Signalization.Dtos.Session.Queries;
+using Scadex.Signalization.Model.Dtos.Session.Queries;
 
 namespace Scadex.Signalization.Services.Abstract;
 

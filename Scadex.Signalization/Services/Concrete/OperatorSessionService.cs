@@ -2,8 +2,8 @@ using Microsoft.EntityFrameworkCore;
 using Scadex.Core.Utils.ResultPattern;
 using Scadex.Core.Utils.Validation;
 using Scadex.DataAccess.UoW;
-using Scadex.Signalization.Data;
-using Scadex.Signalization.Dtos.Session.Queries;
+using Scadex.Signalization.DataAccess;
+using Scadex.Signalization.Model.Dtos.Session.Queries;
 using Scadex.Signalization.Services.Abstract;
 using static Scadex.Signalization.Enums.SignalEnums;
 

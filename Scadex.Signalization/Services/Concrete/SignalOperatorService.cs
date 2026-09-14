@@ -2,9 +2,9 @@ using Microsoft.EntityFrameworkCore;
 using Scadex.Business.Abstract;
 using Scadex.Core.Utils.ResultPattern;
 using Scadex.DataAccess.UoW;
-using Scadex.Signalization.Data;
-using Scadex.Signalization.Dtos.Operator.Commands;
-using Scadex.Signalization.Dtos.Operator.Queries;
+using Scadex.Signalization.DataAccess;
+using Scadex.Signalization.Model.Dtos.Operator.Commands;
+using Scadex.Signalization.Model.Dtos.Operator.Queries;
 using Scadex.Signalization.Services.Abstract;
 
 namespace Scadex.Signalization.Services.Concrete;

@@ -2,10 +2,10 @@ using Microsoft.EntityFrameworkCore;
 using Scadex.Core.Utils.ResultPattern;
 using Scadex.Core.Utils.Validation;
 using Scadex.DataAccess.UoW;
-using Scadex.Signalization.Data;
-using Scadex.Signalization.Dtos.Authority.Commands;
-using Scadex.Signalization.Dtos.Authority.Queries;
-using Scadex.Signalization.Entities;
+using Scadex.Signalization.DataAccess;
+using Scadex.Signalization.Model.Dtos.Authority.Commands;
+using Scadex.Signalization.Model.Dtos.Authority.Queries;
+using Scadex.Signalization.Model.Entities;
 using Scadex.Signalization.Services.Abstract;
 
 namespace Scadex.Signalization.Services.Concrete;

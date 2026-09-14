@@ -1,9 +1,9 @@
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Logging;
-using Scadex.Signalization.Dtos.Authority.Commands;
-using Scadex.Signalization.Dtos.Config.Commands;
-using Scadex.Signalization.Dtos.Operator.Commands;
-using Scadex.Signalization.Dtos.Session.Queries;
+using Scadex.Signalization.Model.Dtos.Authority.Commands;
+using Scadex.Signalization.Model.Dtos.Config.Commands;
+using Scadex.Signalization.Model.Dtos.Operator.Commands;
+using Scadex.Signalization.Model.Dtos.Session.Queries;
 using Scadex.Signalization.Services.Abstract;
 
 namespace Scadex.Signalization.Controllers;

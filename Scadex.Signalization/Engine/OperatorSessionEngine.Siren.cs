@@ -1,7 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
-using Scadex.Signalization.Entities;
 using Scadex.Signalization.Enums;
+using Scadex.Signalization.Model.Entities;
 using static Scadex.Signalization.Enums.SignalEnums;
 
 namespace Scadex.Signalization.Engine;

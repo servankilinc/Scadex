@@ -3,10 +3,9 @@ using Scadex.Core.Utils.ResultPattern;
 using Scadex.Core.Utils.Validation;
 using Scadex.DataAccess.UoW;
 using Scadex.Model.Dtos.Scada.Commands;
-using Scadex.Signalization.Data;
-using Scadex.Signalization.Dtos.Config.Commands;
-using Scadex.Signalization.Dtos.Config.Queries;
-using Scadex.Signalization.Entities;
+using Scadex.Signalization.DataAccess;
+using Scadex.Signalization.Model.Dtos.Config.Queries;
+using Scadex.Signalization.Model.Entities;
 using Scadex.Signalization.Services.Abstract;
 using static Scadex.Model.Enums.EntityEnums;
 

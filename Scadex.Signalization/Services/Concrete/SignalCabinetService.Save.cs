@@ -1,7 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using Scadex.Core.Utils.ResultPattern;
-using Scadex.Signalization.Dtos.Config.Commands;
-using Scadex.Signalization.Entities;
+using Scadex.Signalization.Model.Dtos.Config.Commands;
+using Scadex.Signalization.Model.Entities;
 using static Scadex.Model.Enums.EntityEnums;
 
 namespace Scadex.Signalization.Services.Concrete;

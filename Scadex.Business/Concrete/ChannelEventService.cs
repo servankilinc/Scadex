@@ -2,7 +2,7 @@ using AutoMapper;
 using Microsoft.Extensions.Logging;
 using Scadex.Business.Abstract;
 using Scadex.Business.Utils.DiagramNotifier;
-using Scadex.Business.Utils.ScadaEvents;
+using Scadex.Business.Utils.ScadaObserver;
 using Scadex.Core.Utils.Pagination;
 using Scadex.Core.Utils.ResultPattern;
 using Scadex.Core.Utils.Validation;

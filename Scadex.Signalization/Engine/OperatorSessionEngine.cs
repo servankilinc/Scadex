@@ -4,23 +4,15 @@ using Scadex.Business.Abstract;
 using Scadex.Core.Utils;
 using Scadex.DataAccess.UoW;
 using Scadex.Model.Dtos.DeviceCommand.Commands;
-using Scadex.Signalization.Data;
-using Scadex.Signalization.Entities;
+using Scadex.Signalization.DataAccess;
+using Scadex.Signalization.Model.Entities;
+using Scadex.Signalization.Model.Utils;
 using Scadex.Signalization.Runtime;
 using static Scadex.Model.Enums.EntityEnums;
 using static Scadex.Signalization.Enums.SignalEnums;
 
 namespace Scadex.Signalization.Engine;
 
-/// <summary>
-/// Operator islemi durum makinesi. Yalnizca <see cref="SignalEventWorker"/>'in kabin seridinden cagrilir: ayni kabinin
-/// olaylari sirayla gelir, bu yuzden burada kilit/yaris kontrolu yoktur.
-/// <para><b>Tek dogruluk kaynaklari:</b> kapinin acik/kapali oldugu anahtar kanalinin <c>IoChannel.CurrentValue</c>'su
-/// (cekirdekten salt okunur), kilidin durumu <see cref="SignalInnerDoorState"/>, sirenin fiziksel durumu
-/// <see cref="SignalCabinetState"/>.</para>
-/// <para><b>Cekirdege yazmaz:</b> komutlar <c>IDeviceCommandService.SendAsync</c>'ten gecer (retry YOK — tekrarlanan role
-/// darbesi basarisiz komuttan kotudur). Cekirdek okumalari projeksiyondur; cekirdek context'inde izlenen varlik birakmaz.</para>
-/// </summary>
 public partial class OperatorSessionEngine
 {
     private readonly SignalizationDbContext _db;

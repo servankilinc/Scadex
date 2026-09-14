@@ -1,8 +1,8 @@
 using Microsoft.EntityFrameworkCore;
 using Scadex.Core.Utils.Pagination;
 using Scadex.Core.Utils.ResultPattern;
-using Scadex.Signalization.Dtos.Session.Queries;
-using Scadex.Signalization.Entities;
+using Scadex.Signalization.Model.Dtos.Session.Queries;
+using Scadex.Signalization.Model.Entities;
 using static Scadex.Signalization.Enums.SignalEnums;
 
 namespace Scadex.Signalization.Services.Concrete;

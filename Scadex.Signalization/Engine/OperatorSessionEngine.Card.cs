@@ -1,8 +1,9 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using Scadex.Model.Dtos.Scada.Events;
-using Scadex.Signalization.Entities;
 using Scadex.Signalization.Enums;
+using Scadex.Signalization.Model.Entities;
+using Scadex.Signalization.Model.Utils;
 using static Scadex.Signalization.Enums.SignalEnums;
 
 namespace Scadex.Signalization.Engine;
@@ -92,6 +93,10 @@ public partial class OperatorSessionEngine
 
         await _db.SaveChangesAsync(cancellationToken);
         await ReconcileSirenAsync(cabinet, session, sirenEvent, cancellationToken);
+
+        // Kare seridin DISINDA cekilir; kart okumasini/kilit gecisini geciktirmemeli. Session bu noktada zaten kalici (SaveChanges yukarida).
+        if (outer.CameraId is Guid cardCameraId)
+            _snapshotQueue.Enqueue(new EntrySnapshotJob(session.Id, cardCameraId, 1, 0, DateTime.UtcNow, innerDoorId: inner.Id));
     }
 
     /// <summary>
@@ -146,6 +151,15 @@ public partial class OperatorSessionEngine
 
         AddEvent(session, SessionEventType.AccessDenied, card.OccurredAtUtc, card.ReceivedAtUtc, userId: card.UserId, cardIdRaw: card.CardIdRaw, detail: reason);
         await _db.SaveChangesAsync(cancellationToken);
+
+        // Reddedilen kart hangi ic kapiya aitti cozulemedi; kamera dis kapidan (session.OuterDoorId) gelir.
+        var cameraId = await _db.OuterDoors.AsNoTracking()
+            .Where(o => o.Id == session.OuterDoorId)
+            .Select(o => o.CameraId)
+            .FirstOrDefaultAsync(cancellationToken);
+
+        if (cameraId is Guid denyCameraId)
+            _snapshotQueue.Enqueue(new EntrySnapshotJob(session.Id, denyCameraId, 1, 0, DateTime.UtcNow));
     }
 
     private async Task UpsertOperatorAsync(OperatorSession session, Guid userId, CardPresentedNotification card, string authorityName, CancellationToken cancellationToken)

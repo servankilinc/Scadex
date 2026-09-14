@@ -1,6 +1,6 @@
 using Scadex.Core.Utils.ResultPattern;
-using Scadex.Signalization.Dtos.Operator.Commands;
-using Scadex.Signalization.Dtos.Operator.Queries;
+using Scadex.Signalization.Model.Dtos.Operator.Commands;
+using Scadex.Signalization.Model.Dtos.Operator.Queries;
 
 namespace Scadex.Signalization.Services.Abstract;
 

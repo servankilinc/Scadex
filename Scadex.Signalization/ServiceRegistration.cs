@@ -3,11 +3,14 @@ using Microsoft.AspNetCore.Mvc.ApplicationParts;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
-using Scadex.Business.Utils.ScadaEvents;
+using Scadex.Business.Utils.ScadaObserver;
 using Scadex.DataAccess.Interceptors;
-using Scadex.Signalization.Data;
+using Scadex.Signalization.BackgroundServices;
+using Scadex.Signalization.DataAccess;
 using Scadex.Signalization.Engine;
+using Scadex.Signalization.Queue;
 using Scadex.Signalization.Runtime;
+using Scadex.Signalization.ScadaHook;
 using Scadex.Signalization.Services.Abstract;
 using Scadex.Signalization.Services.Concrete;
 
