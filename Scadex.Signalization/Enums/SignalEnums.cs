@@ -142,6 +142,14 @@ public static class SessionEventDetail
     // OuterClosed gerekcesi: kapi kapandi ama is bitmemisti (oturum acik birakildi)
     public const string Unfinished = "Unfinished";
 
+    // Unlocked gerekcesi: kayit "kilit acik" diyordu ama kapi son komuttan beri hic acilmadi
+    // (switch kapali + InnerOpened yok) — komut fiilen uygulanmamis, kilit yeniden acildi.
+    public const string UnlockNotEffective = "UnlockNotEffective";
+
+    // OuterOpenMissing gerekcesi: oturum ortuk acilirken dis kapi switch'i "kapali" gosteriyordu
+    // (kacirilmis bir acilis degil, gercek bir anomali).
+    public const string OuterSwitchClosed = "OuterSwitchClosed";
+
     // LockSkippedDoorOpen gerekceleri
     public const string SwitchUnknown = "SwitchUnknown";
     public const string SessionEnd = "SessionEnd";

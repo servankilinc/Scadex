@@ -51,67 +51,91 @@ public partial class OperatorSessionEngine
         
         // 4) Kart okutma ancak dış kapı açıkken yapılabilir bu nedenle oturum kaydı yoksa açılmalı. Bu tarz süreçler guvenlik acisindan kaydedilmeden gecilemez.
         var session = await _db.OperatorSessions.FirstOrDefaultAsync(s => s.OuterDoorId == outerDoor.Id && s.EndedAtUtc == null, cancellationToken);
+        string? implicitSessionDetail = null;
         if (session == null)
+        {
+            // Dış kapı açılışını kaçırmış olabiliriz Ama switch "kapalı" diyorsa kapı hiç açılmadan kart okutulmuş demektir;
+            if (await IsSwitchOpenAsync(outerDoor.SwitchIoChannelId, outerDoor.SwitchOpenValue, cancellationToken) == false)
+            {
+                implicitSessionDetail = SessionEventDetail.OuterSwitchClosed;
+                _logger.LogWarning("Kabin {CabinetId}: '{Door}' switch'i kapali gorunurken kart okutuldu; oturum ortuk acildi.", cabinet.CabinetId, outerDoor.Name);
+            }
+
             session = StartSession(cabinet, outerDoor, card.OccurredAtUtc, SessionFlags.OuterOpenMissing);
+        }
 
 
         // 5) Yetkili kartı okundu: "kartsiz giris" sayacı durur.
         session.AwaitingCardDueAtUtc = null;
         await UpsertOperatorAsync(session, userId, card, authority.Name, cancellationToken);
         AddEvent(
-            session: session, 
-            type: SessionEventType.CardPresented, 
-            occurredAtUtc: card.OccurredAtUtc, 
-            receivedAtUtc: card.ReceivedAtUtc, 
-            innerDoorId: innerDoor.Id, 
-            userId: userId, 
-            cardIdRaw: card.CardIdRaw
+            session: session,
+            type: SessionEventType.CardPresented,
+            occurredAtUtc: card.OccurredAtUtc,
+            receivedAtUtc: card.ReceivedAtUtc,
+            innerDoorId: innerDoor.Id,
+            userId: userId,
+            cardIdRaw: card.CardIdRaw,
+            detail: implicitSessionDetail
         );
 
         // 6) İç kapı kilidine en son hangi komut gönderildi durumu ne
         var innerDoorState = await GetOrInnerDoorStateAsync(innerDoor.Id, cancellationToken);
 
+        // 7) Kapının fiziksel durumu. 
+        var switchOpen = await IsSwitchOpenAsync(innerDoor.SwitchIoChannelId, innerDoor.SwitchOpenValue, cancellationToken);
+
+        // 8) Kapı durum kaydı(SignalIndoorState) "kilit açık" diyor ama kapı son durum değişikliğinden beri hiç açılmadıysa o komut fiilen UYGULANMAMIŞ demektir.
+        bool openedSinceCommand = innerDoorState.IsUnlocked
+            && session.Id != 0
+            && await _db.OperatorSessionEvents.AnyAsync(e =>
+                e.SessionId == session.Id &&
+                e.InnerDoorId == innerDoor.Id &&
+                (e.Type == SessionEventType.InnerOpened || e.Type == SessionEventType.ForcedOpen) &&
+                e.ReceivedAtUtc >= innerDoorState.ChangedAtUtc,
+                cancellationToken
+            );
+
         OperatorSessionEvent? sirenEvent = null;
 
-        // 7) En son kilitle veya daha önce gönderilen komutu bilmiyorsak kapı kilitli gibi davran ve kilidi aç operatör panoya ulaşabilsin
-        if (!innerDoorState.IsUnlocked)
+        // 9) Kilidi aç: kayıt "kilitli" diyorsa (ya da hiç bilmiyorsak) operatör panoya ulaşabilsin.
+        if (!innerDoorState.IsUnlocked || (switchOpen == false && !openedSinceCommand))
         {
-            bool unlocked = await UnlockInnerDoorAsync(session, innerDoor, innerDoorState, userId, cancellationToken);
+            bool unlocked = await UnlockInnerDoorAsync(
+                session, innerDoor, innerDoorState, userId,
+                detail: innerDoorState.IsUnlocked ? SessionEventDetail.UnlockNotEffective : null,
+                cancellationToken
+            );
 
             // Siren çalıyorsa talep kapanir (siren operatör işlemini bitirdikten sonra dış kapıyı kapatana kadar çalar, biri bu arada iceri giriyor durumu)
             if (unlocked)
                 sirenEvent = ReleaseSiren(session, SessionEventDetail.UnlockedAgain);
         }
-        // 8) En son kilidi aç komutu gönderilmiş açık olması bekleniyor
+        // 10) Kilitle: kayıt "açık", kapı bu komuttan beri açılmış ve switch şimdi kapalı — operatör işlemini bitirdi. İç kapıyı kilitle ve çıkması için sireni çalıştır.
+        else if (switchOpen == false)
+        {
+            bool locked = await LockInnerDoorAsync(session, innerDoor, innerDoorState, userId, SessionEventType.Locked, cancellationToken);
+            if (locked)
+            {
+                // innerdoorstate vs. yaz db ye
+                await _db.SaveChangesAsync(cancellationToken);
+
+                // Kabinde hala çalışılan (kilitsiz) başka iç kapı varsa çalmaz
+                if (cabinet.SirenIoChannelId != null && await AreAllInnerDoorsLockedAsync(outerDoor.Id, cancellationToken))
+                    sirenEvent = RequestSiren(session, cabinet);
+            }
+        }
+        // 11) Switch "açık" ya da durumu bilinmiyor: kapı açıkken kilitlenmez.
         else
         {
-            var switchOpen = await IsSwitchOpenAsync(innerDoor.SwitchIoChannelId, innerDoor.SwitchOpenValue, cancellationToken);
-
-            // Switch kapının kapalı old. söylüyor bu nedenle operatör işlemini bitirdi artık iç kapıyı kilitle ve çıkması için sireni çalıştır
-            if (switchOpen == false)
-            {
-                bool locked = await LockInnerDoorAsync(session, innerDoor, innerDoorState, userId, SessionEventType.Locked, cancellationToken);
-                if (locked)
-                {
-                    // innerdoorstate vs. yaz db ye
-                    await _db.SaveChangesAsync(cancellationToken);
-
-                    // Kabinde hala çalışılan (kilitsiz) başka iç kapı varsa çalmaz
-                    if (cabinet.SirenIoChannelId != null && await AreAllInnerDoorsLockedAsync(outerDoor.Id, cancellationToken))
-                        sirenEvent = RequestSiren(session, cabinet);
-                }
-            }
-            else
-            {
-                AddEvent(
-                    session: session, 
-                    type: SessionEventType.LockSkippedDoorOpen, 
-                    occurredAtUtc: DateTime.UtcNow, 
-                    innerDoorId: innerDoor.Id, 
-                    userId: userId,
-                    detail: switchOpen == null ? SessionEventDetail.SwitchUnknown : null
-                );
-            }
+            AddEvent(
+                session: session,
+                type: SessionEventType.LockSkippedDoorOpen,
+                occurredAtUtc: DateTime.UtcNow,
+                innerDoorId: innerDoor.Id,
+                userId: userId,
+                detail: switchOpen == null ? SessionEventDetail.SwitchUnknown : null
+            );
         }
 
         await _db.SaveChangesAsync(cancellationToken);

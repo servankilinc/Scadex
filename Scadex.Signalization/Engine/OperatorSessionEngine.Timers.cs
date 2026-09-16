@@ -52,6 +52,13 @@ public partial class OperatorSessionEngine
                     return;
 
                 var sirenEvent = ReleaseSiren(session, SessionEventDetail.SessionTimedOut);
+
+                // Dış kapı kapanırken switch'i "açık" olduğu için atlanan bir iç kapı bu arada
+                // kapanmış olabilir. Denenmezse o kapı kalıcı olarak kilitsiz kalır.
+                var outer = await _db.OuterDoors.AsNoTracking().FirstOrDefaultAsync(o => o.Id == session.OuterDoorId, cancellationToken);
+                if (outer != null)
+                    await AutoLockInnerDoorsAsync(session, outer, cancellationToken);
+
                 await _db.SaveChangesAsync(cancellationToken);
                 await CloseSessionAsync(session, now, timedOut: true, cancellationToken);
                 await _db.SaveChangesAsync(cancellationToken);
