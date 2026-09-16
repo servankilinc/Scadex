@@ -9,9 +9,14 @@ namespace Scadex.Signalization.Engine;
 /// <summary>
 /// Kabin sireni: kabin basina TEK ve ORTAK. Oturumlar yalnizca TALEP acar/kapatir; fiziksel siren
 /// <see cref="ReconcileSirenAsync"/> ile "en az bir acik talep var mi" sorusuna uzlastirilir.
+/// Talep: kartla kilitleme basarili VE dis kapinin ardindaki TUM aktif ic kapilar kilitliyse acilir
+/// (<see cref="AreAllInnerDoorsLockedAsync"/>) — baska bir kurum hala islem yapiyorsa (kilitsiz ic kapi varsa)
+/// acilmaz. Kapanma: <c>SirenDurationSec</c> dolunca, dis kapi kapaninca ya da ayni dis kapinin ardinda
+/// kilit yeniden acilinca.
 /// </summary>
 public partial class OperatorSessionEngine
 {
+    /// <summary> Oturum adına siren talebi açar </summary>
     private OperatorSessionEvent RequestSiren(OperatorSession session, SignalCabinet cabinet)
     {
         var now = DateTime.UtcNow;
@@ -21,7 +26,7 @@ public partial class OperatorSessionEngine
         return AddEvent(session, SessionEventType.SirenRequested, now);
     }
 
-    /// <returns> Acik talep yoksa <c>null</c> (olay yazilmaz). </returns>
+    /// <summary> Oturumun açık siren talebini kapatır; SCADA'ya komut GONDERMEZ. Talep kapaninca kabinde baska acik talep yoksa siren ReconcileSirenAsync ile susar </summary>
     private OperatorSessionEvent? ReleaseSiren(OperatorSession session, string reason)
     {
         if (!session.HasActiveSirenRequest)
@@ -33,13 +38,10 @@ public partial class OperatorSessionEngine
     }
 
     /// <summary>
-    /// Istenen durum (kabinde acik talep var mi) fiziksel durumdan farkliysa TEK komut gonderir. Boylece ikinci bir
-    /// dis kapinin talebi calan sirene ikinci "ac" komutu gondermez; bir talebin kapanmasi digeri acikken susturmaz.
-    /// <para>Komut basarisizsa fiziksel durum degismez ve <c>CommandFailed</c> yazilir. Retry dongusu YOKTUR: uzlastirma
-    /// bir sonraki talep degisiminde (olay gudumlu) yeniden denenir.</para>
-    /// <para>Cagirmadan once talep degisiklikleri kaydedilmis olmali — istenen durum veritabanindan okunur.</para>
+    /// Kabinin fiziksel sirenini oturum taleplerine uzlastirir: kabinde en az bir acik talep varsa siren acik,
+    /// yoksa kapali olmalidir. Istenen durum son bilinen durumdan (<see cref="SignalCabinetState.SirenIsOn"/>)
+    /// farkliysa siren kanalina TEK komut gonderilir; ayniysa komut gitmez
     /// </summary>
-    /// <param name="triggerEvent"> Uzlastirmayi tetikleyen talep olayi; komut giderse kimligi bu olaya islenir. </param>
     private async Task ReconcileSirenAsync(SignalCabinet cabinet, OperatorSession? contextSession, OperatorSessionEvent? triggerEvent, CancellationToken cancellationToken)
     {
         if (cabinet.SirenIoChannelId is not Guid sirenChannelId)
@@ -48,12 +50,17 @@ public partial class OperatorSessionEngine
         bool desired = await _db.OperatorSessions.AnyAsync(s =>
             s.CabinetId == cabinet.CabinetId &&
             s.SirenRequestedAtUtc != null &&
-            s.SirenReleasedAtUtc == null, cancellationToken);
+            s.SirenReleasedAtUtc == null, 
+            cancellationToken
+        );
 
         var state = await _db.CabinetStates.FirstOrDefaultAsync(s => s.CabinetId == cabinet.CabinetId, cancellationToken);
         if (state == null)
         {
-            state = new SignalCabinetState { CabinetId = cabinet.CabinetId, SirenIsOn = false };
+            state = new SignalCabinetState { 
+                CabinetId = cabinet.CabinetId, 
+                SirenIsOn = false 
+            };
             _db.CabinetStates.Add(state);
         }
 
@@ -81,7 +88,7 @@ public partial class OperatorSessionEngine
 
             if (contextSession != null)
             {
-                MarkFlag(contextSession, SessionFlags.CommandFailed);
+                MarkFlag(contextSession, SessionFlags.CommandFailed, true);
                 AddEvent(contextSession, SessionEventType.CommandFailed, now, deviceCommandId: outcome.CommandId,
                     detail: $"{SessionEventDetail.Siren}: {outcome.Message}");
             }

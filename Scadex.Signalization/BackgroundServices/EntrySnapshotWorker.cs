@@ -53,7 +53,7 @@ public sealed class EntrySnapshotWorker : BackgroundService
             await Task.WhenAll(pending);
     }
 
-    private async Task RunSeriesAsync(EntrySnapshotJob job, CancellationToken stoppingToken)
+    private async Task RunSeriesAsync(EntrySnapshotWorkItem job, CancellationToken stoppingToken)
     {
         try
         {
@@ -77,7 +77,7 @@ public sealed class EntrySnapshotWorker : BackgroundService
         }
     }
 
-    private async Task CaptureOneAsync(EntrySnapshotJob job, int sequence, CancellationToken stoppingToken)
+    private async Task CaptureOneAsync(EntrySnapshotWorkItem job, int sequence, CancellationToken stoppingToken)
     {
         // 1) Her görüntü kendi scope'unda: DbContext'ler paylasilamaz ve seriler paralel calisir.
         using var scope = _scopeFactory.CreateScope();

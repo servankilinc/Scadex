@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="110" height="140" viewBox="0 0 110 140">
+  <!-- Scadex sistem şablonu. data-pin merkezleri AppDbContext seed'indeki pin konumlarıyla birebir aynıdır: birini değiştiren ikisini birden değiştirir. -->
+  <style>text{font-family:Bahnschrift,'DIN Alternate','Arial Narrow',Arial,sans-serif;font-weight:700;text-anchor:middle;fill:#111}</style>
+  <circle cx="55" cy="46" r="34" fill="#374151" stroke="#111" stroke-width="2.5"/>
+  <circle cx="55" cy="46" r="24" fill="#22C55E" stroke="#111" stroke-width="1.5"/>
+  <path d="M43 46 H66 M57 37 L66 46 L57 55" fill="none" stroke="#fff" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+
+  <rect x="12" y="88" width="86" height="46" rx="5" fill="#fff" stroke="#111" stroke-width="1.5"/>
+  <g font-size="12">
+    <text x="35" y="106">+</text>
+    <text x="75" y="106">−</text>
+  </g>
+  <g fill="#111">
+    <circle data-pin="LED+" cx="35" cy="118" r="7"/>
+    <circle data-pin="LED-" cx="75" cy="118" r="7"/>
+  </g>
+</svg>

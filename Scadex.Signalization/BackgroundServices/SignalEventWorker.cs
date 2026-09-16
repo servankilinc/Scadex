@@ -1,7 +1,6 @@
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
-using Scadex.Model.Entities;
 using Scadex.Signalization.Engine;
 using Scadex.Signalization.Model.Utils;
 using Scadex.Signalization.Queue;
@@ -40,13 +39,14 @@ public sealed class SignalEventWorker : BackgroundService
             {
                 // kabinin kanalını bul veya oluştur
                 var lane = _lanes.GetOrAdd(
-                    key: item.CabinetId, 
+                    key: item.CabinetId,
                     valueFactory: (cabinetId) =>
                     {
                         var channel = Channel.CreateUnbounded<SignalWorkItem>(
-                            new UnboundedChannelOptions { 
-                                SingleReader = true, 
-                                SingleWriter = true 
+                            new UnboundedChannelOptions
+                            {
+                                SingleReader = true,
+                                SingleWriter = true
                             }
                         );
                         _laneTasks[cabinetId] = RunLaneAsync(cabinetId, channel.Reader, stoppingToken);

@@ -20,7 +20,7 @@ export default function Home() {
 
   const [viewport, setViewport] = useState<{ center: [number, number]; zoom: number; bearing?: number; pitch?: number }>({
     center: [35.2433, 38.9637],
-    zoom: 6
+    zoom: 17
   });
 
   const { center, validCabinets } = useMemo(() => {

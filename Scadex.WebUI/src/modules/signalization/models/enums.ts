@@ -8,11 +8,11 @@
 // ─────────────────────────────────────────────────────────── oturum durumu
 
 export const OperatorSessionStatus = {
-  /** Dış kapı açık, işlem sürüyor. */
+  /** İşlem sürüyor: iş bitmediği sürece dış kapı kapalı olsa da oturum açıktır. */
   Open: 1,
-  /** Dış kapı kapandı, hiçbir uyarı bayrağı yok. */
+  /** İş bitti (tüm iç kapılar kilitli) ve dış kapı kapandı; hiçbir uyarı bayrağı yok. */
   Completed: 2,
-  /** Dış kapı kapandı ama en az bir bayrak var. */
+  /** İş bitti ve dış kapı kapandı ama en az bir bayrak var. */
   CompletedWithWarning: 3,
   /** Dış kapı kapanmadan azami süre doldu; oturumu zamanlayıcı kapattı. */
   TimedOut: 4
@@ -175,6 +175,8 @@ const SessionEventDetailLabels: Record<string, string> = {
   OuterClosed: 'Dış kapı kapandı',
   Timeout: 'Siren süresi doldu',
   SessionTimedOut: 'Oturum zaman aşımı',
+  // OuterClosed gerekçesi
+  Unfinished: 'İş bitmeden kapandı',
   // LockSkippedDoorOpen gerekçeleri
   SwitchUnknown: 'Anahtar durumu bilinmiyor',
   SessionEnd: 'Oturum sonu',

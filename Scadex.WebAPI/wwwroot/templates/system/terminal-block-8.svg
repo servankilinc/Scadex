@@ -1,0 +1,34 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="100" height="320" viewBox="0 0 100 320">
+  <!-- Scadex sistem şablonu. data-pin merkezleri AppDbContext seed'indeki pin konumlarıyla birebir aynıdır: birini değiştiren ikisini birden değiştirir. -->
+  <style>text{font-family:Bahnschrift,'DIN Alternate','Arial Narrow',Arial,sans-serif;font-weight:700;text-anchor:middle;fill:#111}</style>
+  <g fill="#F1F5F9" stroke="#111" stroke-width="1.5">
+    <rect x="6" y="3" width="88" height="34" rx="4"/>
+    <rect x="6" y="43" width="88" height="34" rx="4"/>
+    <rect x="6" y="83" width="88" height="34" rx="4"/>
+    <rect x="6" y="123" width="88" height="34" rx="4"/>
+    <rect x="6" y="163" width="88" height="34" rx="4"/>
+    <rect x="6" y="203" width="88" height="34" rx="4"/>
+    <rect x="6" y="243" width="88" height="34" rx="4"/>
+    <rect x="6" y="283" width="88" height="34" rx="4"/>
+  </g>
+  <g fill="#111">
+    <circle data-pin="T1" cx="25" cy="20" r="7"/><circle data-pin="T1'" cx="75" cy="20" r="7"/>
+    <circle data-pin="T2" cx="25" cy="60" r="7"/><circle data-pin="T2'" cx="75" cy="60" r="7"/>
+    <circle data-pin="T3" cx="25" cy="100" r="7"/><circle data-pin="T3'" cx="75" cy="100" r="7"/>
+    <circle data-pin="T4" cx="25" cy="140" r="7"/><circle data-pin="T4'" cx="75" cy="140" r="7"/>
+    <circle data-pin="T5" cx="25" cy="180" r="7"/><circle data-pin="T5'" cx="75" cy="180" r="7"/>
+    <circle data-pin="T6" cx="25" cy="220" r="7"/><circle data-pin="T6'" cx="75" cy="220" r="7"/>
+    <circle data-pin="T7" cx="25" cy="260" r="7"/><circle data-pin="T7'" cx="75" cy="260" r="7"/>
+    <circle data-pin="T8" cx="25" cy="300" r="7"/><circle data-pin="T8'" cx="75" cy="300" r="7"/>
+  </g>
+  <g font-size="12">
+    <text x="50" y="24">1</text>
+    <text x="50" y="64">2</text>
+    <text x="50" y="104">3</text>
+    <text x="50" y="144">4</text>
+    <text x="50" y="184">5</text>
+    <text x="50" y="224">6</text>
+    <text x="50" y="264">7</text>
+    <text x="50" y="304">8</text>
+  </g>
+</svg>

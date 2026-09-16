@@ -58,8 +58,8 @@ public partial class DiagramService : IDiagramService
             ),
             where: c =>
                 c.CabinetId == cabinetId && c.IsDeleted == false && // kabinin silinmemiş pin bağlantıları
-                c.SourcePin != null && c.SourcePin.IsDeleted != false && c.SourcePin.Device!.IsActive && // kaynak pin silinmemeiş ve cihazı aktifse
-                c.TargetPin != null && c.TargetPin.IsDeleted != false && c.TargetPin.Device!.IsActive,   // hedef pin silinmemeiş ve cihazı aktifse
+                c.SourcePin != null && c.SourcePin.IsDeleted == false && c.SourcePin.Device!.IsActive && // kaynak pin silinmemiş ve cihazı aktifse
+                c.TargetPin != null && c.TargetPin.IsDeleted == false && c.TargetPin.Device!.IsActive,   // hedef pin silinmemiş ve cihazı aktifse
             orderBy: q => q.OrderBy(c => c.ZIndex),
             ignoreFilters: true,
             cancellationToken: cancellationToken);

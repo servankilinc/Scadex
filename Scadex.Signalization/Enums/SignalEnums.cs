@@ -4,17 +4,21 @@ public static class SignalEnums
 {
     public enum OperatorSessionStatus
     {
-        /// <summary> Dış kapı açık, islem suruyor. </summary>
+        /// <summary> Islem suruyor: is bitmedigi surece dis kapi kapali olsa da oturum aciktir. </summary>
         Open = 1,
-        /// <summary> Dış kapı kapandi, hicbir uyari bayragi yok. </summary>
+        /// <summary> Is bitti (tum ic kapilar kilitli) ve dis kapi kapandi; hicbir uyari bayragi yok. </summary>
         Completed = 2,
-        /// <summary> Dış kapı kapandi ama en az bir uyari bayragi var (<see cref="SessionFlags"/>). </summary>
+        /// <summary> Is bitti ve dis kapi kapandi ama en az bir uyari bayragi var (<see cref="SessionFlags"/>). </summary>
         CompletedWithWarning = 3,
         /// <summary> Dış kapı kapanmadan <c>SessionMaxDurationMin</c> doldu; oturumu zamanlayici kapatti. </summary>
         TimedOut = 4
     }
 
-    /// <summary> Oturumun uyari bayraklari; birden fazlasi ayni anda olabilir. </summary>
+    /// <summary> 
+    /// Oturumun uyari bayraklari; birden fazlasi ayni anda olabilir. 
+    /// <para/>
+    /// örn. "0110001" değerinin karşılığı => [NoCardPresented, TimedOut, CommandFailed]
+    /// </summary>
     [Flags]
     public enum SessionFlags
     {
@@ -25,7 +29,7 @@ public static class SignalEnums
         UnauthorizedEntry = 2,
         /// <summary> Dış kapı kapandıgında kilitsiz bir iç kapı açık duruyordu; kilitlenemedi. </summary>
         InnerDoorLeftOpen = 4,
-        /// <summary> Kilitli bir iç kapının switch'i "açık" gosterdi. </summary>
+        /// <summary> Kilitli bir iç kapının(Son gönderilen komutu kilidi aç olmamasına rağmen) switch'i "açık" gosterdi bu beklenmeyen bir durum. </summary>
         ForcedOpen = 8,
         /// <summary> Bir kilit ya da siren komutu basarisiz oldu. </summary>
         CommandFailed = 16,
@@ -40,7 +44,10 @@ public static class SignalEnums
         /// <summary> Dış kapı açıldı — oturum bu olayla başlar ya da açık oturuma yeni bir açılış olarak kaydedilir. </summary>
         OuterOpened = 1,
 
-        /// <summary> Dış kapı kapandı — oturumu kapatma sürecini (otomatik kilitleme, oturumu sonlandırma) tetikler. </summary>
+        /// <summary>
+        /// Dış kapı kapandı — otomatik kilitlemeyi tetikler. Oturum yalnızca iş bittiyse (dış kapının ardındaki
+        /// tüm iç kapılar kilitliyse) sonlanır; bitmediyse <c>Detail</c> alanı <c>Unfinished</c> olur ve oturum açık kalır.
+        /// </summary>
         OuterClosed = 2,
 
         /// <summary> Kart okutuldu ve kullanıcı+kurum+iç kapı eşlemesi başarıyla çözüldü. </summary>
@@ -111,7 +118,7 @@ public enum SignalTimerKind
 {
     /// <summary> Oturumun siren talebinin suresi doldu. </summary>
     SirenDue = 1,
-    /// <summary> Dis kapi acildiktan sonra yetkili kart suresi doldu. </summary>
+    /// <summary> Dis kapi acildiktan sonra yetkili kart okutma suresi doldu. </summary>
     AwaitingCardDue = 2,
     /// <summary> Oturum azami suresini asti. </summary>
     MaxDurationDue = 3
@@ -131,6 +138,9 @@ public static class SessionEventDetail
     public const string OuterClosed = "OuterClosed";
     public const string Timeout = "Timeout";
     public const string SessionTimedOut = "SessionTimedOut";
+
+    // OuterClosed gerekcesi: kapi kapandi ama is bitmemisti (oturum acik birakildi)
+    public const string Unfinished = "Unfinished";
 
     // LockSkippedDoorOpen gerekceleri
     public const string SwitchUnknown = "SwitchUnknown";

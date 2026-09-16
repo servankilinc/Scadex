@@ -4,6 +4,10 @@ using Microsoft.EntityFrameworkCore;
 using Scadex.Model.Entities;
 using Scadex.Model.Enums;
 using Scadex.Model.ProjectEntities;
+using Dir = Scadex.Model.Enums.EntityEnums.PinDirection;
+using Fn = Scadex.Model.Enums.EntityEnums.PinFunction;
+using Side = Scadex.Model.Enums.EntityEnums.HandleSide;
+using Volt = Scadex.Model.Enums.EntityEnums.VoltageLevel;
 
 namespace Scadex.DataAccess.Contexts;
 
@@ -604,38 +608,74 @@ public class AppDbContext : IdentityDbContext<User, Role, Guid>
     }
 
     #region STARTER COMPONENT TEMPLATES
-    // Palet bos acilmasin diye sistem sablonlari. IsSystemTemplate = true olanlar
-    // kullanici tarafindan duzenlenmez; kullanici kendi sablonunu yazana kadar
-    // diyagram editoru bunlarla calisir.
+    // Palet bos acilmasin diye sistem sablonlari. Kaynak Docs/Example_Scada_Diagram.pdf'teki gercek
+    // pano: Gora kontrol / giris / cikis / LED modulleri, koruma, klemens, guc kaynagi ve PDF'te
+    // yalnizca etiket olarak gecen saha cihazlari. Baglanti seed edilmez.
     //
-    // Id'ler DETERMINISTIK uretilir (DeviceType + sira). Rastgele Guid.NewGuid()
-    // kullanilsaydi her derlemede degisir, EF model degismis sanar ve sonsuz
-    // migration uretirdi -- admin kullanici seed'indeki parola hash'i notuyla ayni sebep.
+    // GORSEL = PIN SEMASI. Kutuyu BackgroundImageUrl tamamen kaplar ve pin adlari cizilmez
+    // (yalnizca tooltip), bu yuzden:
+    //   - Width/Height orani gorselin oraniyla BIREBIR aynidir. Oran bozulursa gorsel esner ama
+    //     0..1 kesir olarak saklanan pinler esnemez ve klemensten kayar.
+    //   - Pin konumu gorseldeki klemens noktasinin merkezidir: Gora PNG'lerinde olculmustur,
+    //     SVG'lerde data-pin noktalariyla ayni sabittir. Gorseli degistiren seed'i de degistirir.
+    // Gorseller Scadex.WebAPI/wwwroot/templates/system/ altindadir (UseStaticFiles servis eder).
+    //
+    // KANALLAR. IoChannel adresi (Direction, ChannelNumber) kabin genelinde tekildir ve UI'da yeniden
+    // numaralandirilamaz; ayni kabine konacak sablonlarin araliklari cakisirsa kayit 400 doner.
+    //   - Cikis uzayi duz ve ortaktir: role 1-16, LED 17-24 (LED n -> 16 + n).
+    //   - Kontrol modulunun kart ustu IN1-2 / OUT1-2 uclari KANALSIZDIR: PDF'teki gibi giris ve
+    //     cikis modulleriyle ayni kabinde 1-2 numaralari cakisirdi.
+    //   - Analog: A1 sicaklik, A2 nem (referans proje eslemesi, scada_communication_guide.md
+    //     bolum 5), A3 / A4 akim olcme.
+    //   - Ayni adresi paylasan pinler tek kanaldir ve kanal adi OrderBy(Name) ile ILK pinin adidir.
+    //     Bu yuzden grubun ana ucu ciplak adi alir (COM -> "OUT1", anot -> "LD1"), digerleri sonek.
+    //
+    // Id'ler DETERMINISTIK uretilir (DeviceType + sablon sirasi + pin sirasi). Rastgele Guid.NewGuid()
+    // kullanilsaydi her derlemede degisir, EF model degismis sanar ve sonsuz migration uretirdi --
+    // admin kullanici seed'indeki parola hash'i notuyla ayni sebep. Pin sirasi Id'nin parcasidir:
+    // mevcut sablona YALNIZCA SONA pin ekleyin, yeni sablon icin yeni ordinal kullanin.
 
-    /// <summary>Bir sablon pininin konumdan bagimsiz tanimi; RelativeX/Y yerlestirme sirasinda hesaplanir.</summary>
+    /// <summary>
+    /// Bir sablon pininin tanimi. X/Y gorselin genislik/yuksekligine gore 0..1 kesirdir;
+    /// SVG sablonlarinda viewBox birimi verilir ve kesre <c>SvgTemplate</c> cevirir.
+    /// </summary>
     private readonly record struct PinSpec(
         string Name,
-        EntityEnums.HandleSide Side,
-        EntityEnums.PinFunction Function,
-        EntityEnums.PinDirection Direction,
-        EntityEnums.VoltageLevel? Voltage = null,
+        double X,
+        double Y,
+        Side Side,
+        Fn Function,
+        Dir Direction,
+        Volt? Voltage = null,
         int? Channel = null);
 
-    private static Guid SeedTemplateId(int deviceTypeId)
-        => new($"7e000000-0000-0000-0000-{deviceTypeId:D12}");
+    private static Guid SeedTemplateId(EntityEnums.DeviceType type, int ordinal)
+        => new($"7e200000-0000-0000-{(int)type:D4}-{ordinal:D12}");
 
-    private static Guid SeedPinId(int deviceTypeId, int sequence)
-        => new($"7e100000-0000-0000-{deviceTypeId:D4}-{sequence:D12}");
+    private static Guid SeedPinId(EntityEnums.DeviceType type, int ordinal, int sequence)
+        => new($"7e300000-0000-{(int)type:D4}-{ordinal:D4}-{sequence:D12}");
 
-    /// <summary>Numaralandirilmis pin serisi uretir: IN1..IN8 gibi.</summary>
-    private static IEnumerable<PinSpec> Series(
-        string prefix, int count, EntityEnums.HandleSide side,
-        EntityEnums.PinFunction function, EntityEnums.PinDirection direction,
-        EntityEnums.VoltageLevel? voltage = null,
-        bool numberChannels = false)
-        => Enumerable.Range(1, count).Select(n => new PinSpec(
-            $"{prefix}{n}", side, function, direction, voltage,
-            numberChannels ? n : null));
+    /// <summary>
+    /// Kanal numarali bir rolenin uc klemensi (cikis kanali n). Kart ust sirada NO-COM-NC, alt sirada
+    /// NC-COM-NO dizilir; <paramref name="noFirst"/> soldaki ucun NO olup olmadigini soyler.
+    /// </summary>
+    private static IEnumerable<PinSpec> Relay(int n, double y, Side side, bool noFirst, double left, double middle, double right)
+    {
+        yield return new PinSpec($"OUT{n}", middle, y, side, Fn.COM, Dir.Output, null, n);
+        yield return new PinSpec($"OUT{n} NO", noFirst ? left : right, y, side, Fn.NO, Dir.Output, null, n);
+        yield return new PinSpec($"OUT{n} NC", noFirst ? right : left, y, side, Fn.NC, Dir.Output, null, n);
+    }
+
+    /// <summary>Soldan saga dizili dijital girisler: ilk noktanin numarasi <paramref name="first"/>, sonrakiler <paramref name="step"/> kadar ilerler.</summary>
+    private static IEnumerable<PinSpec> Inputs(int first, int step, double y, Side side, params double[] xs)
+        => xs.Select((x, i) => new PinSpec($"IN{first + i * step}", x, y, side, Fn.Signal_In, Dir.Input, Volt.DC_12V, first + i * step));
+
+    /// <summary>LED n'in iki ucu; ikisi de cikis uzayindaki 16 + n kanalindadir.</summary>
+    private static IEnumerable<PinSpec> Led(int n, double plusX, double minusX, double y, Side side)
+    {
+        yield return new PinSpec($"LD{n}", plusX, y, side, Fn.LED_Anode, Dir.Output, Volt.DC_12V, 16 + n);
+        yield return new PinSpec($"LD{n}-", minusX, y, side, Fn.LED_Cathode, Dir.Output, Volt.DC_12V, 16 + n);
+    }
 
     /// <summary>
     /// Sistem sablonlarinin varsayilan zemin rengi (#RRGGBB).
@@ -670,113 +710,223 @@ public class AppDbContext : IdentityDbContext<User, Role, Guid>
         var templates = new List<ComponentTemplate>();
         var pins = new List<ComponentTemplatePin>();
 
-        void Template(EntityEnums.DeviceType type, string name, double width, double height, params PinSpec[] specs)
+        void Template(EntityEnums.DeviceType type, int ordinal, string name, double width, double height, string imageFile, PinSpec[] specs)
         {
-            var typeId = (int)type;
-            var templateId = SeedTemplateId(typeId);
+            var templateId = SeedTemplateId(type, ordinal);
             templates.Add(new ComponentTemplate
             {
                 Id = templateId,
                 Name = name,
-                DeviceTypeId = typeId,
+                DeviceTypeId = (int)type,
                 IsSystemTemplate = true,
                 Width = width,
                 Height = height,
                 BackgroundColor = TypeColor(type),
+                BackgroundImageUrl = $"/templates/system/{imageFile}",
                 IsActive = true
             });
 
-            // Pinler kenar bazinda esit araliklarla dagitilir: n pin icin i. pinin
-            // orani (i + 0.5) / n olur, yani ilk ve son pin kenara yapismaz.
-            var sequence = 0;
-            foreach (var group in specs.GroupBy(s => s.Side))
+            for (var i = 0; i < specs.Length; i++)
             {
-                var sidePins = group.ToList();
-                for (var i = 0; i < sidePins.Count; i++)
+                var spec = specs[i];
+                pins.Add(new ComponentTemplatePin
                 {
-                    var spec = sidePins[i];
-                    var offset = (i + 0.5d) / sidePins.Count;
-                    pins.Add(new ComponentTemplatePin
-                    {
-                        Id = SeedPinId(typeId, ++sequence),
-                        ComponentTemplateId = templateId,
-                        Name = spec.Name,
-                        Side = spec.Side,
-                        RelativeX = spec.Side switch
-                        {
-                            EntityEnums.HandleSide.Left => 0d,
-                            EntityEnums.HandleSide.Right => 1d,
-                            _ => offset
-                        },
-                        RelativeY = spec.Side switch
-                        {
-                            EntityEnums.HandleSide.Top => 0d,
-                            EntityEnums.HandleSide.Bottom => 1d,
-                            _ => offset
-                        },
-                        Function = spec.Function,
-                        Direction = spec.Direction,
-                        VoltageLevel = spec.Voltage,
-                        ChannelNumber = spec.Channel
-                    });
-                }
+                    Id = SeedPinId(type, ordinal, i + 1),
+                    ComponentTemplateId = templateId,
+                    Name = spec.Name,
+                    Side = spec.Side,
+                    RelativeX = spec.X,
+                    RelativeY = spec.Y,
+                    Function = spec.Function,
+                    Direction = spec.Direction,
+                    VoltageLevel = spec.Voltage,
+                    ChannelNumber = spec.Channel
+                });
             }
         }
 
-        Template(EntityEnums.DeviceType.ControlModule, "Kontrol Modulu", 220, 170,
-            new PinSpec("RJ45", EntityEnums.HandleSide.Left, EntityEnums.PinFunction.RJ45, EntityEnums.PinDirection.Bidirectional, EntityEnums.VoltageLevel.Data),
-            new PinSpec("RS485-A", EntityEnums.HandleSide.Left, EntityEnums.PinFunction.RS485_POS, EntityEnums.PinDirection.Bidirectional, EntityEnums.VoltageLevel.Data),
-            new PinSpec("RS485-B", EntityEnums.HandleSide.Left, EntityEnums.PinFunction.RS485_NEG, EntityEnums.PinDirection.Bidirectional, EntityEnums.VoltageLevel.Data),
-            new PinSpec("+12V", EntityEnums.HandleSide.Right, EntityEnums.PinFunction.VCC, EntityEnums.PinDirection.Input, EntityEnums.VoltageLevel.DC_12V),
-            new PinSpec("GND", EntityEnums.HandleSide.Right, EntityEnums.PinFunction.GND, EntityEnums.PinDirection.Input, EntityEnums.VoltageLevel.DC_12V));
+        // SVG cizimlerinde pin koordinati viewBox birimindedir ve viewBox = Width x Height.
+        void SvgTemplate(EntityEnums.DeviceType type, int ordinal, string name, double width, double height, string imageFile, PinSpec[] specs)
+            => Template(type, ordinal, name, width, height, imageFile,
+                [.. specs.Select(s => s with { X = s.X / width, Y = s.Y / height })]);
 
-        Template(EntityEnums.DeviceType.InputModule, "8 Kanal Giris Karti", 200, 260,
-            [.. Series("IN", 8, EntityEnums.HandleSide.Left, EntityEnums.PinFunction.Signal_In, EntityEnums.PinDirection.Input, EntityEnums.VoltageLevel.Signal_5V, numberChannels: true),
-             new PinSpec("+12V", EntityEnums.HandleSide.Right, EntityEnums.PinFunction.VCC, EntityEnums.PinDirection.Input, EntityEnums.VoltageLevel.DC_12V),
-             new PinSpec("GND", EntityEnums.HandleSide.Right, EntityEnums.PinFunction.GND, EntityEnums.PinDirection.Input, EntityEnums.VoltageLevel.DC_12V)]);
+        // ---- GORA MODULLERI (Docs/assets/components PNG'leri) ----
+        // Koordinatlar PNG'deki klemens noktalarinin merkezidir. Olcek k gorsel pikselini tuval birimine
+        // cevirir ve klemens noktasi ~14 birim olacak sekilde secilmistir: Width x Height = piksel x k.
 
-        Template(EntityEnums.DeviceType.MeasurementDevice, "4 Kanal Analog Giris Karti", 200, 200,
-            [.. Series("AI", 4, EntityEnums.HandleSide.Left, EntityEnums.PinFunction.Analog_In, EntityEnums.PinDirection.AnalogInput, EntityEnums.VoltageLevel.Signal_5V, numberChannels: true),
-             new PinSpec("+12V", EntityEnums.HandleSide.Right, EntityEnums.PinFunction.VCC, EntityEnums.PinDirection.Input, EntityEnums.VoltageLevel.DC_12V),
-             new PinSpec("GND", EntityEnums.HandleSide.Right, EntityEnums.PinFunction.GND, EntityEnums.PinDirection.Input, EntityEnums.VoltageLevel.DC_12V)]);
+        // control-module.png 468x361, k = 0.65. Kart ustu I/O kanalsizdir (bolge basindaki not).
+        Template(EntityEnums.DeviceType.ControlModule, 1, "Gora Kontrol Modülü", 304.2, 234.65, "control-module.png",
+        [
+            new("RJ45", .1623, .1854, Side.Top, Fn.RJ45, Dir.Bidirectional, Volt.Data),
+            new("IN1-", .7544, .0946, Side.Top, Fn.GND, Dir.Input, Volt.DC_12V),
+            new("IN1+", .7990, .0946, Side.Top, Fn.Signal_In, Dir.Input, Volt.DC_12V),
+            new("IN2-", .8796, .0946, Side.Top, Fn.GND, Dir.Input, Volt.DC_12V),
+            new("IN2+", .9237, .0946, Side.Top, Fn.Signal_In, Dir.Input, Volt.DC_12V),
+            new("12VDC+", .0908, .8667, Side.Bottom, Fn.VCC, Dir.Input, Volt.DC_12V),
+            new("12VDC-", .1705, .8668, Side.Bottom, Fn.GND, Dir.Input, Volt.DC_12V),
+            new("RS485 B", .2660, .8668, Side.Bottom, Fn.RS485_NEG, Dir.Bidirectional, Volt.Data),
+            new("RS485 A", .3452, .8668, Side.Bottom, Fn.RS485_POS, Dir.Bidirectional, Volt.Data),
+            new("OUT1 NC", .5181, .8652, Side.Bottom, Fn.NC, Dir.Output),
+            new("OUT1 COM", .5972, .8652, Side.Bottom, Fn.COM, Dir.Output),
+            new("OUT1 NO", .6763, .8652, Side.Bottom, Fn.NO, Dir.Output),
+            new("OUT2 NC", .7553, .8652, Side.Bottom, Fn.NC, Dir.Output),
+            new("OUT2 COM", .8345, .8652, Side.Bottom, Fn.COM, Dir.Output),
+            new("OUT2 NO", .9136, .8652, Side.Bottom, Fn.NO, Dir.Output)
+        ]);
 
+        // output-module.png 1302x415, k = 0.55. Role n -> cikis kanali n.
+        const double outTop = .1046, outBottom = .8816;
+        Template(EntityEnums.DeviceType.OutputModule, 1, "Gora Çıkış Modülü (15 Röle)", 716.1, 228.25, "output-module.png",
+        [
+            new("RS485-1 A", .1110, outTop, Side.Top, Fn.RS485_POS, Dir.Bidirectional, Volt.Data),
+            new("RS485-1 B", .1455, outTop, Side.Top, Fn.RS485_NEG, Dir.Bidirectional, Volt.Data),
+            new("RS485-2 A", .1790, outTop, Side.Top, Fn.RS485_POS, Dir.Bidirectional, Volt.Data),
+            new("RS485-2 B", .2135, outTop, Side.Top, Fn.RS485_NEG, Dir.Bidirectional, Volt.Data),
+            // Ust sira soldan saga OUT15..OUT9: NO-COM-NC.
+            .. Relay(15, outTop, Side.Top, noFirst: true, .2746, .3084, .3423),
+            .. Relay(14, outTop, Side.Top, noFirst: true, .3755, .4093, .4431),
+            .. Relay(13, outTop, Side.Top, noFirst: true, .4750, .5088, .5426),
+            .. Relay(12, outTop, Side.Top, noFirst: true, .5744, .6083, .6421),
+            .. Relay(11, outTop, Side.Top, noFirst: true, .6739, .7078, .7416),
+            .. Relay(10, outTop, Side.Top, noFirst: true, .7734, .8072, .8411),
+            .. Relay(9, outTop, Side.Top, noFirst: true, .8729, .9067, .9405),
+            new("12VDC-", .0436, outBottom, Side.Bottom, Fn.GND, Dir.Input, Volt.DC_12V),
+            new("12VDC+", .0774, outBottom, Side.Bottom, Fn.VCC, Dir.Input, Volt.DC_12V),
+            // Alt sira soldan saga OUT1..OUT8: NC-COM-NO.
+            .. Relay(1, outBottom, Side.Bottom, noFirst: false, .1732, .2070, .2408),
+            .. Relay(2, outBottom, Side.Bottom, noFirst: false, .2746, .3084, .3423),
+            .. Relay(3, outBottom, Side.Bottom, noFirst: false, .3754, .4092, .4431),
+            .. Relay(4, outBottom, Side.Bottom, noFirst: false, .4750, .5088, .5426),
+            .. Relay(5, outBottom, Side.Bottom, noFirst: false, .5744, .6082, .6421),
+            .. Relay(6, outBottom, Side.Bottom, noFirst: false, .6739, .7077, .7416),
+            .. Relay(7, outBottom, Side.Bottom, noFirst: false, .7734, .8072, .8411),
+            .. Relay(8, outBottom, Side.Bottom, noFirst: false, .8729, .9067, .9405)
+        ]);
 
-        Template(EntityEnums.DeviceType.OutputModule, "8 Kanal Role Cikis Karti", 200, 260,
-            [new PinSpec("+12V", EntityEnums.HandleSide.Left, EntityEnums.PinFunction.VCC, EntityEnums.PinDirection.Input, EntityEnums.VoltageLevel.DC_12V),
-             new PinSpec("GND", EntityEnums.HandleSide.Left, EntityEnums.PinFunction.GND, EntityEnums.PinDirection.Input, EntityEnums.VoltageLevel.DC_12V),
-             .. Series("OUT", 8, EntityEnums.HandleSide.Right, EntityEnums.PinFunction.NO, EntityEnums.PinDirection.Output, null, numberChannels: true)]);
+        // input-module.png 1280x408, k = 0.55. IN n -> giris kanali n; analog kanallar bolge basinda.
+        // Etiketsiz 4 uclu sensor klemensinin sirasi (+V, GND, sicaklik, nem) VARSAYIMDIR.
+        // Akim olcme: kartta soldaki cift "IN 2", sagdaki "IN 1" yazar; ciftin uclari T1 / T1' kuralindadir.
+        const double inTop = .1191, inBottom = .8810;
+        Template(EntityEnums.DeviceType.InputModule, 1, "Gora Giriş Modülü (24 DI + 4 AI)", 704, 224.4, "input-module.png",
+        [
+            new("RS485-1 A", .1108, inTop, Side.Top, Fn.RS485_POS, Dir.Bidirectional, Volt.Data),
+            new("RS485-1 B", .1453, inTop, Side.Top, Fn.RS485_NEG, Dir.Bidirectional, Volt.Data),
+            new("RS485-2 A", .1926, inTop, Side.Top, Fn.RS485_POS, Dir.Bidirectional, Volt.Data),
+            new("RS485-2 B", .2262, inTop, Side.Top, Fn.RS485_NEG, Dir.Bidirectional, Volt.Data),
+            new("SENSOR +V", .2806, inTop, Side.Top, Fn.VCC, Dir.Output, Volt.DC_12V),
+            new("SENSOR GND", .3144, inTop, Side.Top, Fn.GND, Dir.Output, Volt.DC_12V),
+            new("SICAKLIK", .3482, inTop, Side.Top, Fn.Analog_In, Dir.AnalogInput, null, 1),
+            new("NEM", .3822, inTop, Side.Top, Fn.Analog_In, Dir.AnalogInput, null, 2),
+            new("AKIM2", .4497, inTop, Side.Top, Fn.Analog_In, Dir.AnalogInput, null, 4),
+            new("AKIM2'", .4835, inTop, Side.Top, Fn.Analog_In, Dir.AnalogInput, null, 4),
+            new("AKIM1", .5174, inTop, Side.Top, Fn.Analog_In, Dir.AnalogInput, null, 3),
+            new("AKIM1'", .5513, inTop, Side.Top, Fn.Analog_In, Dir.AnalogInput, null, 3),
+            new("+V1", .6392, inTop, Side.Top, Fn.VCC, Dir.Output, Volt.DC_12V),
+            new("+V2", .6730, inTop, Side.Top, Fn.VCC, Dir.Output, Volt.DC_12V),
+            // Ust sira soldan saga IN24..IN17.
+            .. Inputs(24, -1, inTop, Side.Top, .7206, .7544, .7882, .8221, .8559, .8898, .9237, .9575),
+            new("12VDC-", .0434, inBottom, Side.Bottom, Fn.GND, Dir.Input, Volt.DC_12V),
+            new("12VDC+", .0772, inBottom, Side.Bottom, Fn.VCC, Dir.Input, Volt.DC_12V),
+            new("+V3", .2334, inBottom, Side.Bottom, Fn.VCC, Dir.Output, Volt.DC_12V),
+            new("+V4", .2674, inBottom, Side.Bottom, Fn.VCC, Dir.Output, Volt.DC_12V),
+            .. Inputs(1, 1, inBottom, Side.Bottom, .3143, .3480, .3818, .4158, .4496, .4834, .5174, .5512),
+            new("+V5", .6398, inBottom, Side.Bottom, Fn.VCC, Dir.Output, Volt.DC_12V),
+            new("+V6", .6737, inBottom, Side.Bottom, Fn.VCC, Dir.Output, Volt.DC_12V),
+            .. Inputs(9, 1, inBottom, Side.Bottom, .7198, .7536, .7875, .8214, .8552, .8891, .9230, .9568)
+        ]);
 
-        Template(EntityEnums.DeviceType.LedModule, "8 Kanal LED Karti", 180, 240,
-            [new PinSpec("+12V", EntityEnums.HandleSide.Left, EntityEnums.PinFunction.VCC, EntityEnums.PinDirection.Input, EntityEnums.VoltageLevel.DC_12V),
-             new PinSpec("GND", EntityEnums.HandleSide.Left, EntityEnums.PinFunction.GND, EntityEnums.PinDirection.Input, EntityEnums.VoltageLevel.DC_12V),
-             .. Series("LD", 8, EntityEnums.HandleSide.Right, EntityEnums.PinFunction.LED_Anode, EntityEnums.PinDirection.Output, null, numberChannels: true)]);
+        // led-module.png 501x393, k = 0.57. LED n -> cikis kanali 16 + n (rolelerle ayni duz uzay).
+        Template(EntityEnums.DeviceType.LedModule, 1, "Gora LED Modülü (8 Kanal)", 285.57, 224.01, "led-module.png",
+        [
+            new("RS485 A", .0817, .1194, Side.Top, Fn.RS485_POS, Dir.Bidirectional, Volt.Data),
+            new("RS485 B", .1667, .1194, Side.Top, Fn.RS485_NEG, Dir.Bidirectional, Volt.Data),
+            // Ust sira soldan saga LD8..LD5: (-, +).
+            .. Led(8, .4160, .3310, .1194, Side.Top),
+            .. Led(7, .5821, .4990, .1194, Side.Top),
+            .. Led(6, .7481, .6651, .1194, Side.Top),
+            .. Led(5, .9141, .8311, .1194, Side.Top),
+            new("12VDC-", .0823, .8821, Side.Bottom, Fn.GND, Dir.Input, Volt.DC_12V),
+            new("12VDC+", .1660, .8821, Side.Bottom, Fn.VCC, Dir.Input, Volt.DC_12V),
+            // Alt sira soldan saga LD1..LD4: (+, -).
+            .. Led(1, .3358, .4189, .8803, Side.Bottom),
+            .. Led(2, .5018, .5849, .8803, Side.Bottom),
+            .. Led(3, .6680, .7509, .8803, Side.Bottom),
+            .. Led(4, .8340, .9190, .8803, Side.Bottom)
+        ]);
 
-        Template(EntityEnums.DeviceType.TerminalBlock, "Klemens Blogu", 140, 200,
-            [.. Series("T", 6, EntityEnums.HandleSide.Left, EntityEnums.PinFunction.General, EntityEnums.PinDirection.Bidirectional),
-             // Karsi taraf: T1 <-> T1' ayni klemensin iki yuzudur.
-             .. Series("T", 6, EntityEnums.HandleSide.Right, EntityEnums.PinFunction.General, EntityEnums.PinDirection.Bidirectional)
-                .Select(p => p with { Name = p.Name + "'" })]);
+        // ---- PANO DONANIMI VE SAHA CIHAZLARI (2D SVG cizimleri) ----
+        // Koordinatlar SVG'deki data-pin noktalarinin merkezidir (viewBox birimi). Saha cihazlarinin
+        // gerilimi PDF'te beslendikleri role etiketinden gelir: siren, makbuz yazici, banknot kasasi 24V;
+        // kilit, POS, bozuk para kasasi, bilgisayar 12V. Saha cihazinin kanali yoktur; kanal onu suren
+        // ya da okuyan modulun ucundadir.
+        PinSpec[] DcLoadPins(string plusName, Volt volt, double plusX, double gndX, double y) =>
+        [
+            new(plusName, plusX, y, Side.Bottom, Fn.VCC, Dir.Input, volt),
+            new("GND", gndX, y, Side.Bottom, Fn.GND, Dir.Input, volt)
+        ];
 
-        Template(EntityEnums.DeviceType.PowerSupply, "Guc Kaynagi 220AC / 12DC", 190, 140,
-            new PinSpec("L", EntityEnums.HandleSide.Left, EntityEnums.PinFunction.Line_L, EntityEnums.PinDirection.Input, EntityEnums.VoltageLevel.AC_220V),
-            new PinSpec("N", EntityEnums.HandleSide.Left, EntityEnums.PinFunction.Neutral_N, EntityEnums.PinDirection.Input, EntityEnums.VoltageLevel.AC_220V),
-            new PinSpec("PE", EntityEnums.HandleSide.Left, EntityEnums.PinFunction.Earth_PE, EntityEnums.PinDirection.Input, EntityEnums.VoltageLevel.AC_220V),
-            new PinSpec("+12V", EntityEnums.HandleSide.Right, EntityEnums.PinFunction.VCC, EntityEnums.PinDirection.Output, EntityEnums.VoltageLevel.DC_12V),
-            new PinSpec("GND", EntityEnums.HandleSide.Right, EntityEnums.PinFunction.GND, EntityEnums.PinDirection.Output, EntityEnums.VoltageLevel.DC_12V));
+        PinSpec[] PsuPins(string plusName, Volt volt) =>
+        [
+            new("L", 30, 145, Side.Bottom, Fn.Line_L, Dir.Input, Volt.AC_220V),
+            new("N", 66, 145, Side.Bottom, Fn.Neutral_N, Dir.Input, Volt.AC_220V),
+            new("PE", 102, 145, Side.Bottom, Fn.Earth_PE, Dir.Input, Volt.AC_220V),
+            new("GND1", 150, 145, Side.Bottom, Fn.GND, Dir.Output, volt),
+            new("GND2", 186, 145, Side.Bottom, Fn.GND, Dir.Output, volt),
+            new($"{plusName}1", 222, 145, Side.Bottom, Fn.VCC, Dir.Output, volt),
+            new($"{plusName}2", 258, 145, Side.Bottom, Fn.VCC, Dir.Output, volt)
+        ];
 
-        Template(EntityEnums.DeviceType.Mains, "Sebeke Girisi", 150, 120,
-            new PinSpec("L", EntityEnums.HandleSide.Right, EntityEnums.PinFunction.Line_L, EntityEnums.PinDirection.Output, EntityEnums.VoltageLevel.AC_220V),
-            new PinSpec("N", EntityEnums.HandleSide.Right, EntityEnums.PinFunction.Neutral_N, EntityEnums.PinDirection.Output, EntityEnums.VoltageLevel.AC_220V),
-            new PinSpec("PE", EntityEnums.HandleSide.Right, EntityEnums.PinFunction.Earth_PE, EntityEnums.PinDirection.Output, EntityEnums.VoltageLevel.AC_220V));
+        SvgTemplate(EntityEnums.DeviceType.TerminalBlock, 1, "Klemens Bloğu (8'li)", 100, 320, "terminal-block-8.svg",
+        [
+            // T1 <-> T1' ayni klemensin iki yuzudur; PDF'te 12V / 24V dagitim barasi olarak kullanilir.
+            .. Enumerable.Range(1, 8).Select(i => new PinSpec($"T{i}", 25, i * 40 - 20, Side.Left, Fn.General, Dir.Bidirectional)),
+            .. Enumerable.Range(1, 8).Select(i => new PinSpec($"T{i}'", 75, i * 40 - 20, Side.Right, Fn.General, Dir.Bidirectional))
+        ]);
 
-        Template(EntityEnums.DeviceType.CircuitBreaker, "Sigorta / Devre Kesici", 130, 90,
-            new PinSpec("IN", EntityEnums.HandleSide.Left, EntityEnums.PinFunction.General, EntityEnums.PinDirection.Input, EntityEnums.VoltageLevel.AC_220V),
-            new PinSpec("OUT", EntityEnums.HandleSide.Right, EntityEnums.PinFunction.General, EntityEnums.PinDirection.Output, EntityEnums.VoltageLevel.AC_220V));
+        SvgTemplate(EntityEnums.DeviceType.Sensor, 1, "Kapı Sensörü (Manyetik Kontak)", 200, 120, "door-contact.svg",
+        [
+            new("COM", 60, 100, Side.Bottom, Fn.COM, Dir.Output),
+            new("NO", 100, 100, Side.Bottom, Fn.NO, Dir.Output),
+            new("NC", 140, 100, Side.Bottom, Fn.NC, Dir.Output)
+        ]);
 
-        Template(EntityEnums.DeviceType.Sensor, "Sensor (3 Telli)", 140, 110,
-            new PinSpec("+12V", EntityEnums.HandleSide.Left, EntityEnums.PinFunction.VCC, EntityEnums.PinDirection.Input, EntityEnums.VoltageLevel.DC_12V),
-            new PinSpec("GND", EntityEnums.HandleSide.Left, EntityEnums.PinFunction.GND, EntityEnums.PinDirection.Input, EntityEnums.VoltageLevel.DC_12V),
-            new PinSpec("SIG", EntityEnums.HandleSide.Right, EntityEnums.PinFunction.Signal_Out, EntityEnums.PinDirection.Output, EntityEnums.VoltageLevel.Signal_5V));
+        SvgTemplate(EntityEnums.DeviceType.Peripheral, 1, "Siren", 140, 170, "siren.svg", DcLoadPins("+24V", Volt.DC_24V, 45, 95, 148));
+        SvgTemplate(EntityEnums.DeviceType.Peripheral, 2, "Elektromanyetik Kilit", 220, 120, "maglock.svg", DcLoadPins("+12V", Volt.DC_12V, 90, 130, 100));
+        SvgTemplate(EntityEnums.DeviceType.Peripheral, 3, "Makbuz Yazıcı", 160, 170, "receipt-printer.svg", DcLoadPins("+24V", Volt.DC_24V, 55, 105, 148));
+        SvgTemplate(EntityEnums.DeviceType.Peripheral, 4, "POS Cihazı", 150, 200, "pos-terminal.svg",
+            [.. DcLoadPins("+12V", Volt.DC_12V, 35, 75, 178), new("RJ45", 115, 178, Side.Bottom, Fn.RJ45, Dir.Bidirectional, Volt.Data)]);
+        SvgTemplate(EntityEnums.DeviceType.Peripheral, 5, "Bozuk Para Kasası", 160, 170, "coin-acceptor.svg", DcLoadPins("+12V", Volt.DC_12V, 55, 105, 148));
+        SvgTemplate(EntityEnums.DeviceType.Peripheral, 6, "Banknot Kasası", 160, 190, "bill-acceptor.svg", DcLoadPins("+24V", Volt.DC_24V, 55, 105, 168));
+        SvgTemplate(EntityEnums.DeviceType.Peripheral, 7, "Bilgisayar", 200, 150, "computer.svg",
+            [.. DcLoadPins("+12V", Volt.DC_12V, 50, 90, 128), new("RJ45", 150, 128, Side.Bottom, Fn.RJ45, Dir.Bidirectional, Volt.Data)]);
+        SvgTemplate(EntityEnums.DeviceType.Peripheral, 8, "Lamba", 140, 170, "lamp.svg",
+        [
+            new("L", 35, 148, Side.Bottom, Fn.Line_L, Dir.Input, Volt.AC_220V),
+            new("N", 70, 148, Side.Bottom, Fn.Neutral_N, Dir.Input, Volt.AC_220V),
+            new("PE", 105, 148, Side.Bottom, Fn.Earth_PE, Dir.Input, Volt.AC_220V)
+        ]);
+        SvgTemplate(EntityEnums.DeviceType.Peripheral, 9, "Yönlendirme LED'i", 110, 140, "guide-led.svg",
+        [
+            new("LED+", 35, 118, Side.Bottom, Fn.LED_Anode, Dir.Input, Volt.DC_12V),
+            new("LED-", 75, 118, Side.Bottom, Fn.LED_Cathode, Dir.Input, Volt.DC_12V)
+        ]);
+
+        SvgTemplate(EntityEnums.DeviceType.PowerSupply, 1, "Güç Kaynağı 220VAC / 12VDC", 280, 170, "psu-12v.svg", PsuPins("+12V", Volt.DC_12V));
+        SvgTemplate(EntityEnums.DeviceType.PowerSupply, 2, "Güç Kaynağı 220VAC / 24VDC", 280, 170, "psu-24v.svg", PsuPins("+24V", Volt.DC_24V));
+
+        // PDF'te "SEBEKE" kacak akim rolesidir; "220V CIKIS" ve "LAMBA" otomatik sigortadir.
+        SvgTemplate(EntityEnums.DeviceType.CircuitBreaker, 1, "Kaçak Akım Rölesi 2P", 100, 200, "rcd-2p.svg",
+        [
+            new("L-IN", 30, 24, Side.Top, Fn.Line_L, Dir.Input, Volt.AC_220V),
+            new("N-IN", 70, 24, Side.Top, Fn.Neutral_N, Dir.Input, Volt.AC_220V),
+            new("L-OUT", 30, 176, Side.Bottom, Fn.Line_L, Dir.Output, Volt.AC_220V),
+            new("N-OUT", 70, 176, Side.Bottom, Fn.Neutral_N, Dir.Output, Volt.AC_220V)
+        ]);
+        SvgTemplate(EntityEnums.DeviceType.CircuitBreaker, 2, "Otomatik Sigorta 1P", 60, 200, "mcb-1p.svg",
+        [
+            new("L-IN", 30, 24, Side.Top, Fn.Line_L, Dir.Input, Volt.AC_220V),
+            new("L-OUT", 30, 176, Side.Bottom, Fn.Line_L, Dir.Output, Volt.AC_220V)
+        ]);
 
         modelBuilder.Entity<ComponentTemplate>().HasData(templates);
         modelBuilder.Entity<ComponentTemplatePin>().HasData(pins);

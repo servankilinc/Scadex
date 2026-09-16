@@ -9,12 +9,9 @@ using Scadex.Signalization.Queue;
 
 namespace Scadex.Signalization.BackgroundServices;
 
-/// <summary>
-/// Oturumlarin zamana bagli kararlarini tarar (<c>OfflineDeviceChecker</c> kalibi): suresi dolan siren talebi,
-/// kart bekleme suresi dolan oturum, azami sureyi asan oturum. Isi KENDISI yapmaz — kararlari ilgili kabinin
-/// kuyruguna birakir; motor ayni seritte, ingest'le yarismadan isler.
-/// <para>Durum veritabaninda tutulur (<c>*DueAtUtc</c> alanlari): uygulama yeniden baslasa da zamanlayici kaybolmaz.
-/// Hassasiyet tarama araligi kadardir (±2 sn).</para>
+/// <summary> 
+/// Operatör işlem oturumlarının zamana bagli işler(TimeWork) üretir.
+/// Süresi dolan siren talebi, kart bekleme suresi dolan oturum, azami sureyi aşan oturum vb. süreçleri kontrol eder. İş yapmaz ilgili kabinin kuyruğuna bırakır
 /// </summary>
 public sealed class SignalTimerWorker : BackgroundService
 {
@@ -60,8 +57,8 @@ public sealed class SignalTimerWorker : BackgroundService
         var db = scope.ServiceProvider.GetRequiredService<SignalizationDbContext>();
         var now = DateTime.UtcNow;
 
-        // Siren talebi kapanmis oturumlarda da acik kalamaz (kapanis talebi birakir); yine de EndedAtUtc'ye bakilmaz:
-        // acik kalmis bir talep her kosulda kapanmali ki kabin sireni susabilsin.
+        #region Otomatik siren susturma zamanlayıcısı
+        // Siren isteği varsa & siren susturlmadıysa & ve otomatik susuturluma zamanı geldiyse => koşulunu sağlayan oturumları bul
         var sirenDue = await db.OperatorSessions.AsNoTracking()
             .Where(s => s.SirenRequestedAtUtc != null && s.SirenReleasedAtUtc == null && s.SirenOffDueAtUtc <= now)
             .Select(s => new { s.Id, s.CabinetId })
@@ -69,7 +66,11 @@ public sealed class SignalTimerWorker : BackgroundService
 
         foreach (var s in sirenDue)
             _queue.TryEnqueueTimer(new TimerWork(s.CabinetId, s.Id, SignalTimerKind.SirenDue));
+        #endregion
 
+        #region Geç kalınmış kart okutma kontrolcüsü (yetkisiz dış kapı açılmasını takip eder)
+        // Tamamlanmamış işlemlerde kart okutma süresi aşılmış taleplerde bu durumun hareket kaydı oluşturulur.
+        // NOT: İşlem oturumlarında kart okutulduğunda AwaitingCardDueAtUtc(kart son beklenme tarihi) null'e çekilir
         var awaitingCardDue = await db.OperatorSessions.AsNoTracking()
             .Where(s => s.EndedAtUtc == null && s.AwaitingCardDueAtUtc != null && s.AwaitingCardDueAtUtc <= now)
             .Select(s => new { s.Id, s.CabinetId })
@@ -77,7 +78,9 @@ public sealed class SignalTimerWorker : BackgroundService
 
         foreach (var s in awaitingCardDue)
             _queue.TryEnqueueTimer(new TimerWork(s.CabinetId, s.Id, SignalTimerKind.AwaitingCardDue));
+        #endregion
 
+        #region İşlem belirtilen süre içerisinde tamamlanmadı mı kontrolcüsü
         var maxDurationDue = await db.OperatorSessions.AsNoTracking()
             .Where(s => s.EndedAtUtc == null && s.MaxDurationDueAtUtc != null && s.MaxDurationDueAtUtc <= now)
             .Select(s => new { s.Id, s.CabinetId })
@@ -85,5 +88,6 @@ public sealed class SignalTimerWorker : BackgroundService
 
         foreach (var s in maxDurationDue)
             _queue.TryEnqueueTimer(new TimerWork(s.CabinetId, s.Id, SignalTimerKind.MaxDurationDue));
+        #endregion
     }
 }

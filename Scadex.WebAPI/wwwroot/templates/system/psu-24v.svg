@@ -1,0 +1,37 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="280" height="170" viewBox="0 0 280 170">
+  <!-- Scadex sistem şablonu. data-pin merkezleri AppDbContext seed'indeki pin konumlarıyla birebir aynıdır: birini değiştiren ikisini birden değiştirir. -->
+  <style>text{font-family:Bahnschrift,'DIN Alternate','Arial Narrow',Arial,sans-serif;font-weight:700;text-anchor:middle;fill:#111}</style>
+  <rect x="4" y="4" width="272" height="162" rx="8" fill="#F8FAFC" stroke="#111" stroke-width="2.5"/>
+  <g fill="#CBD5E1">
+    <rect x="16" y="14" width="12" height="24" rx="2"/><rect x="37" y="14" width="12" height="24" rx="2"/>
+    <rect x="58" y="14" width="12" height="24" rx="2"/><rect x="79" y="14" width="12" height="24" rx="2"/>
+    <rect x="100" y="14" width="12" height="24" rx="2"/><rect x="121" y="14" width="12" height="24" rx="2"/>
+    <rect x="142" y="14" width="12" height="24" rx="2"/><rect x="163" y="14" width="12" height="24" rx="2"/>
+    <rect x="184" y="14" width="12" height="24" rx="2"/><rect x="205" y="14" width="12" height="24" rx="2"/>
+    <rect x="226" y="14" width="12" height="24" rx="2"/><rect x="247" y="14" width="12" height="24" rx="2"/>
+  </g>
+  <text x="140" y="62" font-size="15">GÜÇ KAYNAĞI</text>
+  <text x="140" y="84" font-size="13">220V AC → 24V DC</text>
+  <circle cx="250" cy="60" r="4" fill="#22C55E" stroke="#111" stroke-width="1"/>
+
+  <rect x="12" y="100" width="256" height="60" rx="5" fill="#fff" stroke="#111" stroke-width="1.5"/>
+  <line x1="126" y1="104" x2="126" y2="156" stroke="#111" stroke-width="1"/>
+  <g font-size="12">
+    <text x="30" y="126">L</text>
+    <text x="66" y="126">N</text>
+    <text x="102" y="126">PE</text>
+    <text x="150" y="126">-V</text>
+    <text x="186" y="126">-V</text>
+    <text x="222" y="126">+V</text>
+    <text x="258" y="126">+V</text>
+  </g>
+  <g fill="#111">
+    <circle data-pin="L" cx="30" cy="145" r="7"/>
+    <circle data-pin="N" cx="66" cy="145" r="7"/>
+    <circle data-pin="PE" cx="102" cy="145" r="7"/>
+    <circle data-pin="GND1" cx="150" cy="145" r="7"/>
+    <circle data-pin="GND2" cx="186" cy="145" r="7"/>
+    <circle data-pin="+24V1" cx="222" cy="145" r="7"/>
+    <circle data-pin="+24V2" cx="258" cy="145" r="7"/>
+  </g>
+</svg>

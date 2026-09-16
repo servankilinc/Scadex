@@ -1,9 +1,9 @@
 ﻿namespace Scadex.Signalization.Model.Utils;
 
 /// <summary> <paramref name="InnerDoorId"/> yalnızca kart okutma kaynaklı çekimde doludur. </summary>
-public sealed class EntrySnapshotJob
+public sealed class EntrySnapshotWorkItem
 {
-    public EntrySnapshotJob(long sessionId, Guid cameraId, int count, int intervalMs, DateTime startAtUtc, Guid? innerDoorId = null)
+    public EntrySnapshotWorkItem(long sessionId, Guid cameraId, int count, int intervalMs, DateTime startAtUtc, Guid? innerDoorId = null)
     {
         SessionId = sessionId;
         CameraId = cameraId;

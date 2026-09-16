@@ -5,6 +5,7 @@ using Scadex.Core.Utils;
 using Scadex.DataAccess.UoW;
 using Scadex.Model.Dtos.DeviceCommand.Commands;
 using Scadex.Signalization.DataAccess;
+using Scadex.Signalization.Enums;
 using Scadex.Signalization.Model.Entities;
 using Scadex.Signalization.Model.Utils;
 using Scadex.Signalization.Runtime;
@@ -34,70 +35,30 @@ public partial class OperatorSessionEngine
 
     public async Task HandleAsync(SignalWorkItem item, CancellationToken cancellationToken)
     {
-        // Zamanlayici isleri kabin sonradan kapatilmis olsa da islenir: acik kalmis bir siren talebi her kosulda kapanmali.
         var cabinet = await _db.Cabinets.AsNoTracking().FirstOrDefaultAsync(c => c.CabinetId == item.CabinetId, cancellationToken);
         if (cabinet == null)
-            return; // Bu kabin modulun degil — sessizce gecilir, cekirdek olayi zaten isledi.
-
-        if (item is TimerWork timer)
-        {
-            await HandleTimerAsync(cabinet, timer, cancellationToken);
-            return;
-        }
-
-        if (!cabinet.IsEnabled)
             return;
 
+        // NOT IsEnabled kontrolü Zamanlayıcı harici "kart okutma" veya "input kanal değişimi" ile üretilen işlere uygulanmalı.
+        // çünkü pasife alınmış bir kabinin operatör işlem sistem tarafından kapatılabilmeli vs. nedenler var
         switch (item)
         {
+            case TimerWork timerWork:
+                await HandleTimerAsync(cabinet, timerWork, cancellationToken);
+                break;
             case ChannelChangedWork channelWork:
-                await HandleChannelChangedAsync(cabinet, channelWork, cancellationToken);
+                if (cabinet.IsEnabled)
+                    await HandleChannelChangedAsync(cabinet, channelWork, cancellationToken);
                 break;
             case CardPresentedWork cardWork:
-                await HandleCardAsync(cabinet, cardWork.Notification, cancellationToken);
+                if (cabinet.IsEnabled)
+                    await HandleCardAsync(cabinet, cardWork.Notification, cancellationToken);
                 break;
         }
     }
 
-    private async Task HandleChannelChangedAsync(SignalCabinet cabinet, ChannelChangedWork work, CancellationToken cancellationToken)
-    {
-        var notification = work.Notification;
 
-        // null = "kanal var ama okunamadi": kapinin durumu bilinmiyor, karar verilmez.
-        if (notification.Value == null)
-            return;
-
-        var outer = await _db.OuterDoors.AsNoTracking().FirstOrDefaultAsync(d =>
-            d.CabinetId == cabinet.CabinetId &&
-            d.IsActive &&
-            d.SwitchIoChannelId == notification.IoChannelId, cancellationToken);
-
-        if (outer != null)
-        {
-            bool isOpen = string.Equals(notification.Value, outer.SwitchOpenValue, StringComparison.Ordinal);
-            await HandleOuterSwitchAsync(cabinet, outer, isOpen, notification.OccurredAtUtc, notification.ReceivedAtUtc, cancellationToken);
-            return;
-        }
-
-        var inner = await _db.InnerDoors.AsNoTracking().Include(i => i.OuterDoor).FirstOrDefaultAsync(i =>
-            i.IsActive &&
-            i.SwitchIoChannelId == notification.IoChannelId &&
-            i.OuterDoor!.IsActive &&
-            i.OuterDoor.CabinetId == cabinet.CabinetId, cancellationToken);
-
-        if (inner != null)
-        {
-            bool isOpen = string.Equals(notification.Value, inner.SwitchOpenValue, StringComparison.Ordinal);
-            await HandleInnerSwitchAsync(cabinet, inner, isOpen, notification.OccurredAtUtc, notification.ReceivedAtUtc, cancellationToken);
-        }
-
-        // Ne dis ne ic kapi anahtari: bu kanal modulu ilgilendirmiyor.
-    }
-
-    #region Oturum yardimcilari
-    private Task<OperatorSession?> GetOpenSessionAsync(Guid outerDoorId, CancellationToken cancellationToken)
-        => _db.OperatorSessions.FirstOrDefaultAsync(s => s.OuterDoorId == outerDoorId && s.EndedAtUtc == null, cancellationToken);
-
+    #region Helpers
     private OperatorSession StartSession(SignalCabinet cabinet, SignalOuterDoor outer, DateTime startedAtUtc, SessionFlags flags)
     {
         var now = DateTime.UtcNow;
@@ -109,7 +70,6 @@ public partial class OperatorSessionEngine
             Status = OperatorSessionStatus.Open,
             Flags = flags,
             StartedAtUtc = startedAtUtc,
-            // Sureler SUNUCU saatinden hesaplanir: SCADA'nin saati kaymis olabilir, zamanlayici sunucu saatiyle tarar.
             AwaitingCardDueAtUtc = cabinet.AwaitingCardTimeoutSec > 0 ? now.AddSeconds(cabinet.AwaitingCardTimeoutSec) : null,
             MaxDurationDueAtUtc = cabinet.SessionMaxDurationMin > 0 ? now.AddMinutes(cabinet.SessionMaxDurationMin) : null
         };
@@ -118,43 +78,18 @@ public partial class OperatorSessionEngine
         return session;
     }
 
-    /// <summary> Oturumu kapatir. Operator satirlari okunacagi icin cagirmadan ONCE kaydedilmis olmalidir. </summary>
-    private async Task CloseSessionAsync(OperatorSession session, DateTime endedAtUtc, bool timedOut, CancellationToken cancellationToken)
-    {
-        bool hasOperator = await _db.OperatorSessionOperators.AnyAsync(o => o.SessionId == session.Id, cancellationToken);
-        if (!hasOperator)
-            session.Flags |= SessionFlags.NoCardPresented;
 
-        if (endedAtUtc < session.StartedAtUtc)
-            endedAtUtc = session.StartedAtUtc;
-
-        session.EndedAtUtc = endedAtUtc;
-        session.DurationSec = (int)Math.Round((endedAtUtc - session.StartedAtUtc).TotalSeconds);
-        session.AwaitingCardDueAtUtc = null;
-        session.MaxDurationDueAtUtc = null;
-
-        if (timedOut)
-        {
-            session.Flags |= SessionFlags.TimedOut;
-            session.Status = OperatorSessionStatus.TimedOut;
-        }
-        else
-        {
-            session.Status = session.Flags == SessionFlags.None ? OperatorSessionStatus.Completed : OperatorSessionStatus.CompletedWithWarning;
-        }
-    }
-
-    /// <summary> Kapanmis bir oturuma sonradan bayrak eklendiyse (orn. siren komutu basarisiz) durum uyarili olur. </summary>
-    private static void MarkFlag(OperatorSession session, SessionFlags flag)
-    {
-        session.Flags |= flag;
-        if (session.Status == OperatorSessionStatus.Completed)
-            session.Status = OperatorSessionStatus.CompletedWithWarning;
-    }
-
-    private OperatorSessionEvent AddEvent(OperatorSession session, SessionEventType type, DateTime occurredAtUtc, DateTime? receivedAtUtc = null,
-        Guid? innerDoorId = null, Guid? userId = null, string? cardIdRaw = null, Guid? deviceCommandId = null, string? detail = null)
-    {
+    private OperatorSessionEvent AddEvent(
+        OperatorSession session,
+        SessionEventType type,
+        DateTime occurredAtUtc,
+        DateTime? receivedAtUtc = null,
+        Guid? innerDoorId = null,
+        Guid? userId = null,
+        string? cardIdRaw = null,
+        Guid? deviceCommandId = null,
+        string? detail = null
+    ) {
         var sessionEvent = new OperatorSessionEvent
         {
             // Navigasyon uzerinden: yeni oturumun Id'si henuz yok, EF kayitta doldurur.
@@ -172,22 +107,78 @@ public partial class OperatorSessionEngine
         _db.OperatorSessionEvents.Add(sessionEvent);
         return sessionEvent;
     }
-    #endregion
 
-    #region Cekirdek okumalari ve komut
-    /// <summary> Anahtar kanalinin son degeri "acik" mi? Kanal yoksa ya da okunamadiysa <c>null</c> (bilinmiyor). </summary>
+
+    /// <summary> Falg ekler ayrıca kapanmis bir oturuma sonradan flag eklendiyse (orn. siren komutu basarisiz) status uyarıyla tamamlandı olur. </summary>
+    private static void MarkFlag(OperatorSession session, SessionFlags flag, bool setCompletedWithWarning = false)
+    {
+        session.Flags |= flag;
+        if (setCompletedWithWarning && session.Status == OperatorSessionStatus.Completed)
+            session.Status = OperatorSessionStatus.CompletedWithWarning;
+    }
+
+
+    /// <summary> Switch input kanalının son değeri. Okunamadıysa <c>null</c> (bilinmiyor). </summary>
     private async Task<bool?> IsSwitchOpenAsync(Guid switchIoChannelId, string openValue, CancellationToken cancellationToken)
     {
         var channel = await _unitOfWork.IoChannels.GetAsync(
             select: c => new { c.CurrentValue },
             where: c => c.Id == switchIoChannelId,
-            cancellationToken: cancellationToken);
+            cancellationToken: cancellationToken
+        );
 
         if (channel?.CurrentValue == null)
             return null;
 
         return string.Equals(channel.CurrentValue, openValue, StringComparison.Ordinal);
     }
+
+
+    /// <summary> Oturumu kapatır. </summary>
+    private async Task CloseSessionAsync(OperatorSession session, DateTime endedAtUtc, bool timedOut, CancellationToken cancellationToken)
+    {
+        bool hasOperator = await _db.OperatorSessionOperators.AnyAsync(o => o.SessionId == session.Id, cancellationToken);
+        if (!hasOperator)
+            MarkFlag(session, SessionFlags.NoCardPresented);
+
+        if (endedAtUtc < session.StartedAtUtc)
+            endedAtUtc = session.StartedAtUtc;
+
+        session.EndedAtUtc = endedAtUtc;
+        session.DurationSec = (int)Math.Round((endedAtUtc - session.StartedAtUtc).TotalSeconds);
+        
+        // zamanlayıcı alanları sıfırlanır ki kontrol edildiğinde işlemesin
+        session.AwaitingCardDueAtUtc = null;
+        session.MaxDurationDueAtUtc = null; 
+
+        if (timedOut)
+        {
+            MarkFlag(session, SessionFlags.TimedOut);
+            session.Status = OperatorSessionStatus.TimedOut;
+        }
+        else
+        {
+            session.Status = session.Flags == SessionFlags.None ? OperatorSessionStatus.Completed : OperatorSessionStatus.CompletedWithWarning;
+        }
+    }
+
+
+    /// <summary> Dis kapinin ardindaki TUM aktif ic kapilar kilitli mi (baska islem yapan yok mu)? </summary>
+    private async Task<bool> AreAllInnerDoorsLockedAsync(Guid outerDoorId, CancellationToken cancellationToken)
+    {
+        var doorIds = await _db.InnerDoors
+            .Where(i => i.OuterDoorId == outerDoorId && i.IsActive)
+            .Select(i => i.Id)
+            .ToListAsync(cancellationToken);
+
+        return !await _db.InnerDoorStates.AnyAsync(s => doorIds.Contains(s.InnerDoorId) && s.IsUnlocked, cancellationToken);
+    }
+    #endregion
+
+
+    #region Cekirdek okumalari ve komut
+
+
 
     /// <summary>
     /// Bir cikis kanalina komut gonderir. Cihaz kanaldan turetilir (kanalin karti). Retry YOKTUR.

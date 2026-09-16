@@ -29,8 +29,13 @@ public class OperatorSession : IEntity
 
 
     #region --- Siren talebi ---
+    /// <summary> Bu oturumun sireni açma talebini actigi an; <see cref="SirenReleasedAtUtc"/> null oldugu surece talep açıktır. </summary>
     public DateTime? SirenRequestedAtUtc { get; set; }
+
+    /// <summary> Zamanlayıcının bu talebi otomatik kapatacagi an (<c>SignalCabinet.SirenDurationSec</c> sonra); </summary>
     public DateTime? SirenOffDueAtUtc { get; set; }
+
+    /// <summary> Sirenin susturulduğu an; null ise talep hala açıktır. </summary>
     public DateTime? SirenReleasedAtUtc { get; set; }
     #endregion
 

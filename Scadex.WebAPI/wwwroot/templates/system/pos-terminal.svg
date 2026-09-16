@@ -1,0 +1,26 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="150" height="200" viewBox="0 0 150 200">
+  <!-- Scadex sistem şablonu. data-pin merkezleri AppDbContext seed'indeki pin konumlarıyla birebir aynıdır: birini değiştiren ikisini birden değiştirir. -->
+  <style>text{font-family:Bahnschrift,'DIN Alternate','Arial Narrow',Arial,sans-serif;font-weight:700;text-anchor:middle;fill:#111}</style>
+  <rect x="25" y="6" width="100" height="132" rx="12" fill="#1F2937" stroke="#111" stroke-width="2.5"/>
+  <rect x="37" y="18" width="76" height="36" rx="4" fill="#93C5FD" stroke="#111" stroke-width="1.5"/>
+  <text x="75" y="42" font-size="14">POS</text>
+  <g fill="#E5E7EB">
+    <rect x="41" y="62" width="18" height="12" rx="2"/><rect x="66" y="62" width="18" height="12" rx="2"/><rect x="91" y="62" width="18" height="12" rx="2"/>
+    <rect x="41" y="80" width="18" height="12" rx="2"/><rect x="66" y="80" width="18" height="12" rx="2"/><rect x="91" y="80" width="18" height="12" rx="2"/>
+    <rect x="41" y="98" width="18" height="12" rx="2"/><rect x="66" y="98" width="18" height="12" rx="2"/><rect x="91" y="98" width="18" height="12" rx="2"/>
+  </g>
+  <rect x="45" y="120" width="60" height="6" rx="2" fill="#111"/>
+
+  <rect x="12" y="146" width="126" height="48" rx="5" fill="#fff" stroke="#111" stroke-width="1.5"/>
+  <line x1="95" y1="150" x2="95" y2="190" stroke="#111" stroke-width="1"/>
+  <g font-size="10">
+    <text x="35" y="164">+12V</text>
+    <text x="75" y="164">GND</text>
+    <text x="115" y="164">RJ45</text>
+  </g>
+  <g fill="#111">
+    <circle data-pin="+12V" cx="35" cy="178" r="7"/>
+    <circle data-pin="GND" cx="75" cy="178" r="7"/>
+    <circle data-pin="RJ45" cx="115" cy="178" r="7"/>
+  </g>
+</svg>

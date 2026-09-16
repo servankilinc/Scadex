@@ -164,9 +164,15 @@ her derlemede yeni migration istemesine yol açar):
 - 5 `DeviceStatus` (renk + ikon ile), 12 `DeviceType`, 10 `Permission`
 - Admin'e tüm izinler
 - **Admin kullanıcısı: `admin` / `Admin!2345` — ilk girişten sonra değiştirin.**
-- 10 sistem şablonu + 66 pin (kontrol modülü, 8 kanal giriş/röle/LED kartı, 4 kanal analog
-  giriş kartı, klemens, güç kaynağı, şebeke girişi, sigorta, 3 telli sensör) — palet boş
-  açılmasın diye.
+- 19 sistem şablonu + 190 pin — palet boş açılmasın diye. Kaynak `Docs/Example_Scada_Diagram.pdf`'teki
+  gerçek pano: Gora kontrol / giriş (24 DI + 4 AI) / çıkış (15 röle) / LED modülleri, kaçak akım
+  rölesi, otomatik sigorta, klemens, 12V ve 24V güç kaynağı ve PDF'te etiket olarak geçen saha
+  cihazları (siren, kilit, kapı sensörü, makbuz yazıcı, POS, para kasaları, bilgisayar, lamba,
+  yönlendirme LED'i). Görseller `Scadex.WebAPI/wwwroot/templates/system/` altındadır ve **pin
+  konumları görsele göredir**: `Width/Height` oranı görselin oranıyla birebir kalmalı, görseli
+  değiştiren seed'i de değiştirir. Kanallar aynı kabinde çakışmayacak şekilde seçildi: röle O1-15,
+  LED O17-24, giriş I1-24, analog A1-4 (A1 sıcaklık, A2 nem); kontrol modülünün kart üstü I/O'su
+  kanalsızdır.
 
 ---
 
@@ -521,7 +527,7 @@ Bu blokta duran dört acil madde **kapandı** (bkz. aşağıdaki "kabul edilmiş
    `IX_IoChannel_CabinetId_Direction_ChannelNumber` ve `IX_Connection_SourcePinId_TargetPinId`
    (`WHERE IsDeleted = 0`), `IX_Device_CabinetId_ExternalCode`
    (`WHERE ExternalCode IS NOT NULL AND IsActive = 1`) migration'da yerinde. Seed indi:
-   5 DeviceStatus, 12 DeviceType, 10 Permission, **10 şablon + 66 pin**, 4 rol, admin, 1 şirket.
+   5 DeviceStatus, 12 DeviceType, 10 Permission, **19 şablon + 190 pin**, 4 rol, admin, 1 şirket.
 3. ~~Port tutarsızlıkları~~ — **kanonik adres `http://localhost:5208`**. `mediamtx.yml`
    (`authHTTPAddress`), `Scadex.WebUI/.env.development`, `.env.production` ve
    `axios-helper.ts`'teki yedek değer bu adreste birleştirildi. (`src/lib/diagram/template-image.ts`

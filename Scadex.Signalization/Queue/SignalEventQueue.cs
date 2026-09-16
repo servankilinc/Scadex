@@ -5,7 +5,7 @@ using System.Threading.Channels;
 
 namespace Scadex.Signalization.Queue;
 
-/// <summary> session/kind için kontrol et kuyruğu, SINGLETON olmak zorunda (kuyruğu kullanan istemci scoped'dir, kuyruk istekler arasi paylasilmalı). </summary>
+/// <summary> SINGLETON olmak zorunda (kuyruğu kullanan istemci scoped'dir, kuyruk istekler arasi paylasilmalı). </summary>
 public sealed class SignalEventQueue
 {
     // SingleReader: kuyruğu tek bir background worker döngüsü okur

@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="220" height="120" viewBox="0 0 220 120">
+  <!-- Scadex sistem şablonu. data-pin merkezleri AppDbContext seed'indeki pin konumlarıyla birebir aynıdır: birini değiştiren ikisini birden değiştirir. -->
+  <style>text{font-family:Bahnschrift,'DIN Alternate','Arial Narrow',Arial,sans-serif;font-weight:700;text-anchor:middle;fill:#111}</style>
+  <rect x="10" y="10" width="140" height="40" rx="5" fill="#D1D5DB" stroke="#111" stroke-width="2.5"/>
+  <text x="80" y="36" font-size="13">EM KİLİT</text>
+  <rect x="156" y="14" width="54" height="32" rx="4" fill="#9CA3AF" stroke="#111" stroke-width="2.5"/>
+  <g fill="#111">
+    <circle cx="170" cy="30" r="3"/>
+    <circle cx="196" cy="30" r="3"/>
+  </g>
+  <text x="183" y="64" font-size="10">12V DC</text>
+  <path d="M110 50 V72" stroke="#111" stroke-width="2"/>
+
+  <rect x="62" y="72" width="96" height="44" rx="5" fill="#fff" stroke="#111" stroke-width="1.5"/>
+  <g font-size="11">
+    <text x="90" y="88">+12V</text>
+    <text x="130" y="88">GND</text>
+  </g>
+  <g fill="#111">
+    <circle data-pin="+12V" cx="90" cy="100" r="7"/>
+    <circle data-pin="GND" cx="130" cy="100" r="7"/>
+  </g>
+</svg>

@@ -61,7 +61,10 @@ export interface OperatorSessionListItemDto {
   operators: OperatorSessionOperatorDto[];
 }
 
-/** Canlı panelin satırı: yalnızca AÇIK (dış kapısı kapanmamış) oturumlar. */
+/**
+ * Canlı panelin satırı: yalnızca AÇIK (henüz tamamlanmamış) oturumlar. Oturumu bitiren şey dış kapının
+ * kapanması değil işin bitmesidir — kapı kapalıyken de bir oturum açık olabilir (operatör geri dönebilir).
+ */
 export interface OperatorSessionOpenDto extends OperatorSessionListItemDto {
   phase: SessionPhase;
   /** Sunucunun yanıt anındaki geçen süre — istemci saati kaymış olabileceği için bu esas alınır. */

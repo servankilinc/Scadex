@@ -7,7 +7,7 @@ public class SignalCabinet : IEntity, IAuditableEntity
 {
     public Guid CabinetId { get; set; }
 
-    /// <summary> Bilgi yoksa ya da<see cref="IsEnabled"/> false ise kabinin eventleri yok sayılır <summary>
+    /// <summary> Bilgi yoksa ya da <c>false</c> ise kabinin eventleri yok sayılır </summary>
     public bool IsEnabled { get; set; }
 
     #region Siren Ayarları
@@ -23,7 +23,7 @@ public class SignalCabinet : IEntity, IAuditableEntity
     public int EntrySnapshotIntervalMs { get; set; } = 1000;
     #endregion
 
-    /// <summary> Dış kapı açıldıktan sonra yetkili kartı için beklenen sure; aşılırsa oturum "yetkisiz müdahale" işaretlenir. "0" ise kontrol yapılmaz. </summary>
+    /// <summary> Dış kapı açıldıktan sonra yetkili kartı için beklenen sure; aşılırsa oturum "yetkisiz müdahale" işaretlenir. "0" ise kontrol yapılmaz. Default 120sn </summary>
     public int AwaitingCardTimeoutSec { get; set; } = 120;
 
     /// <summary> Dış kapı kapanmazsa(iç kapı kilitlendikten sonra) oturumun otomatik kapatılacağı dk. Varsayılan 4 saat </summary>

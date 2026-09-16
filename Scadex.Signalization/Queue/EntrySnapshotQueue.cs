@@ -7,14 +7,14 @@ namespace Scadex.Signalization.Runtime;
 public sealed class EntrySnapshotQueue
 {
     // SingleReader: kuyruğu tek bir background worker döngüsü okur
-    private readonly Channel<EntrySnapshotJob> _channel = Channel.CreateUnbounded<EntrySnapshotJob>(
+    private readonly Channel<EntrySnapshotWorkItem> _channel = Channel.CreateUnbounded<EntrySnapshotWorkItem>(
         new UnboundedChannelOptions
         {
             SingleReader = true
         }
     );
 
-    public void Enqueue(EntrySnapshotJob job) => _channel.Writer.TryWrite(job);
+    public void Enqueue(EntrySnapshotWorkItem job) => _channel.Writer.TryWrite(job);
 
-    public IAsyncEnumerable<EntrySnapshotJob> ReadAllAsync(CancellationToken cancellationToken) => _channel.Reader.ReadAllAsync(cancellationToken);
+    public IAsyncEnumerable<EntrySnapshotWorkItem> ReadAllAsync(CancellationToken cancellationToken) => _channel.Reader.ReadAllAsync(cancellationToken);
 }

@@ -4,7 +4,7 @@ using Microsoft.Extensions.Logging;
 using Scadex.Core.Utils;
 using Scadex.Core.Utils.ResultPattern;
 
-namespace Scadex.Signalization.Controllers;
+namespace Scadex.Signalization.Controllers.Base;
 
 [ApiController]
 [Authorize]
@@ -31,7 +31,7 @@ public abstract class SignalizationControllerBase : ControllerBase
         return ToProblem(result);
     }
 
-    private ObjectResult ToProblem(Scadex.Core.Utils.ResultPattern.IResult result)
+    private ObjectResult ToProblem(IResult result)
     {
         if (result.Error != null)
             _logger.LogWarning("Sinyalizasyon istegi basarisiz: {Message} {@Error}", result.Message, result.Error);

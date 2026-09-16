@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="200" height="120" viewBox="0 0 200 120">
+  <!-- Scadex sistem şablonu. data-pin merkezleri AppDbContext seed'indeki pin konumlarıyla birebir aynıdır: birini değiştiren ikisini birden değiştirir. -->
+  <style>text{font-family:Bahnschrift,'DIN Alternate','Arial Narrow',Arial,sans-serif;font-weight:700;text-anchor:middle;fill:#111}</style>
+  <rect x="14" y="10" width="100" height="34" rx="6" fill="#fff" stroke="#111" stroke-width="2.5"/>
+  <text x="64" y="31" font-size="10">KAPI SENSÖRÜ</text>
+  <rect x="124" y="10" width="62" height="34" rx="6" fill="#E5E7EB" stroke="#111" stroke-width="2.5"/>
+  <text x="155" y="31" font-size="9">MIKNATIS</text>
+  <path d="M64 44 V62" stroke="#111" stroke-width="2"/>
+
+  <rect x="36" y="62" width="128" height="52" rx="5" fill="#fff" stroke="#111" stroke-width="1.5"/>
+  <g font-size="11">
+    <text x="60" y="84">COM</text>
+    <text x="100" y="84">NO</text>
+    <text x="140" y="84">NC</text>
+  </g>
+  <g fill="#111">
+    <circle data-pin="COM" cx="60" cy="100" r="7"/>
+    <circle data-pin="NO" cx="100" cy="100" r="7"/>
+    <circle data-pin="NC" cx="140" cy="100" r="7"/>
+  </g>
+</svg>

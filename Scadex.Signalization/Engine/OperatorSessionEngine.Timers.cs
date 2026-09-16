@@ -40,7 +40,7 @@ public partial class OperatorSessionEngine
 
                 // Oturum KAPANMAZ: dis kapi kapanana kadar surer; gec okutulan kart normal islenir, bayrak kalir.
                 session.AwaitingCardDueAtUtc = null;
-                session.Flags |= SessionFlags.UnauthorizedEntry;
+                MarkFlag(session, SessionFlags.UnauthorizedEntry);
                 AddEvent(session, SessionEventType.AwaitingCardTimedOut, now);
                 await _db.SaveChangesAsync(cancellationToken);
                 break;
