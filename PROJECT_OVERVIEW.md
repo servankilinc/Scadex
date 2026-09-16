@@ -961,6 +961,19 @@ ekranlarını ayrı parçalara böler.
   SCADA'ya tek "aç", tek "kapat" gider.
 - **Oturum sonu:** dış kapı kapanırken kilitsiz iç kapının anahtarı kapalıysa otomatik kilitlenir
   (`AutoLocked`), açıksa kilitlenmez ve `InnerDoorLeftOpen` bayrağı konur.
+- **Oturumu bitiren şey dış kapının kapanması DEĞİL, işin bitmesidir (2026-09-16 kararı).**
+  Kapanışta soru şudur: dış kapının ardındaki **tüm iç kapılar kilitli mi**
+  (`AreAllInnerDoorsLockedAsync`) — yani operatör kartını okutup kilitlemeyi tamamlamış mı? Bitmişse
+  oturum kapanır; bitmemişse **açık kalır** ve `OuterClosed` olayının `Detail` alanı `Unfinished`
+  olur. Böylece operatör içerideyken kapı bir kez kapanıp açılırsa tek ziyaret tek oturumda kalır
+  (eskiden ikinci oturum doğuyor, kart okutulmadığı için sahte `UnauthorizedEntry` +
+  `NoCardPresented` üretiyordu). ⚠ Soru `AutoLockInnerDoorsAsync`'ten **önce** sorulmalıdır —
+  otomatik kilitleme cevabı her zaman "hepsi kilitli"ye çevirir. Otomatik kilitleme davranışı
+  değişmedi: fiziksel güvenlik aynı, değişen yalnızca kaydın kapanma anı. Operatör dönmezse oturumu
+  `SessionMaxDurationMin` zamanlayıcısı `TimedOut` olarak kapatır; bunun için ayrı bir bekleme
+  süresi **bilinçli olarak eklenmedi**. Bunun bedeli: başarısız kilit komutu ya da açık bırakılmış
+  bir iç kapı, oturumu 4 saat açık tutar ve `CompletedWithWarning` yerine `TimedOut` üretir.
+  Bir oturum artık birden fazla aç/kapa çifti içerebilir; `DurationSec` aradaki kapalı süreyi de sayar.
 - **Kartsız giriş:** `AwaitingCardTimeoutSec` içinde yetkili kart okutulmazsa `UnauthorizedEntry`
   bayrağı; oturum kapanmaz. `UnauthorizedEntry` ve `ForcedOpen` **güvenlik uyarısıdır**
   (`AlertFlags`, DTO'da `hasAlert`): canlı panelde vurgulanır. **Onay akışı yoktur**
@@ -974,7 +987,10 @@ ekranlarını ayrı parçalara böler.
   sıralı, kabinler arasında paralel** işler (kabin başına bir şerit): durum makinesinde yarış
   olmaz, bir kabinde SCADA'nın 180 sn'lik zaman aşımı diğerlerini bekletmez.
 - `EntrySnapshotWorker` kareleri şeridin **dışında**, başlangıçtan başlangıca `T0 + i × aralık`
-  zamanlamasıyla çeker (`ICameraService.CreateCaptureAsync` — snapshot önbelleğini atlar).
+  zamanlamasıyla çeker (`ICameraService.CreateCaptureAsync` — snapshot önbelleğini atlar). Seri
+  **her `OuterOpened` olayında** kuyruğa girer, yalnızca oturumun ilk açılışında değil: iş bitmeden
+  kapanan kapı oturumu açık bıraktığı için aksi hâlde ikinci giriş tanıksız kalırdı (kare yok, kart
+  bekleme sayacı ilk kartta zaten `null`'lanmış). Bu yüzden tek oturumda birden çok kare serisi olabilir.
 - `SignalTimerWorker` 2 sn'de bir tarar (siren süresi, kart bekleme, azami oturum süresi) ve
   kararları **aynı kabin şeridine** bırakır. Süreler veritabanında (`*DueAtUtc`) — yeniden
   başlatmada kaybolmaz; hassasiyet ±2 sn.
