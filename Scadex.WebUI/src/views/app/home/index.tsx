@@ -1,14 +1,15 @@
-import { useState, useMemo } from 'react';
+import { Suspense, useState, useMemo } from 'react';
 import { useQueries, useQuery, type UseQueryResult } from '@tanstack/react-query';
 import { getCabinetList } from '@/api/cabinet';
 import { cabinetKeys } from '@/api/query-keys';
 import { Map, MapControls, MapMarker, MarkerContent, MarkerLabel, MarkerPopup } from '@/components/ui/map';
 import { Button } from '@/components/ui/button';
+import { Skeleton } from '@/components/ui/skeleton';
 import { X, Info, Activity, Clock, MapPin } from 'lucide-react';
 import type { CabinetDetailDto } from '@/models/cabinet';
 import CabinetIdleIcon from '@/assets/cabinet-idle-2.png';
 import CabinetInProcessIcon from '@/assets/cabinet-inproces-2.png';
-import { busyCabinetQueries } from '@/modules';
+import { busyCabinetQueries, cabinetPanelSections } from '@/modules';
 import { DashboardMetrics } from './dashboard-metrics';
 import { formatUtcDateTime } from '@/lib/utils';
 
@@ -165,6 +166,14 @@ export default function Home() {
                     </p>
                   </div>
                 )}
+
+                {/* Açık modüllerin bu kabine dair bölümleri (bkz. `AppModule.CabinetPanelSection`);
+                    modül yoksa liste boştur ve panel yalnızca künyeden ibaret kalır. */}
+                {cabinetPanelSections.map(({ key, Component }) => (
+                  <Suspense key={key} fallback={<Skeleton className="h-28 w-full rounded-lg" />}>
+                    <Component cabinetId={selectedCabinet.id} />
+                  </Suspense>
+                ))}
               </div>
             </div>
           </div>

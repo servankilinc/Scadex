@@ -10,6 +10,11 @@ export interface ModuleNavItem {
   icon: LucideIcon;
 }
 
+/** Ana sayfa haritasındaki kabin detay paneline modülün eklediği bölümün aldığı tek bilgi. */
+export interface CabinetPanelSectionProps {
+  cabinetId: string;
+}
+
 /**
  * Müşteri modülünün arayüz manifestosu. Backend'deki `Modules:<Ad>:Enabled` + `.Add<Ad>Module(...)`
  * kalıbının aynası: çekirdek modülü tanımaz, yalnızca bu sözleşmeyi okur.
@@ -32,6 +37,12 @@ export interface AppModule {
    * kimliklerini okur, "işlem"in ne demek olduğunu modül belirler. Birden çok modül verirse kimlikler birleşir.
    */
   busyCabinetsQuery?: CabinetIdsQueryOptions;
+  /**
+   * Ana sayfa haritasındaki kabin detay panelinin altına eklenen bölüm (örn. o kabinde devam eden
+   * operatör işlemi). `React.lazy` ile verilmeli; çekirdek onu `Suspense` içinde render eder.
+   * Üst ayırıcısını (`border-t`) bölümün kendisi çizer — çekirdek içeriği bilmez.
+   */
+  CabinetPanelSection?: ComponentType<CabinetPanelSectionProps>;
 }
 
 /** Sonucu kabin kimliği listesi olan sorgu. Ham veri modülün kendi DTO'sudur; `select` onu kimliklere indirger. */

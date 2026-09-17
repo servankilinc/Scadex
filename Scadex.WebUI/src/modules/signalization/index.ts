@@ -71,5 +71,8 @@ export const signalizationModule: AppModule = {
   LayoutExtension: lazy(() => import('./components/layout-extension')),
   // Ana sayfa haritası: açık operatör işlemi olan kabin "işlem yapılıyor" ikonuyla çizilir. Uyarı
   // yoklayıcısıyla aynı sorgu anahtarı — ek istek doğmaz. Anlık güncellemeyi canlı yayın verir.
-  busyCabinetsQuery: busyCabinetsQueryOptions()
+  busyCabinetsQuery: busyCabinetsQueryOptions(),
+  // Haritadaki kabin detay paneli: o kabinde devam eden / en son biten işlem ve sahadaki operatörler.
+  // `lazy` — kullanıcı bir kabinin detayını açana dek indirilmez.
+  CabinetPanelSection: lazy(() => import('./components/cabinet-session-section'))
 };

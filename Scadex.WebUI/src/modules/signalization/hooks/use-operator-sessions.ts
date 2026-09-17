@@ -1,5 +1,7 @@
+import { useMemo } from 'react';
 import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import { ApiError } from '@/lib/axios-helper';
+import { toUtcDate } from '@/lib/utils';
 import type { CabinetIdsQueryOptions } from '../../types';
 import { getOpenSessions, getSessionDetail, getSessionList, getSessionSummary } from '../api/signalization';
 import { signalizationKeys } from '../api/query-keys';
@@ -15,7 +17,7 @@ export const LIVE_POLL_MS = 10_000;
  * 404 = backend'de modül kapalı (`Modules:Signalization:Enabled`). Yoklamayı sürdürmek her 10 sn'de bir boşuna
  * istek atmak olurdu; `VITE_MODULES` ile backend ayarı ayrı tutulduğu için bu durum gerçekten oluşabilir.
  */
-function isModuleOff(error: unknown): boolean {
+export function isModuleOff(error: unknown): boolean {
   return error instanceof ApiError && error.status === 404;
 }
 
@@ -51,11 +53,18 @@ export function busyCabinetsQueryOptions(intervalMs = LIVE_POLL_MS): CabinetIdsQ
   };
 }
 
-/** Sayfalı geçmiş. `keepPreviousData`: sayfa değişiminde tablo boşalıp yeniden dolmaz. */
-export function useSessionList(request: OperatorSessionQueryRequest) {
+/**
+ * Sayfalı geçmiş. `keepPreviousData`: sayfa değişiminde tablo boşalıp yeniden dolmaz.
+ *
+ * `enabled`: çağıran, sonucu gerçekten gerekmedikçe isteği bastırabilir (harita paneli, açık oturum
+ * varken geçmişi hiç sormaz). Anahtar değişmez — canlı yayının `sessionLists()` tazelemesi bu
+ * sorguyu da kapsar.
+ */
+export function useSessionList(request: OperatorSessionQueryRequest, enabled = true) {
   return useQuery({
     queryKey: signalizationKeys.sessionList(request),
     queryFn: () => getSessionList(request),
+    enabled,
     placeholderData: keepPreviousData
   });
 }
@@ -68,6 +77,44 @@ export function useSessionDetail(id: number) {
     enabled: Number.isInteger(id) && id > 0,
     refetchInterval: query => (query.state.data && query.state.data.endedAtUtc == null ? 3_000 : false)
   });
+}
+
+/**
+ * Bir kabinin "şu anki" işlemi: açık oturum(lar) varsa ONLAR, yoksa geçmişteki en yeni kayıt.
+ * Harita detay panelinin veri kaynağı.
+ *
+ * Açık oturumlar `useOpenSessions` önbelleğinden SÜZÜLÜR: ana sayfa haritası zaten aynı anahtarı
+ * kullanıyor (`busyCabinetsQuery`), bu yüzden panel ek istek üretmez. Bir kabinin birden çok dış
+ * kapısı olabilir ve açıklık kısıtı kapı bazlıdır — bu yüzden tekil değil, LİSTE döner.
+ *
+ * Geçmiş kaydı yalnızca açık oturum yokken ve tek satır olarak çekilir; sunucu `StartedAtUtc`
+ * azalan sıralar, ilk satır en son işlemdir.
+ */
+export function useCabinetLatestSession(cabinetId: string) {
+  const open = useOpenSessions();
+
+  const openSessions = useMemo(
+    () =>
+      (open.data ?? [])
+        .filter(session => session.cabinetId === cabinetId)
+        .sort((a, b) => (toUtcDate(b.startedAtUtc)?.getTime() ?? 0) - (toUtcDate(a.startedAtUtc)?.getTime() ?? 0)),
+    [open.data, cabinetId]
+  );
+
+  const hasOpen = openSessions.length > 0;
+  const history = useSessionList({ cabinetId, page: 1, pageSize: 1 }, open.isSuccess && !hasOpen);
+
+  return {
+    openSessions,
+    lastSession: hasOpen ? null : (history.data?.data[0] ?? null),
+    /** Sunucunun `elapsedSec` değerinin ait olduğu an — canlı sayaç bunun üstüne ekler. */
+    openUpdatedAt: open.dataUpdatedAt,
+    isPending: open.isPending || (open.isSuccess && !hasOpen && history.isPending),
+    isError: open.isError || history.isError,
+    error: open.error ?? history.error,
+    /** Backend'de modül kapalı (404): bölüm hiç çizilmemeli. */
+    moduleOff: isModuleOff(open.error) || isModuleOff(history.error)
+  };
 }
 
 export function useSessionSummary(request: OperatorSessionSummaryRequest | null) {

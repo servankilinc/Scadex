@@ -30,3 +30,8 @@ export const enabledModules: AppModule[] = REGISTRY.filter(module => enabledKeys
 export const busyCabinetQueries: CabinetIdsQueryOptions[] = enabledModules.flatMap(module =>
   module.busyCabinetsQuery ? [module.busyCabinetsQuery] : []
 );
+
+/** Açık modüllerin kabin detay paneli bölümleri — ana sayfa paneli okur. Statik: liste çalışırken değişmez. */
+export const cabinetPanelSections = enabledModules.flatMap(module =>
+  module.CabinetPanelSection ? [{ key: module.key, Component: module.CabinetPanelSection }] : []
+);

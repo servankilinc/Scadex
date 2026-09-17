@@ -9,9 +9,10 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { Skeleton } from '@/components/ui/skeleton';
 import { cn, formatUtcDateTime, toUtcDate } from '@/lib/utils';
 import { CaptureStatus } from '@/models/enums/entityEnums';
+import { OperatorIdCard } from '../../components/operator-id-card';
 import { SessionFlagBadges, SessionStatusBadge } from '../../components/session-badges';
 import { useSessionDetail } from '../../hooks/use-operator-sessions';
-import { formatDuration } from '../../lib';
+import { formatDuration, formatUtcTime } from '../../lib';
 import { OperatorSessionStatus, SessionEventType, SessionEventTypeLabels, eventTone, formatEventDetail, type EventTone } from '../../models/enums';
 import type { OperatorSessionCaptureDto, OperatorSessionDetailDto, OperatorSessionEventDto } from '../../models/session';
 
@@ -98,7 +99,7 @@ function SessionDetailContent({ session }: { session: OperatorSessionDetailDto }
       </div>
 
       <div className='grid gap-4 lg:grid-cols-2'>
-        <OperatorsCard session={session} />
+        <OperatorsCard session={session} isOpen={isOpen} />
         <DoorsCard session={session} />
       </div>
 
@@ -120,7 +121,7 @@ function Metric({ label, value, mono, icon }: { label: string; value: string; mo
   );
 }
 
-function OperatorsCard({ session }: { session: OperatorSessionDetailDto }) {
+function OperatorsCard({ session, isOpen }: { session: OperatorSessionDetailDto; isOpen: boolean }) {
   return (
     <Card>
       <CardHeader>
@@ -131,22 +132,11 @@ function OperatorsCard({ session }: { session: OperatorSessionDetailDto }) {
         {session.operators.length === 0 ? (
           <p className='text-sm text-muted-foreground'>Bu işlemde yetkili kart okutulmadı.</p>
         ) : (
-          <ul className='flex flex-col gap-2'>
+          <div className='grid gap-2 sm:grid-cols-2'>
             {session.operators.map(op => (
-              <li key={op.userId} className='flex flex-wrap items-baseline justify-between gap-2 rounded-lg border p-2.5 text-sm'>
-                <div className='min-w-0'>
-                  <div className='truncate font-medium'>{op.fullName}</div>
-                  <div className='text-xs text-muted-foreground'>
-                    {op.authorityName} · kart <span className='font-mono'>{op.cardIdRaw}</span>
-                  </div>
-                </div>
-                <div className='text-right font-mono text-xs text-muted-foreground'>
-                  <div>ilk: {formatTime(op.firstCardAtUtc)}</div>
-                  <div>son: {formatTime(op.lastCardAtUtc)}</div>
-                </div>
-              </li>
+              <OperatorIdCard key={op.userId} operator={op} isLive={isOpen} />
             ))}
-          </ul>
+          </div>
         )}
       </CardContent>
     </Card>
@@ -189,10 +179,10 @@ function DoorsCard({ session }: { session: OperatorSessionDetailDto }) {
                         </Badge>
                       )}
                     </td>
-                    <td className='font-mono text-xs'>{formatTime(door.firstUnlockedAtUtc)}</td>
-                    <td className='font-mono text-xs'>{formatTime(door.firstOpenedAtUtc)}</td>
-                    <td className='font-mono text-xs'>{formatTime(door.lastClosedAtUtc)}</td>
-                    <td className='font-mono text-xs'>{formatTime(door.lastLockedAtUtc)}</td>
+                    <td className='font-mono text-xs'>{formatUtcTime(door.firstUnlockedAtUtc)}</td>
+                    <td className='font-mono text-xs'>{formatUtcTime(door.firstOpenedAtUtc)}</td>
+                    <td className='font-mono text-xs'>{formatUtcTime(door.lastClosedAtUtc)}</td>
+                    <td className='font-mono text-xs'>{formatUtcTime(door.lastLockedAtUtc)}</td>
                     <td className='text-right font-mono text-xs'>{door.openCount}</td>
                   </tr>
                 ))}
@@ -302,7 +292,7 @@ function CaptureTile({
   const caption = (
     <div className='flex items-center justify-between gap-2 px-2 py-1.5 text-xs'>
       <span className='font-medium'>#{capture.sequence}</span>
-      <span className='font-mono text-muted-foreground'>{formatTime(capture.capturedAtUtc)}</span>
+      <span className='font-mono text-muted-foreground'>{formatUtcTime(capture.capturedAtUtc)}</span>
     </div>
   );
 
@@ -399,7 +389,7 @@ function TimelineItem({ event, startedAtUtc }: { event: OperatorSessionEventDto;
     <li className='relative text-sm'>
       <span className={cn('absolute top-1.5 -left-[1.66rem] size-2.5 rounded-full ring-4 ring-background', TONE_DOT[eventTone(event.type)])} />
       <div className='flex flex-wrap items-baseline gap-x-2 gap-y-0.5'>
-        <span className='font-mono text-xs text-muted-foreground tabular-nums'>{formatTime(event.occurredAtUtc)}</span>
+        <span className='font-mono text-xs text-muted-foreground tabular-nums'>{formatUtcTime(event.occurredAtUtc)}</span>
         <span className='font-mono text-xs text-muted-foreground tabular-nums'>+{formatDuration(Math.max(0, offset))}</span>
         <span className='font-medium'>{label}</span>
         {event.innerDoorName && <Badge variant='outline'>{event.innerDoorName}</Badge>}
@@ -409,7 +399,7 @@ function TimelineItem({ event, startedAtUtc }: { event: OperatorSessionEventDto;
           {event.userFullName && <span>{event.userFullName}</span>}
           {event.cardIdRaw && <span className='font-mono'>kart {event.cardIdRaw}</span>}
           {detail && <span>{detail}</span>}
-          {Math.abs(receivedLag) >= 3 && <span>alındı: {formatTime(event.receivedAtUtc)}</span>}
+          {Math.abs(receivedLag) >= 3 && <span>alındı: {formatUtcTime(event.receivedAtUtc)}</span>}
         </div>
       )}
     </li>
@@ -417,12 +407,6 @@ function TimelineItem({ event, startedAtUtc }: { event: OperatorSessionEventDto;
 }
 
 // ─────────────────────────────────────────────────────────── yardımcılar
-
-/** Yalnızca saat — tarih üstteki Başlangıç/Bitiş kutularında zaten var. */
-function formatTime(value: string | null): string {
-  const date = toUtcDate(value);
-  return date ? date.toLocaleTimeString('tr-TR') : '—';
-}
 
 function secondsBetween(fromUtc: string, toUtc: string): number {
   const from = toUtcDate(fromUtc);

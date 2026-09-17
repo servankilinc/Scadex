@@ -1,6 +1,18 @@
 import { toast } from 'sonner';
 import type { FieldValues, Path, UseFormSetError } from 'react-hook-form';
 import { toApiError } from '@/lib/axios-helper';
+import { toUtcDate } from '@/lib/utils';
+
+/**
+ * Yalnızca saat — tarihi zaten üstteki başlangıç/bitiş alanları taşır. Değer yoksa `—`.
+ *
+ * `toUtcDate` üzerinden geçer: sunucunun `...Utc` damgalarında `Z` soneki yoktur, çıplak
+ * `new Date(damga)` değeri saat farkı kadar kaydırırdı.
+ */
+export function formatUtcTime(value: string | null | undefined): string {
+  const date = toUtcDate(value);
+  return date ? date.toLocaleTimeString('tr-TR') : '—';
+}
 
 /** Süre metni: `dk:sn`, bir saati aşınca `sa:dk:sn`. Değer yoksa `—`. */
 export function formatDuration(totalSec: number | null | undefined): string {
