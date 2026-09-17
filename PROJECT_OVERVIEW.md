@@ -99,7 +99,7 @@ içindeki `ApplyDeletions` dağıtıcısında yaşar.
 | Runtime | .NET 10 (`net10.0`) |
 | Veritabanı | SQL Server + EF Core 10 |
 | Kimlik | ASP.NET Core Identity (`IdentityDbContext<User, Role, Guid>`) + JWT + refresh token |
-| Gerçek zaman | SignalR — `/hubs/diagram` |
+| Gerçek zaman | SignalR — `/hubs/diagram` (çekirdek), `/hubs/signalization` (sinyalizasyon modülü, açıksa) |
 | API dokümanı | OpenAPI + Scalar UI |
 | Doğrulama | FluentValidation 12 |
 | Mapping | AutoMapper 14 |
@@ -360,6 +360,11 @@ yanıtımızı beklerken aynı kartın web sunucusunu çağırmak tek iş parça
 `CabinetStatusChanged`, `CommandCompleted`. Hub, REST ile **aynı** JSON ayarlarını kullanır
 (`ProjectJsonOptions`) ki tip aynaları tutsun. İş katmanı `IDiagramNotifier` üzerinden
 yayınlar; SignalR implementasyonu WebAPI'dedir.
+
+Canlı yayın **hub başına tipli sözleşme** kalıbıyla yapılır: `Hub<IXHubClientContract>` + iş katmanında
+`IXNotifier` + frontend'de kendi istemcisi (`diagram-hub.ts`). Merkezî, konu/olay adı string'iyle çalışan genel
+bir yayın altyapısı **bilinçli olarak yoktur** (2026-09-17 kararı — bir kez eklendi ve geri alındı). Müşteri
+modülü yayın gerekiyorsa kendi hub'ını aynı kalıpla taşır (bkz. §10, `/hubs/signalization`).
 
 **Kanal olayları (`ChannelEvent`):** Okuma yolu `POST /api/ChannelEvent/list` (sayfalı;
 kabin + kanal + tarih aralığı, `OccurredAtUtc`'ye göre). Yazım yolu **yoktur** — satırları
@@ -843,7 +848,8 @@ npm run lint
 Bir sinyalizasyon müşterisi için **operatör işlemi takibi**: dış kapı açılır → kamera 1 sn arayla
 5 kare çeker, sayaç başlar → operatör kart okutur, kurumunun iç kapı kilidi açılır → iç kapı
 anahtarı (switch) açılışı/kapanışı doğrular → iç kapı kapalıyken kart tekrar okutulunca kapı
-kilitlenir ve kabin sireni çalar → dış kapı kapanınca siren susar, işlem biter ve raporlanır.
+kilitlenir ve kabin sireni çalar → dış kapı kapanınca siren susar; ardındaki tüm iç kapılar
+kilitliyse işlem biter ve raporlanır (değilse oturum açık kalır, bkz. Kararlar).
 
 ### Neden ayrı bir modül (genel workflow motoru değil)
 
@@ -910,7 +916,23 @@ yoklama 404'te kendini durdurur.
 - **Canlı uyarı** `session-alert-watcher` ile: layout'a bir kez takılır, `/open`'ı 10 sn'de bir
   (sekme arka plandayken de) yoklar ve `hasAlert` taşıyan her açık oturum için **oturum başına bir
   kez** kalıcı bir bildirim çıkarır ("Detay" eylemiyle). Onay yok; bildirimi kapatmak bayrağa
-  dokunmaz. SignalR olayı bilerek eklenmedi.
+  dokunmaz.
+- **Canlı yayın (2026-09-17): `/hubs/signalization`** — çekirdeğin `DiagramHub` / `IDiagramNotifier`
+  kalıbının modüldeki karşılığı: `SignalizationHub : Hub<ISignalizationHubClientContract>`,
+  `ISignalizationNotifier` / `SignalizationNotifier` (singleton). Grup `sessions`; istemci
+  `SubscribeSessions()` / `UnsubscribeSessions()` çağırır, olay `OperatorSessionChanged { sessionId,
+  cabinetId, status, isOpen }`. Hub **yalnızca modül açıkken** eşlenir: `Program.cs` →
+  `app.MapSignalizationModule(configuration)` (kapalıyken negotiate 404).
+  - Yayını `OperatorSessionRealtimeInterceptor` (`SignalizationDbContext`'e takılı) `OperatorSession`
+    eklenen/güncellenen her kayıttan **sonra** yapar. Motorun ~15 kayıt noktasına tek tek satır eklemek
+    yerine interceptor seçildi — yeni kayıt noktası yayını unutamaz.
+  - Olay bir **bildirimdir**: istemci veriyi HTTP'den yeniden okur. Frontend istemcisi
+    `modules/signalization/signalr/signalization-hub.ts` (`diagram-hub.ts` kalıbı + ilk bağlantı için
+    artan aralıklı yeniden deneme + negotiate 404'te durma). `use-session-realtime` (layout eklentisi)
+    olayları 250 ms'lik pencerede toplayıp açık oturum, geçmiş ve değişen oturum detayı sorgularını
+    invalidate eder, yeniden bağlanınca özet hariç tüm oturum sorgularını tazeler; özet rapor bilerek
+    tazelenmez. Ana sayfa haritası (`AppModule.busyCabinetsQuery`) bu sayede anlık güncellenir. 10 sn
+    yoklama soket kopukken geri dönüş olarak kalır.
 - **Ağaç formunun hata yolları:** sunucu anahtarı `OuterDoors[0].InnerDoors[1].LockIoChannelId`
   biçimindedir; çekirdeğin `handleFormApiError`'ı yalnızca ilk harfi küçülttüğü için modül kendi
   çeviricisini kullanır (`lib.ts > toFormPath` → `outerDoors.0.innerDoors.1.lockIoChannelId`).
@@ -959,21 +981,46 @@ ekranlarını ayrı parçalara böler.
   `SirenDurationSec` dolunca, ilgili dış kapı kapanınca ya da aynı dış kapının ardında kilit
   yeniden açılınca kapanır. İki talep aynı anda açıkken siren ikisi de kapanana kadar çalar ve
   SCADA'ya tek "aç", tek "kapat" gider.
-- **Oturum sonu:** dış kapı kapanırken kilitsiz iç kapının anahtarı kapalıysa otomatik kilitlenir
-  (`AutoLocked`), açıksa kilitlenmez ve `InnerDoorLeftOpen` bayrağı konur.
+- **"Tüm iç kapılar kilitli" iki kaynağa sorulur** (`AreAllInnerDoorsLockedAsync`): kayıtta kilitsiz
+  kapı varsa hayır; kayıt "hepsi kilitli" dese bile anahtarı **"açık" okunan** bir kapı varsa yine
+  hayır. Siren ve oturum kapanışı sahaya sormadan tetiklenmez.
+- **Saha verisi ile kendi kaydımız arasındaki güven dengesi (2026-09-16).** `SignalInnerDoorState`
+  bir ölçüm değil, **"en son hangi komutu gönderdik"** kaydıdır — çıkıştan telemetri gelmez, komutun
+  2xx dönmesi rölenin çektiği anlamına gelmez. Anahtar (switch) birincil kaynaktır:
+  - **Anahtar "açık" = kilit fiilen tutmuyor.** Bu kesin bilgidir, kaydı yalanlar: kayıt "kilitli"
+    diyorsa iç kapı açılışında `ForcedOpen` yazılır ve kayıt **komut gönderilmeden** kilitsize
+    çekilir (`LastCommandId = null`). Açık kapıya kilit komutu gönderilmez (mandal zorlanır).
+  - **Anahtar "kapalı"/"bilinmiyor" kilit hakkında bir şey söylemez**; orada kayıt tek kaynaktır.
+    Devre dışı (`IsEnabled = false`) anahtar kanalı "bilinmiyor" sayılır.
+  - **Kart okutmada karar:** kayıt "kilitli" → kilidi aç. Kayıt "açık", anahtar kapalı ama kapı son
+    durum değişikliğinden (`ChangedAtUtc`) beri **hiç açılmamış** → komut fiilen uygulanmamış sayılır,
+    kilit **yeniden açılır** (`Unlocked`, `Detail = UnlockNotEffective`); aksi hâlde operatörün
+    "açılmadı, bir daha okutayım" refleksi kapıyı kilitleyip sireni çaldırırdı. Kayıt "açık", kapı bu
+    arada açılmış ve anahtar kapalı → kilitle (+ hepsi kilitliyse siren). Anahtar açık ya da
+    bilinmiyor → `LockSkippedDoorOpen`. "Açılmış mı" kanıtı **o oturumun** `InnerOpened`/`ForcedOpen`
+    olaylarında aranır (bkz. Bilinen sonuçlar).
+  - **Örtük oturum:** açık oturum yokken kart okutulur ya da iç kapı açılırsa oturum
+    `OuterOpenMissing` ile açılır. Dış kapı anahtarı o anda "kapalı" okunuyorsa bu kaçırılmış bir olay
+    değil gerçek bir anomalidir: uyarı loglanır, kart yolunda `CardPresented` olayının `Detail`'i
+    `OuterSwitchClosed` olur.
+- **Otomatik kilitleme** (`AutoLockInnerDoorsAsync`) oturum sonunda — dış kapı kapanışında ve azami
+  süre dolduğunda — dış kapının ardındaki her aktif iç kapı için **önce anahtarı** okur:
+  açıksa kayıt gerekirse düzeltilir (`ForcedOpen`), `InnerDoorLeftOpen` + `LockSkippedDoorOpen`
+  (`SessionEnd`) yazılır; kapalıysa ve kayıt kilitsizse `AutoLocked`; bilinmiyorsa ve kayıt
+  kilitsizse kilitlemeye kalkışılmaz, `InnerDoorLeftOpen` + `LockSkippedDoorOpen` (`SwitchUnknown`).
 - **Oturumu bitiren şey dış kapının kapanması DEĞİL, işin bitmesidir (2026-09-16 kararı).**
-  Kapanışta soru şudur: dış kapının ardındaki **tüm iç kapılar kilitli mi**
-  (`AreAllInnerDoorsLockedAsync`) — yani operatör kartını okutup kilitlemeyi tamamlamış mı? Bitmişse
-  oturum kapanır; bitmemişse **açık kalır** ve `OuterClosed` olayının `Detail` alanı `Unfinished`
-  olur. Böylece operatör içerideyken kapı bir kez kapanıp açılırsa tek ziyaret tek oturumda kalır
-  (eskiden ikinci oturum doğuyor, kart okutulmadığı için sahte `UnauthorizedEntry` +
-  `NoCardPresented` üretiyordu). ⚠ Soru `AutoLockInnerDoorsAsync`'ten **önce** sorulmalıdır —
-  otomatik kilitleme cevabı her zaman "hepsi kilitli"ye çevirir. Otomatik kilitleme davranışı
-  değişmedi: fiziksel güvenlik aynı, değişen yalnızca kaydın kapanma anı. Operatör dönmezse oturumu
-  `SessionMaxDurationMin` zamanlayıcısı `TimedOut` olarak kapatır; bunun için ayrı bir bekleme
-  süresi **bilinçli olarak eklenmedi**. Bunun bedeli: başarısız kilit komutu ya da açık bırakılmış
-  bir iç kapı, oturumu 4 saat açık tutar ve `CompletedWithWarning` yerine `TimedOut` üretir.
-  Bir oturum artık birden fazla aç/kapa çifti içerebilir; `DurationSec` aradaki kapalı süreyi de sayar.
+  Dış kapı kapanınca sıra: `OuterClosed` olayı → siren talebi bırakılır → otomatik kilitleme →
+  **yazma** → `AreAllInnerDoorsLockedAsync`. Hepsi kilitliyse oturum kapanır; değilse **açık kalır**
+  ve `OuterClosed` olayının `Detail`'i `Unfinished` olur. Böylece operatör içerideyken kapı bir kez
+  kapanıp açılırsa tek ziyaret tek oturumda kalır (eskiden ikinci oturum doğuyor, kart okutulmadığı
+  için sahte `UnauthorizedEntry` + `NoCardPresented` üretiyordu). ⚠ Soru otomatik kilitlemeden ve
+  yazmadan **sonra** sorulur: önce sorulsa az önce kilitlenen kapı hesaba katılmaz ve fiilen güvende
+  olan kabin için oturum boşuna açık kalırdı; yazmadan sorulsa sorgu izlenen değişiklikleri görmezdi.
+  Operatör dönmezse oturumu `SessionMaxDurationMin` zamanlayıcısı kapatır: son bir otomatik kilitleme
+  dener, sonra oturumu **koşulsuz** `TimedOut` kapatır. Ayrı bir bekleme süresi bilinçli olarak
+  eklenmedi; bedeli, açık bırakılmış bir iç kapının ya da başarısız kilit komutunun oturumu bu süre
+  boyunca açık tutmasıdır. Bir oturum birden fazla aç/kapa çifti içerebilir; `DurationSec` aradaki
+  kapalı süreyi de sayar.
 - **Kartsız giriş:** `AwaitingCardTimeoutSec` içinde yetkili kart okutulmazsa `UnauthorizedEntry`
   bayrağı; oturum kapanmaz. `UnauthorizedEntry` ve `ForcedOpen` **güvenlik uyarısıdır**
   (`AlertFlags`, DTO'da `hasAlert`): canlı panelde vurgulanır. **Onay akışı yoktur**
@@ -995,7 +1042,8 @@ ekranlarını ayrı parçalara böler.
   kararları **aynı kabin şeridine** bırakır. Süreler veritabanında (`*DueAtUtc`) — yeniden
   başlatmada kaybolmaz; hassasiyet ±2 sn.
 - Komutlar `IDeviceCommandService.SendAsync`'ten geçer, **retry yoktur**; başarısız komutta kapı
-  durumu değişmez, `CommandFailed` olayı ve bayrağı yazılır.
+  durumu değişmez, `CommandFailed` olayı ve bayrağı yazılır. Kayıt komutsuz yalnızca bir yoldan
+  değişir: anahtarın "açık" okunması (`ForcedOpen` düzeltmesi).
 
 ### Uçlar
 
@@ -1011,7 +1059,14 @@ ekranlarını ayrı parçalara böler.
 
 - Kare dosyaları global `CaptureRetentionDays`'e tabidir; süresi dolunca rapordaki görüntü gider
   (satır kalır). Kanıt kalıcı olsun isteniyorsa ayar 0 yapılmalı.
-- Aynı kurumdan iki operatör aynı kapıda çalışırsa, kapı kapalıyken okutulan ikinci kart kilitler.
+- Aynı kurumdan iki operatör aynı kapıda çalışırsa, kapı kapalıyken okutulan ikinci kart kilitler
+  (kapı ilk açılıştan sonra hiç açılmadıysa kilidi yeniden açar — `UnlockNotEffective`).
+- **Zaman aşımıyla kapanan oturumdan sonra gelen olaylar o oturumu bulamaz** (bütün aramalar
+  `EndedAtUtc == null` ile yapılır). Sonuçları: iç kapı kapanışı düşer; dış kapı kapanışı yalnızca
+  loglanır ve **otomatik kilitleme çalışmaz**; kart okutma örtük yeni oturum açar ve "kapı açılmış mı"
+  kanıtı oturum olaylarında arandığı için yeni oturumun geçmişi boş görünür — kilidi açık, fiilen
+  açılmış ve kapanmış bir kapıda kart, **kilitlemek yerine kilidi yeniden açar**
+  (`UnlockNotEffective`). Operatörün kapıyı bir kez açıp kapatıp tekrar okutması gerekir.
 - Kurum yetkisi tüm kabinlerde geçerlidir; kabin bazlı kısıt gelecekteki izin sistemine kalır.
 - Bellek içi kuyruk: yeniden başlatmada işlenmemiş SCADA olayı kaybolabilir (zamanlayıcı işleri
   kaybolmaz).

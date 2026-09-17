@@ -105,6 +105,11 @@ durur. Ayrıntı: PROJECT_OVERVIEW.md § 10.
   döner. **Yeni modül = aynı kalıp**: `Modules:<Ad>:Enabled` + `.Add<Ad>Module(...)` tek satırı;
   reflection ile modül keşfi yapmayın. Frontend'deki `VITE_MODULES` bunun aynasıdır ve **ayrıca**
   ayarlanır.
+- **Modülün SignalR hub'ı varsa kaydı iki satırdır:** `.Add<Ad>Module(...)` servisleri, `app.Map<Ad>Module(...)`
+  hub'ı eşler (`Program.cs`, `MapHub<DiagramHub>`'ın yanında); ikisi de `Enabled`'a bakar. Hub'lar
+  controller'lar gibi otomatik keşfedilmez, kapalıyken eşlenmez → negotiate 404. Modül yayını **kendi tipli
+  hub'ıyla** yapar (`SignalizationHub` + `ISignalizationNotifier`, `DiagramHub` / `IDiagramNotifier` kalıbı);
+  çekirdeğe genel, string konulu bir yayın altyapısı eklemeyin (2026-09-17 kararı).
 - `dotnet ef` tasarım zamanında `Development` ortamını kullanır; modül orada açık olduğu için
   `--context SignalizationDbContext` komutları çalışır. Modülü Development'ta kapatırsanız EF
   context'i bulamaz.

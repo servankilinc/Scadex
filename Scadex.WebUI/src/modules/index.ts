@@ -1,4 +1,4 @@
-import type { AppModule } from './types';
+import type { AppModule, CabinetIdsQueryOptions } from './types';
 import { signalizationModule } from './signalization';
 
 /**
@@ -25,3 +25,8 @@ function parseModuleKeys(raw: string | undefined): Set<string> {
 const enabledKeys = parseModuleKeys(import.meta.env.VITE_MODULES);
 
 export const enabledModules: AppModule[] = REGISTRY.filter(module => enabledKeys.has(module.key));
+
+/** Açık modüllerin "işlem yapılan kabin" sorguları — ana sayfa haritası okur. Statik: liste çalışırken değişmez. */
+export const busyCabinetQueries: CabinetIdsQueryOptions[] = enabledModules.flatMap(module =>
+  module.busyCabinetsQuery ? [module.busyCabinetsQuery] : []
+);

@@ -92,7 +92,7 @@ export function CameraFormDialog(props: Props) {
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className='max-h-[85vh] gap-0 overflow-y-auto p-0 sm:max-w-2xl'>
+      <DialogContent className='flex max-h-[85vh] flex-col gap-0 overflow-hidden p-0 sm:max-w-2xl'>
         <DialogHeader className='p-4 pb-3'>
           <DialogTitle>{isEdit ? 'Kamerayı düzenle' : 'Yeni kamera'}</DialogTitle>
           <DialogDescription>
@@ -100,176 +100,179 @@ export function CameraFormDialog(props: Props) {
           </DialogDescription>
         </DialogHeader>
 
-        <form onSubmit={submit} noValidate>
-          <FieldGroup className='p-4'>
-            <Field>
-              <FieldLabel htmlFor='camera-name'>Ad</FieldLabel>
-              <Input id='camera-name' autoFocus {...form.register('name')} />
-              <FieldDescription>Kabin içinde benzersiz olmalı.</FieldDescription>
-              {errors.name && <FieldError>{errors.name.message}</FieldError>}
-            </Field>
-
-            <Field>
-              <FieldLabel htmlFor='camera-description'>Açıklama</FieldLabel>
-              <Textarea id='camera-description' rows={2} {...form.register('description')} />
-              {errors.description && <FieldError>{errors.description.message}</FieldError>}
-            </Field>
-
-            <div className='grid gap-4 sm:grid-cols-2'>
+        {/* Scroll İÇ katmanda ve başlığın ALTINDA: yuvarlatılmış kutu scrollbar'ı köşeden kırpar, X düğmesi scrollbar'la çakışmaz. */}
+        <div className='min-h-0 scrollbar-thin overflow-y-auto'>
+          <form onSubmit={submit} noValidate>
+            <FieldGroup className='p-4'>
               <Field>
-                <FieldLabel htmlFor='camera-manufacturer'>Üretici</FieldLabel>
-                <Input id='camera-manufacturer' {...form.register('manufacturer')} />
-                {errors.manufacturer && <FieldError>{errors.manufacturer.message}</FieldError>}
+                <FieldLabel htmlFor='camera-name'>Ad</FieldLabel>
+                <Input id='camera-name' autoFocus {...form.register('name')} />
+                <FieldDescription>Kabin içinde benzersiz olmalı.</FieldDescription>
+                {errors.name && <FieldError>{errors.name.message}</FieldError>}
               </Field>
+
               <Field>
-                <FieldLabel htmlFor='camera-model'>Model</FieldLabel>
-                <Input id='camera-model' placeholder='DS-2CD1123G0-IUF' {...form.register('model')} />
-                {errors.model && <FieldError>{errors.model.message}</FieldError>}
+                <FieldLabel htmlFor='camera-description'>Açıklama</FieldLabel>
+                <Textarea id='camera-description' rows={2} {...form.register('description')} />
+                {errors.description && <FieldError>{errors.description.message}</FieldError>}
               </Field>
-            </div>
 
-            <SectionTitle>Ağ</SectionTitle>
+              <div className='grid gap-4 sm:grid-cols-2'>
+                <Field>
+                  <FieldLabel htmlFor='camera-manufacturer'>Üretici</FieldLabel>
+                  <Input id='camera-manufacturer' {...form.register('manufacturer')} />
+                  {errors.manufacturer && <FieldError>{errors.manufacturer.message}</FieldError>}
+                </Field>
+                <Field>
+                  <FieldLabel htmlFor='camera-model'>Model</FieldLabel>
+                  <Input id='camera-model' placeholder='DS-2CD1123G0-IUF' {...form.register('model')} />
+                  {errors.model && <FieldError>{errors.model.message}</FieldError>}
+                </Field>
+              </div>
 
-            <Field>
-              <FieldLabel htmlFor='camera-ip'>IP adresi</FieldLabel>
-              <Input id='camera-ip' placeholder='192.168.1.50' {...form.register('ipAddress')} />
-              <FieldDescription>Kabin içi LAN adresi — kabinin dış erişim adresi değil.</FieldDescription>
-              {errors.ipAddress && <FieldError>{errors.ipAddress.message}</FieldError>}
-            </Field>
+              <SectionTitle>Ağ</SectionTitle>
 
-            <div className='grid gap-4 sm:grid-cols-3'>
               <Field>
-                <FieldLabel htmlFor='camera-rtsp-port'>RTSP portu</FieldLabel>
-                <Input id='camera-rtsp-port' type='number' {...form.register('rtspPort', { valueAsNumber: true })} />
-                {errors.rtspPort && <FieldError>{errors.rtspPort.message}</FieldError>}
+                <FieldLabel htmlFor='camera-ip'>IP adresi</FieldLabel>
+                <Input id='camera-ip' placeholder='192.168.1.50' {...form.register('ipAddress')} />
+                <FieldDescription>Kabin içi LAN adresi — kabinin dış erişim adresi değil.</FieldDescription>
+                {errors.ipAddress && <FieldError>{errors.ipAddress.message}</FieldError>}
               </Field>
-              <Field>
-                <FieldLabel htmlFor='camera-http-port'>HTTP portu</FieldLabel>
-                <Input id='camera-http-port' type='number' {...form.register('httpPort', { valueAsNumber: true })} />
-                {errors.httpPort && <FieldError>{errors.httpPort.message}</FieldError>}
-              </Field>
-              <Field>
-                <FieldLabel htmlFor='camera-https-port'>HTTPS portu</FieldLabel>
-                <Input id='camera-https-port' type='number' placeholder='—' {...form.register('httpsPort', { setValueAs: toNullableNumber })} />
-                <FieldDescription>TLS kapalıysa boş.</FieldDescription>
-                {errors.httpsPort && <FieldError>{errors.httpsPort.message}</FieldError>}
-              </Field>
-            </div>
 
-            <SectionTitle>Erişim</SectionTitle>
+              <div className='grid gap-4 sm:grid-cols-3'>
+                <Field>
+                  <FieldLabel htmlFor='camera-rtsp-port'>RTSP portu</FieldLabel>
+                  <Input id='camera-rtsp-port' type='number' {...form.register('rtspPort', { valueAsNumber: true })} />
+                  {errors.rtspPort && <FieldError>{errors.rtspPort.message}</FieldError>}
+                </Field>
+                <Field>
+                  <FieldLabel htmlFor='camera-http-port'>HTTP portu</FieldLabel>
+                  <Input id='camera-http-port' type='number' {...form.register('httpPort', { valueAsNumber: true })} />
+                  {errors.httpPort && <FieldError>{errors.httpPort.message}</FieldError>}
+                </Field>
+                <Field>
+                  <FieldLabel htmlFor='camera-https-port'>HTTPS portu</FieldLabel>
+                  <Input id='camera-https-port' type='number' placeholder='—' {...form.register('httpsPort', { setValueAs: toNullableNumber })} />
+                  <FieldDescription>TLS kapalıysa boş.</FieldDescription>
+                  {errors.httpsPort && <FieldError>{errors.httpsPort.message}</FieldError>}
+                </Field>
+              </div>
 
-            <div className='grid gap-4 sm:grid-cols-2'>
-              <Field>
-                <FieldLabel htmlFor='camera-username'>Kullanıcı adı</FieldLabel>
-                <Input id='camera-username' autoComplete='off' {...form.register('username')} />
-                {errors.username && <FieldError>{errors.username.message}</FieldError>}
-              </Field>
-              <Field>
-                <FieldLabel htmlFor='camera-password'>Parola</FieldLabel>
-                <Input id='camera-password' type='password' autoComplete='new-password' {...form.register('password')} />
-                <FieldDescription>
-                  {isEdit ? 'Boş bırakılırsa mevcut parola korunur.' : 'Kamera web arayüzü parolası.'}
-                </FieldDescription>
-                {errors.password && <FieldError>{errors.password.message}</FieldError>}
-              </Field>
-            </div>
+              <SectionTitle>Erişim</SectionTitle>
 
-            <SectionTitle>Akış</SectionTitle>
+              <div className='grid gap-4 sm:grid-cols-2'>
+                <Field>
+                  <FieldLabel htmlFor='camera-username'>Kullanıcı adı</FieldLabel>
+                  <Input id='camera-username' autoComplete='off' {...form.register('username')} />
+                  {errors.username && <FieldError>{errors.username.message}</FieldError>}
+                </Field>
+                <Field>
+                  <FieldLabel htmlFor='camera-password'>Parola</FieldLabel>
+                  <Input id='camera-password' type='password' autoComplete='new-password' {...form.register('password')} />
+                  <FieldDescription>
+                    {isEdit ? 'Boş bırakılırsa mevcut parola korunur.' : 'Kamera web arayüzü parolası.'}
+                  </FieldDescription>
+                  {errors.password && <FieldError>{errors.password.message}</FieldError>}
+                </Field>
+              </div>
 
-            <div className='grid gap-4 sm:grid-cols-3'>
-              <Field>
-                <FieldLabel htmlFor='camera-main-channel'>Ana akım kanalı</FieldLabel>
-                <Input id='camera-main-channel' type='number' {...form.register('mainStreamChannel', { valueAsNumber: true })} />
-                {errors.mainStreamChannel && <FieldError>{errors.mainStreamChannel.message}</FieldError>}
-              </Field>
-              <Field>
-                <FieldLabel htmlFor='camera-sub-channel'>Tali akım kanalı</FieldLabel>
-                <Input id='camera-sub-channel' type='number' {...form.register('subStreamChannel', { valueAsNumber: true })} />
-                {errors.subStreamChannel && <FieldError>{errors.subStreamChannel.message}</FieldError>}
-              </Field>
-              <Field>
-                <FieldLabel htmlFor='camera-snapshot-channel'>Anlık görüntü kanalı</FieldLabel>
-                <Input id='camera-snapshot-channel' type='number' {...form.register('snapshotChannel', { valueAsNumber: true })} />
-                {errors.snapshotChannel && <FieldError>{errors.snapshotChannel.message}</FieldError>}
-              </Field>
-            </div>
+              <SectionTitle>Akış</SectionTitle>
 
-            <div className='rounded-lg border p-3'>
-              <Field orientation='horizontal'>
-                <FieldLabel htmlFor='camera-main-enabled'>Ana akım açık</FieldLabel>
-                <Controller
-                  control={form.control}
-                  name='mainStreamEnabled'
-                  render={({ field }) => <Switch id='camera-main-enabled' checked={field.value} onCheckedChange={field.onChange} />}
-                />
-              </Field>
-              <Field orientation='horizontal' className='mt-2'>
-                <FieldLabel htmlFor='camera-sub-enabled'>Tali akım açık</FieldLabel>
-                <Controller
-                  control={form.control}
-                  name='subStreamEnabled'
-                  render={({ field }) => <Switch id='camera-sub-enabled' checked={field.value} onCheckedChange={field.onChange} />}
-                />
-              </Field>
-              {errors.mainStreamEnabled && <FieldError className='mt-2'>{errors.mainStreamEnabled.message}</FieldError>}
-            </div>
+              <div className='grid gap-4 sm:grid-cols-3'>
+                <Field>
+                  <FieldLabel htmlFor='camera-main-channel'>Ana akım kanalı</FieldLabel>
+                  <Input id='camera-main-channel' type='number' {...form.register('mainStreamChannel', { valueAsNumber: true })} />
+                  {errors.mainStreamChannel && <FieldError>{errors.mainStreamChannel.message}</FieldError>}
+                </Field>
+                <Field>
+                  <FieldLabel htmlFor='camera-sub-channel'>Tali akım kanalı</FieldLabel>
+                  <Input id='camera-sub-channel' type='number' {...form.register('subStreamChannel', { valueAsNumber: true })} />
+                  {errors.subStreamChannel && <FieldError>{errors.subStreamChannel.message}</FieldError>}
+                </Field>
+                <Field>
+                  <FieldLabel htmlFor='camera-snapshot-channel'>Anlık görüntü kanalı</FieldLabel>
+                  <Input id='camera-snapshot-channel' type='number' {...form.register('snapshotChannel', { valueAsNumber: true })} />
+                  {errors.snapshotChannel && <FieldError>{errors.snapshotChannel.message}</FieldError>}
+                </Field>
+              </div>
 
-            <SectionTitle>İzleme</SectionTitle>
-
-            <div className='grid gap-4 sm:grid-cols-2'>
-              <Field>
-                <FieldLabel htmlFor='camera-monitoring-port'>İzleme portu</FieldLabel>
-                <Input id='camera-monitoring-port' type='number' placeholder='RTSP portu' {...form.register('monitoringPort', { setValueAs: toNullableNumber })} />
-                <FieldDescription>Boşsa RTSP portu kullanılır. Ping değil TCP bağlantısı denenir.</FieldDescription>
-                {errors.monitoringPort && <FieldError>{errors.monitoringPort.message}</FieldError>}
-              </Field>
-              <Field>
-                <FieldLabel htmlFor='camera-ping-interval'>Yoklama aralığı (sn)</FieldLabel>
-                <Input id='camera-ping-interval' type='number' {...form.register('pingIntervalSec', { valueAsNumber: true })} />
-                <FieldDescription>Varsayılan 300 sn (5 dk).</FieldDescription>
-                {errors.pingIntervalSec && <FieldError>{errors.pingIntervalSec.message}</FieldError>}
-              </Field>
-            </div>
-
-            <div className='rounded-lg border p-3'>
-              <Field orientation='horizontal'>
-                <FieldLabel htmlFor='camera-monitoring-enabled'>İzleme açık</FieldLabel>
-                <Controller
-                  control={form.control}
-                  name='isMonitoringEnabled'
-                  render={({ field }) => <Switch id='camera-monitoring-enabled' checked={field.value} onCheckedChange={field.onChange} />}
-                />
-              </Field>
-              <FieldDescription className='mt-2'>
-                Kapalıyken kamera hiç yoklanmaz ve durumu olduğu yerde donar. İzleme portu boşsa da atlanır.
-              </FieldDescription>
-
-              {isEdit && (
-                <Field orientation='horizontal' className='mt-3'>
-                  <FieldLabel htmlFor='camera-active'>Aktif</FieldLabel>
+              <div className='rounded-lg border p-3'>
+                <Field orientation='horizontal'>
+                  <FieldLabel htmlFor='camera-main-enabled'>Ana akım açık</FieldLabel>
                   <Controller
                     control={form.control}
-                    name='isActive'
-                    render={({ field }) => <Switch id='camera-active' checked={field.value} onCheckedChange={field.onChange} />}
+                    name='mainStreamEnabled'
+                    render={({ field }) => <Switch id='camera-main-enabled' checked={field.value} onCheckedChange={field.onChange} />}
                   />
                 </Field>
-              )}
-              {isEdit && (
-                // Kamera silinemez (`IActivatableEntity`) — pasife alma tek yol.
-                <FieldDescription className='mt-2'>Pasif kamera listede gizlenir ama kaydı ve çekim geçmişi korunur.</FieldDescription>
-              )}
-            </div>
-          </FieldGroup>
+                <Field orientation='horizontal' className='mt-2'>
+                  <FieldLabel htmlFor='camera-sub-enabled'>Tali akım açık</FieldLabel>
+                  <Controller
+                    control={form.control}
+                    name='subStreamEnabled'
+                    render={({ field }) => <Switch id='camera-sub-enabled' checked={field.value} onCheckedChange={field.onChange} />}
+                  />
+                </Field>
+                {errors.mainStreamEnabled && <FieldError className='mt-2'>{errors.mainStreamEnabled.message}</FieldError>}
+              </div>
 
-          <DialogFooter className='mx-0 mb-0'>
-            <Button type='button' variant='outline' onClick={() => onOpenChange(false)} disabled={mutation.isPending}>
-              Vazgeç
-            </Button>
-            <Button type='submit' disabled={mutation.isPending}>
-              {mutation.isPending ? 'Kaydediliyor…' : isEdit ? 'Kaydet' : 'Kamerayı ekle'}
-            </Button>
-          </DialogFooter>
-        </form>
+              <SectionTitle>İzleme</SectionTitle>
+
+              <div className='grid gap-4 sm:grid-cols-2'>
+                <Field>
+                  <FieldLabel htmlFor='camera-monitoring-port'>İzleme portu</FieldLabel>
+                  <Input id='camera-monitoring-port' type='number' placeholder='RTSP portu' {...form.register('monitoringPort', { setValueAs: toNullableNumber })} />
+                  <FieldDescription>Boşsa RTSP portu kullanılır. Ping değil TCP bağlantısı denenir.</FieldDescription>
+                  {errors.monitoringPort && <FieldError>{errors.monitoringPort.message}</FieldError>}
+                </Field>
+                <Field>
+                  <FieldLabel htmlFor='camera-ping-interval'>Yoklama aralığı (sn)</FieldLabel>
+                  <Input id='camera-ping-interval' type='number' {...form.register('pingIntervalSec', { valueAsNumber: true })} />
+                  <FieldDescription>Varsayılan 300 sn (5 dk).</FieldDescription>
+                  {errors.pingIntervalSec && <FieldError>{errors.pingIntervalSec.message}</FieldError>}
+                </Field>
+              </div>
+
+              <div className='rounded-lg border p-3'>
+                <Field orientation='horizontal'>
+                  <FieldLabel htmlFor='camera-monitoring-enabled'>İzleme açık</FieldLabel>
+                  <Controller
+                    control={form.control}
+                    name='isMonitoringEnabled'
+                    render={({ field }) => <Switch id='camera-monitoring-enabled' checked={field.value} onCheckedChange={field.onChange} />}
+                  />
+                </Field>
+                <FieldDescription className='mt-2'>
+                  Kapalıyken kamera hiç yoklanmaz ve durumu olduğu yerde donar. İzleme portu boşsa da atlanır.
+                </FieldDescription>
+
+                {isEdit && (
+                  <Field orientation='horizontal' className='mt-3'>
+                    <FieldLabel htmlFor='camera-active'>Aktif</FieldLabel>
+                    <Controller
+                      control={form.control}
+                      name='isActive'
+                      render={({ field }) => <Switch id='camera-active' checked={field.value} onCheckedChange={field.onChange} />}
+                    />
+                  </Field>
+                )}
+                {isEdit && (
+                  // Kamera silinemez (`IActivatableEntity`) — pasife alma tek yol.
+                  <FieldDescription className='mt-2'>Pasif kamera listede gizlenir ama kaydı ve çekim geçmişi korunur.</FieldDescription>
+                )}
+              </div>
+            </FieldGroup>
+
+            <DialogFooter className='mx-0 mb-0'>
+              <Button type='button' variant='outline' onClick={() => onOpenChange(false)} disabled={mutation.isPending}>
+                Vazgeç
+              </Button>
+              <Button type='submit' disabled={mutation.isPending}>
+                {mutation.isPending ? 'Kaydediliyor…' : isEdit ? 'Kaydet' : 'Kamerayı ekle'}
+              </Button>
+            </DialogFooter>
+          </form>
+        </div>
       </DialogContent>
     </Dialog>
   );

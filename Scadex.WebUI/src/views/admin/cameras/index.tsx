@@ -67,9 +67,12 @@ export default function Cameras() {
           <FieldLabel htmlFor='camera-cabinet'>Kabin</FieldLabel>
           {/* Base UI'da `onValueChange` `string | null` veriyor (temizleme
               durumu); doğrudan `setCabinetId` geçmek tip hatası. */}
-          <Select value={cabinetId} onValueChange={value => setSelectedCabinetId(value ?? '')}>
+          {/* Etiket açıkça verilir: çocuğu olmayan `SelectValue` ham değeri (Guid) basar. */}
+          <Select value={cabinetId || null} onValueChange={value => setSelectedCabinetId(value ?? '')}>
             <SelectTrigger id='camera-cabinet'>
-              <SelectValue placeholder={cabinets.isPending ? 'Yükleniyor…' : 'Kabin seçin'} />
+              <SelectValue placeholder={cabinets.isPending ? 'Yükleniyor…' : 'Kabin seçin'}>
+                {cabinetId ? (activeCabinets.find(cabinet => cabinet.id === cabinetId)?.name ?? 'Kabin bulunamadı') : undefined}
+              </SelectValue>
             </SelectTrigger>
             <SelectContent>
               {activeCabinets.map(cabinet => (

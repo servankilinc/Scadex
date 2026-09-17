@@ -393,7 +393,8 @@ function FilterSelect({
   allLabel: string;
   options: FilterOption[];
 }) {
-  const selectedLabel = value === ALL ? allLabel : options.find(o => o.value === value)?.label;
+  // `undefined` BIRAKILMAZ: çocuksuz `SelectValue` ham değeri (Guid) basar.
+  const selectedLabel = value === ALL ? allLabel : (options.find(o => o.value === value)?.label ?? 'Bulunamadı');
 
   return (
     <Field className='w-full max-w-[12rem]'>

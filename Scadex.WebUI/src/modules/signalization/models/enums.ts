@@ -177,6 +177,10 @@ const SessionEventDetailLabels: Record<string, string> = {
   SessionTimedOut: 'Oturum zaman aşımı',
   // OuterClosed gerekçesi
   Unfinished: 'İş bitmeden kapandı',
+  // Unlocked gerekçesi: kayıt "kilit açık" diyordu ama kapı hiç açılmadı, kilit yeniden açıldı
+  UnlockNotEffective: 'Önceki açma komutu uygulanmamıştı',
+  // OuterOpenMissing gerekçesi (CardPresented): dış kapı anahtarı "kapalı" iken kart okutuldu
+  OuterSwitchClosed: 'Dış kapı kapalı görünürken okutuldu',
   // LockSkippedDoorOpen gerekçeleri
   SwitchUnknown: 'Anahtar durumu bilinmiyor',
   SessionEnd: 'Oturum sonu',

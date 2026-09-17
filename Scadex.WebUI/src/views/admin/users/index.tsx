@@ -154,89 +154,95 @@ function UserCreateDialog({ onClose }: { onClose: () => void }) {
 
   return (
     <Dialog open onOpenChange={open => !open && onClose()}>
-      <DialogContent className='max-h-[90vh] gap-0 overflow-y-auto p-0'>
+      <DialogContent className='flex max-h-[90vh] flex-col gap-0 overflow-hidden p-0'>
         <DialogHeader className='p-4 pb-3'>
           <DialogTitle>Yeni kullanıcı</DialogTitle>
           <DialogDescription>Kullanıcı aktif olarak oluşturulur. Rolleri kayıttan sonra “Roller” ile atayın.</DialogDescription>
         </DialogHeader>
 
-        <form
-          onSubmit={form.handleSubmit(values =>
-            mutation.mutate(values, {
-              onSuccess: onClose,
-              onError: error => handleFormApiError(error, form.setError)
-            })
-          )}
-          noValidate>
-          <FieldGroup className='p-4'>
-            <Field>
-              <FieldLabel htmlFor='user-name'>Kullanıcı adı</FieldLabel>
-              <Input id='user-name' autoFocus autoComplete='off' {...form.register('userName')} />
-              <FieldDescription>Giriş için kullanılır; sonradan değiştirilemez.</FieldDescription>
-              {errors.userName && <FieldError>{errors.userName.message}</FieldError>}
-            </Field>
+        {/* Scroll İÇ katmanda ve başlığın ALTINDA: yuvarlatılmış kutu scrollbar'ı köşeden kırpar, X düğmesi scrollbar'la çakışmaz. */}
+        <div className='min-h-0 scrollbar-thin overflow-y-auto'>
+          <form
+            onSubmit={form.handleSubmit(values =>
+              mutation.mutate(values, {
+                onSuccess: onClose,
+                onError: error => handleFormApiError(error, form.setError)
+              })
+            )}
+            noValidate>
+            <FieldGroup className='p-4'>
+              <Field>
+                <FieldLabel htmlFor='user-name'>Kullanıcı adı</FieldLabel>
+                <Input id='user-name' autoFocus autoComplete='off' {...form.register('userName')} />
+                <FieldDescription>Giriş için kullanılır; sonradan değiştirilemez.</FieldDescription>
+                {errors.userName && <FieldError>{errors.userName.message}</FieldError>}
+              </Field>
 
-            <Field>
-              <FieldLabel htmlFor='user-full-name'>Ad soyad</FieldLabel>
-              <Input id='user-full-name' {...form.register('fullName')} />
-              {errors.fullName && <FieldError>{errors.fullName.message}</FieldError>}
-            </Field>
+              <Field>
+                <FieldLabel htmlFor='user-full-name'>Ad soyad</FieldLabel>
+                <Input id='user-full-name' {...form.register('fullName')} />
+                {errors.fullName && <FieldError>{errors.fullName.message}</FieldError>}
+              </Field>
 
-            <Field>
-              <FieldLabel htmlFor='user-company'>Firma</FieldLabel>
-              <Controller
-                control={form.control}
-                name='companyId'
-                render={({ field }) => (
-                  <Select value={field.value} onValueChange={value => field.onChange(value ?? '')} disabled={companyOptions.length === 0}>
-                    <SelectTrigger id='user-company' className='w-full'>
-                      <SelectValue placeholder='Firma seçin'>{companyOptions.find(company => company.id === field.value)?.name}</SelectValue>
-                    </SelectTrigger>
-                    <SelectContent>
-                      {companyOptions.map(company => (
-                        <SelectItem key={company.id} value={company.id}>
-                          {company.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                )}
-              />
-              {errors.companyId && <FieldError>{errors.companyId.message}</FieldError>}
-            </Field>
+              <Field>
+                <FieldLabel htmlFor='user-company'>Firma</FieldLabel>
+                <Controller
+                  control={form.control}
+                  name='companyId'
+                  render={({ field }) => (
+                    <Select value={field.value || null} onValueChange={value => field.onChange(value ?? '')} disabled={companyOptions.length === 0}>
+                      <SelectTrigger id='user-company' className='w-full'>
+                        {/* Eşleşme yoksa `undefined` BIRAKILMAZ: çocuksuz `SelectValue` ham Guid'i basar. */}
+                        <SelectValue placeholder='Firma seçin'>
+                          {field.value ? (companyOptions.find(company => company.id === field.value)?.name ?? 'Firma bulunamadı') : undefined}
+                        </SelectValue>
+                      </SelectTrigger>
+                      <SelectContent>
+                        {companyOptions.map(company => (
+                          <SelectItem key={company.id} value={company.id}>
+                            {company.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  )}
+                />
+                {errors.companyId && <FieldError>{errors.companyId.message}</FieldError>}
+              </Field>
 
-            <Field>
-              <FieldLabel htmlFor='user-email'>E-posta</FieldLabel>
-              <Input id='user-email' type='email' autoComplete='off' {...form.register('email')} />
-              {/* Duzenleme formunda YOK: UserUpdateDto bu alani tasimiyor. */}
-              <FieldDescription>İsteğe bağlı; yalnızca oluştururken yazılabilir.</FieldDescription>
-              {errors.email && <FieldError>{errors.email.message}</FieldError>}
-            </Field>
+              <Field>
+                <FieldLabel htmlFor='user-email'>E-posta</FieldLabel>
+                <Input id='user-email' type='email' autoComplete='off' {...form.register('email')} />
+                {/* Duzenleme formunda YOK: UserUpdateDto bu alani tasimiyor. */}
+                <FieldDescription>İsteğe bağlı; yalnızca oluştururken yazılabilir.</FieldDescription>
+                {errors.email && <FieldError>{errors.email.message}</FieldError>}
+              </Field>
 
-            <Field>
-              <FieldLabel htmlFor='user-phone'>Telefon</FieldLabel>
-              <Input id='user-phone' type='tel' {...form.register('phoneNumber')} />
-              {errors.phoneNumber && <FieldError>{errors.phoneNumber.message}</FieldError>}
-            </Field>
+              <Field>
+                <FieldLabel htmlFor='user-phone'>Telefon</FieldLabel>
+                <Input id='user-phone' type='tel' {...form.register('phoneNumber')} />
+                {errors.phoneNumber && <FieldError>{errors.phoneNumber.message}</FieldError>}
+              </Field>
 
-            <IdentityCardField id='user-card' registration={form.register('identityCardId')} error={errors.identityCardId?.message} />
+              <IdentityCardField id='user-card' registration={form.register('identityCardId')} error={errors.identityCardId?.message} />
 
-            <Field>
-              <FieldLabel htmlFor='user-password'>Parola</FieldLabel>
-              <Input id='user-password' type='password' autoComplete='new-password' {...form.register('password')} />
-              {errors.password && <FieldError>{errors.password.message}</FieldError>}
-            </Field>
-          </FieldGroup>
+              <Field>
+                <FieldLabel htmlFor='user-password'>Parola</FieldLabel>
+                <Input id='user-password' type='password' autoComplete='new-password' {...form.register('password')} />
+                {errors.password && <FieldError>{errors.password.message}</FieldError>}
+              </Field>
+            </FieldGroup>
 
-          <DialogFooter className='mx-0 mb-0'>
-            <Button type='button' variant='outline' onClick={onClose} disabled={mutation.isPending}>
-              Vazgeç
-            </Button>
-            <Button type='submit' disabled={mutation.isPending}>
-              {mutation.isPending ? 'Kaydediliyor…' : 'Kullanıcıyı oluştur'}
-            </Button>
-          </DialogFooter>
-        </form>
+            <DialogFooter className='mx-0 mb-0'>
+              <Button type='button' variant='outline' onClick={onClose} disabled={mutation.isPending}>
+                Vazgeç
+              </Button>
+              <Button type='submit' disabled={mutation.isPending}>
+                {mutation.isPending ? 'Kaydediliyor…' : 'Kullanıcıyı oluştur'}
+              </Button>
+            </DialogFooter>
+          </form>
+        </div>
       </DialogContent>
     </Dialog>
   );
@@ -344,25 +350,28 @@ function UserRolesDialog({ user, onClose }: { user: UserDetailDto; onClose: () =
 
   return (
     <Dialog open onOpenChange={open => !open && onClose()}>
-      <DialogContent className='max-h-[90vh] gap-0 overflow-y-auto p-0'>
+      <DialogContent className='flex max-h-[90vh] flex-col gap-0 overflow-hidden p-0'>
         <DialogHeader className='p-4 pb-3'>
           <DialogTitle>Roller — {user.fullName}</DialogTitle>
           <DialogDescription>Değişiklik, kullanıcının bir sonraki girişinde ya da oturum yenilemesinde geçerli olur.</DialogDescription>
         </DialogHeader>
 
-        {/* Form ancak iki kaynak da gelince mount edilir: varsayılan değerler veriden
-            okunur, sonradan `reset` gerekmez. */}
-        {roles.data && assigned.data ? (
-          <UserRolesForm userId={user.id} roles={roles.data} assigned={assigned.data} onClose={onClose} />
-        ) : loadError ? (
-          <p className='p-4 text-sm text-destructive'>{loadError.message}</p>
-        ) : (
-          <div className='flex flex-col gap-2 p-4'>
-            {Array.from({ length: 3 }, (_, i) => (
-              <Skeleton key={i} className='h-11 w-full rounded-lg' />
-            ))}
-          </div>
-        )}
+        {/* Scroll İÇ katmanda ve başlığın ALTINDA: yuvarlatılmış kutu scrollbar'ı köşeden kırpar, X düğmesi scrollbar'la çakışmaz. */}
+        <div className='min-h-0 scrollbar-thin overflow-y-auto'>
+          {/* Form ancak iki kaynak da gelince mount edilir: varsayılan değerler veriden
+              okunur, sonradan `reset` gerekmez. */}
+          {roles.data && assigned.data ? (
+            <UserRolesForm userId={user.id} roles={roles.data} assigned={assigned.data} onClose={onClose} />
+          ) : loadError ? (
+            <p className='p-4 text-sm text-destructive'>{loadError.message}</p>
+          ) : (
+            <div className='flex flex-col gap-2 p-4'>
+              {Array.from({ length: 3 }, (_, i) => (
+                <Skeleton key={i} className='h-11 w-full rounded-lg' />
+              ))}
+            </div>
+          )}
+        </div>
       </DialogContent>
     </Dialog>
   );

@@ -1,5 +1,7 @@
 using FluentValidation;
+using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Mvc.ApplicationParts;
+using Microsoft.AspNetCore.Routing;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -8,7 +10,9 @@ using Scadex.DataAccess.Interceptors;
 using Scadex.Signalization.BackgroundServices;
 using Scadex.Signalization.DataAccess;
 using Scadex.Signalization.Engine;
+using Scadex.Signalization.Hubs;
 using Scadex.Signalization.Queue;
+using Scadex.Signalization.Realtime;
 using Scadex.Signalization.Runtime;
 using Scadex.Signalization.ScadaHook;
 using Scadex.Signalization.Services.Abstract;
@@ -50,18 +54,36 @@ public static class ServiceRegistration
         return mvc;
     }
 
+    /// <summary>
+    /// Modulun hub'ini esler: <c>/hubs/signalization</c>. Hub'lar controller'lar gibi otomatik kesfedilmez; modul kapaliysa hic
+    /// eslenmez ve negotiate 404 doner (servisleri de kayitli olmadigi icin eslenseydi her baglantida DI hatasi olurdu).
+    /// </summary>
+    public static IEndpointRouteBuilder MapSignalizationModule(this IEndpointRouteBuilder app, IConfiguration configuration)
+    {
+        if (SignalizationModule.IsEnabled(configuration))
+            app.MapHub<SignalizationHub>("/hubs/signalization");
+
+        return app;
+    }
+
     private static IServiceCollection AddSignalizationServices(this IServiceCollection services, IConfiguration configuration)
     {
         #region DB CONTEXT
         string connectionString = configuration.GetConnectionString("Database") ?? 
             throw new InvalidOperationException("ConnectionStrings:Signalization ya da ConnectionStrings:Database tanimli degil.");
 
+        // Oturum degisikliklerini kayittan sonra /hubs/signalization'a duyurur (bkz. OperatorSessionRealtimeInterceptor).
+        // Ikisi de singleton: interceptor singleton, notifier'in kullandigi IHubContext de singleton.
+        services.AddSingleton<ISignalizationNotifier, SignalizationNotifier>();
+        services.AddSingleton<OperatorSessionRealtimeInterceptor>();
+
         services.AddDbContext<SignalizationDbContext>((serviceProvider, opt) =>
         {
             opt.UseSqlServer(connectionString, sql => sql.MigrationsHistoryTable("__EFMigrationsHistory", SignalizationDbContext.Schema))
                .AddInterceptors(serviceProvider.GetRequiredService<AuditInterceptor>())
                // .AddInterceptors(serviceProvider.GetRequiredService<ArchiveInterceptor>())
-               .AddInterceptors(serviceProvider.GetRequiredService<EntityLifecycleInterceptor>());
+               .AddInterceptors(serviceProvider.GetRequiredService<EntityLifecycleInterceptor>())
+               .AddInterceptors(serviceProvider.GetRequiredService<OperatorSessionRealtimeInterceptor>());
         });
         #endregion
 

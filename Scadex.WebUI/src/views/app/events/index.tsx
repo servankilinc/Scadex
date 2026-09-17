@@ -10,7 +10,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { useCabinets } from '@/hooks/use-cabinets';
 import { useChannelEvents } from '@/hooks/use-channel-events';
 import { useDiagramGraph } from '@/hooks/use-diagram-graph';
-import { PinDirectionLabels } from '@/models/enums';
+import { PinDirectionLabels, type PinDirection } from '@/models/enums';
 import type { ChannelEventDto } from '@/models/channelEvent';
 import { formatUtcDateTime } from '@/lib/utils';
 
@@ -75,6 +75,16 @@ export default function ChannelEvents() {
 
   const isFiltered = channelId !== ALL_CHANNELS || from !== '' || to !== '';
 
+  const selectedChannel = channels.find(channel => channel.id === channelId);
+  const channelLabel =
+    channelId === ALL_CHANNELS
+      ? 'Tüm kanallar'
+      : selectedChannel
+        ? formatChannelLabel(selectedChannel)
+        : graph.isPending
+          ? 'Yükleniyor…'
+          : 'Kanal bulunamadı';
+
   return (
     <div className='flex flex-col gap-4 p-4'>
       <div>
@@ -88,8 +98,9 @@ export default function ChannelEvents() {
         <Field className='w-full max-w-xs'>
           <FieldLabel htmlFor='event-cabinet'>Kabin</FieldLabel>
           {/* Base UI'da `onValueChange` `string | null` veriyor (temizleme durumu). */}
+          {/* Etiketler açıkça verilir: çocuğu olmayan `SelectValue` ham değeri (Guid) basar. */}
           <Select
-            value={cabinetId}
+            value={cabinetId || null}
             onValueChange={value => {
               setSelectedCabinetId(value ?? '');
               // Kabin değişince kanal filtresi ANLAMINI YİTİRİR: kanal kimlikleri
@@ -98,7 +109,9 @@ export default function ChannelEvents() {
               setPage(1);
             }}>
             <SelectTrigger id='event-cabinet'>
-              <SelectValue placeholder={cabinets.isPending ? 'Yükleniyor…' : 'Kabin seçin'} />
+              <SelectValue placeholder={cabinets.isPending ? 'Yükleniyor…' : 'Kabin seçin'}>
+                {cabinetId ? (activeCabinets.find(cabinet => cabinet.id === cabinetId)?.name ?? 'Kabin bulunamadı') : undefined}
+              </SelectValue>
             </SelectTrigger>
             <SelectContent>
               {activeCabinets.map(cabinet => (
@@ -119,13 +132,13 @@ export default function ChannelEvents() {
               setPage(1);
             }}>
             <SelectTrigger id='event-channel' disabled={!cabinetId}>
-              <SelectValue placeholder={graph.isPending ? 'Yükleniyor…' : 'Tüm kanallar'} />
+              <SelectValue>{channelLabel}</SelectValue>
             </SelectTrigger>
             <SelectContent>
               <SelectItem value={ALL_CHANNELS}>Tüm kanallar</SelectItem>
               {channels.map(channel => (
                 <SelectItem key={channel.id} value={channel.id}>
-                  {channel.deviceName} · {channel.name} ({PinDirectionLabels[channel.direction]} {channel.channelNumber})
+                  {formatChannelLabel(channel)}
                 </SelectItem>
               ))}
             </SelectContent>
@@ -280,6 +293,11 @@ function EventRow({ event }: { event: ChannelEventDto }) {
       </td>
     </tr>
   );
+}
+
+/** Kanal seçeneğinin etiketi — liste öğesi ve seçili değer AYNI metni göstersin diye tek yerde. */
+function formatChannelLabel(channel: { deviceName: string; name: string; direction: PinDirection; channelNumber: number }): string {
+  return `${channel.deviceName} · ${channel.name} (${PinDirectionLabels[channel.direction]} ${channel.channelNumber})`;
 }
 
 /** `datetime-local` girdisi (yerel saat) → sunucunun beklediği UTC ISO. Boşsa filtre yok. */

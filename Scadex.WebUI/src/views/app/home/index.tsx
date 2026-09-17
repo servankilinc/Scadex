@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useQueries, useQuery, type UseQueryResult } from '@tanstack/react-query';
 import { getCabinetList } from '@/api/cabinet';
 import { cabinetKeys } from '@/api/query-keys';
 import { Map, MapControls, MapMarker, MarkerContent, MarkerLabel, MarkerPopup } from '@/components/ui/map';
@@ -7,14 +7,24 @@ import { Button } from '@/components/ui/button';
 import { X, Info, Activity, Clock, MapPin } from 'lucide-react';
 import type { CabinetDetailDto } from '@/models/cabinet';
 import CabinetIdleIcon from '@/assets/cabinet-idle-2.png';
+import CabinetInProcessIcon from '@/assets/cabinet-inproces-2.png';
+import { busyCabinetQueries } from '@/modules';
 import { DashboardMetrics } from './dashboard-metrics';
 import { formatUtcDateTime } from '@/lib/utils';
+
+/** Modüllerin kimlik listelerini tek kümede birleştirir. Modül düzeyinde: kararlı referans, sonuç memolanır. */
+function combineBusyCabinetIds(results: UseQueryResult<string[]>[]): ReadonlySet<string> {
+  return new Set(results.flatMap(result => result.data ?? []));
+}
 
 export default function Home() {
   const { data: cabinets = [], isLoading } = useQuery({
     queryKey: cabinetKeys.list(),
     queryFn: getCabinetList
   });
+
+  // "İşlem yapılan" kabinler modüllerden gelir (bkz. `AppModule.busyCabinetsQuery`); modül yoksa küme boştur.
+  const busyCabinetIds = useQueries({ queries: busyCabinetQueries, combine: combineBusyCabinetIds });
 
   const [selectedCabinet, setSelectedCabinet] = useState<CabinetDetailDto | null>(null);
 
@@ -67,10 +77,11 @@ export default function Home() {
                   latitude={cabinet.latitude as number}
                 >
                   <MarkerContent>
+                    {/* `w-auto`: iki görselin en-boy oranı farklı, sabit genişlik işlem ikonunu ezerdi. */}
                     <img
-                      src={CabinetIdleIcon}
-                      alt="Cabinet"
-                      className="h-12 w-10 cursor-pointer transition-transform hover:scale-120 drop-shadow-lg"
+                      src={busyCabinetIds.has(cabinet.id) ? CabinetInProcessIcon : CabinetIdleIcon}
+                      alt={busyCabinetIds.has(cabinet.id) ? 'Kabin (işlem yapılıyor)' : 'Kabin'}
+                      className="h-12 w-auto cursor-pointer transition-transform hover:scale-120 drop-shadow-lg"
                     />
                     <MarkerLabel position="bottom" className='bg-white dark:bg-stone-800'>{cabinet.name}</MarkerLabel>
                   </MarkerContent>

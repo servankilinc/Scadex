@@ -69,7 +69,8 @@ public partial class OperatorSessionEngine
             );
             await _db.SaveChangesAsync(cancellationToken);
 
-            // 3) Eğer oturum yeni açıldıysa ve dış kapının ilişkili olduğu bir kamera varsa kayıt talebinde bulunulur
+            // 3) Dış kapının ilişkili olduğu bir kamera varsa HER açılışta kayıt talebinde bulunulur (yalnızca yeni
+            //    oturumda değil): iş bitmeden kapanan kapı oturumu açık bıraktığı için ikinci giriş de tanıksız kalmamalı.
             if (outer.CameraId.HasValue && cabinet.EntrySnapshotCount > 0)
             {
                 _snapshotQueue.Enqueue(

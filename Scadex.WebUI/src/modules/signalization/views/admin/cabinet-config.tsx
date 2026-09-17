@@ -122,7 +122,9 @@ function CabinetPicker({
       <FieldLabel htmlFor='signal-cabinet'>Kabin</FieldLabel>
       <Select value={value || null} onValueChange={next => next && onChange(next)}>
         <SelectTrigger id='signal-cabinet' className='w-full'>
-          <SelectValue placeholder={isPending ? 'Yükleniyor…' : 'Kabin seçin'}>{cabinets.find(c => c.id === value)?.name}</SelectValue>
+          <SelectValue placeholder={isPending ? 'Yükleniyor…' : 'Kabin seçin'}>
+            {value ? (cabinets.find(c => c.id === value)?.name ?? (isPending ? 'Yükleniyor…' : 'Kabin bulunamadı')) : undefined}
+          </SelectValue>
         </SelectTrigger>
         <SelectContent>
           {cabinets.map(cabinet => (

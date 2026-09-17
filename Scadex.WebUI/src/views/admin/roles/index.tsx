@@ -226,7 +226,7 @@ function RolePermissionsDialog({ role, onClose }: { role: RoleDto; onClose: () =
 
   return (
     <Dialog open onOpenChange={open => !open && onClose()}>
-      <DialogContent className='max-h-[90vh] gap-0 overflow-y-auto p-0'>
+      <DialogContent className='flex max-h-[90vh] flex-col gap-0 overflow-hidden p-0'>
         <DialogHeader className='p-4 pb-3'>
           <DialogTitle>İzinler — {role.name}</DialogTitle>
           <DialogDescription>
@@ -234,18 +234,21 @@ function RolePermissionsDialog({ role, onClose }: { role: RoleDto; onClose: () =
           </DialogDescription>
         </DialogHeader>
 
-        {/* Form ancak iki kaynak da gelince mount edilir: varsayılan değerler veriden okunur. */}
-        {permissions.data && granted.data ? (
-          <RolePermissionsForm roleId={role.id} permissions={permissions.data} granted={granted.data} onClose={onClose} />
-        ) : loadError ? (
-          <p className='p-4 text-sm text-destructive'>{loadError.message}</p>
-        ) : (
-          <div className='flex flex-col gap-2 p-4'>
-            {Array.from({ length: 4 }, (_, i) => (
-              <Skeleton key={i} className='h-14 w-full rounded-lg' />
-            ))}
-          </div>
-        )}
+        {/* Scroll İÇ katmanda ve başlığın ALTINDA: yuvarlatılmış kutu scrollbar'ı köşeden kırpar, X düğmesi scrollbar'la çakışmaz. */}
+        <div className='min-h-0 scrollbar-thin overflow-y-auto'>
+          {/* Form ancak iki kaynak da gelince mount edilir: varsayılan değerler veriden okunur. */}
+          {permissions.data && granted.data ? (
+            <RolePermissionsForm roleId={role.id} permissions={permissions.data} granted={granted.data} onClose={onClose} />
+          ) : loadError ? (
+            <p className='p-4 text-sm text-destructive'>{loadError.message}</p>
+          ) : (
+            <div className='flex flex-col gap-2 p-4'>
+              {Array.from({ length: 4 }, (_, i) => (
+                <Skeleton key={i} className='h-14 w-full rounded-lg' />
+              ))}
+            </div>
+          )}
+        </div>
       </DialogContent>
     </Dialog>
   );

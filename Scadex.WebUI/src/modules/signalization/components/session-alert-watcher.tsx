@@ -8,7 +8,7 @@ import { flagsOf, isAlertFlag } from '../models/enums';
  * Canlı güvenlik uyarısı — layout'a BİR KEZ takılır (modül manifestosundaki `LayoutExtension`), kullanıcı hangi
  * sayfada olursa olsun çalışır.
  *
- * `/api/OperatorSession/open` ucunu 10 sn'de bir yoklar (SignalR olayı bilerek yok) ve güvenlik uyarısı
+ * `/api/OperatorSession/open` sorgusunu okur (canlı yayınla anında, soket kopuksa 10 sn yoklamayla tazelenir) ve güvenlik uyarısı
  * (`hasAlert`: kartsız giriş / zorla açma) taşıyan her açık oturum için **oturum başına bir kez** kalıcı bir
  * bildirim çıkarır. Onay akışı YOKTUR: bildirimi kapatmak yalnızca bildirimi kapatır, bayrak oturumda kalır ve
  * raporda görünür.

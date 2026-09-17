@@ -19,8 +19,12 @@ export const signalizationKeys = {
   sessions: () => [...root, 'session'] as const,
   /** Canlı panel. Uyarı yoklayıcısı ve oturum ekranı AYNI anahtarı paylaşır (tüm kabinler). */
   openSessions: (cabinetId: string | null) => [...root, 'session', 'open', cabinetId] as const,
+  /** Bütün açık oturum sorguları (kabin filtresinden bağımsız) — canlı yayın invalidation'ı için önek. */
+  openSessionsAll: () => [...root, 'session', 'open'] as const,
   /** Filtre nesnesinin TAMAMI anahtara girer — filtre değişimi başka bir sorgudur. */
   sessionList: (request: OperatorSessionQueryRequest) => [...root, 'session', 'list', request] as const,
+  /** Bütün sayfalı geçmiş sorguları — canlı yayın invalidation'ı için önek. */
+  sessionLists: () => [...root, 'session', 'list'] as const,
   sessionDetail: (id: number) => [...root, 'session', 'detail', id] as const,
   summary: (request: OperatorSessionSummaryRequest) => [...root, 'session', 'summary', request] as const
 };

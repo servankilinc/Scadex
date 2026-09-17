@@ -187,7 +187,9 @@ function RoleSelect({ roles, value, onChange }: { roles: RoleDto[]; value: strin
   return (
     <Select value={value || null} onValueChange={next => onChange(next ?? '')}>
       <SelectTrigger aria-label='Rol' className='w-full'>
-        <SelectValue placeholder='Rol seçin'>{selected ? `${selected.name}${selected.isActive ? '' : ' (pasif)'}` : undefined}</SelectValue>
+        <SelectValue placeholder='Rol seçin'>
+          {selected ? `${selected.name}${selected.isActive ? '' : ' (pasif)'}` : value ? 'Rol bulunamadı — yeniden seçin' : undefined}
+        </SelectValue>
       </SelectTrigger>
       <SelectContent>
         {options.map(role => (

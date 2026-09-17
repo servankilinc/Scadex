@@ -2,12 +2,13 @@ import { lazy } from 'react';
 import { redirect, type RouteObject } from 'react-router';
 import { ChartColumnIcon, DoorOpenIcon, IdCardIcon, LandmarkIcon, SlidersHorizontalIcon } from 'lucide-react';
 import type { AppModule } from '../types';
+import { busyCabinetsQueryOptions } from './hooks/use-operator-sessions';
 
 /**
  * Sinyalizasyon modülü — operatör işlemi takibi (backend: `Scadex.Signalization`, PROJECT_OVERVIEW.md § 10).
  *
  * Bu dosya ana pakete girer (menü ve rota tanımı), bu yüzden ekran İÇERMEZ: bütün ekranlar ve uyarı
- * yoklayıcısı `lazy`. Modül kapalı bir kurulumda (`VITE_MODULES` boş) kullanıcı bu kodun hiçbirini indirmez.
+ * yoklayıcısı `lazy`. Ana pakete giren tek veri kodu haritanın sorgu tanımıdır (api çağrısı + anahtar). Modül kapalı bir kurulumda (`VITE_MODULES` boş) kullanıcı bu kodun hiçbirini indirmez.
  *
  * Rotaların hepsi `/signalization` altında: modül menüsü kendi grubunda durur ve çekirdeğin `/admin` ağacına
  * karışmaz.
@@ -66,6 +67,9 @@ export const signalizationModule: AppModule = {
     { title: 'Kurumlar', url: '/signalization/authorities', icon: LandmarkIcon },
     { title: 'Operatörler', url: '/signalization/operators', icon: IdCardIcon }
   ],
-  // Oturum açık olduğu sürece her sayfada: kartsız giriş / zorla açma bildirimi.
-  LayoutExtension: lazy(() => import('./components/session-alert-watcher'))
+  // Oturum açık olduğu sürece her sayfada: operatör işlemi canlı yayını + kartsız giriş / zorla açma bildirimi.
+  LayoutExtension: lazy(() => import('./components/layout-extension')),
+  // Ana sayfa haritası: açık operatör işlemi olan kabin "işlem yapılıyor" ikonuyla çizilir. Uyarı
+  // yoklayıcısıyla aynı sorgu anahtarı — ek istek doğmaz. Anlık güncellemeyi canlı yayın verir.
+  busyCabinetsQuery: busyCabinetsQueryOptions()
 };

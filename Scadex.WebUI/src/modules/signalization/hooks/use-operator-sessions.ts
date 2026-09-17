@@ -1,10 +1,14 @@
 import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import { ApiError } from '@/lib/axios-helper';
+import type { CabinetIdsQueryOptions } from '../../types';
 import { getOpenSessions, getSessionDetail, getSessionList, getSessionSummary } from '../api/signalization';
 import { signalizationKeys } from '../api/query-keys';
-import type { OperatorSessionQueryRequest, OperatorSessionSummaryRequest } from '../models/session';
+import type { OperatorSessionOpenDto, OperatorSessionQueryRequest, OperatorSessionSummaryRequest } from '../models/session';
 
-/** Uyarı yoklayıcısının aralığı. SignalR olayı bilerek eklenmedi — yoklama yeterli ve çekirdeğe dokunmaz. */
+/**
+ * Açık oturum yoklamasının aralığı. Anlık güncelleme canlı yayından gelir (`use-session-realtime.ts`, `/hubs/signalization`);
+ * yoklama soket kurulamadığında ya da koptuğunda GERİ DÖNÜŞTÜR.
+ */
 export const LIVE_POLL_MS = 10_000;
 
 /**
@@ -16,8 +20,8 @@ function isModuleOff(error: unknown): boolean {
 }
 
 /**
- * Açık oturumlar (tüm kabinler). Canlı panel ve uyarı yoklayıcısı AYNI anahtarı kullanır: iki gözlemci tek
- * istek üretir, TanStack en kısa aralığı uygular.
+ * Açık oturumlar (tüm kabinler). Canlı panel, uyarı yoklayıcısı ve ana sayfa haritası AYNI anahtarı kullanır:
+ * gözlemciler tek istek üretir, TanStack en kısa aralığı uygular.
  *
  * `refetchIntervalInBackground`: sekme arka plandayken de yoklanır — güvenlik uyarısı kullanıcı başka sekmeye
  * geçti diye gecikmemeli.
@@ -29,6 +33,22 @@ export function useOpenSessions(intervalMs = LIVE_POLL_MS) {
     refetchInterval: query => (isModuleOff(query.state.error) ? false : intervalMs),
     refetchIntervalInBackground: true
   });
+}
+
+/**
+ * Açık oturumu olan kabinler — ana sayfa haritasındaki "işlem yapılıyor" ikonu (manifestodaki
+ * `busyCabinetsQuery`). `useOpenSessions` ile AYNI anahtar ve `queryFn`: önbellek satırı paylaşılır, kimlik
+ * listesi `select` ile türetilir. `queryOptions` ile ortak bir fabrika bilerek yazılmadı — literal anahtar tipi
+ * modül sözleşmesindeki genel `QueryKey`'e atanamıyor.
+ */
+export function busyCabinetsQueryOptions(intervalMs = LIVE_POLL_MS): CabinetIdsQueryOptions {
+  return {
+    queryKey: signalizationKeys.openSessions(null),
+    queryFn: () => getOpenSessions(null),
+    refetchInterval: query => (isModuleOff(query.state.error) ? false : intervalMs),
+    refetchIntervalInBackground: true,
+    select: (sessions: OperatorSessionOpenDto[]) => [...new Set(sessions.map(session => session.cabinetId))]
+  };
 }
 
 /** Sayfalı geçmiş. `keepPreviousData`: sayfa değişiminde tablo boşalıp yeniden dolmaz. */

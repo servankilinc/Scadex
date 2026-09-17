@@ -1,4 +1,5 @@
 import type { ComponentType } from 'react';
+import type { UseQueryOptions } from '@tanstack/react-query';
 import type { LucideIcon } from 'lucide-react';
 import type { RouteObject } from 'react-router';
 
@@ -26,4 +27,13 @@ export interface AppModule {
    * verilmeli; layout onu `Suspense` içinde render eder.
    */
   LayoutExtension?: ComponentType;
+  /**
+   * Ana sayfa haritasında "işlem yapılıyor" ikonuyla gösterilecek kabinlerin sorgusu. Çekirdek yalnızca kabin
+   * kimliklerini okur, "işlem"in ne demek olduğunu modül belirler. Birden çok modül verirse kimlikler birleşir.
+   */
+  busyCabinetsQuery?: CabinetIdsQueryOptions;
 }
+
+/** Sonucu kabin kimliği listesi olan sorgu. Ham veri modülün kendi DTO'sudur; `select` onu kimliklere indirger. */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any -- ham veri tipi modüle aittir, çekirdek yalnızca `select` sonucunu okur
+export type CabinetIdsQueryOptions = UseQueryOptions<any, Error, string[], readonly unknown[]>;

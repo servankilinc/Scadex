@@ -309,4 +309,7 @@ app.MapControllers();
 
 app.MapHub<DiagramHub>("/hubs/diagram");
 
+// Musteri/kurum modullerinin hub'lari — "Modules:<Ad>:Enabled" kapaliysa eslenmez (negotiate 404). Yeni modulun hub'i varsa buraya bir satir.
+app.MapSignalizationModule(builder.Configuration);
+
 app.Run();

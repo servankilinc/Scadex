@@ -62,7 +62,7 @@ export default function SessionReport() {
           <FieldLabel htmlFor='report-cabinet'>Kabin</FieldLabel>
           <Select value={cabinetId} onValueChange={value => setCabinetId(value ?? ALL)}>
             <SelectTrigger id='report-cabinet' className='w-full'>
-              <SelectValue>{cabinetId === ALL ? 'Tüm kabinler' : cabinetOptions.find(c => c.id === cabinetId)?.name}</SelectValue>
+              <SelectValue>{cabinetId === ALL ? 'Tüm kabinler' : (cabinetOptions.find(c => c.id === cabinetId)?.name ?? 'Kabin bulunamadı')}</SelectValue>
             </SelectTrigger>
             <SelectContent>
               <SelectItem value={ALL}>Tüm kabinler</SelectItem>
