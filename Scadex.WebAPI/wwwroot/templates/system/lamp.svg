@@ -8,17 +8,15 @@
     <path d="M57 78 H83"/>
     <path d="M57 84 H83"/>
   </g>
-  <text x="70" y="105" font-size="12">LAMBA</text>
+  <text x="70" y="105" font-size="10">AYDINLATMA LED'İ</text>
 
-  <rect x="16" y="112" width="108" height="52" rx="5" fill="#fff" stroke="#111" stroke-width="1.5"/>
+  <rect x="20" y="112" width="100" height="52" rx="5" fill="#fff" stroke="#111" stroke-width="1.5"/>
   <g font-size="11">
-    <text x="35" y="132">L</text>
-    <text x="70" y="132">N</text>
-    <text x="105" y="132">PE</text>
+    <text x="45" y="132">+12V</text>
+    <text x="95" y="132">GND</text>
   </g>
   <g fill="#111">
-    <circle data-pin="L" cx="35" cy="148" r="7"/>
-    <circle data-pin="N" cx="70" cy="148" r="7"/>
-    <circle data-pin="PE" cx="105" cy="148" r="7"/>
+    <circle data-pin="+12V" cx="45" cy="148" r="7"/>
+    <circle data-pin="GND" cx="95" cy="148" r="7"/>
   </g>
 </svg>

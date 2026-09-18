@@ -899,12 +899,10 @@ public class AppDbContext : IdentityDbContext<User, Role, Guid>
         SvgTemplate(EntityEnums.DeviceType.Peripheral, 6, "Banknot Kasası", 160, 190, "bill-acceptor.svg", DcLoadPins("+24V", Volt.DC_24V, 55, 105, 168));
         SvgTemplate(EntityEnums.DeviceType.Peripheral, 7, "Bilgisayar", 200, 150, "computer.svg",
             [.. DcLoadPins("+12V", Volt.DC_12V, 50, 90, 128), new("RJ45", 150, 128, Side.Bottom, Fn.RJ45, Dir.Bidirectional, Volt.Data)]);
-        SvgTemplate(EntityEnums.DeviceType.Peripheral, 8, "Lamba", 140, 170, "lamp.svg",
-        [
-            new("L", 35, 148, Side.Bottom, Fn.Line_L, Dir.Input, Volt.AC_220V),
-            new("N", 70, 148, Side.Bottom, Fn.Neutral_N, Dir.Input, Volt.AC_220V),
-            new("PE", 105, 148, Side.Bottom, Fn.Earth_PE, Dir.Input, Volt.AC_220V)
-        ]);
+        // Aydinlatma LED'i sebekeye degil, ROLE CIKISINA baglanir: cikis modulunun ucu kuru
+        // kontaktir ve kartin kendi beslemesi 12VDC'dir, dolayisiyla o da siren/kilit gibi bir
+        // DC yuktur. Yonlendirme LED'inden farki: bu panoyu/alani aydinlatir, sinyal vermez.
+        SvgTemplate(EntityEnums.DeviceType.Peripheral, 8, "Aydınlatma LED'i", 140, 170, "lamp.svg", DcLoadPins("+12V", Volt.DC_12V, 45, 95, 148));
         SvgTemplate(EntityEnums.DeviceType.Peripheral, 9, "Yönlendirme LED'i", 110, 140, "guide-led.svg",
         [
             new("LED+", 35, 118, Side.Bottom, Fn.LED_Anode, Dir.Input, Volt.DC_12V),
