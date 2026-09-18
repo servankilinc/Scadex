@@ -32,6 +32,8 @@ export interface SignalOuterDoorDto {
   switchIoChannelId: string;
   switchOpenValue: string;
   cameraId: string | null;
+  /** Kapının aydınlatma LED'inin çıkış kanalı; `null` ise aydınlatma yönetilmez. */
+  lightIoChannelId: string | null;
   innerDoors: SignalInnerDoorDto[];
 }
 
@@ -96,6 +98,7 @@ export interface SignalCabinetSaveRequest {
     switchIoChannelId: string;
     switchOpenValue: string;
     cameraId: string | null;
+    lightIoChannelId: string | null;
     innerDoors: {
       id: string;
       name: string;
@@ -137,6 +140,7 @@ export const signalCabinetFormSchema = z
         switchIoChannelId: z.string().min(1, 'Dış kapı anahtar kanalı seçilmeli'),
         switchOpenValue: z.string().trim().min(1, "Anahtarın 'açık' değeri zorunlu (en fazla 16 karakter)").max(16, "Anahtarın 'açık' değeri zorunlu (en fazla 16 karakter)"),
         cameraId: z.string(),
+        lightIoChannelId: z.string(),
         innerDoors: z
           .array(
             z.object({
@@ -169,6 +173,7 @@ export const signalCabinetFormSchema = z
 
     values.outerDoors.forEach((outer, i) => {
       claim(outer.switchIoChannelId, outer.name, ['outerDoors', i, 'switchIoChannelId']);
+      claim(outer.lightIoChannelId, `${outer.name} (aydınlatma)`, ['outerDoors', i, 'lightIoChannelId']);
 
       outer.innerDoors.forEach((inner, j) => {
         const base = ['outerDoors', i, 'innerDoors', j];
@@ -204,6 +209,7 @@ export function toCabinetFormValues(dto: SignalCabinetDto): SignalCabinetFormVal
       switchIoChannelId: outer.switchIoChannelId,
       switchOpenValue: outer.switchOpenValue,
       cameraId: outer.cameraId ?? '',
+      lightIoChannelId: outer.lightIoChannelId ?? '',
       innerDoors: outer.innerDoors.map(inner => ({
         doorId: inner.id,
         name: inner.name,
@@ -232,6 +238,7 @@ export function toCabinetSaveRequest(values: SignalCabinetFormValues): SignalCab
       switchIoChannelId: outer.switchIoChannelId,
       switchOpenValue: outer.switchOpenValue.trim(),
       cameraId: outer.cameraId || null,
+      lightIoChannelId: outer.lightIoChannelId || null,
       innerDoors: outer.innerDoors.map(inner => ({
         id: inner.doorId,
         name: inner.name.trim(),

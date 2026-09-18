@@ -157,6 +157,7 @@ const newOuterDoor = (): SignalOuterDoorFormValues => ({
   switchIoChannelId: '',
   switchOpenValue: '1',
   cameraId: '',
+  lightIoChannelId: '',
   innerDoors: [newInnerDoor()]
 });
 
@@ -432,6 +433,29 @@ function OuterDoorCard({ index, ctx, onRemove }: { index: number; ctx: DoorConte
             <FieldDescription>Kapı açıkken kanalın değeri — genelde 1.</FieldDescription>
             {doorErrors?.switchOpenValue && <FieldError>{doorErrors.switchOpenValue.message}</FieldError>}
           </Field>
+
+          <Field>
+            <FieldLabel htmlFor={`${prefix}-light`}>Aydınlatma kanalı (çıkış)</FieldLabel>
+            <Controller
+              control={control}
+              name={`outerDoors.${index}.lightIoChannelId`}
+              render={({ field }) => (
+                <ChannelSelect
+                  id={`${prefix}-light`}
+                  path={`outerDoors.${index}.lightIoChannelId`}
+                  channels={options.outputChannels}
+                  usage={usage}
+                  value={field.value}
+                  onChange={field.onChange}
+                  placeholder='Aydınlatma yok'
+                  allowNone
+                  invalid={Boolean(doorErrors?.lightIoChannelId)}
+                />
+              )}
+            />
+            <FieldDescription>Dış kapı 17:00–08:00 arası açılınca bu çıkış yakılır, kapı kapanınca söner. Boş bırakılırsa aydınlatma yönetilmez.</FieldDescription>
+            {doorErrors?.lightIoChannelId && <FieldError>{doorErrors.lightIoChannelId.message}</FieldError>}
+          </Field>
         </div>
 
         <div className='flex items-center justify-between gap-2'>
@@ -621,6 +645,7 @@ function buildChannelUsage(values: DeepPartialSkipArrayKey<SignalCabinetFormValu
   values.outerDoors?.forEach((outer, i) => {
     const outerName = outer?.name?.trim() || `Dış kapı ${i + 1}`;
     add(outer?.switchIoChannelId, `outerDoors.${i}.switchIoChannelId`, `${outerName} (anahtar)`);
+    add(outer?.lightIoChannelId, `outerDoors.${i}.lightIoChannelId`, `${outerName} (aydınlatma)`);
 
     outer?.innerDoors?.forEach((inner, j) => {
       const innerName = inner?.name?.trim() || `İç kapı ${j + 1}`;

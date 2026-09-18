@@ -93,7 +93,13 @@ public static class SignalEnums
         SirenRequested = 17,
 
         /// <summary> Siren talebi kapandı (dış kapı kapandı, kart tekrar okutuldu ya da zaman aşımı) — gerekçe <c>Detail</c> alanında. </summary>
-        SirenReleased = 18
+        SirenReleased = 18,
+
+        /// <summary> Dış kapı aydınlatması yakıldı (karanlık saatlerde kapı açıldı). </summary>
+        LightOn = 19,
+
+        /// <summary> Dış kapı aydınlatması söndürüldü (kapı kapandı). </summary>
+        LightOff = 20
     }
 
     /// <summary>
@@ -157,4 +163,5 @@ public static class SessionEventDetail
     // CommandFailed hedefleri
     public const string Lock = "Lock";
     public const string Siren = "Siren";
+    public const string Light = "Light";
 }

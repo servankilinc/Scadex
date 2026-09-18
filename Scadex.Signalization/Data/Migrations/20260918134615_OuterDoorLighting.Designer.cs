@@ -3,6 +3,7 @@ using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Scadex.Signalization.DataAccess;
 
@@ -11,9 +12,11 @@ using Scadex.Signalization.DataAccess;
 namespace Scadex.Signalization.Data.Migrations
 {
     [DbContext(typeof(SignalizationDbContext))]
-    partial class SignalizationDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260918134615_OuterDoorLighting")]
+    partial class OuterDoorLighting
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder

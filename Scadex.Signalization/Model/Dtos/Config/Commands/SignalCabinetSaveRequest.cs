@@ -23,6 +23,9 @@ public class SignalOuterDoorDraft : IDto
     public Guid SwitchIoChannelId { get; set; }
     public string SwitchOpenValue { get; set; } = "1";
     public Guid? CameraId { get; set; }
+
+    /// <summary> Kapının aydınlatma LED'inin output kanalı; nullable. </summary>
+    public Guid? LightIoChannelId { get; set; }
     public List<SignalInnerDoorDraft> InnerDoors { get; set; } = [];
 }
 

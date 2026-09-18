@@ -108,7 +108,9 @@ export const SessionEventType = {
   AwaitingCardTimedOut: 15,
   // 16 YOK (bkz. dosya başı)
   SirenRequested: 17,
-  SirenReleased: 18
+  SirenReleased: 18,
+  LightOn: 19,
+  LightOff: 20
 } as const;
 export type SessionEventType = (typeof SessionEventType)[keyof typeof SessionEventType];
 
@@ -133,7 +135,9 @@ export const SessionEventTypeLabels: Record<number, string> = {
   [SessionEventType.SnapshotFailed]: 'Kare çekilemedi',
   [SessionEventType.AwaitingCardTimedOut]: 'Kart süresi doldu',
   [SessionEventType.SirenRequested]: 'Siren talep edildi',
-  [SessionEventType.SirenReleased]: 'Siren bırakıldı'
+  [SessionEventType.SirenReleased]: 'Siren bırakıldı',
+  [SessionEventType.LightOn]: 'Aydınlatma yakıldı',
+  [SessionEventType.LightOff]: 'Aydınlatma söndürüldü'
 };
 
 export type EventTone = 'default' | 'success' | 'warning' | 'danger' | 'muted';
@@ -186,7 +190,8 @@ const SessionEventDetailLabels: Record<string, string> = {
   SessionEnd: 'Oturum sonu',
   // CommandFailed hedefleri
   Lock: 'Kilit',
-  Siren: 'Siren'
+  Siren: 'Siren',
+  Light: 'Aydınlatma'
 };
 
 /**

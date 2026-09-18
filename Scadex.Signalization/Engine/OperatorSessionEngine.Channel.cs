@@ -83,6 +83,10 @@ public partial class OperatorSessionEngine
                     )
                 );
             }
+
+            // 4) (17:00–08:00) Açılan dış kapının ilişkili ledi açılır
+            if (IsLightingHours(DateTime.Now))
+                await ReconcileOuterDoorLightAsync(outer, session, desired: true, cancellationToken);
         }
         // Dış kapı switch inputu kapının kapatıldığını bildirdiyse
         else
@@ -120,6 +124,9 @@ public partial class OperatorSessionEngine
 
             await _db.SaveChangesAsync(cancellationToken);
             await ReconcileSirenAsync(cabinet, session, sirenEvent, cancellationToken);
+
+            // 8) Aydinlatma SAAT BAKILMADAN sondurulur: 17:30'da yanan LED, sabah 08:10'da kapanan kapiyla da sonmeli. Zaten sonukse komut gitmez.
+            await ReconcileOuterDoorLightAsync(outer, session, desired: false, cancellationToken);
         }
     }
 

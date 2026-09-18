@@ -16,6 +16,7 @@ public class SignalizationDbContext : DbContext
     public DbSet<SignalCabinet> Cabinets { get; set; }
     public DbSet<SignalCabinetState> CabinetStates { get; set; }
     public DbSet<SignalOuterDoor> OuterDoors { get; set; }
+    public DbSet<SignalOuterDoorState> OuterDoorStates { get; set; }
     public DbSet<SignalInnerDoor> InnerDoors { get; set; }
     public DbSet<SignalInnerDoorState> InnerDoorStates { get; set; }
     public DbSet<OperatorSession> OperatorSessions { get; set; }
@@ -63,9 +64,17 @@ public class SignalizationDbContext : DbContext
             d.Property(d => d.Name).HasMaxLength(128).IsRequired();
             d.Property(d => d.SwitchOpenValue).HasMaxLength(16).IsRequired();
             d.HasMany(d => d.InnerDoors).WithOne(i => i.OuterDoor).HasForeignKey(i => i.OuterDoorId).OnDelete(DeleteBehavior.Restrict);
+            d.HasOne(d => d.State).WithOne().HasForeignKey<SignalOuterDoorState>(s => s.OuterDoorId).OnDelete(DeleteBehavior.Cascade);
 
             // Motorun sicak sorgusu: gelen kanal hangi dis kapinin anahtari?
             d.HasIndex(d => d.SwitchIoChannelId);
+        });
+
+        modelBuilder.Entity<SignalOuterDoorState>(s =>
+        {
+            s.ToTable("OuterDoorState");
+            s.HasKey(s => s.OuterDoorId);
+            s.Property(s => s.OuterDoorId).ValueGeneratedNever();
         });
 
         modelBuilder.Entity<SignalInnerDoor>(d =>

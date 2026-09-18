@@ -71,6 +71,7 @@ public partial class SignalCabinetService : ISignalCabinetService
                     SwitchIoChannelId = d.SwitchIoChannelId,
                     SwitchOpenValue = d.SwitchOpenValue,
                     CameraId = d.CameraId,
+                    LightIoChannelId = d.LightIoChannelId,
                     InnerDoors = (d.InnerDoors ?? [])
                         .Where(i => i.IsActive)
                         .OrderBy(i => i.Name)

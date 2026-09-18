@@ -24,6 +24,9 @@ public class SignalOuterDoor : IEntity, IAuditableEntity, IActivatableEntity
     /// <summary> Dış kapıyı gören kamera. </summary>
     public Guid? CameraId { get; set; }
 
+    /// <summary> Dış kapının aydınlatma LED'i (output <c>IoChannel</c>). </summary>
+    public Guid? LightIoChannelId { get; set; }
+
     #region --- IAuditableEntity ---
     public string? CreatedBy { get; set; }
     public string? UpdatedBy { get; set; }
@@ -37,6 +40,7 @@ public class SignalOuterDoor : IEntity, IAuditableEntity, IActivatableEntity
 
     #region *** EF Core Navigation ***
     public virtual SignalCabinet? Cabinet { get; set; }
+    public virtual SignalOuterDoorState? State { get; set; }
     public virtual ICollection<SignalInnerDoor>? InnerDoors { get; set; }
     #endregion
 }

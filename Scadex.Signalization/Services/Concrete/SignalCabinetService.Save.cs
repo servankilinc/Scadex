@@ -70,6 +70,7 @@ public partial class SignalCabinetService
             outer.SwitchIoChannelId = outerDraft.SwitchIoChannelId;
             outer.SwitchOpenValue = outerDraft.SwitchOpenValue.Trim();
             outer.CameraId = outerDraft.CameraId;
+            outer.LightIoChannelId = outerDraft.LightIoChannelId;
             outer.IsActive = true;
 
             foreach (var innerDraft in outerDraft.InnerDoors)
@@ -155,6 +156,13 @@ public partial class SignalCabinetService
 
             if (outer.CameraId is Guid cameraId && !cameraIds.Contains(cameraId))
                 Add($"{outerKey}.CameraId", "Kamera bu kabine ait değil.");
+
+            // Aydinlatma istege baglidir; secildiyse cikis kanali olmali ve baska bir kapiyla paylasilamaz.
+            if (outer.LightIoChannelId is Guid lightId)
+            {
+                CheckChannel($"{outerKey}.LightIoChannelId", lightId, PinDirection.Output, "Aydınlatma kanalı");
+                CheckUnique($"{outerKey}.LightIoChannelId", lightId, $"{outer.Name} (aydınlatma)");
+            }
 
             for (int j = 0; j < outer.InnerDoors.Count; j++)
             {
