@@ -326,7 +326,10 @@ politikası ile.
 **Gözlemci kancası — `IScadaEventObserver` (2026-09-11).** Çekirdek dışı modüllerin SCADA
 olaylarını dinlediği tek nokta (Business/Utils/ScadaEvents). Ingest, değer **gerçekten
 değişince** `OnChannelChangedAsync`, kart ucu `OnCardPresentedAsync` çağırır — ikisi de veri
-yazıldıktan ve SignalR yayınından **sonra**. Kayıtlı gözlemci yoksa maliyet sıfırdır; bir
+yazıldıktan ve SignalR yayınından **sonra**. **Başarılı çıkış komutu da (2026-09-21)** kanalın değerini
+değiştirdiyse aynı `OnChannelChangedAsync`'i `Direction = Output` ile çağırır; bildirim bu durumda
+komutun mantıksal değerini (`TurnOn`, NO/NC çevrilmeden önce) de taşır. Komutu kimin gönderdiği fark
+etmez — çekirdek diyagramından verilen komut da modüle ulaşır. Kayıtlı gözlemci yoksa maliyet sıfırdır; bir
 gözlemcinin istisnası loglanır ve isteği düşürmez. **Sözleşme:** gözlemci sıcak yoldadır, yalnızca
 kendi kuyruğuna bırakıp döner. İçinde SCADA'ya komut göndermek yasaktır: SCADA kartı bizim
 yanıtımızı beklerken aynı kartın web sunucusunu çağırmak tek iş parçacıklı firmware'de kilitlenmedir.
@@ -347,8 +350,16 @@ yanıtımızı beklerken aynı kartın web sunucusunu çağırmak tek iş parça
   `issuedAtUtc` karta gitmez; `DeviceCommand` satırında kayıt altında kalır. `commandId`'nin
   tekrar tespiti anlamı, araya böyle bir kontrol yapan bir SCADA katmanı girerse doğar —
   bugün ne o katman ne de retry vardır.
-- Değerdeki NO/NC terslemesi `DeviceCommandService` içinde çözülür; geçit hiçbir tersleme
-  yapmaz, `state` parametresine geleni olduğu gibi yazar.
+- Değerdeki NO/NC terslemesi çekirdekte `IOutputPolarityResolver` ile şemanın **şu anki**
+  kablolamasından çözülür; geçit hiçbir tersleme yapmaz, `state` parametresine geleni olduğu gibi
+  yazar. Aynı çözücü okuma yolunda da kullanılır (`IIoChannelService.GetOutputStatesAsync` — fiziksel
+  değer → "yük açık mı").
+- **Başarılı komut kanalın son değerini yazar (2026-09-21).** `Succeeded` dönen komut, çıkış kanalının
+  `CurrentValue`'suna karta giden **fiziksel** değeri (`"1"`/`"0"`, NC'de mantıksal isteğin tersi) ve
+  `ValueUpdatedAt`'e cevap anını yazar; değer değiştiyse `ChannelValuesChanged` ve gözlemciler çağrılır.
+  Yazım `SetCurrentValueIfChangedAsync` ile **koşullu tek UPDATE**'tir: komut SCADA'yı dakikalarca
+  bekleyebildiği için baştaki okuma bayatlamış olabilir. Başarısız / zaman aşımı değeri değiştirmez.
+  Bu bir **saha ölçümü değildir** — kartın yeniden başlaması ya da röleye elle müdahale görünmez.
 - Bu aşamada tek komut türü vardır: `SetOutput = 1`.
 
 **Canlılık:** Push-only bir sistemde sessizliği yalnızca zaman tespit edebilir.
@@ -379,8 +390,8 @@ Yazılmayan üç durum ve gerekçeleri:
 
 - **Aynı değerin tekrarı.** SCADA saniyede bir `IN7 = 1` gönderirse bir saat sonra tabloda
   3600 değil **1** satır olur.
-- **Çıkış kanalları.** Ingest zaten `"O"` başlığını tanımaz; sürdüğümüz rölenin kaydı
-  `DeviceCommand`'dadır.
+- **Çıkış kanalları.** Ingest zaten `"O"` başlığını tanımaz; sürdüğümüz rölenin geçmişi
+  `DeviceCommand`'dadır. Son başarılı komutun değeri `IoChannel.CurrentValue`'da durur (bkz. Komut).
 - **`null`'a düşen okuma.** "Kanal var ama okunamadı" durumunda `IoChannel.CurrentValue`
   null'a çekilir, ama `ChannelEvent.Value` non-nullable olduğu için olay satırı yazılmaz —
   yani okuma kesintisi olay geçmişinde görünmez, yalnızca anlık değerde.
@@ -876,7 +887,7 @@ kurulumu kendi ortam dosyasında ya da `Modules__Signalization__Enabled=true` il
 Kayıt `Program.cs`'te `AddControllers()` zincirindedir: `.AddSignalizationModule(configuration)`.
 MVC builder'a bağlanmasının sebebi, kapalıyken iki şeyin birden yapılması gerekmesidir:
 
-- Context, servisler, üç arka plan işi ve `IScadaEventObserver`
+- Context, servisler, dört arka plan işi ve `IScadaEventObserver`
   **kaydedilmez**. Modülün migration'ı uygulanmamış bir kurulumda zamanlayıcı 2 sn'de bir hata
   loglamaz; ingest kuyruğa olay bırakmaz; kart okuması "kayıtlı gözlemci yok" uyarısıyla loglanır.
 - Modülün controller'ları **ApplicationPart listesinden çıkarılır**. Assembly WebAPI'nin referansı
@@ -912,6 +923,8 @@ yoklama 404'te kendini durdurur.
 | `/signalization/cabinets?cabinetId=` | Kabin → dış kapı → iç kapı ağaç editörü (tam ağaç kaydı) |
 | `/signalization/authorities` | Kurum ↔ rol listesi (tam liste kaydı; çıkarılan pasife alınır, geri alınabilir) |
 | `/signalization/operators` | Aktif kullanıcılar, kart no, tek kurum seçimi (seçim anında kaydedilir) |
+| `/signalization/virtual-cabinet/:cabinetId` | Sanal kabin ara adımı: dış kapı kartları (ad, görsel, ardındaki iç kapılar) |
+| `/signalization/virtual-cabinet/:cabinetId/:outerDoorId` | **Sanal kabin** — kabinin içi SVG olarak çizilir; cihaza tıklanınca onaylı komut (siren çal/sustur, LED yak/söndür, iç kapı kilitle/aç), kamera canlı izlemeye gider. Menüde YOK: giriş yalnızca ana sayfa haritasının kabin panelindeki butondan |
 
 - **Canlı uyarı** `session-alert-watcher` ile: layout'a bir kez takılır, `/open`'ı 10 sn'de bir
   (sekme arka plandayken de) yoklar ve `hasAlert` taşıyan her açık oturum için **oturum başına bir
@@ -928,11 +941,26 @@ yoklama 404'te kendini durdurur.
     yerine interceptor seçildi — yeni kayıt noktası yayını unutamaz.
   - Olay bir **bildirimdir**: istemci veriyi HTTP'den yeniden okur. Frontend istemcisi
     `modules/signalization/signalr/signalization-hub.ts` (`diagram-hub.ts` kalıbı + ilk bağlantı için
-    artan aralıklı yeniden deneme + negotiate 404'te durma). `use-session-realtime` (layout eklentisi)
+    artan aralıklı yeniden deneme + negotiate 404'te durma; sanal kabin için kabin bazlı abonelik de aynı istemcidedir).
+    `use-session-realtime` (layout eklentisi)
     olayları 250 ms'lik pencerede toplayıp açık oturum, geçmiş ve değişen oturum detayı sorgularını
     invalidate eder, yeniden bağlanınca özet hariç tüm oturum sorgularını tazeler; özet rapor bilerek
     tazelenmez. Ana sayfa haritası (`AppModule.busyCabinetsQuery`) bu sayede anlık güncellenir. 10 sn
     yoklama soket kopukken geri dönüş olarak kalır.
+- **Kabin olayları — `SignalCabinetStateChanged` + `SignalDoorSwitchChanged` (sanal kabin için; 2026-09-20,
+  tek kaynağa 2026-09-21'de geçti):** aynı hub, **kabin bazlı** ikinci bir grup (`cabinet:{id}`, istemci
+  `SubscribeCabinet(cabinetId)` / `UnsubscribeCabinet(cabinetId)` çağırır).
+  - `SignalCabinetStateChanged { cabinetId, target (Siren | OuterDoorLight | InnerDoorLock), targetId, isOn,
+    changedAtUtc }` — çıkışlar. `SignalDoorSwitchChanged { cabinetId, doorKind (Outer | Inner), doorId,
+    isOpen, changedAtUtc }` — kapı anahtarları; "açık" yorumu sunucuda `SwitchOpenValue` ile yapılır.
+  - **Kaynak tektir: çekirdeğin `IScadaEventObserver.OnChannelChangedAsync`'i.** `SignalizationScadaObserver`
+    girişleri hem motora hem `SignalRealtimeQueue`'ya, çıkışları yalnızca `SignalRealtimeQueue`'ya bırakır;
+    `SignalRealtimeWorker` kanalı kapı/siren/aydınlatma/kilide eşleyip yayınlar (eşleşmeyen kanal atlanır).
+    Kuyruk motorunkinden **ayrıdır**: motor bir SCADA komutunu 5-180 sn beklerken ekran onun arkasında beklemez.
+    Sanal kabin çekirdeğin `/hubs/diagram`'ına **bağlanmaz** ve **hiç yoklamaz**.
+  - Olaylar **veriyi taşır**: istemci `live` sorgusunu yeniden okumaz, önbelleği `setQueryData` ile yamalar
+    (oturum olayının "bildirim, HTTP'den oku" kuralından farklı). Yeniden bağlanmada bir kez tazeler.
+  - Eski `SignalStateRealtimeInterceptor` kaldırıldı: yayınladığı `Signal*State` satırları artık yok.
 - **Ağaç formunun hata yolları:** sunucu anahtarı `OuterDoors[0].InnerDoors[1].LockIoChannelId`
   biçimindedir; çekirdeğin `handleFormApiError`'ı yalnızca ilk harfi küçülttüğü için modül kendi
   çeviricisini kullanır (`lib.ts > toFormPath` → `outerDoors.0.innerDoors.1.lockIoChannelId`).
@@ -976,38 +1004,53 @@ ekranlarını ayrı parçalara böler.
   **kablolu olmalıdır**, yoksa çekirdek komutu reddeder ("Output pini çözülemedi") ve olay
   `CommandFailed` olarak görünür.
 - **Siren kabin başına tektir ve ortaktır.** Oturumlar yalnızca **talep** açar/kapatır; fiziksel
-  siren "en az bir açık talep var mı" sorusuna **uzlaştırılır** (`SignalCabinetState`). Talep:
+  siren "en az bir açık talep var mı" sorusuna **uzlaştırılır** (sirenin son durumu siren kanalından
+  okunur; bilinmiyorsa komutla netleştirilir, çekirdek diyagramından açılmış siren de burada susturulur). Talep:
   kartla kilitleme başarılı **ve** o dış kapının ardındaki tüm iç kapılar kilitliyse açılır;
   `SirenDurationSec` dolunca, ilgili dış kapı kapanınca ya da aynı dış kapının ardında kilit
   yeniden açılınca kapanır. İki talep aynı anda açıkken siren ikisi de kapanana kadar çalar ve
   SCADA'ya tek "aç", tek "kapat" gider.
-- **"Tüm iç kapılar kilitli" iki kaynağa sorulur** (`AreAllInnerDoorsLockedAsync`): kayıtta kilitsiz
-  kapı varsa hayır; kayıt "hepsi kilitli" dese bile anahtarı **"açık" okunan** bir kapı varsa yine
-  hayır. Siren ve oturum kapanışı sahaya sormadan tetiklenmez.
-- **Saha verisi ile kendi kaydımız arasındaki güven dengesi (2026-09-16).** `SignalInnerDoorState`
-  bir ölçüm değil, **"en son hangi komutu gönderdik"** kaydıdır — çıkıştan telemetri gelmez, komutun
+- **Modül durum TUTMAZ; tek kaynak kanaldır (2026-09-21 kararı).** Eski `SignalCabinetState`,
+  `SignalOuterDoorState`, `SignalInnerDoorState` tabloları kaldırıldı (`RemoveOutputStateTables`): modül
+  dışından verilen komutla ayrışıyor, senkronize tutmak iki yazarlı bir satır demekti. Bütün sorular
+  `ISignalChannelStateService` üzerinden çekirdekteki kanalın son değerinden okunur (`GetSirenStateAsync`,
+  `GetOuterDoorSwitchStateAsync`, `GetInnerDoorLockStateAsync`, `AreAllInnerDoorsLockedAsync`, toplu
+  `ReadCabinetAsync` …). Anahtar: ham değer `SwitchOpenValue` ile; çıkış: fiziksel değer NO/NC ile
+  (çekirdekte), kilitte ayrıca `UnlockTurnsOn` ile yorumlanır. Cevap `ChannelReading(IsOn, ChangedAtUtc)`;
+  **`IsOn = null` "bilinmiyor"dur** (kanal pasif, hiç değer okunmamış ya da çıkış hiç başarılı komut
+  görmemiş) ve motor bilinmeyen çıkışı istenen duruma **komutla netleştirir**.
+- **"Tüm iç kapılar kilitli" iki kaynağa sorulur** (`AreAllInnerDoorsLockedAsync`): kilit kanalı "açık"
+  olan kapı varsa hayır; hepsi kilitli (ya da bilinmiyor) dese bile anahtarı **"açık" okunan** bir kapı
+  varsa yine hayır. Siren ve oturum kapanışı sahaya sormadan tetiklenmez.
+- **Saha verisi ile kilit kanalı arasındaki güven dengesi (2026-09-16, 2026-09-21'de güncellendi).**
+  Kilit kanalının değeri bir ölçüm değil, **son başarılı komuttur** — çıkıştan telemetri gelmez, komutun
   2xx dönmesi rölenin çektiği anlamına gelmez. Anahtar (switch) birincil kaynaktır:
-  - **Anahtar "açık" = kilit fiilen tutmuyor.** Bu kesin bilgidir, kaydı yalanlar: kayıt "kilitli"
-    diyorsa iç kapı açılışında `ForcedOpen` yazılır ve kayıt **komut gönderilmeden** kilitsize
-    çekilir (`LastCommandId = null`). Açık kapıya kilit komutu gönderilmez (mandal zorlanır).
-  - **Anahtar "kapalı"/"bilinmiyor" kilit hakkında bir şey söylemez**; orada kayıt tek kaynaktır.
+  - **Anahtar "açık" + kilit kanalı "kilitli" = zorlanmış açılış.** İç kapı açılışında `ForcedOpen`
+    yazılır; kilit kanalına **dokunulmaz** (eskiden kayıt komutsuz "kilitsiz"e çekiliyordu). Ekran bunu
+    olduğu gibi gösterir: kapı açık, kilit kilitli. Kilitli kapının her açılışı ayrı bir `ForcedOpen`
+    üretir. Açık kapıya kilit komutu gönderilmez (mandal zorlanır).
+  - **Anahtar "kapalı"/"bilinmiyor" kilit hakkında bir şey söylemez**; orada kilit kanalı tek kaynaktır.
     Devre dışı (`IsEnabled = false`) anahtar kanalı "bilinmiyor" sayılır.
-  - **Kart okutmada karar:** kayıt "kilitli" → kilidi aç. Kayıt "açık", anahtar kapalı ama kapı son
-    durum değişikliğinden (`ChangedAtUtc`) beri **hiç açılmamış** → komut fiilen uygulanmamış sayılır,
-    kilit **yeniden açılır** (`Unlocked`, `Detail = UnlockNotEffective`); aksi hâlde operatörün
-    "açılmadı, bir daha okutayım" refleksi kapıyı kilitleyip sireni çaldırırdı. Kayıt "açık", kapı bu
-    arada açılmış ve anahtar kapalı → kilitle (+ hepsi kilitliyse siren). Anahtar açık ya da
-    bilinmiyor → `LockSkippedDoorOpen`. "Açılmış mı" kanıtı **o oturumun** `InnerOpened`/`ForcedOpen`
+  - **Kart okutmada karar:** kilit "kilitli" ya da bilinmiyor → kilidi aç. Kilit "açık", anahtar kapalı
+    ama kapı kilit kanalının değere geçtiği andan (`ValueUpdatedAt`) beri **hiç açılmamış** → komut fiilen
+    uygulanmamış sayılır, kilit **yeniden açılır** (`Unlocked`, `Detail = UnlockNotEffective`); aksi
+    hâlde operatörün "açılmadı, bir daha okutayım" refleksi kapıyı kilitleyip sireni çaldırırdı. Kilit
+    "açık", kapı bu arada açılmış ve anahtar kapalı → kilitle (+ hepsi kilitliyse siren). Anahtar açık
+    ya da bilinmiyor → `LockSkippedDoorOpen`. "Açılmış mı" kanıtı **o oturumun** `InnerOpened`/`ForcedOpen`
     olaylarında aranır (bkz. Bilinen sonuçlar).
+  - **Davranış değişikliği (2026-09-21):** zorlanmış açılıştan sonra kapı kapanır ve operatör kart okutursa
+    motor artık kilidi **açar** (kilit kanalı "kilitli" diyor). Eskiden kayıt "kilitsiz"e düzeltildiği için
+    kilitleyip siren çalıyordu.
   - **Örtük oturum:** açık oturum yokken kart okutulur ya da iç kapı açılırsa oturum
     `OuterOpenMissing` ile açılır. Dış kapı anahtarı o anda "kapalı" okunuyorsa bu kaçırılmış bir olay
     değil gerçek bir anomalidir: uyarı loglanır, kart yolunda `CardPresented` olayının `Detail`'i
     `OuterSwitchClosed` olur.
 - **Otomatik kilitleme** (`AutoLockInnerDoorsAsync`) oturum sonunda — dış kapı kapanışında ve azami
   süre dolduğunda — dış kapının ardındaki her aktif iç kapı için **önce anahtarı** okur:
-  açıksa kayıt gerekirse düzeltilir (`ForcedOpen`), `InnerDoorLeftOpen` + `LockSkippedDoorOpen`
-  (`SessionEnd`) yazılır; kapalıysa ve kayıt kilitsizse `AutoLocked`; bilinmiyorsa ve kayıt
-  kilitsizse kilitlemeye kalkışılmaz, `InnerDoorLeftOpen` + `LockSkippedDoorOpen` (`SwitchUnknown`).
+  açıksa ve kilit kanalı "kilitli" diyorsa — oturumda henüz yazılmadıysa — `ForcedOpen`,
+  ardından `InnerDoorLeftOpen` + `LockSkippedDoorOpen` (`SessionEnd`) yazılır; kapalıysa ve kilit
+  açık ya da bilinmiyorsa `AutoLocked`; anahtar bilinmiyorsa ve kilit açıksa kilitlemeye kalkışılmaz,
+  `InnerDoorLeftOpen` + `LockSkippedDoorOpen` (`SwitchUnknown`).
 - **Oturumu bitiren şey dış kapının kapanması DEĞİL, işin bitmesidir (2026-09-16 kararı).**
   Dış kapı kapanınca sıra: `OuterClosed` olayı → siren talebi bırakılır → otomatik kilitleme →
   **yazma** → `AreAllInnerDoorsLockedAsync`. Hepsi kilitliyse oturum kapanır; değilse **açık kalır**
@@ -1027,6 +1070,15 @@ ekranlarını ayrı parçalara böler.
   (2026-09-11 kararı) — bayrak oturum kaydında kalıcıdır, rapordan `flags` filtresiyle bulunur.
   Uyarılı bir oturum iki yoklama arasında açılıp kapanırsa canlı panelde görünmeyebilir; kayıt kalır.
   `SessionEventType` 16 boştur (eski `AlertAcknowledged`) — numara başka bir tipe verilmez.
+- **Elle komut için ayrı bir "manuel talep" alanı YOKTUR (2026-09-20).** Sanal kabin ekranından gönderilen
+  komut, başarılı olursa motorun okuduğu **aynı** kanal değerini değiştirir (çekirdek yazar; modül durum
+  yazmaz). Sonuç gövdesindeki `isOn` komuttan sonra kanaldan okunur. Bilinçli sonucu: manuel açılan siren
+  bir sonraki uzlaştırmada (açık oturum talebi yoksa) susabilir, manuel yakılan LED dış kapı kapanınca söner.
+  Manuel komut "şu an sahaya git" demektir, kalıcı bir talep değil. Motorun "istenen durum zaten sağlanmış,
+  komut gönderme" kısayolu manuel yolda **uygulanmaz** (röle tutmamış olabilir; yeniden denemek operatörün
+  elindeki tek araç). Komut `OperatorSessionEvent` **yazmaz** — izi çekirdeğin `DeviceCommand` tablosundadır.
+  Motorun "açık kapıya kilit komutu gönderme" kuralı da manuel yolda **engel değildir**; onay diyaloğu yalnızca
+  uyarır.
 
 ### Çalışma zamanı
 
@@ -1041,9 +1093,10 @@ ekranlarını ayrı parçalara böler.
 - `SignalTimerWorker` 2 sn'de bir tarar (siren süresi, kart bekleme, azami oturum süresi) ve
   kararları **aynı kabin şeridine** bırakır. Süreler veritabanında (`*DueAtUtc`) — yeniden
   başlatmada kaybolmaz; hassasiyet ±2 sn.
-- Komutlar `IDeviceCommandService.SendAsync`'ten geçer, **retry yoktur**; başarısız komutta kapı
-  durumu değişmez, `CommandFailed` olayı ve bayrağı yazılır. Kayıt komutsuz yalnızca bir yoldan
-  değişir: anahtarın "açık" okunması (`ForcedOpen` düzeltmesi).
+- Komutlar `IDeviceCommandService.SendAsync`'ten geçer, **retry yoktur**; başarısız komutta kanal
+  değeri değişmez, `CommandFailed` olayı ve bayrağı yazılır. Çıkış durumu komutsuz **hiçbir yoldan**
+  değişmez.
+- `SignalRealtimeWorker` sanal kabin yayınını şeridin **dışında** yapar (bkz. Arayüz > Kabin olayları).
 
 ### Uçlar
 
@@ -1052,6 +1105,8 @@ ekranlarını ayrı parçalara böler.
 | `GET` · `PUT /api/SignalAuthority` | Kurum ↔ rol; PUT tam liste, aktif iç kapıda kullanılan kurum pasife alınamaz |
 | `GET /api/SignalOperator` · `PUT /api/SignalOperator/{userId}/authority` | Tek kurum seçimi, çekirdeğin rol sync'iyle yazılır |
 | `GET` · `PUT /api/SignalCabinet/{cabinetId}` · `GET …/options` | Yapılandırma ağacı (tam ağaç, Guid'i istemci üretir, çıkan kapı pasife); seçenekler kanalları kullanım bilgisi ve kablo etiketiyle verir |
+| `GET /api/SignalCabinet/{cabinetId}/live` | Sanal kabinin tek okuması: kapı açık mı + siren / aydınlatma / kilit durumu ve `ChangedAtUtc`'leri — hepsi çekirdeğin `IoChannel.CurrentValue`'sundan (`ISignalChannelStateService`); durum alanlarında `null` = bilinmiyor |
+| `POST /api/SignalCabinet/{cabinetId}/command` | Elle komut: `{ target, targetId, turnOn }`. **200 ≠ başarı** — sonuç gövdedeki `status`'tedir (çekirdeğin komut ucuyla aynı); SCADA cevaplayana kadar bloklar |
 | `GET /api/OperatorSession/open` | Canlı panel: yalnızca açık oturumlar; aşama türetilir, `hasAlert` güvenlik uyarısını gösterir |
 | `POST /api/OperatorSession/list` · `GET /{id}` · `POST /summary` | Rapor: sayfalı liste, detay (zaman çizelgesi, kapı özeti, kareler), operatör/kurum/kabin özeti |
 

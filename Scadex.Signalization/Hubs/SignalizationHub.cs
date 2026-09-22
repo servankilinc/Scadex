@@ -34,4 +34,31 @@ public class SignalizationHub : Hub<ISignalizationHubClientContract>
             cancellationToken: Context.ConnectionAborted
         );
     }
+
+    /// <summary>
+    /// TEK kabinin cikis durumlari (<c>SignalCabinetStateChanged</c>). Oturum yayininin aksine burada kabin bazli grup VARDIR:
+    /// sanal kabin ekrani tek kabine bakar, butun kurulumun kilit/siren trafigini dinlemesi gereksizdir.
+    /// Cekirdegin <c>DiagramHub</c>'i ile ayni grup adlandirmasi.
+    /// </summary>
+    public static string CabinetGroupName(Guid cabinetId) => $"cabinet:{cabinetId}";
+
+    /// <summary> Client bu kabinin cikis durumlarini dinlemek istedigini bildiriyor </summary>
+    public Task SubscribeCabinet(Guid cabinetId)
+    {
+        return this.Groups.AddToGroupAsync(
+            connectionId: Context.ConnectionId,
+            groupName: CabinetGroupName(cabinetId),
+            cancellationToken: Context.ConnectionAborted
+        );
+    }
+
+    /// <summary> Client bu kabinin cikis durumlarini dinlemek istemedigini bildiriyor </summary>
+    public Task UnsubscribeCabinet(Guid cabinetId)
+    {
+        return this.Groups.RemoveFromGroupAsync(
+            connectionId: Context.ConnectionId,
+            groupName: CabinetGroupName(cabinetId),
+            cancellationToken: Context.ConnectionAborted
+        );
+    }
 }

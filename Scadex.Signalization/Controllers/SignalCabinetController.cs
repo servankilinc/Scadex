@@ -34,4 +34,20 @@ public class SignalCabinetController : SignalizationControllerBase
         var result = await _service.SaveAsync(cabinetId, request, cancellationToken);
         return ToAction(result);
     }
+
+    /// <summary> Sanal kabin ekranı için gerekli bilgileri sağlar: kabinin durumu (kapilar, siren, aydinlatma, kilitler). </summary>
+    [HttpGet("{cabinetId:guid}/live")]
+    public async Task<IActionResult> GetLive(Guid cabinetId, CancellationToken cancellationToken)
+    {
+        var result = await _service.GetLiveAsync(cabinetId, cancellationToken);
+        return ToAction(result);
+    }
+
+    /// <summary> Sanal kabin modülünden manuel komut gönderim metodu. </summary>
+    [HttpPost("{cabinetId:guid}/command")]
+    public async Task<IActionResult> SendCommand(Guid cabinetId, SignalCabinetCommandRequest request, CancellationToken cancellationToken)
+    {
+        var result = await _service.SendCommandAsync(cabinetId, request, cancellationToken);
+        return ToAction(result);
+    }
 }

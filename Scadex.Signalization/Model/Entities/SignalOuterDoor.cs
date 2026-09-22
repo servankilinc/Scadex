@@ -40,7 +40,6 @@ public class SignalOuterDoor : IEntity, IAuditableEntity, IActivatableEntity
 
     #region *** EF Core Navigation ***
     public virtual SignalCabinet? Cabinet { get; set; }
-    public virtual SignalOuterDoorState? State { get; set; }
     public virtual ICollection<SignalInnerDoor>? InnerDoors { get; set; }
     #endregion
 }

@@ -120,6 +120,29 @@ public static class SignalEnums
     }
 }
 
+/// <summary>
+/// Sinyalizasyon kabinlerinde manuel komutu hedef cihzaı (<c>SignalCabinetCommandRequest.Target</c>)
+/// SignalR ile canlı takipte hangi cihazın değiştiğini bildirdiği alan olarak kullanılır (<c>SignalCabinetStateChangedMessage.Target</c>)
+/// </summary>
+public enum SignalCabinetOutput
+{
+    /// <summary> Kabinin sireni (komutun yazılacağı cihaz <c>SignalCabinet.SirenIoChannelId</c>). </summary>
+    Siren = 1,
+    /// <summary> Dış kapı aydinlatma LED'i (komutun yazılacağı cihaz <c>SignalOuterDoor.LightIoChannelId</c>). </summary>
+    OuterDoorLight = 2,
+    /// <summary> İç kapı kilit rölesi (komutun yazılacağı cihaz <c>SignalInnerDoor.LockIoChannelId</c>). </summary>
+    InnerDoorLock = 3
+}
+
+/// <summary> Anahtarı değişen kapının türü (<c>SignalDoorSwitchChangedMessage.DoorKind</c>). </summary>
+public enum SignalDoorKind
+{
+    /// <summary> Dış kapı (<c>SignalOuterDoor</c>). </summary>
+    Outer = 1,
+    /// <summary> İç kapı (<c>SignalInnerDoor</c>). </summary>
+    Inner = 2
+}
+
 public enum SignalTimerKind
 {
     /// <summary> Oturumun siren talebinin suresi doldu. </summary>

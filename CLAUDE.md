@@ -115,9 +115,16 @@ durur. Ayrıntı: PROJECT_OVERVIEW.md § 10.
   context'i bulamaz.
 
 - **Çekirdek modülü bilmez.** Tek temas noktası `IScadaEventObserver` (Business/Utils/ScadaEvents):
-  ingest (değer gerçekten değişince) ve `POST /api/Scada/card` gözlemcileri `SaveChanges`'ten
-  SONRA çağırır. Gözlemci **sıcak yoldadır — yalnızca kuyruğa bırakır**; içinde SCADA'ya komut
-  göndermek, kart isteğini bekleyen SCADA kartıyla kilitlenme demektir.
+  ingest (değer gerçekten değişince), **başarılı çıkış komutu** (kanal değeri değişince, `Direction =
+  Output` + mantıksal `TurnOn`; 2026-09-21) ve `POST /api/Scada/card` gözlemcileri yazımdan SONRA
+  çağırır. Gözlemci **sıcak yoldadır — yalnızca kuyruğa bırakır**; içinde SCADA'ya komut göndermek,
+  kart isteğini bekleyen SCADA kartıyla kilitlenme demektir (çıkış bildirimi, modül motorunun
+  beklediği `SendAsync`'in içinden de gelir).
+- **Modül durum TUTMAZ (2026-09-21).** Kapı/siren/aydınlatma/kilit durumu yalnızca çekirdekteki kanalın
+  son değerinden `ISignalChannelStateService` ile okunur; `Signal*State` tabloları kaldırıldı, geri
+  eklemeyin. Çıkışta `IoChannel.CurrentValue` son BAŞARILI komutun **fiziksel** değeridir (NC'de
+  ters); mantıksal okuma çekirdekte `IIoChannelService.GetOutputStatesAsync` / `IOutputPolarityResolver`
+  ile yapılır, NO/NC mantığını modülde kopyalamayın. `null` = bilinmiyor.
 - **Modül çekirdek tablolarına doğrudan YAZMAZ.** Komut `IDeviceCommandService.SendAsync`, kare
   `ICameraService.CreateCaptureAsync`, rol ataması `IUserRoleService.SyncAsync` üzerinden gider;
   çekirdeği `IUnitOfWork` ile yalnızca **projeksiyonla okur**.

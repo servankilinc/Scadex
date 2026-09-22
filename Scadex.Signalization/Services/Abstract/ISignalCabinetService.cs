@@ -14,4 +14,10 @@ public interface ISignalCabinetService
 
     /// <summary> Tam agaci kaydeder (tek transaction). Tek yazim yolu budur. </summary>
     Task<Result> SaveAsync(Guid cabinetId, SignalCabinetSaveRequest request, CancellationToken cancellationToken = default);
+
+    /// <summary> Sinyalizasyon kabinin O anki durumu (kapilar acik mi, siren/LED/kilit ne halde). </summary>
+    Task<Result<SignalCabinetLiveDto>> GetLiveAsync(Guid cabinetId, CancellationToken cancellationToken = default);
+
+    /// <summary> Sinyalizasyon modülünde komut gondermek için (siren / aydinlatma / ic kapi kilidi). </summary>
+    Task<Result<SignalCabinetCommandResultDto>> SendCommandAsync(Guid cabinetId, SignalCabinetCommandRequest request, CancellationToken cancellationToken = default);
 }

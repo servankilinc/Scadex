@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using Scadex.Business.Abstract;
 using Scadex.Core.Utils.ResultPattern;
 using Scadex.Core.Utils.Validation;
 using Scadex.DataAccess.UoW;
@@ -22,13 +23,24 @@ public partial class SignalCabinetService : ISignalCabinetService
     private readonly IUnitOfWork _unitOfWork;
     private readonly IValidationService _validationService;
     private readonly ISignalAuthorityService _authorityService;
+    private readonly IDeviceCommandService _deviceCommandService;
+    private readonly ISignalChannelStateService _signalizationChannelState;
 
-    public SignalCabinetService(SignalizationDbContext db, IUnitOfWork unitOfWork, IValidationService validationService, ISignalAuthorityService authorityService)
+    public SignalCabinetService(
+        SignalizationDbContext db,
+        IUnitOfWork unitOfWork,
+        IValidationService validationService,
+        ISignalAuthorityService authorityService,
+        IDeviceCommandService deviceCommandService,
+        ISignalChannelStateService signalizationChannelState
+    )
     {
         _db = db;
         _unitOfWork = unitOfWork;
         _validationService = validationService;
         _authorityService = authorityService;
+        _deviceCommandService = deviceCommandService;
+        _signalizationChannelState = signalizationChannelState;
     }
 
     /// <inheritdoc />
@@ -39,14 +51,15 @@ public partial class SignalCabinetService : ISignalCabinetService
             return Result<SignalCabinetDto>.NotFound(message: "Kabin bulunamadı.");
 
         var config = await _db.Cabinets.AsNoTracking()
-            .Include(c => c.OuterDoors!).ThenInclude(d => d.InnerDoors!).ThenInclude(i => i.State)
+            .Include(c => c.OuterDoors!).ThenInclude(d => d.InnerDoors!)
             .AsSplitQuery()
             .FirstOrDefaultAsync(c => c.CabinetId == cabinetId, cancellationToken);
 
-        var sirenIsOn = await _db.CabinetStates.AsNoTracking().Where(s => s.CabinetId == cabinetId).Select(s => s.SirenIsOn).FirstOrDefaultAsync(cancellationToken);
-
         // Hic yapilandirilmamis kabin: varsayilanlar (entity varsayilanlariyla ayni) ve bos agac.
         var source = config ?? new SignalCabinet { CabinetId = cabinetId };
+
+        // Siren ve kilit durumlari kanaldan okunur; bu ekranda "bilinmiyor" = kapali/kilitli gosterilir.
+        var readings = await _signalizationChannelState.ReadCabinetAsync(source, cancellationToken);
 
         var dto = new SignalCabinetDto
         {
@@ -60,7 +73,7 @@ public partial class SignalCabinetService : ISignalCabinetService
             EntrySnapshotIntervalMs = source.EntrySnapshotIntervalMs,
             AwaitingCardTimeoutSec = source.AwaitingCardTimeoutSec,
             SessionMaxDurationMin = source.SessionMaxDurationMin,
-            SirenIsOn = sirenIsOn,
+            SirenIsOn = readings.Siren.IsOn == true,
             OuterDoors = (source.OuterDoors ?? [])
                 .Where(d => d.IsActive)
                 .OrderBy(d => d.Name)
@@ -84,7 +97,7 @@ public partial class SignalCabinetService : ISignalCabinetService
                             SwitchOpenValue = i.SwitchOpenValue,
                             LockIoChannelId = i.LockIoChannelId,
                             UnlockTurnsOn = i.UnlockTurnsOn,
-                            IsUnlocked = i.State?.IsUnlocked == true
+                            IsUnlocked = readings.InnerDoorLocks.TryGetValue(i.Id, out var lockState) && lockState.IsOn == true
                         })
                         .ToList()
                 })

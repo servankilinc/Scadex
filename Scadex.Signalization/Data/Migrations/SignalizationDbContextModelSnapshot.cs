@@ -268,25 +268,6 @@ namespace Scadex.Signalization.Data.Migrations
                     b.ToTable("Cabinet", "signalization");
                 });
 
-            modelBuilder.Entity("Scadex.Signalization.Model.Entities.SignalCabinetState", b =>
-                {
-                    b.Property<Guid>("CabinetId")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<Guid?>("LastSirenCommandId")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<DateTime?>("SirenChangedAtUtc")
-                        .HasColumnType("datetime2");
-
-                    b.Property<bool>("SirenIsOn")
-                        .HasColumnType("bit");
-
-                    b.HasKey("CabinetId");
-
-                    b.ToTable("CabinetState", "signalization");
-                });
-
             modelBuilder.Entity("Scadex.Signalization.Model.Entities.SignalInnerDoor", b =>
                 {
                     b.Property<Guid>("Id")
@@ -343,25 +324,6 @@ namespace Scadex.Signalization.Data.Migrations
                     b.ToTable("InnerDoor", "signalization");
                 });
 
-            modelBuilder.Entity("Scadex.Signalization.Model.Entities.SignalInnerDoorState", b =>
-                {
-                    b.Property<Guid>("InnerDoorId")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<DateTime>("ChangedAtUtc")
-                        .HasColumnType("datetime2");
-
-                    b.Property<bool>("IsUnlocked")
-                        .HasColumnType("bit");
-
-                    b.Property<Guid?>("LastCommandId")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.HasKey("InnerDoorId");
-
-                    b.ToTable("InnerDoorState", "signalization");
-                });
-
             modelBuilder.Entity("Scadex.Signalization.Model.Entities.SignalOuterDoor", b =>
                 {
                     b.Property<Guid>("Id")
@@ -411,25 +373,6 @@ namespace Scadex.Signalization.Data.Migrations
                     b.HasIndex("SwitchIoChannelId");
 
                     b.ToTable("OuterDoor", "signalization");
-                });
-
-            modelBuilder.Entity("Scadex.Signalization.Model.Entities.SignalOuterDoorState", b =>
-                {
-                    b.Property<Guid>("OuterDoorId")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<DateTime>("ChangedAtUtc")
-                        .HasColumnType("datetime2");
-
-                    b.Property<Guid?>("LastCommandId")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<bool>("LightIsOn")
-                        .HasColumnType("bit");
-
-                    b.HasKey("OuterDoorId");
-
-                    b.ToTable("OuterDoorState", "signalization");
                 });
 
             modelBuilder.Entity("Scadex.Signalization.Model.Entities.OperatorSessionCapture", b =>
@@ -484,15 +427,6 @@ namespace Scadex.Signalization.Data.Migrations
                     b.Navigation("OuterDoor");
                 });
 
-            modelBuilder.Entity("Scadex.Signalization.Model.Entities.SignalInnerDoorState", b =>
-                {
-                    b.HasOne("Scadex.Signalization.Model.Entities.SignalInnerDoor", null)
-                        .WithOne("State")
-                        .HasForeignKey("Scadex.Signalization.Model.Entities.SignalInnerDoorState", "InnerDoorId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-                });
-
             modelBuilder.Entity("Scadex.Signalization.Model.Entities.SignalOuterDoor", b =>
                 {
                     b.HasOne("Scadex.Signalization.Model.Entities.SignalCabinet", "Cabinet")
@@ -502,15 +436,6 @@ namespace Scadex.Signalization.Data.Migrations
                         .IsRequired();
 
                     b.Navigation("Cabinet");
-                });
-
-            modelBuilder.Entity("Scadex.Signalization.Model.Entities.SignalOuterDoorState", b =>
-                {
-                    b.HasOne("Scadex.Signalization.Model.Entities.SignalOuterDoor", null)
-                        .WithOne("State")
-                        .HasForeignKey("Scadex.Signalization.Model.Entities.SignalOuterDoorState", "OuterDoorId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
                 });
 
             modelBuilder.Entity("Scadex.Signalization.Model.Entities.OperatorSession", b =>
@@ -527,16 +452,9 @@ namespace Scadex.Signalization.Data.Migrations
                     b.Navigation("OuterDoors");
                 });
 
-            modelBuilder.Entity("Scadex.Signalization.Model.Entities.SignalInnerDoor", b =>
-                {
-                    b.Navigation("State");
-                });
-
             modelBuilder.Entity("Scadex.Signalization.Model.Entities.SignalOuterDoor", b =>
                 {
                     b.Navigation("InnerDoors");
-
-                    b.Navigation("State");
                 });
 #pragma warning restore 612, 618
         }

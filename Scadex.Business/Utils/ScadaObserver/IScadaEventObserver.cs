@@ -12,7 +12,13 @@ namespace Scadex.Business.Utils.ScadaObserver;
 /// </summary>
 public interface IScadaEventObserver
 {
-    /// <summary> Bir kanalın değeri değişti (aynı değer için tekrar çağırılmaz). </summary>
+    /// <summary>
+    /// Bir kanalın değeri değişti (aynı değer için tekrar çağırılmaz).
+    /// <list>
+    /// <item> Input/AnalogInput: SCADA ingest'i değeri değiştirdiğinde </item>
+    /// <item> Output: BAŞARILI bir komut kanalın değerini değiştirdiğinde mantıksal hedef <see cref="ChannelChangedNotification.TurnOn"/> da gönderilir </item>
+    /// </list>
+    /// </summary>
     Task OnChannelChangedAsync(ChannelChangedNotification notification, CancellationToken cancellationToken = default);
 
     /// <summary> Kabinde ki bir kart okuyucuya kart okutuldu (kart ve kullanıcı tanımsız olsa da çağırılır zaten nullable yaptık). </summary>

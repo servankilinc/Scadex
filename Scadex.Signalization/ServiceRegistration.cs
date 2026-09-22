@@ -72,8 +72,7 @@ public static class ServiceRegistration
         string connectionString = configuration.GetConnectionString("Database") ?? 
             throw new InvalidOperationException("ConnectionStrings:Signalization ya da ConnectionStrings:Database tanimli degil.");
 
-        // Oturum degisikliklerini kayittan sonra /hubs/signalization'a duyurur (bkz. OperatorSessionRealtimeInterceptor).
-        // Ikisi de singleton: interceptor singleton, notifier'in kullandigi IHubContext de singleton.
+        // Oturum değişiklikleri kayıttan sonra signalization'a duyurur
         services.AddSingleton<ISignalizationNotifier, SignalizationNotifier>();
         services.AddSingleton<OperatorSessionRealtimeInterceptor>();
 
@@ -94,6 +93,7 @@ public static class ServiceRegistration
         // Kuyruklar SINGLETON olmak zorunda: dinleyici ve motor scoped'dir, kuyruk istekler arasi paylasilir.
         services.AddSingleton<SignalEventQueue>();
         services.AddSingleton<EntrySnapshotQueue>();
+        services.AddSingleton<SignalRealtimeQueue>();
 
         // Scadex Core Comunications
         services.AddScoped<IScadaEventObserver, SignalizationScadaObserver>();
@@ -102,9 +102,11 @@ public static class ServiceRegistration
         services.AddHostedService<SignalEventWorker>();
         services.AddHostedService<EntrySnapshotWorker>();
         services.AddHostedService<SignalTimerWorker>();
+        services.AddHostedService<SignalRealtimeWorker>();
         #endregion
 
         #region SERVISLER
+        services.AddScoped<ISignalChannelStateService, SignalChannelStateService>();
         services.AddScoped<ISignalAuthorityService, SignalAuthorityService>();
         services.AddScoped<ISignalOperatorService, SignalOperatorService>();
         services.AddScoped<ISignalCabinetService, SignalCabinetService>();

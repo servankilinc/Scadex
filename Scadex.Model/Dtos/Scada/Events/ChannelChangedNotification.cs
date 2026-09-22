@@ -14,6 +14,9 @@ public class ChannelChangedNotification : IDto
     public string? Value { get; set; }
     public string? PreviousValue { get; set; }
 
+    /// <summary> Yalnızca Output kanlarında kullanılır MANTIKSAL değeri, input'larda <c>null</c>. </summary>
+    public bool? TurnOn { get; set; }
+
     /// <summary> Sahada gerceklestigi an (SCADA gondermediyse bize ulaştığı an). </summary>
     public DateTime OccurredAtUtc { get; set; }
     public DateTime ReceivedAtUtc { get; set; }

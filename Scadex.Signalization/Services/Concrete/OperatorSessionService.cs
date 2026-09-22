@@ -15,12 +15,14 @@ public partial class OperatorSessionService : IOperatorSessionService
     private readonly SignalizationDbContext _db;
     private readonly IUnitOfWork _unitOfWork;
     private readonly IValidationService _validationService;
+    private readonly ISignalChannelStateService _signalizationChannelState;
 
-    public OperatorSessionService(SignalizationDbContext db, IUnitOfWork unitOfWork, IValidationService validationService)
+    public OperatorSessionService(SignalizationDbContext db, IUnitOfWork unitOfWork, IValidationService validationService, ISignalChannelStateService signalizationChannelState)
     {
         _db = db;
         _unitOfWork = unitOfWork;
         _validationService = validationService;
+        _signalizationChannelState = signalizationChannelState;
     }
 
     /// <inheritdoc />
@@ -65,19 +67,34 @@ public partial class OperatorSessionService : IOperatorSessionService
         if (rows.Count == 0)
             return Result<ICollection<OperatorSessionOpenDto>>.Success(rows);
 
-        // Asama TURETILIR: kilitsiz ic kapi var mi (dis kapinin ardinda)?
+        // Asama TURETILIR: kilitsiz ic kapi var mi (dis kapinin ardinda)? Kilit ve siren durumu kanaldan TEK cagrida okunur.
         var outerIds = rows.Select(r => r.OuterDoorId).Distinct().ToList();
-        var unlockedOuterIds = (await _db.InnerDoors.AsNoTracking()
-            .Where(i => outerIds.Contains(i.OuterDoorId) && i.IsActive && i.State != null && i.State.IsUnlocked)
-            .Select(i => i.OuterDoorId)
-            .Distinct()
-            .ToListAsync(cancellationToken)).ToHashSet();
+        var innerDoors = await _db.InnerDoors.AsNoTracking()
+            .Where(i => outerIds.Contains(i.OuterDoorId) && i.IsActive)
+            .Select(i => new { i.OuterDoorId, i.LockIoChannelId, i.UnlockTurnsOn })
+            .ToListAsync(cancellationToken);
 
         var cabinetIds = rows.Select(r => r.CabinetId).Distinct().ToList();
-        var sirenOn = (await _db.CabinetStates.AsNoTracking()
-            .Where(s => cabinetIds.Contains(s.CabinetId) && s.SirenIsOn)
+        var sirens = await _db.Cabinets.AsNoTracking()
+            .Where(c => cabinetIds.Contains(c.CabinetId) && c.SirenIoChannelId != null)
+            .Select(c => new { c.CabinetId, SirenIoChannelId = c.SirenIoChannelId!.Value })
+            .ToListAsync(cancellationToken);
+
+        var outputs = await _signalizationChannelState.ReadOutputsAsync(
+            innerDoors.Select(i => i.LockIoChannelId).Concat(sirens.Select(s => s.SirenIoChannelId)).ToList(),
+            cancellationToken
+        );
+
+        // Kilit rolesinin mantiksal durumu "kilidi acan" degere esitse kilit aciktir.
+        var unlockedOuterIds = innerDoors
+            .Where(i => outputs[i.LockIoChannelId].IsOn is bool relayOn && relayOn == i.UnlockTurnsOn)
+            .Select(i => i.OuterDoorId)
+            .ToHashSet();
+
+        var sirenOn = sirens
+            .Where(s => outputs[s.SirenIoChannelId].IsOn == true)
             .Select(s => s.CabinetId)
-            .ToListAsync(cancellationToken)).ToHashSet();
+            .ToHashSet();
         var cabinetNames = await LoadCabinetNamesAsync(cabinetIds, cancellationToken);
 
         foreach (var row in rows)

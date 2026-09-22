@@ -8,6 +8,9 @@ namespace Scadex.Business.Abstract;
 
 public interface IIoChannelService
 {
+    /// <summary> Çıkış kanallarının mantıksal durumu ("yük açık mı") sorgular </summary>
+    Task<IReadOnlyDictionary<Guid, OutputChannelStateDto>> GetOutputStatesAsync(IReadOnlyCollection<Guid> ioChannelIds, CancellationToken cancellationToken = default);
+
     // Get
     Task<Result<IoChannel>> GetAsync(Expression<Func<IoChannel, bool>> where, CancellationToken cancellationToken = default);
     Task<Result<IoChannel>> GetAsync(Guid id, CancellationToken cancellationToken = default);

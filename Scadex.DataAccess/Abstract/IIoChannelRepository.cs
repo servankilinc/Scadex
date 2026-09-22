@@ -5,4 +5,5 @@ namespace Scadex.DataAccess.Abstract;
 
 public interface IIoChannelRepository : IRepository<IoChannel>, IRepositoryAsync<IoChannel>
 {
+    Task<bool> SetCurrentValueIfChangedAsync(Guid ioChannelId, string value, DateTime updatedAtUtc, CancellationToken cancellationToken = default);
 }

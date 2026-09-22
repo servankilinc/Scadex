@@ -10,15 +10,31 @@ namespace Scadex.Signalization.ScadaHook;
 public sealed class SignalizationScadaObserver : IScadaEventObserver
 {
     private readonly SignalEventQueue _queue;
+    private readonly SignalRealtimeQueue _realtimeQueue;
 
-    public SignalizationScadaObserver(SignalEventQueue queue) => _queue = queue;
+    public SignalizationScadaObserver(SignalEventQueue queue, SignalRealtimeQueue realtimeQueue)
+    {
+        _queue = queue;
+        _realtimeQueue = realtimeQueue;
+    }
 
     public Task OnChannelChangedAsync(ChannelChangedNotification notification, CancellationToken cancellationToken = default)
     {
-        // Input modülününe bağlı "Analog Input" ve "Output(zaten output değişimleri Scadex çekirdeğine de düşmüyor ingest olarak)" sinyalizasyon modülünü ilgilendirmez.
-        // Kapı switch'leri "Dijital Input"
-        if (notification.Direction == PinDirection.Input)
-            _queue.Enqueue(new ChannelChangedWork(notification));
+        switch (notification.Direction)
+        {
+            // Kapı switch'leri "Dijital Input" ve clinetl'lar ui günceller.
+            case PinDirection.Input:
+                _queue.Enqueue(new ChannelChangedWork(notification));
+                _realtimeQueue.Enqueue(notification);
+                break;
+
+            // Siren / aydınlatma / kilit: başarılı komut kanalın değerini değiştirdi işlenecek bir event yok ve clinetl'lar ui günceller.
+            case PinDirection.Output:
+                _realtimeQueue.Enqueue(notification);
+                break;
+
+            // "Analog Input" sinyalizasyon modülünü ilgilendirmez.
+        }
 
         return Task.CompletedTask;
     }

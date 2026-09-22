@@ -6,6 +6,7 @@ using Scadex.Business.Utils.CameraProtocolProfile;
 using Scadex.Business.Utils.CameraProtocolProfile.Resolver;
 using Scadex.Business.Utils.ClipCaptureQueue;
 using Scadex.Business.Utils.MediaGateway;
+using Scadex.Business.Utils.OutputPolarity;
 using Scadex.Business.Utils.ScadaCommandGateway;
 using Scadex.Business.Utils.SnapshotGateway;
 using Scadex.Business.Utils.TokenService;
@@ -48,6 +49,7 @@ public static class ServiceRegistration
         services.AddScoped<IChannelEventService, ChannelEventService>();
         services.AddScoped<ICameraService, CameraService>();
         services.AddScoped<IScadaCommandGateway, ScadaCommandGateway>();
+        services.AddScoped<IOutputPolarityResolver, OutputPolarityResolver>();
 
         // Yoklanabilir her entity servisi içim buraya bir kayıt ekle;
         services.AddScoped<IMonitoredAssetProbeSource, CameraProbeSource>();

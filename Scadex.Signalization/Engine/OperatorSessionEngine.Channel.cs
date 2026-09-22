@@ -112,7 +112,7 @@ public partial class OperatorSessionEngine
             await _db.SaveChangesAsync(cancellationToken);
 
             // 6) Operatör işini bitirdi mi: dış kapının ardındaki tüm iç kapılar kilitliyse bitmiştir.
-            bool finished = await AreAllInnerDoorsLockedAsync(outer.Id, cancellationToken);
+            bool finished = await _signalizationChannelState.AreAllInnerDoorsLockedAsync(outer.Id, cancellationToken);
             if (!finished)
                 outerClosedEvent.Detail = SessionEventDetail.Unfinished;
 
@@ -141,18 +141,18 @@ public partial class OperatorSessionEngine
             // 1) İç kapı ancak dış kapı açıkken açılabilir bu nedenle oturum kaydı yoksa açılmalı. Bu tarz süreçler guvenlik acisindan kaydedilmeden gecilemez.
             if (session == null)
             {
-                // Dış kapı açılışını kaçırmış olabiliriz; ama switch "kapalı" diyorsa dış kapı hiç açılmadan iç kapı açılmış demektir — kaçırılmış olay değil, gerçek bir anomali.
-                if (await IsSwitchOpenAsync(outerDoor.SwitchIoChannelId, outerDoor.SwitchOpenValue, cancellationToken) == false)
-                    _logger.LogWarning("Kabin {CabinetId}: '{Outer}' switch'i kapali gorunurken ic kapi '{Inner}' acildi; oturum ortuk acildi.", cabinet.CabinetId, outerDoor.Name, inner.Name);
+                // Dış kapı açılışını kaçırmış olabiliriz ama switch "kapalı" diyorsa dış kapı hiç açılmadan iç kapı açılmış demektir — kaçırılmış olay değil, gerçek bir anomali.
+                if ((await _signalizationChannelState.GetSwitchStateAsync(outerDoor, cancellationToken)).IsOn == false)
+                    _logger.LogWarning("Kabin {CabinetId}: '{Outer}' switch'i kapali gorunurken ic kapi '{Inner}' acildi; oturum arka planda açıldı.", cabinet.CabinetId, outerDoor.Name, inner.Name);
 
                 session = StartSession(cabinet, outerDoor, occurredAtUtc, SessionFlags.OuterOpenMissing);
             }
 
-            // 2) İç kapı kilidine en son hangi komut gönderildi (kayıt yoksa kapı kilitli sayılır).
-            var innerDoorState = await GetOrInnerDoorStateAsync(inner.Id, cancellationToken);
+            // 2) İç kapı kilidinin durumu kilit kanalından okunur ("bilinmiyor" ise kapı kilitli sayılır).
+            var lockState = await _signalizationChannelState.GetLockStateAsync(inner, cancellationToken);
 
-            // 3) Son gönderilen komut da kilidi aç ise Switch'in kapı açıldı bilgisini tetiklemesi zaten beklenen bir durum
-            if (innerDoorState.IsUnlocked)
+            // 3) Kilit açıksa Switch'in kapı açıldı bilgisini tetiklemesi zaten beklenen bir durum
+            if (lockState.IsOn == true)
             {
                 AddEvent(
                     session: session,
@@ -162,7 +162,8 @@ public partial class OperatorSessionEngine
                     innerDoorId: inner.Id
                 );
             }
-            // 4) Kapının kilide komut gönderilmeden açılması kayıt altına alınmalı
+            // 4) Kapının kilide komut gönderilmeden açılması kayıt altına alınmalı. Kilit kanalına DOKUNULMAZ: kanal son komutu
+            //    gösterir, kapı switch'i ise gerçeği — "kapı açık + kilit kilitli" zorlanmış açılışın kendisidir ve ekran onu öyle gösterir.
             else
             {
                 MarkFlag(session, SessionFlags.ForcedOpen);
@@ -174,12 +175,6 @@ public partial class OperatorSessionEngine
                     innerDoorId: inner.Id
                 );
                 _logger.LogWarning("Kabin {CabinetId}: kilitli ic kapi '{Door}' acildi (zorlanmis acilis).", cabinet.CabinetId, inner.Name);
-
-                // 5) Switch "açık" diyorsa kilit fiilen TUTMUYOR demektir;
-                innerDoorState.IsUnlocked = true;
-                innerDoorState.ChangedAtUtc = receivedAtUtc;   // olayın ReceivedAtUtc'si ile AYNI damga: kart yolundaki
-                                                               // "bu komuttan beri açıldı mı" karşılaştırması buna dayanıyor
-                innerDoorState.LastCommandId = null;           // bu değişim bir komuttan doğmadı
             }
         }
         else
@@ -204,12 +199,12 @@ public partial class OperatorSessionEngine
 
     #region Heplers
     /// <summary>
-    /// Oturum sonunda (dış kapı kapandı ya da azami süre doldu) ardındaki iç kapılar elden geçirilir:
-    /// switch'i "kapalı" gösteren kilitsiz kapılar kilitlenir, açık duranlar bayraklanır.
+    /// Oturum sonunda (dış kapı kapandı ya da timeout süre doldu) ardındaki iç kapılar elden geçirilir:
+    /// switch'i "kapalı" gösteren kilitsiz kapılar kilitlenir, açık duranlar flag ile işaretlenir.
     /// <para/>
-    /// Sıra bilinçlidir: ÖNCE switch okunur. Switch "açık" ise kilit fiilen tutmuyor demektir ve bu, kaydı
-    /// yalanlayan KESİN bilgidir — bu yüzden kayıt kontrolünden önce gelir. Switch "kapalı"/"bilinmiyor" ise
-    /// kilidin durumu hakkında bir şey söylemez ve orada kayıt tek kaynaktır.
+    /// Sıra bilinçlidir: ÖNCE switch okunur. Switch "açık" ise kilit fiilen tutmuyor demektir ve bu KESİN bilgidir —
+    /// kilit kanalı ne derse desin kapıya kilit dili sürülmez. Switch "kapalı"/"bilinmiyor" ise kilidin durumu hakkında
+    /// bir şey söylemez ve orada kilit kanalı tek kaynaktır.
     /// </summary>
     private async Task AutoLockInnerDoorsAsync(OperatorSession session, SignalOuterDoor outer, CancellationToken cancellationToken)
     {
@@ -218,24 +213,23 @@ public partial class OperatorSessionEngine
         foreach (var inner in innerDoors)
         {
             // 1) Once SAHA
-            var switchOpen = await IsSwitchOpenAsync(inner.SwitchIoChannelId, inner.SwitchOpenValue, cancellationToken);
+            // kapı açıksa = true
+            var switchOpen = (await _signalizationChannelState.GetSwitchStateAsync(inner, cancellationToken)).IsOn;
+            // kilit açıksa = true
+            var lockState = await _signalizationChannelState.GetLockStateAsync(inner, cancellationToken);
 
             // 2) İç kapı fiziksel olarak açık
             if (switchOpen == true)
             {
                 var now = DateTime.UtcNow;
-                var indoorState = await GetOrInnerDoorStateAsync(inner.Id, cancellationToken);
 
-                // iç kapı durumu "kilitli" diyorsa yalanlanmış oluyor. (Switch kapanma durumunu islenmemis olabilir, kabin o sirada pasifti...
-                if (!indoorState.IsUnlocked)
+                // Kilit kanalı "kilitli" diyor ama kapı açık: zorlanmış açılış. Oturum içinde zaten kaydedildiyse (anahtar olayı
+                // işlendiyse) tekrar yazılmaz; burada yakalanan, kaçırılmış olaydır (kabin o sırada pasifti vb.).
+                if (lockState.IsOn != true && !await HasForcedOpenEventAsync(session, inner.Id, cancellationToken))
                 {
-                    indoorState.IsUnlocked = true;
-                    indoorState.ChangedAtUtc = now;     // asagidaki ForcedOpen olayiyla AYNI damga olmali
-                    indoorState.LastCommandId = null;   // bu degisim bir komuttan doğmadı
-
                     MarkFlag(session, SessionFlags.ForcedOpen);
                     AddEvent(session: session, type: SessionEventType.ForcedOpen, occurredAtUtc: now, receivedAtUtc: now, innerDoorId: inner.Id);
-                    _logger.LogWarning("Kabin {CabinetId}: ic kapi '{Door}' switch'i acik ama kayit kilitli gosteriyordu; kayit duzeltildi.", session.CabinetId, inner.Name);
+                    _logger.LogWarning("Kabin {CabinetId}: ic kapi '{Door}' switch'i acik ama kilit kanali kilitli gosteriyor (zorlanmis acilis).", session.CabinetId, inner.Name);
                 }
 
                 // Oturum sonu gercegi: kapi acik kaldi, kilitlenemedi. Komut GONDERILMEZ (acik kapiya kilit dili surulmez).
@@ -250,14 +244,14 @@ public partial class OperatorSessionEngine
                 continue;
             }
 
-            // 3) Switch "kapali" ya da "bilinmiyor": kilidin durumunu SOYLEMEZ, kayit tek kaynak.
-            var state = await _db.InnerDoorStates.FirstOrDefaultAsync(s => s.InnerDoorId == inner.Id, cancellationToken);
-            if (state?.IsUnlocked != true)
+            // 3) iç kapı zateb kilitliyse veya iç kapı kilit durumunu bilmiyoruz ve iç kapı kapalı diyemiyorsak, atlanır.
+            if (lockState.IsOn == false || (lockState.IsOn == null && switchOpen != false))
                 continue;
 
+            // İç kapı kapatılmış
             if (switchOpen == false)
             {
-                await LockInnerDoorAsync(session, inner, state, userId: null, SessionEventType.AutoLocked, cancellationToken);
+                await LockInnerDoorAsync(session, inner, userId: null, SessionEventType.AutoLocked, cancellationToken);
             }
             else // null — switch okunamadi, kilitlemeye kalkismayiz
             {
@@ -273,7 +267,22 @@ public partial class OperatorSessionEngine
         }
     }
 
-    private async Task<bool> UnlockInnerDoorAsync(OperatorSession session, SignalInnerDoor inner, SignalInnerDoorState state, Guid? userId, string? detail, CancellationToken cancellationToken)
+    /// <summary> Bu oturumda bu iç kapı için zorlanmış açılış zaten kaydedildi mi? </summary>
+    private async Task<bool> HasForcedOpenEventAsync(OperatorSession session, Guid innerDoorId, CancellationToken cancellationToken)
+    {
+        if (session.Id == 0)
+            return false;
+
+        return await _db.OperatorSessionEvents.AnyAsync(e =>
+            e.SessionId == session.Id &&
+            e.InnerDoorId == innerDoorId &&
+            e.Type == SessionEventType.ForcedOpen,
+            cancellationToken
+        );
+    }
+
+    /// <summary> Kilidi açar. Durum yazılmaz: başarılı komut kilit kanalının değerini çekirdekte günceller. </summary>
+    private async Task<bool> UnlockInnerDoorAsync(OperatorSession session, SignalInnerDoor inner, Guid? userId, string? detail, CancellationToken cancellationToken)
     {
         // Komut SCADA'nin zaman asimi kadar surebilir: oncesindeki olaylar (kart okuma) kalici olsun.
         await _db.SaveChangesAsync(cancellationToken);
@@ -296,9 +305,6 @@ public partial class OperatorSessionEngine
             return false;
         }
 
-        state.IsUnlocked = true;
-        state.ChangedAtUtc = now;
-        state.LastCommandId = outcome.CommandId;
         AddEvent(
             session: session,
             type: SessionEventType.Unlocked,
@@ -311,10 +317,10 @@ public partial class OperatorSessionEngine
         return true;
     }
 
+    /// <summary> Kapıyı kilitler. Durum yazılmaz: başarılı komut kilit kanalının değerini çekirdekte günceller. </summary>
     private async Task<bool> LockInnerDoorAsync(
         OperatorSession session,
         SignalInnerDoor inner,
-        SignalInnerDoorState state,
         Guid? userId,
         SessionEventType eventType,
         CancellationToken cancellationToken
@@ -340,9 +346,6 @@ public partial class OperatorSessionEngine
             return false;
         }
 
-        state.IsUnlocked = false;
-        state.ChangedAtUtc = now;
-        state.LastCommandId = outcome.CommandId;
         AddEvent(
             session: session,
             type: eventType,

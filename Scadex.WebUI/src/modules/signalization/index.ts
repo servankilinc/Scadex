@@ -38,6 +38,25 @@ const routes: RouteObject[] = [
         lazy: async () => ({ Component: (await import('./views/report')).default })
       },
       {
+        // Kenar çubuğunda YOK: ekrana yalnızca ana sayfa haritasındaki kabin panelinden girilir — hangi kabine
+        // bakıldığı oradan belli, kabin seçtiren ikinci bir giriş gereksiz olurdu.
+        path: 'virtual-cabinet',
+        handle: { crumb: 'Sanal Kabin' },
+        children: [
+          {
+            path: ':cabinetId',
+            children: [
+              { index: true, lazy: async () => ({ Component: (await import('./views/virtual-cabinet')).default }) },
+              {
+                path: ':outerDoorId',
+                handle: { crumb: 'Dış Kapı' },
+                lazy: async () => ({ Component: (await import('./views/virtual-cabinet/detail')).default })
+              }
+            ]
+          }
+        ]
+      },
+      {
         path: 'cabinets',
         handle: { crumb: 'Kapı Yapılandırması' },
         lazy: async () => ({ Component: (await import('./views/admin/cabinet-config')).default })

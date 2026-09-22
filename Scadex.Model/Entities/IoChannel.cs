@@ -12,6 +12,12 @@ public class IoChannel : IEntity, ISoftDeletableEntity, IAuditableEntity
     public int ChannelNumber { get; set; }
     public PinDirection Direction { get; set; }
     public bool IsEnabled { get; set; }
+    /// <summary>
+    /// Kanalın son değeri; <c>null</c> = bilinmiyor (<c>"0"</c> ile aynı şey DEĞİLDİR).
+    /// <para/>
+    /// Input/AnalogInput: SCADA'nın ingest ettiği ham değer. Output: son BAŞARILI komutun karta giden FİZİKSEL değeri (NC kontakta mantıksal isteğin tersi). 
+    /// Mantıksal "yük açık mı" okuması <c>IIoChannelService.GetOutputStatesAsync</c> ile yapılır.
+    /// </summary>
     public string? CurrentValue { get; set; }
     public string Name { get; set; } = null!;
     public DateTime? ValueUpdatedAt { get; set; }

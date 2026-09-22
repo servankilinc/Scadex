@@ -5,10 +5,10 @@ using Scadex.Core.Utils;
 using Scadex.DataAccess.UoW;
 using Scadex.Model.Dtos.DeviceCommand.Commands;
 using Scadex.Signalization.DataAccess;
-using Scadex.Signalization.Enums;
 using Scadex.Signalization.Model.Entities;
 using Scadex.Signalization.Model.Utils;
 using Scadex.Signalization.Runtime;
+using Scadex.Signalization.Services.Abstract;
 using static Scadex.Model.Enums.EntityEnums;
 using static Scadex.Signalization.Enums.SignalEnums;
 
@@ -22,8 +22,9 @@ public partial class OperatorSessionEngine
     private readonly IUserRoleService _userRoleService;
     private readonly EntrySnapshotQueue _snapshotQueue;
     private readonly ILogger<OperatorSessionEngine> _logger;
+    private readonly ISignalChannelStateService _signalizationChannelState;
 
-    public OperatorSessionEngine(SignalizationDbContext db, IUnitOfWork unitOfWork, IDeviceCommandService commandService, IUserRoleService userRoleService, EntrySnapshotQueue snapshotQueue, ILogger<OperatorSessionEngine> logger)
+    public OperatorSessionEngine(SignalizationDbContext db, IUnitOfWork unitOfWork, IDeviceCommandService commandService, IUserRoleService userRoleService, EntrySnapshotQueue snapshotQueue, ILogger<OperatorSessionEngine> logger, ISignalChannelStateService signalizationChannelState)
     {
         _db = db;
         _unitOfWork = unitOfWork;
@@ -31,6 +32,7 @@ public partial class OperatorSessionEngine
         _userRoleService = userRoleService;
         _snapshotQueue = snapshotQueue;
         _logger = logger;
+        _signalizationChannelState = signalizationChannelState;
     }
 
     public async Task HandleAsync(SignalWorkItem item, CancellationToken cancellationToken)
@@ -118,22 +120,6 @@ public partial class OperatorSessionEngine
     }
 
 
-    /// <summary> Switch input kanalının son değeri. Okunamadıysa <c>null</c> (bilinmiyor) döner </summary>
-    private async Task<bool?> IsSwitchOpenAsync(Guid switchIoChannelId, string openValue, CancellationToken cancellationToken)
-    {
-        var channel = await _unitOfWork.IoChannels.GetAsync(
-            select: c => new { c.CurrentValue },
-            where: c => c.Id == switchIoChannelId && c.IsEnabled,
-            cancellationToken: cancellationToken
-        );
-
-        if (channel?.CurrentValue == null)
-            return null;
-
-        return string.Equals(channel.CurrentValue, openValue, StringComparison.Ordinal);
-    }
-
-
     /// <summary> Oturumu kapatır. </summary>
     private async Task CloseSessionAsync(OperatorSession session, DateTime endedAtUtc, bool timedOut, CancellationToken cancellationToken)
     {
@@ -160,32 +146,6 @@ public partial class OperatorSessionEngine
         {
             session.Status = session.Flags == SessionFlags.None ? OperatorSessionStatus.Completed : OperatorSessionStatus.CompletedWithWarning;
         }
-    }
-
-
-    /// <summary> Dis kapinin ardindaki TUM aktif ic kapilar kilitli mi (baska islem yapan yok mu)? </summary>
-    private async Task<bool> AreAllInnerDoorsLockedAsync(Guid outerDoorId, CancellationToken cancellationToken)
-    {
-        var doors = await _db.InnerDoors
-            .Where(i => i.OuterDoorId == outerDoorId && i.IsActive)
-            .Select(i => new { i.Id, i.SwitchIoChannelId, i.SwitchOpenValue })
-            .ToListAsync(cancellationToken);
-
-        if (doors.Count == 0)
-            return true;
-
-        var doorIds = doors.Select(d => d.Id).ToList();
-        if (await _db.InnerDoorStates.AnyAsync(s => doorIds.Contains(s.InnerDoorId) && s.IsUnlocked, cancellationToken))
-            return false;
-
-        // Kayit "hepsi kilitli" diyor; sahaya da sormadan siren caldirmayiz / oturumu kapatmayiz.
-        foreach (var door in doors)
-        {
-            if (await IsSwitchOpenAsync(door.SwitchIoChannelId, door.SwitchOpenValue, cancellationToken) == true)
-                return false;
-        }
-
-        return true;
     }
     #endregion
 

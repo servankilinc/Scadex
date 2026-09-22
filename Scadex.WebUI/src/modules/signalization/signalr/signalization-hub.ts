@@ -2,14 +2,24 @@ import { HttpError, HubConnectionBuilder, HubConnectionState, LogLevel, type Hub
 import { useSyncExternalStore } from 'react';
 import { API_BASE_URL } from '@/lib/axios-helper';
 import { getAccessToken } from '@/lib/auth-session';
-import { SignalizationHubEvents, SignalizationHubMethods, type OperatorSessionChangedMessage } from '../models/realtime';
+import {
+  SignalizationHubEvents,
+  SignalizationHubMethods,
+  type OperatorSessionChangedMessage,
+  type SignalCabinetStateChangedMessage,
+  type SignalDoorSwitchChangedMessage
+} from '../models/realtime';
 
 /**
  * `/hubs/signalization` bağlantısının YAŞAM DÖNGÜSÜ — çekirdeğin `lib/signalr/diagram-hub.ts`'i ile aynı kalıp. Veriyle ilgilenmez,
  * gelen olayı kayıtlı dinleyicilere aktarır; ne yapılacağı `hooks/use-session-realtime.ts`'tedir.
  *
- * **Tek bağlantı, sayaçlı abonelik.** İlk abonede `SubscribeSessions`, son abone gidince `UnsubscribeSessions`; bağlantı kısa bir
- * gecikmeyle kapanır.
+ * **Tek bağlantı, sayaçlı abonelik.** İki abonelik türü vardır ve bağlantı ikisinden biri yaşadığı sürece açık kalır:
+ * - **Oturumlar** (`sessions` grubu, tüm kabinler): ilk abonede `SubscribeSessions`, son abone gidince `UnsubscribeSessions`.
+ * - **Kabin durumu** (`cabinet:{id}` grubu, tek kabin — çıkışlar VE kapı anahtarları): kabinin ilk abonesinde `SubscribeCabinet`, sonuncusu gidince
+ *   `UnsubscribeCabinet` (çekirdeğin `diagram-hub.ts`'indeki kabin sayacıyla aynı kalıp).
+ *
+ * Son abone de gidince bağlantı kısa bir gecikmeyle kapanır.
  *
  * Diyagram istemcisinden iki farkı var:
  * - **İlk bağlantı kurulamazsa artan aralıkla yeniden denenir.** Abonelik layout'a bir kez takılır; diyagramdaki gibi "bir sonraki
@@ -24,6 +34,11 @@ export interface SessionHubHandlers {
   onSessionChanged: (message: OperatorSessionChangedMessage) => void;
 }
 
+export interface CabinetStateHubHandlers {
+  onCabinetStateChanged: (message: SignalCabinetStateChangedMessage) => void;
+  onDoorSwitchChanged: (message: SignalDoorSwitchChangedMessage) => void;
+}
+
 /** Son abone ayrıldıktan sonra kapanış gecikmesi — `<StrictMode>` çift effect'inde kapanıp hemen yeniden açılmasın. */
 const CLOSE_GRACE_MS = 2000;
 const RETRY_DELAYS_MS = [2_000, 5_000, 10_000, 30_000];
@@ -36,6 +51,13 @@ let retryAttempt = 0;
 let moduleOff = false;
 
 const handlerSets = new Set<SessionHubHandlers>();
+/** Kabin kimliği → o kabinin çıkış durumu aboneleri. Boş küme tutulmaz: kabin haritadan düşer. */
+const cabinetHandlers = new Map<string, Set<CabinetStateHubHandlers>>();
+
+/** Bağlantının yaşamaya devam etmesi gereken tek koşul: herhangi bir türde abone var. */
+function hasSubscribers(): boolean {
+  return handlerSets.size > 0 || cabinetHandlers.size > 0;
+}
 
 // ---------------------------------------------------------------- durum store
 
@@ -81,19 +103,30 @@ function build(): HubConnection {
     for (const handlers of handlerSets) handlers.onSessionChanged(message);
   });
 
+  built.on(SignalizationHubEvents.signalCabinetStateChanged, (message: SignalCabinetStateChangedMessage) => {
+    // Olay yalnızca o kabinin grubuna gelir; yine de kimliğe göre dağıtılır (aynı bağlantı birden çok kabine abone olabilir).
+    const handlers = cabinetHandlers.get(message.cabinetId);
+    if (handlers) for (const handler of handlers) handler.onCabinetStateChanged(message);
+  });
+
+  built.on(SignalizationHubEvents.signalDoorSwitchChanged, (message: SignalDoorSwitchChangedMessage) => {
+    const handlers = cabinetHandlers.get(message.cabinetId);
+    if (handlers) for (const handler of handlers) handler.onDoorSwitchChanged(message);
+  });
+
   built.onreconnecting(() => setStatus('reconnecting'));
 
   built.onreconnected(() => {
     setStatus('connected');
     // Yeni ConnectionId: sunucu eski grupları hatırlamaz, abonelik yenilenmezse bağlantı "açık" görünür ama olay gelmez.
-    if (handlerSets.size > 0) void invokeSubscribe();
+    void invokeSubscribeAll();
   });
 
   // `withAutomaticReconnect` pes ederse ya da sunucu bağlantıyı kapatırsa: abone varsa baştan kurulur.
   built.onclose(() => {
     if (connection === built) connection = null;
     setStatus('disconnected');
-    if (handlerSets.size > 0) scheduleRetry();
+    if (hasSubscribers()) scheduleRetry();
   });
 
   return built;
@@ -122,13 +155,13 @@ async function ensureStarted(): Promise<void> {
       return;
     }
     // Sessiz: 10 sn yoklama geri dönüş olarak çalışıyor.
-    if (handlerSets.size > 0) scheduleRetry();
+    if (hasSubscribers()) scheduleRetry();
     return;
   }
 
   retryAttempt = 0;
   setStatus('connected');
-  if (handlerSets.size > 0) await invokeSubscribe();
+  await invokeSubscribeAll();
 }
 
 function scheduleRetry(): void {
@@ -137,35 +170,33 @@ function scheduleRetry(): void {
   retryAttempt++;
   retryTimer = window.setTimeout(() => {
     retryTimer = null;
-    if (handlerSets.size > 0) void ensureStarted();
+    if (hasSubscribers()) void ensureStarted();
   }, delay);
 }
 
-async function invokeSubscribe(): Promise<void> {
+/** Tek bir hub çağrısı; bağlantı bu arada düşmüşse sessiz geçer (yeniden bağlanma aboneliği zaten yeniler). */
+async function invoke(method: string, ...args: unknown[]): Promise<void> {
   if (connection?.state !== HubConnectionState.Connected) return;
   try {
-    await connection.invoke(SignalizationHubMethods.subscribeSessions);
+    await connection.invoke(method, ...args);
   } catch {
-    /* bağlantı bu arada düştü; onreconnected / yeniden deneme aboneliği yeniler */
+    /* bağlantı düştü ya da kapanıyor; sunucu grubu kendisi düşürür */
   }
 }
 
-async function invokeUnsubscribe(): Promise<void> {
-  if (connection?.state !== HubConnectionState.Connected) return;
-  try {
-    await connection.invoke(SignalizationHubMethods.unsubscribeSessions);
-  } catch {
-    /* bağlantı zaten kapanıyorsa sunucu grubu kendisi düşürür */
-  }
+/** Kayıtlı bütün abonelikleri sunucuya bildirir — ilk bağlantıda ve her YENİDEN bağlanmada (ConnectionId değişir). */
+async function invokeSubscribeAll(): Promise<void> {
+  if (handlerSets.size > 0) await invoke(SignalizationHubMethods.subscribeSessions);
+  for (const cabinetId of cabinetHandlers.keys()) await invoke(SignalizationHubMethods.subscribeCabinet, cabinetId);
 }
 
 function scheduleCloseIfIdle(): void {
-  if (handlerSets.size > 0) return;
+  if (hasSubscribers()) return;
   if (closeTimer !== null) window.clearTimeout(closeTimer);
 
   closeTimer = window.setTimeout(() => {
     closeTimer = null;
-    if (handlerSets.size > 0) return;
+    if (hasSubscribers()) return;
 
     if (retryTimer !== null) {
       window.clearTimeout(retryTimer);
@@ -193,12 +224,46 @@ export function subscribeToSessions(handlers: SessionHubHandlers): () => void {
     const wasConnected = connection?.state === HubConnectionState.Connected;
     await ensureStarted();
     // Bağlantı zaten açıktıysa `ensureStarted` abonelik göndermez; ilk abone için burada gönderilir.
-    if (wasConnected && isFirst) await invokeSubscribe();
+    if (wasConnected && isFirst) await invoke(SignalizationHubMethods.subscribeSessions);
   })();
 
   return () => {
     handlerSets.delete(handlers);
-    if (handlerSets.size === 0) void invokeUnsubscribe();
+    if (handlerSets.size === 0) void invoke(SignalizationHubMethods.unsubscribeSessions);
+    scheduleCloseIfIdle();
+  };
+}
+
+/**
+ * TEK kabinin durum değişikliklerine (siren / aydınlatma / kilit / kapı anahtarları) abone olur. Dönen fonksiyon aboneliği bırakır.
+ *
+ * Aynı kabine birden fazla abone güvenlidir: sunucuya yalnızca ilk abone için `SubscribeCabinet`, sonuncusu gidince
+ * `UnsubscribeCabinet` gider.
+ */
+export function subscribeToCabinetState(cabinetId: string, handlers: CabinetStateHubHandlers): () => void {
+  const existing = cabinetHandlers.get(cabinetId);
+  const isFirst = existing === undefined;
+
+  if (existing) existing.add(handlers);
+  else cabinetHandlers.set(cabinetId, new Set([handlers]));
+
+  void (async () => {
+    const wasConnected = connection?.state === HubConnectionState.Connected;
+    await ensureStarted();
+    if (wasConnected && isFirst) await invoke(SignalizationHubMethods.subscribeCabinet, cabinetId);
+  })();
+
+  return () => {
+    const current = cabinetHandlers.get(cabinetId);
+    if (!current) return;
+
+    current.delete(handlers);
+    if (current.size === 0) {
+      // Boş küme bırakılmaz: yeniden bağlanmada olmayan bir aboneliği tazelemeye kalkardı.
+      cabinetHandlers.delete(cabinetId);
+      void invoke(SignalizationHubMethods.unsubscribeCabinet, cabinetId);
+    }
+
     scheduleCloseIfIdle();
   };
 }

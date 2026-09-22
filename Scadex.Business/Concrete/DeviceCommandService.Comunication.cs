@@ -1,11 +1,13 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
+using Scadex.Business.Utils.ScadaObserver;
 using Scadex.Core.Utils;
 using Scadex.Core.Utils.ResultPattern;
 using Scadex.Model.Dtos.DeviceCommand.Commands;
 using Scadex.Model.Dtos.DeviceCommand.Queries;
 using Scadex.Model.Dtos.Realtime.Queries;
 using Scadex.Model.Dtos.Scada.Commands;
+using Scadex.Model.Dtos.Scada.Events;
 using Scadex.Model.Entities;
 using System.Text.Json;
 using static Scadex.Model.Enums.EntityEnums;
@@ -67,7 +69,7 @@ public partial class DeviceCommandService
 
 
         // 5) Kanalın pini çözülür (NO/NC) ve SCADA'ya gönderilecek değer belirlenir
-        var polarity = await ResolvePolarityAsync(channel.Id, cancellationToken);
+        var polarity = await _polarityResolver.ResolveAsync(channel.Id, cancellationToken);
         if (!polarity.IsSuccess)
         {
             _logger.LogWarning(polarity.Description);
@@ -76,7 +78,7 @@ public partial class DeviceCommandService
 
 
         // 6) SCADA'ya gönderilecek değer belirlenir
-        bool turnOn = polarity.Contact == PinFunction.NC ? !request.TurnOn!.Value : request.TurnOn!.Value;
+        bool turnOn = polarity.ToPhysical(request.TurnOn!.Value);
         string sentValue = turnOn ? "1" : "0";
 
 
@@ -117,7 +119,50 @@ public partial class DeviceCommandService
         command.Status = outcome.Status;
         command.ResultMessage = outcome.Message;
         command.RespondedAt = DateTime.UtcNow;
+
         await _unitOfWork.DeviceCommands.UpdateAndSaveAsync(command, CancellationToken.None);
+
+        // 9.1) Başarılı komut, kanalın mevcut değerini yazar; başarısız/zaman aşımı değeri değiştirmez.
+        ChannelValueChange? channelChange = null;
+        ChannelChangedNotification? observerNotification = null;
+
+        if (outcome.Status == CommandStatus.Succeeded)
+        {
+            var now = command.RespondedAt.Value;
+
+            var previousValue = await _unitOfWork.IoChannels.GetAsync(select: c => c.CurrentValue, where: c => c.Id == channel.Id, cancellationToken: CancellationToken.None);
+            bool changed = await _unitOfWork.IoChannels.SetCurrentValueIfChangedAsync(channel.Id, sentValue, now, CancellationToken.None);
+
+            if (changed)
+            {
+                observerNotification = new ChannelChangedNotification
+                {
+                    CabinetId = cabinet.Id,
+                    IoChannelId = channel.Id,
+                    DeviceId = channel.DeviceId,
+                    Direction = channel.Direction,
+                    ChannelNumber = channel.ChannelNumber,
+                    Value = sentValue,
+                    PreviousValue = previousValue,
+                    TurnOn = request.TurnOn!.Value,
+                    OccurredAtUtc = now,
+                    ReceivedAtUtc = now
+                };
+
+                channelChange = new ChannelValueChange
+                {
+                    IoChannelId = channel.Id,
+                    DeviceId = channel.DeviceId,
+                    ChannelNumber = channel.ChannelNumber,
+                    Value = sentValue,
+                    UpdatedAt = now
+                };
+            }
+        }
+
+        // 9.2) Kanal değeri değiştiyse izleyen client'lara bildirilir
+        if (channelChange != null)
+            await _notifier.ChannelValuesChangedAsync(cabinet.Id, [channelChange], CancellationToken.None);
 
         // 10) Komutun tamamlandığı, kabindeki diğer izleyici client'lara yayınlanır
         var userNameResult = _httpContextManager.GetName();
@@ -137,6 +182,10 @@ public partial class DeviceCommandService
             RequestedByName = requestedByName
         }, CancellationToken.None);
 
+        // 11) Değişen çıkış kanalı, Scadex'in dış modüllerine (dinleyicilere) yayınlanır
+        if (observerNotification != null)
+            await _observers.PublishAsync(o => o.OnChannelChangedAsync(observerNotification, CancellationToken.None), _logger, nameof(IScadaEventObserver.OnChannelChangedAsync));
+
         return Result<DeviceCommandResultDto>.Success(command.ToResultDto(channel.ChannelNumber, requestedByName));
     }
 
@@ -154,57 +203,4 @@ public partial class DeviceCommandService
         return Result<ICollection<DeviceCommandResultDto>>.Success(list);
     }
 
-    #region Command Pin Resolution
-    /// <summary> Kanalin NO/NC kutbu — hangi pini bağlı? </summary>
-    private async Task<PolarityResolution> ResolvePolarityAsync(Guid ioChannelId, CancellationToken cancellationToken)
-    {
-        var nc_no_pins = await _unitOfWork.Pins.GetAllAsync(
-            select: p => new { p.Id, p.Function },
-            where: p => p.IoChannelId == ioChannelId && (p.Function == PinFunction.NO || p.Function == PinFunction.NC),
-            cancellationToken: cancellationToken
-        ) ?? [];
-
-        // NC/NO barındırmayan kanal: LED, duz dijital cikis vs. olabilir
-        if (nc_no_pins.Count == 0)
-            return PolarityResolution.Resolved(null);
-
-        // Kanalın NC/NO pinlerinden sadece biri var
-        var distinct = nc_no_pins.Select(c => c.Function).Distinct().ToList();
-        if (distinct.Count == 1)
-            return PolarityResolution.Resolved(distinct[0]);
-
-        // Hem NO hem NC pini var -> bu pinlerin bağlantılarına bak.
-        var nc_no_pin_ids = nc_no_pins.Select(c => c.Id).ToList();
-        var wiredPinIds = await _unitOfWork.Connections.GetAllAsync(
-            select: c => new { c.SourcePinId, c.TargetPinId },
-            where: c => nc_no_pin_ids.Contains(c.SourcePinId) || nc_no_pin_ids.Contains(c.TargetPinId),
-            cancellationToken: cancellationToken
-        ) ?? [];
-
-        // Kanaldaki NC/NO pinlerinden hangileri kablolu?
-        var wired_nc_no_pin_ids = new HashSet<Guid>();
-        foreach (var connection in wiredPinIds)
-        {
-            wired_nc_no_pin_ids.Add(connection.SourcePinId);
-            wired_nc_no_pin_ids.Add(connection.TargetPinId);
-        }
-
-        // Kablolu pinlerin fonksiyonları bulunur. Eğer sadece NO veya sadece NC kabloluysa, o pin ile devam edilir.
-        var wiredFunctions = nc_no_pins.Where(c => wired_nc_no_pin_ids.Contains(c.Id)).Select(c => c.Function).Distinct().ToList();
-        if (wiredFunctions.Count == 1)
-            return PolarityResolution.Resolved(wiredFunctions[0]);
-
-        if (wiredFunctions.Count > 1)
-            return PolarityResolution.Reject($"Hem NO hem NC pini kablolu; hangisinin yükü taşıdığı belirsiz. Kullanılmayan kabloyu kaldırın. Kanal {ioChannelId}");
-
-        return PolarityResolution.Reject($"Output pini çözülemedi. Kanal {ioChannelId}");
-    }
-
-    /// <summary> NC/NO çözümlemesinin sonucu. </summary>
-    private readonly record struct PolarityResolution(bool IsSuccess, PinFunction? Contact, string? Description)
-    {
-        public static PolarityResolution Resolved(PinFunction? contact) => new(true, contact, null);
-        public static PolarityResolution Reject(string description) => new(false, null, description);
-    }
-    #endregion 
 }

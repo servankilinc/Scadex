@@ -2,17 +2,17 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using Scadex.Signalization.Enums;
 using Scadex.Signalization.Model.Entities;
+using Scadex.Signalization.Services.Abstract;
 using static Scadex.Signalization.Enums.SignalEnums;
 
 namespace Scadex.Signalization.Engine;
 
 /// <summary>
-/// Kabin sireni: kabin basina TEK ve ORTAK. Oturumlar yalnizca TALEP acar/kapatir; fiziksel siren
+/// Kabin sireni: kabin basina TEK ve ORTAK siren kullanılır. Oturumlar yalnizca TALEP acar/kapatir; fiziksel siren
 /// <see cref="ReconcileSirenAsync"/> ile "en az bir acik talep var mi" sorusuna uzlastirilir.
 /// Talep: kartla kilitleme basarili VE dis kapinin ardindaki TUM aktif ic kapilar kilitliyse acilir
-/// (<see cref="AreAllInnerDoorsLockedAsync"/>) — baska bir kurum hala islem yapiyorsa (kilitsiz ic kapi varsa)
-/// acilmaz. Kapanma: <c>SirenDurationSec</c> dolunca, dis kapi kapaninca ya da ayni dis kapinin ardinda
-/// kilit yeniden acilinca.
+/// (<see cref="ISignalChannelStateService.AreAllInnerDoorsLockedAsync(Guid, CancellationToken)"/>) — baska bir kurum hala islem yapiyorsa (kilitsiz ic kapi varsa) acilmaz. 
+/// Kapanma: <c>SirenDurationSec</c> dolunca, dis kapi kapaninca ya da ayni dis kapinin ardinda kilit yeniden acilinca.
 /// </summary>
 public partial class OperatorSessionEngine
 {
@@ -38,9 +38,9 @@ public partial class OperatorSessionEngine
     }
 
     /// <summary>
-    /// Kabinin fiziksel sirenini oturum taleplerine uzlastirir: kabinde en az bir acik talep varsa siren acik,
-    /// yoksa kapali olmalidir. Istenen durum son bilinen durumdan (<see cref="SignalCabinetState.SirenIsOn"/>)
-    /// farkliysa siren kanalina TEK komut gonderilir; ayniysa komut gitmez
+    /// Kabinin fiziksel sirenini oturum taleplerine uzlastirir: kabinde en az bir acik talep varsa siren acik, yoksa kapali olmalidir.
+    /// Istenen durum siren kanalinin son degerinden (<see cref="ISignalChannelStateService"/>) farkliysa — ya da bilinmiyorsa — siren kanalina komut gonderilir; 
+    /// Modul disindan (cekirdek diyagramindan) acilan siren de kanalda gorunur: talep yoksa burada susturulur.
     /// </summary>
     private async Task ReconcileSirenAsync(SignalCabinet cabinet, OperatorSession? contextSession, OperatorSessionEvent? triggerEvent, CancellationToken cancellationToken)
     {
@@ -50,21 +50,12 @@ public partial class OperatorSessionEngine
         bool desired = await _db.OperatorSessions.AnyAsync(s =>
             s.CabinetId == cabinet.CabinetId &&
             s.SirenRequestedAtUtc != null &&
-            s.SirenReleasedAtUtc == null, 
+            s.SirenReleasedAtUtc == null,
             cancellationToken
         );
 
-        var state = await _db.CabinetStates.FirstOrDefaultAsync(s => s.CabinetId == cabinet.CabinetId, cancellationToken);
-        if (state == null)
-        {
-            state = new SignalCabinetState { 
-                CabinetId = cabinet.CabinetId, 
-                SirenIsOn = false 
-            };
-            _db.CabinetStates.Add(state);
-        }
-
-        if (state.SirenIsOn == desired)
+        var siren = await _signalizationChannelState.GetSirenStateAsync(cabinet, cancellationToken);
+        if (siren.IsOn == desired)
         {
             await _db.SaveChangesAsync(cancellationToken);
             return;
@@ -75,10 +66,6 @@ public partial class OperatorSessionEngine
 
         if (outcome.IsSuccess)
         {
-            state.SirenIsOn = desired;
-            state.SirenChangedAtUtc = now;
-            state.LastSirenCommandId = outcome.CommandId;
-
             if (triggerEvent != null)
                 triggerEvent.DeviceCommandId = outcome.CommandId;
         }

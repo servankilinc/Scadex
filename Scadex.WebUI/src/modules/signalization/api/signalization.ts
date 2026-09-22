@@ -9,6 +9,7 @@ import type { PaginationResponse } from '@/models/channelEvent';
 import type { SignalAuthorityDto, SignalAuthoritySaveRequest } from '../models/authority';
 import type { SignalCabinetDto, SignalCabinetOptionsDto, SignalCabinetSaveRequest } from '../models/cabinet';
 import type { SignalOperatorAuthorityRequest, SignalOperatorDto } from '../models/operator';
+import type { SignalCabinetCommandRequest, SignalCabinetCommandResultDto, SignalCabinetLiveDto } from '../models/virtual-cabinet';
 import type {
   OperatorSessionDetailDto,
   OperatorSessionListItemDto,
@@ -63,6 +64,21 @@ export async function getSignalCabinetOptions(cabinetId: string): Promise<Signal
 /** Yapılandırmanın TEK yazım yolu. Başarıda gövdesiz 200. */
 export async function saveSignalCabinet(cabinetId: string, request: SignalCabinetSaveRequest): Promise<void> {
   return http.put(`${CABINET_ROUTE}/${cabinetId}`, request);
+}
+
+// ─────────────────────────────────────────────────────────── sanal kabin
+
+/** Kabinin o anki durumu. Yapılandırılmamış kabinde de 200 (`isConfigured: false`); kabin yoksa 404. */
+export async function getSignalCabinetLive(cabinetId: string): Promise<SignalCabinetLiveDto> {
+  return http.get<SignalCabinetLiveDto>(`${CABINET_ROUTE}/${cabinetId}/live`);
+}
+
+/**
+ * Elle komut. **200 dönmesi komutun uygulandığı anlamına gelmez** — sonuç gövdedeki `status`'tedir.
+ * İstek SCADA cevaplayana (ya da kabinin komut zaman aşımı dolana) kadar bekler.
+ */
+export async function sendSignalCabinetCommand(cabinetId: string, request: SignalCabinetCommandRequest): Promise<SignalCabinetCommandResultDto> {
+  return http.post<SignalCabinetCommandResultDto>(`${CABINET_ROUTE}/${cabinetId}/command`, request);
 }
 
 // ─────────────────────────────────────────────────────────── oturumlar (salt okunur)

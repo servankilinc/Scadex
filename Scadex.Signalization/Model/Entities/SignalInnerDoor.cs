@@ -44,6 +44,5 @@ public class SignalInnerDoor : IEntity, IAuditableEntity, IActivatableEntity
     #region *** EF Core Navigation ***
     public virtual SignalOuterDoor? OuterDoor { get; set; }
     public virtual SignalAuthority? Authority { get; set; }
-    public virtual SignalInnerDoorState? State { get; set; }
     #endregion
 }
