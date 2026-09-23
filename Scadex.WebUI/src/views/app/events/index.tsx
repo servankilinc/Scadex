@@ -45,8 +45,8 @@ export default function ChannelEvents() {
 
   const activeCabinets = useMemo(() => cabinets.data?.filter(c => c.isActive) ?? [], [cabinets.data]);
 
-  // Türetme, efekt DEĞİL — `/admin/cameras` ve `/cameras` ile aynı kural:
-  // `useEffect` + `setState` listenin her gelişinde bir kaskad render tetikler.
+  // Türetme, efekt DEĞİL: `useEffect` + `setState` listenin her gelişinde bir
+  // kaskad render tetikler.
   const cabinetId = selectedCabinetId || activeCabinets[0]?.id || '';
 
   // Kanal listesi için diyagram anlık görüntüsü: kabindeki kanalları veren tek uç
@@ -203,7 +203,7 @@ export default function ChannelEvents() {
 
       {events.data && (
         <>
-          <div className='overflow-x-auto rounded-xl border'>
+          <div className='scrollbar-thin overflow-x-auto rounded-xl border'>
             <table className='w-full min-w-[42rem] text-sm'>
               <thead className='bg-muted/50 text-muted-foreground'>
                 <tr className='[&>th]:px-3 [&>th]:py-2 [&>th]:text-left [&>th]:font-medium'>

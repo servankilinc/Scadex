@@ -88,11 +88,18 @@ const router = createBrowserRouter([
                 // KONMADI: WebRTC/WHEP kodu, hiç kamera izlemeyen kullanıcının
                 // ana paketine girmemeli.
                 path: 'cameras',
-                handle: { crumb: 'Canlı İzleme' },
+                handle: { crumb: 'Kameralar' },
                 children: [
                   {
                     index: true,
                     lazy: async () => ({ Component: (await import('./views/app/cameras')).default })
+                  },
+                  {
+                    // Kabinin kameraları: izleme + tanım/CRUD (eski `/admin/cameras` buraya taşındı).
+                    // Statik `cabinet` bölümü `:cameraId`'den önce eşleşir.
+                    path: 'cabinet/:cabinetId',
+                    handle: { crumb: 'Kabin' },
+                    lazy: async () => ({ Component: (await import('./views/app/cameras/cabinet')).default })
                   },
                   {
                     path: ':cameraId',
@@ -119,7 +126,6 @@ const router = createBrowserRouter([
                   { path: 'users', Component: AdminViews.Users, handle: { crumb: 'Kullanıcılar' } },
                   { path: 'roles', Component: AdminViews.Roles, handle: { crumb: 'Roller' } },
                   { path: 'templates', Component: AdminViews.ComponentTemplates, handle: { crumb: 'Şablonlar' } },
-                  { path: 'cameras', Component: AdminViews.Cameras, handle: { crumb: 'Kameralar' } },
                   { path: 'settings', Component: AdminViews.Settings, handle: { crumb: 'Ayarlar' } }
                 ]
               }

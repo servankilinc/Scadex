@@ -1,8 +1,9 @@
 import { useState, type ReactNode } from 'react';
-import { Link, useNavigate, useParams } from 'react-router';
+import { Link, useParams } from 'react-router';
 import { ArrowLeftIcon, CameraIcon, DoorClosedIcon, DoorOpenIcon, HelpCircleIcon, LightbulbIcon, LockIcon, LockOpenIcon, SirenIcon } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { CameraViewerDialog } from '@/components/camera/camera-viewer-dialog';
 import { Skeleton } from '@/components/ui/skeleton';
 import { cn, formatUtcDateTime, toUtcDate } from '@/lib/utils';
 import { CabinetShell } from '../../components/virtual-cabinet/cabinet-shell';
@@ -30,13 +31,15 @@ import { SignalCabinetOutput, type SignalInnerDoorLiveDto, type SignalOuterDoorL
  */
 export default function VirtualCabinetDetail() {
   const { cabinetId = '', outerDoorId = '' } = useParams<{ cabinetId: string; outerDoorId: string }>();
-  const navigate = useNavigate();
 
   const { data, isPending, error } = useSignalCabinetLive(cabinetId);
   useVirtualCabinetLive(cabinetId);
   const command = useSignalCabinetCommand(cabinetId);
 
   const [target, setTarget] = useState<CommandTarget | null>(null);
+  // Kameraya kabin ekranından tıklanınca `/cameras/:id`'ye gitmek yerine burada bir diyalog
+  // açılır — operatör bu kabin görünümünden ayrılmadan izler, gride "dönmesi" gerekmez.
+  const [activeCameraId, setActiveCameraId] = useState<string | null>(null);
 
   const outer = data?.outerDoors.find(door => door.id === outerDoorId);
 
@@ -136,7 +139,7 @@ export default function VirtualCabinetDetail() {
         <div className='mx-auto aspect-square w-full max-w-[min(100%,calc(100vh-14rem))] lg:mx-0'>
           <CabinetShell
             className='h-full w-full'
-            camera={<CameraFigure cameraName={outer.cameraName} onOpen={outer.cameraId ? () => navigate(`/cameras/${outer.cameraId}`) : undefined} />}
+            camera={<CameraFigure cameraName={outer.cameraName} onOpen={outer.cameraId ? () => setActiveCameraId(outer.cameraId) : undefined} />}
             led={<LedFigure isOn={outer.lightIsOn === true} onActivate={outer.lightIoChannelId ? selectLight : undefined} />}
             siren={<SirenFigure isOn={data.sirenIsOn === true} onActivate={data.sirenIoChannelId ? selectSiren : undefined} />}
             indoors={<IndoorGrid doors={outer.innerDoors} onSelect={selectInnerDoor} />}
@@ -167,7 +170,7 @@ export default function VirtualCabinetDetail() {
             value={outer.cameraName ?? 'Tanımlı değil'}
             action={
               outer.cameraId ? (
-                <Button size='xs' variant='outline' nativeButton={false} render={<Link to={`/cameras/${outer.cameraId}`} />}>
+                <Button size='xs' variant='outline' onClick={() => setActiveCameraId(outer.cameraId)}>
                   Canlı izle
                 </Button>
               ) : undefined
@@ -186,6 +189,7 @@ export default function VirtualCabinetDetail() {
       </div>
 
       <CommandDialog target={target} isPending={command.isPending} onClose={() => setTarget(null)} onSend={send} />
+      <CameraViewerDialog cameraId={activeCameraId} onOpenChange={open => setActiveCameraId(open ? activeCameraId : null)} />
     </div>
   );
 }

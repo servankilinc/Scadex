@@ -38,7 +38,7 @@ export function CabinetShell({ camera, led, siren, indoors, className }: Cabinet
       <path d='M160 60L200 100V700L160 740V60Z' fill='#4A5568' />
       <path d='M640 60L600 100V700L640 740V60Z' fill='#2D3748' />
       <path d='M600 100H200V700H600V100Z' fill='#404B5C' />
-
+ 
       {/* ── Cihazlar ────────────────────────────────────────────────────── */}
       {camera}
 
@@ -77,20 +77,65 @@ export function CabinetShell({ camera, led, siren, indoors, className }: Cabinet
       />
 
       <defs>
+        {/* Fırçalanmış çelik: düz 3 duraklı gradyan yerine art arda açık/koyu bantlar —
+            metal yüzeyde ışığın farklı açılarda yansımasını taklit eder. */}
         <linearGradient id='vc-body' x1='140' y1='40' x2='660' y2='40' gradientUnits='userSpaceOnUse'>
-          <stop stopColor='#788496' />
-          <stop offset='0.5' stopColor='#9DA9BB' />
-          <stop offset='1' stopColor='#788496' />
+          <stop offset='0' stopColor='#5E6B7D' />
+          <stop offset='0.12' stopColor='#8996A8' />
+          <stop offset='0.22' stopColor='#6B7889' />
+          <stop offset='0.38' stopColor='#AEB9C8' />
+          <stop offset='0.5' stopColor='#C7D0DC' />
+          <stop offset='0.62' stopColor='#9CA9BB' />
+          <stop offset='0.78' stopColor='#7D8A9C' />
+          <stop offset='0.9' stopColor='#9AA7B9' />
+          <stop offset='1' stopColor='#5E6B7D' />
         </linearGradient>
 
+        {/* Gövdenin ana hatlarına klonlanmış clip: parlaklık şeridinin gövde dışına taşmaması için. */}
+        <clipPath id='vc-body-clip'>
+          <path d='M656 40H144C141.791 40 140 41.7909 140 44V756C140 758.209 141.791 760 144 760H656C658.209 760 660 758.209 660 756V44C660 41.7909 658.209 40 656 40Z' />
+        </clipPath>
+
+        {/* İki diyagonal ışık şeridi — cam/parlak metal yüzeylerde görülen tipik yansıma deseni. */}
+        <linearGradient id='vc-sheen' x1='140' y1='40' x2='660' y2='760' gradientUnits='userSpaceOnUse'>
+          <stop offset='0' stopColor='white' stopOpacity='0' />
+          <stop offset='0.32' stopColor='white' stopOpacity='0' />
+          <stop offset='0.4' stopColor='white' stopOpacity='0.3' />
+          <stop offset='0.48' stopColor='white' stopOpacity='0' />
+          <stop offset='0.6' stopColor='white' stopOpacity='0' />
+          <stop offset='0.66' stopColor='white' stopOpacity='0.16' />
+          <stop offset='0.73' stopColor='white' stopOpacity='0' />
+          <stop offset='1' stopColor='white' stopOpacity='0' />
+        </linearGradient>
+
+        {/* İç panel: tek düz renk yerine hafif üst-alt gradyanı — derinlik hissi verir. */}
+        <linearGradient id='vc-panel' x1='200' y1='100' x2='200' y2='700' gradientUnits='userSpaceOnUse'>
+          <stop offset='0' stopColor='#333D4D' />
+          <stop offset='0.5' stopColor='#434F63' />
+          <stop offset='1' stopColor='#333D4D' />
+        </linearGradient>
+
+        {/* Vida başlığı: merkezi ışık noktası + koyu kenar, gömme vida görünümü. */}
+        <radialGradient id='vc-screw' cx='0.35' cy='0.32' r='0.8'>
+          <stop offset='0' stopColor='#E7ECF3' />
+          <stop offset='0.5' stopColor='#94A3B8' />
+          <stop offset='1' stopColor='#333E4F' />
+        </radialGradient>
+
         <linearGradient id='vc-door-left' x1='40' y1='20' x2='140' y2='20' gradientUnits='userSpaceOnUse'>
-          <stop stopColor='#657285' />
+          <stop offset='0' stopColor='#5A6779' />
+          <stop offset='0.35' stopColor='#7B889B' />
+          <stop offset='0.55' stopColor='#98A5B7' />
+          <stop offset='0.75' stopColor='#7B889B' />
           <stop offset='1' stopColor='#8895A7' />
         </linearGradient>
 
         <linearGradient id='vc-door-right' x1='660' y1='20' x2='760' y2='20' gradientUnits='userSpaceOnUse'>
-          <stop stopColor='#8895A7' />
-          <stop offset='1' stopColor='#657285' />
+          <stop offset='0' stopColor='#8895A7' />
+          <stop offset='0.25' stopColor='#7B889B' />
+          <stop offset='0.45' stopColor='#98A5B7' />
+          <stop offset='0.65' stopColor='#7B889B' />
+          <stop offset='1' stopColor='#5A6779' />
         </linearGradient>
 
         <linearGradient id='vc-led-plate' x1='408' y1='54' x2='408' y2='204' gradientUnits='userSpaceOnUse'>

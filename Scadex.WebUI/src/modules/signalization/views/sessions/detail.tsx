@@ -154,7 +154,7 @@ function DoorsCard({ session }: { session: OperatorSessionDetailDto }) {
         {session.doors.length === 0 ? (
           <p className='text-sm text-muted-foreground'>Bu işlemde hiçbir iç kapıya dokunulmadı.</p>
         ) : (
-          <div className='overflow-x-auto'>
+          <div className='scrollbar-thin overflow-x-auto'>
             <table className='w-full min-w-[30rem] text-sm'>
               <thead className='text-muted-foreground'>
                 <tr className='[&>th]:px-2 [&>th]:py-1.5 [&>th]:text-left [&>th]:font-medium'>

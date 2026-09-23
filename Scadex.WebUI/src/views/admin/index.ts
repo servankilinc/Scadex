@@ -1,5 +1,4 @@
 import Home from './home';
-import Cameras from './cameras';
 import Companies from './companies';
 import ComponentTemplates from './component-templates';
 import Roles from './roles';
@@ -8,7 +7,6 @@ import Users from './users';
 
 export default {
   Home,
-  Cameras,
   Companies,
   ComponentTemplates,
   Roles,

@@ -3,7 +3,6 @@ import { Link, useLocation, useNavigate } from 'react-router';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   Building2Icon,
-  CameraIcon,
   CheckIcon,
   ChevronsUpDown,
   CpuIcon,
@@ -69,14 +68,13 @@ type NavItem = ModuleNavItem;
 const NAV_ITEMS: NavItem[] = [
   { title: 'Kabinler', url: '/cabinets', icon: CpuIcon },
   { title: 'Olay Geçmişi', url: '/events', icon: HistoryIcon },
-  // Canlı izleme, kamera TANIMINDAN ayrı bir madde: biri izlemek, diğeri
-  // (/admin/cameras) tanımlamak için.
-  { title: 'Canlı İzleme', url: '/cameras', icon: VideoIcon },
+  // Canlı izleme kamera tanımını da (ekle/düzenle) kapsar — ayrı bir "Kameralar"
+  // yönetim ekranı yok (eski /admin/cameras, 2026-09-23'te buraya taşındı).
+  { title: 'Kameralar', url: '/cameras', icon: VideoIcon },
   { title: 'Firmalar', url: '/admin/companies', icon: Building2Icon },
   { title: 'Kullanıcılar', url: '/admin/users', icon: UsersIcon },
   { title: 'Roller', url: '/admin/roles', icon: ShieldIcon },
   { title: 'Şablonlar', url: '/admin/templates', icon: ShapesIcon },
-  { title: 'Kameralar', url: '/admin/cameras', icon: CameraIcon },
   { title: 'Ayarlar', url: '/admin/settings', icon: SettingsIcon }
 ];
 

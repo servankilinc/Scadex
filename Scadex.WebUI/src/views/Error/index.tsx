@@ -54,7 +54,7 @@ function RouteErrorPage() {
           <Button render={<Link to='/' />}>Ana sayfaya dön</Button>
         </div>
         {import.meta.env.DEV && error instanceof Error && error.stack && (
-          <pre className='bg-muted text-muted-foreground max-h-64 overflow-auto rounded-md p-3 text-left text-xs'>{error.stack}</pre>
+          <pre className='bg-muted text-muted-foreground scrollbar-thin max-h-64 overflow-auto rounded-md p-3 text-left text-xs'>{error.stack}</pre>
         )}
       </div>
     </div>

@@ -44,7 +44,7 @@ export default function AppLayout() {
               tabanli yukseklik (h-full / calc(100svh-4rem)) kullanmak zorunda
               kalmasin. Yuzde yukseklik, ust kapsayici yalnizca min-h tasidiginda
               guvenilir cozulmuyor ve canvas 0px yukseklikte render olabiliyor. */}
-          <main className='flex min-h-0 flex-1 flex-col overflow-auto'>
+          <main className='flex min-h-0 flex-1 flex-col overflow-auto scrollbar-thin'>
             <Outlet />
           </main>
         </div>

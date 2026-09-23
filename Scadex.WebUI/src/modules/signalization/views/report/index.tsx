@@ -165,7 +165,7 @@ function BreakdownCard({ title, description, nameHeader, rows }: { title: string
               </BarChart>
             </ChartContainer>
 
-            <div className='overflow-x-auto rounded-lg border'>
+            <div className='scrollbar-thin overflow-x-auto rounded-lg border'>
               <table className='w-full min-w-[32rem] text-sm'>
                 <thead className='bg-muted/50 text-muted-foreground'>
                   <tr className='[&>th]:px-3 [&>th]:py-2 [&>th]:text-left [&>th]:font-medium'>

@@ -14,8 +14,11 @@ import { cn } from '@/lib/utils';
  * başına ~4 Mbps demek ve kabinlerin ağırlıklı olarak GSM ile bağlandığı bir
  * kurulumda bu hattı doldurur. Ana akım yalnızca tek kamera açıldığında
  * (detay ekranı) kullanılır.
+ *
+ * `className`: kutucuk bir kartın parçası olarak kullanılınca kendi kenarlığı/köşesi kapatılır
+ * (bkz. `views/app/cameras/cabinet.tsx`).
  */
-export function CameraTile({ camera }: { camera: CameraDto }) {
+export function CameraTile({ camera, className }: { camera: CameraDto; className?: string }) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const [visible, setVisible] = useState(false);
@@ -41,7 +44,7 @@ export function CameraTile({ camera }: { camera: CameraDto }) {
   const stream = useCameraStream(videoRef, camera, StreamProfile.Sub, { enabled: visible });
 
   return (
-    <div ref={containerRef} className='group relative aspect-video overflow-hidden rounded-xl border bg-black'>
+    <div ref={containerRef} className={cn('group relative aspect-video overflow-hidden rounded-xl border bg-black', className)}>
       <video
         ref={videoRef}
         autoPlay
@@ -66,7 +69,7 @@ export function CameraTile({ camera }: { camera: CameraDto }) {
 
       <div className='absolute inset-x-0 bottom-0 flex items-center justify-between gap-2 bg-gradient-to-t from-black/80 to-transparent p-2 opacity-0 transition-opacity group-hover:opacity-100'>
         <span className='truncate text-xs text-white/70'>{camera.ipAddress}</span>
-        <Button size='sm' variant='secondary' render={<Link to={`/cameras/${camera.id}`} />}>
+        <Button size='sm' variant='secondary' nativeButton={false} render={<Link to={`/cameras/${camera.id}`} />}>
           Detay
         </Button>
       </div>

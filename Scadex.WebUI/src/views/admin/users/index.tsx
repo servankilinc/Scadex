@@ -53,13 +53,7 @@ export default function Users() {
       <div className='grid gap-3 sm:grid-cols-2 lg:grid-cols-3'>
         {isPending && Array.from({ length: 3 }, (_, i) => <Skeleton key={i} className='h-40 w-full rounded-xl' />)}
         {data?.map(user => (
-          <UserCard
-            key={user.id}
-            user={user}
-            isSelf={user.id === currentUser?.id}
-            onEdit={() => setEditing(user)}
-            onRoles={() => setAssigning(user)}
-          />
+          <UserCard key={user.id} user={user} onEdit={() => setEditing(user)} onRoles={() => setAssigning(user)} />
         ))}
       </div>
 
@@ -80,7 +74,7 @@ export default function Users() {
   );
 }
 
-function UserCard({ user, isSelf, onEdit, onRoles }: { user: UserDetailDto; isSelf: boolean; onEdit: () => void; onRoles: () => void }) {
+function UserCard({ user, onEdit, onRoles }: { user: UserDetailDto; onEdit: () => void; onRoles: () => void }) {
   return (
     <Card className={user.isActive ? undefined : 'opacity-60'}>
       <CardHeader>
@@ -98,10 +92,9 @@ function UserCard({ user, isSelf, onEdit, onRoles }: { user: UserDetailDto; isSe
         {user.identityCardId && <p className='truncate text-xs text-muted-foreground'>Kart: {user.identityCardId}</p>}
 
         {/* Pasif kayitlar listede GORUNUR — geri alinabilsin diye. */}
-        {(isSelf || !user.isActive) && (
+        {!user.isActive && (
           <div className='flex flex-wrap gap-1.5'>
-            {isSelf && <Badge variant='outline'>Siz</Badge>}
-            {!user.isActive && <Badge variant='secondary'>Pasif</Badge>}
+            <Badge variant='secondary'>Pasif</Badge>
           </div>
         )}
 

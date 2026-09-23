@@ -184,8 +184,11 @@ const LABEL_OFFSET: Record<HandleSide, string> = {
   [HandleSide.Bottom]: '0 -120%'
 };
 
-/** Durum rozeti. `null` = hiç telemetri alınmadı; `Offline` ile AYNI ŞEY DEĞİL. */
-function StatusDot({ statusId }: { statusId: DeviceStatus | null }) {
+/**
+ * Durum rozeti. `null` = hiç telemetri alınmadı; `Offline` ile AYNI ŞEY DEĞİL. Kabin kartları da
+ * (`views/app/cabinets`) aynı renk sözleşmesi için bunu kullanır.
+ */
+export function StatusDot({ statusId }: { statusId: DeviceStatus | null }) {
   if (statusId == null) {
     return <span className='size-1.5 shrink-0 rounded-full bg-current opacity-25' title='Telemetri yok' />;
   }

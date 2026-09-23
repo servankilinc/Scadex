@@ -247,7 +247,7 @@ export function TemplatePinEditor({
 
         {/* Yakinlastirilmis kutu tasabilir; kaydirma kabi onu sayfa boyunu
             bozmadan gezilebilir kiliyor. */}
-        <div className='overflow-auto rounded-md border' style={{ maxHeight: PREVIEW_VIEWPORT_MAX_HEIGHT }}>
+        <div className='scrollbar-thin overflow-auto rounded-md border' style={{ maxHeight: PREVIEW_VIEWPORT_MAX_HEIGHT }}>
           <div
             ref={boxRef}
             onClick={addPinAt}

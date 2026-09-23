@@ -198,17 +198,24 @@ export function ChartBarMixed() {
   )
 }
 
+/**
+ * Sütun sayısı ekrana değil KABIN genişliğine göre kırılır (container query): kenar çubuğu açıkken içerik
+ * alanı ekrandan ~256 px dardır ve `md:grid-cols-4` 768 piksellik ekranda kartları ~100 piksele sıkıştırıyordu.
+ * Dar: tek sütun · orta: alan grafiği tam satır, diğer ikisi yan yana · geniş: dört sütun.
+ */
 export function DashboardMetrics() {
   return (
-    <div className="grid grid-cols-1 md:grid-cols-4 gap-4 w-full mt-4">
-      <div className="col-span-1 md:col-span-2">
-        <ChartAreaGradient />
-      </div>
-      <div className="col-span-1">
-        <ChartRadarMultiple />
-      </div>
-      <div className="col-span-1">
-        <ChartBarMixed />
+    <div className="@container w-full mt-4">
+      <div className="grid grid-cols-1 gap-4 @xl:grid-cols-2 @4xl:grid-cols-4">
+        <div className="col-span-1 @xl:col-span-2">
+          <ChartAreaGradient />
+        </div>
+        <div className="col-span-1">
+          <ChartRadarMultiple />
+        </div>
+        <div className="col-span-1">
+          <ChartBarMixed />
+        </div>
       </div>
     </div>
   )
