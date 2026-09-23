@@ -35,3 +35,8 @@ export const busyCabinetQueries: CabinetIdsQueryOptions[] = enabledModules.flatM
 export const cabinetPanelSections = enabledModules.flatMap(module =>
   module.CabinetPanelSection ? [{ key: module.key, Component: module.CabinetPanelSection }] : []
 );
+
+/** Açık modüllerin kabin detay paneli EN ÜST eylemleri — ana sayfa paneli okur. Statik: liste çalışırken değişmez. */
+export const cabinetPanelTopActions = enabledModules.flatMap(module =>
+  module.CabinetPanelTopAction ? [{ key: module.key, Component: module.CabinetPanelTopAction }] : []
+);

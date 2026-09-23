@@ -43,6 +43,13 @@ export interface AppModule {
    * Üst ayırıcısını (`border-t`) bölümün kendisi çizer — çekirdek içeriği bilmez.
    */
   CabinetPanelSection?: ComponentType<CabinetPanelSectionProps>;
+  /**
+   * Ana sayfa haritasındaki kabin detay panelinin EN ÜSTÜNE (künyeden — Firma/Durum/… — önce)
+   * eklenen eylem. `CabinetPanelSection`'dan farklı olarak devam eden bir işleme/duruma bağlı
+   * OLMAYAN, panelin en sık kullanılan kısayolu için (örn. sanal kabin ekranına git). `React.lazy`
+   * ile verilmeli; çekirdek onu `Suspense` içinde render eder.
+   */
+  CabinetPanelTopAction?: ComponentType<CabinetPanelSectionProps>;
 }
 
 /** Sonucu kabin kimliği listesi olan sorgu. Ham veri modülün kendi DTO'sudur; `select` onu kimliklere indirger. */

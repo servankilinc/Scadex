@@ -1,5 +1,5 @@
 import { useCallback, useState, type PointerEvent as ReactPointerEvent } from 'react';
-import { BaseEdge, EdgeLabelRenderer, getSmoothStepPath, useReactFlow, type EdgeProps } from '@xyflow/react';
+import { BaseEdge, EdgeLabelRenderer, getSmoothStepPath, useReactFlow, useStore, type EdgeProps } from '@xyflow/react';
 import { useDiagramCanvasContext } from '@/lib/diagram/canvas-context';
 import type { DiagramEdge } from '@/lib/diagram/to-rf-edges';
 import { buildWaypointPath, insertWaypoint, moveWaypoint, removeWaypoint, segmentMidpoints, waypointPathMidpoint } from '@/lib/diagram/waypoints';
@@ -36,6 +36,12 @@ export function OrthogonalEdge({
 }: EdgeProps<DiagramEdge>) {
   const context = useDiagramCanvasContext();
   const { screenToFlowPosition } = useReactFlow();
+  // Kırılma noktası sürüklemesi canvas'ın kendi snapGrid'ini kullanır ama
+  // yarısıyla: tam grid adımı (ör. 20px) düğüm sürüklemek için makul, kırılma
+  // noktası ince ayarı için fazla kaba — art arda basamaklar arasında göze
+  // batan bir sıçrama bırakıyordu.
+  const snapGrid = useStore(state => state.snapGrid);
+  const snapToGrid = useStore(state => state.snapToGrid);
 
   /**
    * Sürükleme sırasındaki geçici konum.
@@ -68,12 +74,15 @@ export function OrthogonalEdge({
 
   const toFlowPoint = useCallback(
     (event: { clientX: number; clientY: number }): PointDto => {
-      const position = screenToFlowPosition({ x: event.clientX, y: event.clientY });
+      const position = screenToFlowPosition(
+        { x: event.clientX, y: event.clientY },
+        { snapToGrid, snapGrid: [snapGrid[0] / 2, snapGrid[1] / 2] }
+      );
       // Tam sayıya yuvarlanıyor: kablo köşelerinin 312.7431 gibi bir koordinatta
       // durması ne okunabilir ne de yeniden üretilebilir.
       return { x: Math.round(position.x), y: Math.round(position.y) };
     },
-    [screenToFlowPosition]
+    [screenToFlowPosition, snapGrid, snapToGrid]
   );
 
   const editable = selected === true && context != null && data != null;

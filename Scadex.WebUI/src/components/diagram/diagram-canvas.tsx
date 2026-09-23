@@ -1,4 +1,4 @@
-import { useCallback, type DragEvent } from 'react';
+import { useCallback, type CSSProperties, type DragEvent } from 'react';
 import {
   Background,
   BackgroundVariant as RfBackgroundVariant,
@@ -8,6 +8,7 @@ import {
   ReactFlow,
   SelectionMode,
   useReactFlow,
+  useViewport,
   type EdgeTypes,
   type NodeTypes
 } from '@xyflow/react';
@@ -44,6 +45,22 @@ const VARIANT_MAP: Record<BackgroundVariant, RfBackgroundVariant | null> = {
   [BackgroundVariant.Cross]: RfBackgroundVariant.Cross
 };
 
+/**
+ * RF'in `<Background>` bileşeni `gap`'i zaten zoom'la çarpıp ekran pikseline
+ * çeviriyor — yani dünya biriminde SABİT bir `gap` uzaklaştıkça ekranda
+ * sürekli küçülür. Çok uzaklaşınca nokta/çizgiler birbirine değip dokuyu
+ * "kirli" bir gri kütleye çeviriyordu. Figma/Illustrator'ın yaptığı gibi ekran
+ * karşılığı bir alt sınırın altına düşünce dünya boşluğunu ikiye katlıyoruz —
+ * desen daha seyrek ama HER ZAMAN okunabilir kalıyor.
+ */
+const MIN_SCREEN_GRID_GAP = 8;
+
+function adaptiveGridGap(gridSize: number, zoom: number): number {
+  let gap = gridSize;
+  while (gap * zoom < MIN_SCREEN_GRID_GAP) gap *= 2;
+  return gap;
+}
+
 interface DiagramCanvasProps {
   editor: DiagramEditor;
   settings: DiagramCanvasSettingsDto;
@@ -57,8 +74,12 @@ export function DiagramCanvas({ editor, settings, devices }: DiagramCanvasProps)
   const theme = useAppSelector(s => s.theme.activeTheme);
   const mode = useAppSelector(s => s.diagram.mode);
   const { screenToFlowPosition } = useReactFlow();
+  // Yalnızca zoom lazım ama useViewport x/y'yi de verir; RF zaten tek bir
+  // store dilimine abone ediyor, ayrı bir seçici yazmaya değmez.
+  const { zoom } = useViewport();
 
   const variant = VARIANT_MAP[settings.backgroundVariant];
+  const gridGap = adaptiveGridGap(settings.gridSize, zoom);
 
   const onDragOver = useCallback((event: DragEvent) => {
     // preventDefault ÇAĞRILMAZSA tarayıcı drop'u hiç tetiklemez.
@@ -129,8 +150,21 @@ export function DiagramCanvas({ editor, settings, devices }: DiagramCanvasProps)
       snapGrid={[settings.gridSize, settings.gridSize]}
       fitView
       proOptions={{ hideAttribution: false }}
-      style={{ backgroundColor: settings.backgroundColor }}>
-      {variant && <Background variant={variant} gap={settings.gridSize} color={settings.gridColor} />}
+      // Renk DOĞRUDAN backgroundColor OLARAK verilmiyor: RF kök elemanı zaten
+      // renk moduna göre kendi arkaplanını taşıyor (`.react-flow.dark` →
+      // koyu varsayılan). Satır içi `backgroundColor` bunu HER ZAMAN ezerdi —
+      // desen kapalıyken maskeleyecek bir şey kalmayınca dark modda da kabin
+      // ayarındaki (çoğu kabinde hâlâ sunucu varsayılanı beyaz) renk çıplak
+      // görünürdü. Değişken yalnızca AÇIK temada uygulanır — bkz. styles/index.css
+      // `.react-flow:not(.dark)`.
+      style={{ '--diagram-canvas-bg': settings.backgroundColor, '--diagram-grid-color': settings.gridColor } as CSSProperties}>
+      {/* `color` prop'u BİLEREK verilmiyor: RF onu satır içi bir CSS
+          değişkenine yazar ve bu HER ZAMAN kazanır — koyu temada da kabin
+          ayarının açık grisi (sunucu varsayılanı #E2E8F0, beyaz zemin için
+          düşünülmüş) aynen kalır ve koyu zemin üstünde çok yüksek kontrastlı,
+          "kirli" görünürdü. Renk yukarıdaki `--diagram-grid-color`'dan yalnızca
+          AÇIK temada uygulanıyor — bkz. styles/index.css. */}
+      {variant && <Background variant={variant} gap={gridGap} />}
       <Controls showInteractive={false} />
       <MiniMap pannable zoomable nodeColor={node => (node.type === 'annotation' ? '#cbd5e1' : miniMapColor(node.id, devices))} />
     </ReactFlow>

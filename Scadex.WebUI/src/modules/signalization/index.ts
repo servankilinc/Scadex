@@ -93,5 +93,7 @@ export const signalizationModule: AppModule = {
   busyCabinetsQuery: busyCabinetsQueryOptions(),
   // Haritadaki kabin detay paneli: o kabinde devam eden / en son biten işlem ve sahadaki operatörler.
   // `lazy` — kullanıcı bir kabinin detayını açana dek indirilmez.
-  CabinetPanelSection: lazy(() => import('./components/cabinet-session-section'))
+  CabinetPanelSection: lazy(() => import('./components/cabinet-session-section')),
+  // Haritadaki kabin detay panelinin EN ÜSTÜ: sanal kabin ekranına kısayol (künyeden önce gelir).
+  CabinetPanelTopAction: lazy(() => import('./components/cabinet-virtual-link'))
 };

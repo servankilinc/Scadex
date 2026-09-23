@@ -287,7 +287,8 @@ export function TemplatePinEditor({
                 onPointerCancel={event => endDrag(event, index)}
                 title={`${pin.name} — sürükleyerek taşıyın`}
                 className={cn(
-                  'absolute size-3 cursor-grab rounded-full border-2 border-white shadow active:cursor-grabbing',
+                  // z-10: pin gorselin altinda kalmasın diye var
+                  'absolute z-10 size-3 cursor-grab rounded-full border-2 border-white shadow active:cursor-grabbing',
                   index === selectedIndex ? 'bg-sky-500 ring-2 ring-sky-500/40' : 'bg-slate-600'
                 )}
                 // Canvas ile AYNI fonksiyon: iki eksen birden. Yerleşim iki yere

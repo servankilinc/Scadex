@@ -1,5 +1,5 @@
 import { Link } from 'react-router';
-import { CameraIcon, LayoutGridIcon, SirenIcon } from 'lucide-react';
+import { CameraIcon, SirenIcon } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -58,15 +58,6 @@ export default function CabinetSessionSection({ cabinetId }: CabinetPanelSection
       ) : (
         <p className='text-xs text-muted-foreground'>Bu kabinde kayıtlı operatör işlemi yok.</p>
       )}
-
-      {/*
-        Oturum bloklarının DIŞINDA: sanal kabin ekranı devam eden bir işleme bağlı değil, kabinde hiç işlem olmasa da
-        açılabilmeli. Buton modül kodunda olduğu için çekirdek panele dokunmadan "yalnızca sinyalizasyonda görünür".
-      */}
-      <Button size='xs' variant='secondary' className='w-full' nativeButton={false} render={<Link to={`/signalization/virtual-cabinet/${cabinetId}`} />}>
-        <LayoutGridIcon />
-        Sanal Kabin
-      </Button>
     </section>
   );
 }

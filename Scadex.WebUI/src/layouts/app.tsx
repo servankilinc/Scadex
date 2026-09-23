@@ -17,9 +17,19 @@ import { enabledModules } from '@/modules';
  */
 export default function AppLayout() {
   return (
-    <SidebarProvider>
+    // h-svh: shadcn'in kendi varsayılanı `min-h-svh` — bir TABAN, TAVAN değil.
+    // Altındaki HİÇBİR `min-h-0`/`flex-1` zinciri (aşağıdaki `<main
+    // overflow-auto>` dahil) bir üst sınır olmadan bir şeyi kısıtlayamaz:
+    // içerik uzadıkça kök konteyner de büyür, o da <body>'yi büyütüp tarayıcı
+    // sayfa scroll'unu çıkarır — `<main>`'in `overflow-auto`'su hiç devreye
+    // girmez. `h-svh` gerçek bir tavan koyuyor; `min-h-0` zinciri (aşağıda +
+    // `SidebarInset` + diyagram bileşenleri) ancak BUNUNLA anlam kazanıyor.
+    <SidebarProvider className='h-svh'>
       <AppSidebar />
-      <SidebarInset>
+      {/* min-h-0: shadcn'in kendi `SidebarInset`'i bunu vermiyor (sadece
+          `flex-1 flex-col`) — yukarıdaki tavan olsa bile BURADA eksik olunca
+          içerik yine doğal boyutuna büyüyüp taşardı. */}
+      <SidebarInset className='min-h-0'>
         {/* min-h-0: diyagram gibi tam yukseklik isteyen sayfalar icin sart;
             aksi halde flex cocugu icerigi kadar buyuyup canvas'i tasirir. */}
         <div className='flex min-h-0 flex-1 flex-col'>

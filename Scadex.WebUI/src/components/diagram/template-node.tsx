@@ -129,7 +129,7 @@ function PinHandle({ pin }: { pin: DiagramPinDto }) {
         // pin kenarda değil, çizimin ortasındaki bir klemensin üzerinde
         // durabiliyor — RF'in "sağ kenar" konumlandırması orada yanlış olurdu.
         style={pinPlacementStyle(pin)}
-        className='size-2! border! border-slate-600! bg-slate-200!'
+        className='z-10 size-2! border! border-slate-600! bg-slate-200!'
         title={`${pin.name}${pin.channelNumber != null ? ` (CH${pin.channelNumber})` : ''}`}
       />
       <PinValue pin={pin} />
