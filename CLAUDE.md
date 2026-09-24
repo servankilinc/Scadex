@@ -210,13 +210,15 @@ Bunlar tek bir dosyaya bakarak görülemez; gerekçeleri PROJECT_OVERVIEW.md §5
 - **Kabin durumu ve cihaz CANLILIK durumu yalnızca `ICabinetStatusService` üzerinden yazılır
   (2026-09-24).** `Cabinet.DeviceStatusId`, `Device.DeviceStatusId` / `LastSeen` /
   `LastConnectionError`'a başka yerden dokunmayın; kanıtı (yoklama, SCADA teması, komut
-  `NoResponse`) servise verin. Kabin durumu = cihaz katkılarının en kötüsü: **kabin `Offline`'ı
-  yalnızca kontrol modülünden gelir**; diğer cihazların ve izlenen kameraların `Offline`'ı kabine
-  `Warning` olarak yansır (`CabinetContribution`). SCADA canlılığı **kontrol modülünde** tutulur
+  `NoResponse`) servise verin. Kabin durumu = cihaz katkılarının en kötüsü ve **tabanı kontrol
+  modülüdür**: kabini Online'a da Offline'a da yalnızca kontrol modülü çeker; diğer cihazların ve
+  izlenen kameraların `Offline`'ı kabine `Warning` olarak yansır, `Online`'ları hiç katılmaz
+  (`CabinetContribution`). Durum tabloları: PROJECT_OVERVIEW.md § 5.3 "Canlılık". SCADA canlılığı **kontrol modülünde** tutulur
   (kanıt kart başınadır): her ingest (tanımsız kanal dahil), kart okuma ve başarılı komut temas
   sayılır; giriş modülüne canlılık yazmayın. Başarısız sonda **ilk başarısızlıkta** Offline yapar
   (kamerayla aynı); `NoResponse` anında. **`LastSeen`'e bakıp Offline yargısına varılmaz** — yalnızca
-  izlemesi kapalı cihaz/kameraların 23 saatten eski Online/Offline'ı taramada `null`'a ("Bilinmiyor") çekilir
+  izlemesi kapalı cihaz/kameraların `LastSeen`'i dolu ve 23 saatten eski Online/Offline'ı taramada `null`'a
+  ("Bilinmiyor") çekilir; boş `LastSeen` eski sayılmaz (hiç görülmemiş kartın `NoResponse` Offline'ı silinmesin)
   (izlenenleri katmayın: yoklamayla her turda Bilinmiyor ↔ Offline salınırlar),
   23 saat bilerek sabittir. Canlılık yalnızca Online/Offline/`null`'a karar verir,
   Warning/Critical/Maintenance korunur. Sinyalizasyon modülü kabin durumuna **bilerek**

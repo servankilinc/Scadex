@@ -379,45 +379,88 @@ yanıtımızı beklerken aynı kartın web sunucusunu çağırmak tek iş parça
   (`RecordScadaUnreachableAsync`), `Failed` → dokunulmaz. Retry eklenmedi.
 - Bu aşamada tek komut türü vardır: `SetOutput = 1`.
 
-**Canlılık (2026-09-24'te yeniden yazıldı).** Kart **olay güdümlüdür**, kalp atışı yoktur
+**Canlılık — durum makinesi (2026-09-24).** Kart **olay güdümlüdür**, kalp atışı yoktur
 (`Docs/scada_communication_guide.md` § 1.3): sessizlik "kart öldü" ile "giriş değişmedi"yi ayırt
-edemez. Bu yüzden canlılık üç kanıttan okunur ve **tek yazım yolu `ICabinetStatusService`'tir**
-(`CabinetStatusService` + `.Sweep`):
+edemez. Cihaz, kamera ve kabin durumunun **tek yazım yolu `ICabinetStatusService`'tir**
+(`CabinetStatusService` + `.Sweep`); kamera yoklamasını `CameraService.RecordProbeResultAsync` yazar ve
+kabini aynı servise yeniden hesaplatır.
 
-| Kanıt | Etkisi |
+*Durum değerleri*
+
+| Değer | Arayüz | Anlamı |
+|---|---|---|
+| `null` | Bilinmiyor | Canlılık kanıtı yok (tek etiket kaynağı `models/enums > deviceStatusLabel`; sunucuda karşılık gelen enum değeri bilerek yok) |
+| `Online` (1) | Çevrimiçi | Ulaşıldı |
+| `Offline` (0) | Çevrimdışı | Denendi, ulaşılamadı |
+| `Warning` (2) | Uyarı | Kabinde bir kamera ya da kontrol kartı dışı bir cihaz ulaşılamıyor |
+| `Critical` (3) / `Maintenance` (4) | Kritik / Bakımda | Tanımlı, **üreten kod yok**; canlılık kuralları bunları korur |
+
+Kabindeki öncelik: Critical > Offline > Warning > Maintenance > Online; hiç katkı yoksa `null`.
+
+*Bağlantı kontrolü — izlenen cihaz ve kamera* ("izleniyor" = `IsMonitoringEnabled`; cihazda ayrıca
+şablon `IsMonitorable`)
+
+| | Cihaz (`DeviceProbeSource`) | Kamera (`CameraProbeSource`) |
+|---|---|---|
+| Yoklanma şartı | Aktif, izleme açık, şablon izlenebilir, IP dolu, kabin aktif | Aktif, izleme açık, kabin aktif |
+| Port / periyot | `MonitoringPort` (izleme açıkken zorunlu), `PingIntervalSec` (varsayılan 300) | `MonitoringPort` (boşsa RTSP portu), `PingIntervalSec` (varsayılan 300) |
+| Yöntem | TCP connect, 3 sn zaman aşımı, `MonitoredAssetProbeWorker` 30 sn'de bir tur | Aynı |
+| Başarılı | `LastSeen`, hata temizlenir; `null`/Offline → **Online** | `LastSeen`, hata temizlenir → **Online** |
+| Başarısız | Hata yazılır; **ilk** denemede `null`/Online → **Offline** | Hata yazılır; **ilk** denemede → **Offline** |
+| Başka kanıt | Yalnızca **kontrol kartı**: ingest (tanımsız kanal dahil), kart okuma, başarılı komut → Online; komut `NoResponse` → **anında** Offline (`Failed` dokunmaz) | Yok |
+| Yayın | `DeviceStatusChanged` (kabin grubu) + kabin yeniden hesabı | Yalnızca kabin yeniden hesabı |
+
+*İzleme kapalıyken*
+
+| Varlık | Durumu ne değiştirir |
 |---|---|
-| Yoklama (`MonitoredAssetProbeWorker` → `DeviceProbeSource`) — izlemesi açık cihaz | Ulaşıldı → Online, `LastSeen`, hata temizlenir. Ulaşılamadı → `LastConnectionError` yazılır ve **ilk** başarısızlıkta Offline — kamerayla aynı kural (2026-09-24 kararı; önceki "art arda ikinci" toleransı kaldırıldı). |
-| SCADA teması — ingest (tanımsız kanal dahil), kart okuma, başarılı komut | Kontrol modülü Online, `LastSeen` + `Cabinet.LastSeen` tazelenir, hata temizlenir. |
-| Komut `NoResponse` | Kontrol modülü **anında** Offline, hata = komut mesajı (zaman aşımı ≥ 5 sn güçlü kanıttır). `Failed` (HTTP 4xx/5xx) dokunulmaz. |
+| Kontrol kartı | Yalnızca SCADA teması (Online) ve `NoResponse` (Offline). **Zamanla Offline olmaz.** |
+| Diğer cihazlar | Hiçbir şey (giriş/çıkış kartı, siren, klemens normalde hep `null`). |
+| Kamera | Hiçbir şey; son durumunda kalır, **kabin hesabına girmez**. |
+| Tarama (`OfflineDeviceChecker`, `Scada:SweepIntervalSeconds` 5 dk) | `LastSeen` **dolu ve 23 saatten eski**, durum Online/Offline → `null` (Offline değil). Boş `LastSeen` eski sayılmaz: hiç görülmemiş kartın `NoResponse` Offline'ı silinmesin (bedeli: hiç görülmemiş ama Online/Offline kalmış kayıt temizlenmez). 23 saat bilerek sabittir. |
 
-Canlılık yalnızca `Online` / `Offline` / `null` üzerinde söz sahibidir; Warning / Critical /
-Maintenance başka bir kaynağın kararıdır ve korunur (bugün bunları üreten kod yoktur). `null`
-"bilinmiyor"dur (canlılık kanıtı yok); arayüz onu her yerde **"Bilinmiyor"** diye gösterir — tek
-etiket kaynağı `models/enums > deviceStatusLabel`. Sunucuda karşılık gelen bir enum değeri bilerek
-yoktur; DB'deki `DeviceStatus.Name` (İngilizce) arayüzde gösterilmez.
+**`LastSeen`'e bakıp Offline yargısına varılmaz.** İzlenenler taramanın bilerek dışındadır: dahil
+edilseydi 23 saattir ulaşılamayan izlenen cihaz her turda Bilinmiyor ↔ Offline salınırdı (ölçüldü).
 
-**Kabin durumu** = cihaz katkılarının en kötüsü + izlenen bir kamera `Offline` ise `Warning`
-(`CabinetContribution`). **Kabin `Offline`'ı yalnızca kontrol modülünden (SCADA kartı) gelir**; kontrol
-modülü olmayan bir cihazın (POS, bilgisayar…) Offline'ı kabine `Warning` olarak katılır, kameradaki gibi
-— cihazın kendi durumu Offline kalır. Online kamera katkı vermez (SCADA'dan hiç ses gelmemiş kabin
-kamerayla "Online" görünmez). Kanıt bir cihazın durumunu değiştirdiğinde kabin hemen yeniden hesaplanır;
-kamera yoklaması da (`CameraService.RecordProbeResultAsync`) durum değişince `RecalculateAsync` çağırır.
+*Kabine katkı (`CabinetContribution`) — kabinin tabanı kontrol kartıdır*
 
-**`LastSeen`'e bakıp Offline yargısına varılmaz (2026-09-24 kararı)** — izleme açık ya da kapalı, kontrol
-kartı dahil hiçbir cihazda. İzlemesi kapalı kontrol modülü yalnızca `NoResponse` ile Offline olur.
-`OfflineDeviceChecker` (adı tarihsel; `Scada:SweepIntervalSeconds`, 5 dk) iki iş yapar: (1) izlemesi
-**kapalı** tüm cihazların (kontrol modülü dahil) ve kameraların `LastSeen`'i **23 saatten** eski (ya da
-hiç yok) iken Online/Offline kalmış durumunu `null`'a — "bilinmiyor"a, Offline'a değil — çeker. İzlenenler
-bilerek kapsam dışıdır: onları yoklama teyit eder, dahil edilseydi 23 saattir ulaşılamayan izlenen cihaz her
-turda Bilinmiyor ↔ Offline salınırdı (ölçüldü, 2026-09-24); 23 saat
-bilerek parametrik değildir (`CabinetStatusService.Sweep > StatusExpireAfter`); (2) tüm aktif kabinleri
-gruplu okumayla **uzlaştırır** (diyagramda cihaz silme, kamera pasife alma gibi kabine anında yansımayan
-yollar). "İzleniyor" = `IsMonitoringEnabled` **ve** şablon `IsMonitorable`.
+| Kaynak | Durumu | Kabine katkısı |
+|---|---|---|
+| Kontrol kartı | Online / Offline / `null` | Aynen — **kabini Online'a yalnızca kontrol kartı çeker** |
+| Diğer cihaz | Offline | **Warning** |
+| Diğer cihaz | Online | **Yok** (kabini iyileştiremez) |
+| Kamera (izleme açık) | Offline | **Warning** |
+| Kamera (izleme açık) | Online / `null` | Yok |
+| Kamera (izleme kapalı) | Herhangi | Yok |
+
+Kabin her durum değişikliğinde tüm cihaz ve kameraların **o anki** durumundan sıfırdan hesaplanır;
+"başarılı yoklama" için ayrı kural yoktur, Warning son düşük varlık düzelince kendiliğinden kalkar.
+Kontrol kartı olmayan kabinin tabanı `null`'dır (en iyi hâli Bilinmiyor).
+
+| Olay | Kontrol kartı | POS | Kamera | Kabin |
+|---|---|---|---|---|
+| Başlangıç | Online | Online | Online | **Online** |
+| POS yoklaması başarısız | Online | Offline | Online | **Warning** |
+| Kontrol kartı yoklaması başarısız | Offline | Offline | Online | **Offline** |
+| Kontrol kartı yoklaması başarılı | Online | Offline | Online | **Warning** |
+| POS yoklaması başarılı | Online | Online | Online | **Online** |
+| Kontrol kartı bilinmiyor, POS Online | `null` | Online | — | **Bilinmiyor** |
+| Kontrol kartı bilinmiyor, kamera Offline | `null` | — | Offline | **Warning** |
+
+*Kabin ne zaman yeniden hesaplanır*
+
+| Tetik | Zaman |
+|---|---|
+| Cihazın durumu yoklama, SCADA teması ya da `NoResponse` ile değişti | Anında |
+| Kameranın durumu yoklamayla değişti | Anında |
+| Diyagramda cihaz silme, cihaz/kamera izlemesini kapatma, kamerayı pasife alma | Tarama turunda (≤ 5 dk) |
+| Pasif kabin | Hiç — durumu donar, cihaz ve kameraları yoklanmaz |
+| `ScadaIsEnabled = false` | SCADA kanıtı gelmez (ingest / kart / komut reddedilir); yoklama çalışır |
 
 **Zamanlama:** Worker son sonda anı olarak sondanın **bitişini** yazar, `IsDue` ise turun başlangıcıyla
 karşılaştırır (bilinçli olarak böyle bırakıldı). Sonuç: `PingIntervalSec` tur aralığının
-(`Monitoring:SweepIntervalSeconds`, 30 sn) tam katıysa hedef bir tur daha bekler (60 sn → fiilen 90 sn),
-değilse tur aralığının katına yukarı yuvarlanır.
+(`Monitoring:SweepIntervalSeconds`, 30 sn) tam katıysa hedef bir tur daha bekler (60 sn → fiilen 90 sn,
+300 sn → 330 sn), değilse tur aralığının katına yukarı yuvarlanır.
 
 **SignalR:** `/hubs/diagram`, grup `cabinet:{cabinetId}`, istemci `Subscribe(cabinetId)` /
 `Unsubscribe(cabinetId)` çağırır. Olaylar: `ChannelValuesChanged`, `DeviceStatusChanged`,
