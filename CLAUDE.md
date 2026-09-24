@@ -202,7 +202,25 @@ Bunlar tek bir dosyaya bakarak görülemez; gerekçeleri PROJECT_OVERVIEW.md §5
   `MonitoredAssetProbeWorker` kayıtlı her `IMonitoredAssetProbeSource` üzerinden döner; yeni
   bir izlenen tip eklemek = yeni kaynak + tek satır DI kaydı, worker'a dokunulmaz. Sonda
   **yalnızca TCP connect** yapar — ICMP dalı bilerek yoktur, `MonitoringPort` null ise varlık
-  atlanır. Buraya "şimdi dene" tarzı bir uç eklemeyin.
+  atlanır. Buraya "şimdi dene" tarzı bir uç eklemeyin. Kaynaklar: `CameraProbeSource`,
+  `DeviceProbeSource` (2026-09-24 — `Device : IMonitoredAsset`; yalnızca izlemesi açık **ve**
+  şablonu `ComponentTemplate.IsMonitorable` olan cihaz). Worker son sonda anı olarak sondanın
+  bitişini yazar (bilinçli); `PingIntervalSec` tur aralığının tam katıysa hedef bir tur geç
+  yoklanır (60 sn → fiilen 90 sn).
+- **Kabin durumu ve cihaz CANLILIK durumu yalnızca `ICabinetStatusService` üzerinden yazılır
+  (2026-09-24).** `Cabinet.DeviceStatusId`, `Device.DeviceStatusId` / `LastSeen` /
+  `LastConnectionError`'a başka yerden dokunmayın; kanıtı (yoklama, SCADA teması, komut
+  `NoResponse`) servise verin. Kabin durumu = cihaz katkılarının en kötüsü: **kabin `Offline`'ı
+  yalnızca kontrol modülünden gelir**; diğer cihazların ve izlenen kameraların `Offline`'ı kabine
+  `Warning` olarak yansır (`CabinetContribution`). SCADA canlılığı **kontrol modülünde** tutulur
+  (kanıt kart başınadır): her ingest (tanımsız kanal dahil), kart okuma ve başarılı komut temas
+  sayılır; giriş modülüne canlılık yazmayın. Başarısız sonda **ilk başarısızlıkta** Offline yapar
+  (kamerayla aynı); `NoResponse` anında. **`LastSeen`'e bakıp Offline yargısına varılmaz** — yalnızca
+  izlemesi kapalı cihaz/kameraların 23 saatten eski Online/Offline'ı taramada `null`'a ("Bilinmiyor") çekilir
+  (izlenenleri katmayın: yoklamayla her turda Bilinmiyor ↔ Offline salınırlar),
+  23 saat bilerek sabittir. Canlılık yalnızca Online/Offline/`null`'a karar verir,
+  Warning/Critical/Maintenance korunur. Sinyalizasyon modülü kabin durumuna **bilerek**
+  yansımaz (alarm haritada ayrı ikon; `AppModule.alertCabinetsQuery`).
 - **MediaMTX yol temizliği üç şeyi asla silmez:** bizim üretmediğimiz adlar (yalnızca `cam_` /
   `clip_` önekliler adaydır — `mediamtx.yml`'deki **`all_others`** silinseydi geçit
   yapılandırmasız kalırdı), `record: true` olan yollar (devam eden klip çekimi) ve
@@ -279,8 +297,9 @@ Bir şeyin çalıştığını varsaymadan önce doğrulayın:
   yazımıyla gönderilmelidir. `ScadaPinAddress.CheckAndParseIngestPin` yalnızca `"I"` ve `"A"`
   kabul eder; `IN<n>`/`OUT<n>` metni yalnızca **giden** komut gövdesinde (`Format`) kullanılır.
 - **Kart okuma ayrı bir uçtur: `POST /api/Scada/card` → `{ macAddress, cardId, timestampUtc }`
-  (2026-09-11).** Kart numarası ölçüm değildir: `IoChannel`'a yazılmaz, `ChannelEvent` üretmez,
-  çekirdek hiçbir satır yazmaz. Kabin ingest ile aynı yoldan MAC'ten çözülür
+  (2026-09-11).** Kart numarası ölçüm değildir: `IoChannel`'a yazılmaz, `ChannelEvent` üretmez;
+  çekirdeğin yazdığı tek şey SCADA temasıdır (kontrol modülü + kabin `LastSeen`, 2026-09-24).
+  Kabin ingest ile aynı yoldan MAC'ten çözülür
   (`IDeviceRepository.GetCabinetIdByControlModuleMacAsync`), kart **aktif** kullanıcının
   `User.IdentityCardId`'siyle ham string olarak eşlenir ve sonuç gözlemcilere iletilir. Tanımsız
   kart SCADA için hata değildir (200). `IdentityCardId` aktif kullanıcılar arasında tekildir
@@ -288,8 +307,11 @@ Bir şeyin çalıştığını varsaymadan önce doğrulayın:
   kart 500 üretir.
 - **`MacAddress` / `IpAddress` artık diyagram deltasıyla yazılır (2026-09-10).** `DeviceDraft`
   bu iki alanı taşır, `WriteDevice` yazar, editörde cihaz özellik panelinden girilir. Bunlar
-  `DeviceStatusId` / `LastSeen` gibi telemetri alanı **değildir** — o ikisi hâlâ taslakta yok
-  ve `WriteDevice`'ta dokunulmaz.
+  `DeviceStatusId` / `LastSeen` / `LastConnectionError` gibi telemetri alanı **değildir** — o
+  üçü taslakta yok ve `WriteDevice`'ta dokunulmaz. İzleme ayarları (`MonitoringPort`,
+  `PingIntervalSec`, `IsMonitoringEnabled`, 2026-09-24) da deltayla yazılır; izleme açıkken IP ve
+  port zorunludur, izlenemeyen şablonda açmak 400'dür (`ValidateDeviceMonitoring`). Şablonların
+  güncelleme ucu yoktur: `IsMonitorable` oluşturmada (ve sistem şablonlarında seed'de) belirlenir.
 
 ## Sormadan "düzeltmeyin"
 

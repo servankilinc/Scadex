@@ -25,6 +25,13 @@ public class DiagramDeviceDto : IDto
     public int? DeviceStatusId { get; set; }
     public string? DeviceStatusName { get; set; }
     public DateTime? LastSeen { get; set; }
+
+    /// <summary> İzleme (IMonitoredAsset) </summary>
+    public int? MonitoringPort { get; set; }
+    public int PingIntervalSec { get; set; }
+    public bool IsMonitoringEnabled { get; set; }
+    public string? LastConnectionError { get; set; }
+
     public DiagramComponentTemplateDto Template { get; set; } = null!;
     public ICollection<DiagramPinDto> Pins { get; set; } = [];
     public ICollection<DiagramIoChannelDto> IoChannels { get; set; } = [];
@@ -39,6 +46,7 @@ public class DiagramComponentTemplateDto : IDto
     public double Height { get; set; }
     public string BackgroundColor { get; set; } = null!;
     public string? BackgroundImageUrl { get; set; }
+    public bool IsMonitorable { get; set; }
 }
 
 

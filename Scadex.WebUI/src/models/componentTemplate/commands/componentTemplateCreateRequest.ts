@@ -82,6 +82,8 @@ export const componentTemplateCreateSchema = z
     height: z.number().gt(0, 'Yükseklik sıfırdan büyük olmalı'),
     backgroundColor: z.string().regex(/^#[0-9A-Fa-f]{6}$/, 'Arka plan rengi #RRGGBB biçiminde olmalı'),
     backgroundImageUrl: z.string().nullable(),
+    // Bu şablondan türeyen cihazda ağ izlemesi (TCP yoklaması) açılabilir mi.
+    isMonitorable: z.boolean(),
     // Boş bırakılabilir: pano çerçevesi gibi dekoratif bir şablonun pini olmayabilir.
     pins: z.array(templatePinDraftSchema).max(TEMPLATE_MAX_PINS, `Bir şablonda en fazla ${TEMPLATE_MAX_PINS} pin olabilir`)
   })

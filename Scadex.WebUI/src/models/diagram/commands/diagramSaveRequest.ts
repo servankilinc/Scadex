@@ -96,6 +96,13 @@ export interface DeviceDraft {
   macAddress: string | null;
   ipAddress: string | null;
   /**
+   * İzleme ayarları. Sunucu kuralları (`DeviceDraftValidator`): port 1..65535, periyot 5..86400 sn; izleme açıkken
+   * `ipAddress` ve `monitoringPort` zorunlu. `lastConnectionError` taslakta YOKTUR — onu yalnızca yoklama yazar.
+   */
+  monitoringPort: number | null;
+  pingIntervalSec: number;
+  isMonitoringEnabled: boolean;
+  /**
    * Yalnızca OLUŞTURMADA doldurulur; mevcut bir cihazda dolu gönderilirse 400
    * (pinleri zaten var). "Bu cihaz yeni mi" sorusunu `lib/diagram/unsaved-store.ts`
    * cevaplar — Id'nin kendisi cevaplayamaz.
@@ -151,8 +158,8 @@ export interface AnnotationDraft {
  * `cabinetId` ROTADAN gider, gövdede YOKTUR.
  *
  * Taslaklar TAM durumdur, patch değil. Burada OLMAYAN alanlar sunucuda
- * dokunulmadan kalır — `deviceStatusId` / `lastSeen` bilerek dışarıda: onları
- * telemetri yazar ve kaydetmek SCADA'nın yazdığı değerleri ezmemeli.
+ * dokunulmadan kalır — `deviceStatusId` / `lastSeen` / `lastConnectionError` bilerek
+ * dışarıda: onları yoklama ve SCADA teması yazar, kaydetmek bu değerleri ezmemeli.
  *
  * `macAddress` / `ipAddress` ise 2026-09-10'dan beri taslakta VARDIR: MAC, SCADA
  * ingest'inin kabini çözdüğü adrestir ve operatörün panelden girebilmesi gerekir.

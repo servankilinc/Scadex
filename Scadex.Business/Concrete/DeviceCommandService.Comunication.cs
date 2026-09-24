@@ -122,6 +122,12 @@ public partial class DeviceCommandService
 
         await _unitOfWork.DeviceCommands.UpdateAndSaveAsync(command, CancellationToken.None);
 
+        // 9.0) Komutun sonucu SCADA kartının omline olup olmadığı çıkar: yanıt verdiyse temas, zaman aşımı / bağlantı hatası ise kayıp.
+        if (outcome.Status == CommandStatus.Succeeded)
+            await _cabinetStatusService.RecordScadaContactAsync(cabinet.Id, CancellationToken.None);
+        else if (outcome.Status == CommandStatus.NoResponse)
+            await _cabinetStatusService.RecordScadaUnreachableAsync(cabinet.Id, outcome.Message, CancellationToken.None);
+
         // 9.1) Başarılı komut, kanalın mevcut değerini yazar; başarısız/zaman aşımı değeri değiştirmez.
         ChannelValueChange? channelChange = null;
         ChannelChangedNotification? observerNotification = null;

@@ -20,6 +20,21 @@ export const DeviceStatusLabels: Record<DeviceStatus, string> = {
   [DeviceStatus.Maintenance]: 'Bakımda'
 };
 
+/**
+ * `deviceStatusId === null`'un arayüzdeki adı. Telde ve DB'de temsil `null`'dır ve "canlılık kanıtı yok" demektir:
+ * cihaz hiç yoklanmadı / SCADA'dan hiç temas gelmedi ya da izlenmiyor. `Offline` (0) ile AYNI ŞEY DEĞİL — o "denendi,
+ * ulaşılamadı"dır. Sunucuda karşılığı olan bir enum değeri BİLEREK yok: aynı durumun iki temsili olurdu.
+ */
+export const UNKNOWN_DEVICE_STATUS_LABEL = 'Bilinmiyor';
+
+/**
+ * Durumun TEK etiket kaynağı — `null` dahil. DB lookup'ındaki `deviceStatusName` (seed'de İngilizce enum adı) arayüzde
+ * gösterilmez; ekranlar bu yardımcıyı kullanır.
+ */
+export function deviceStatusLabel(statusId: DeviceStatus | null | undefined): string {
+  return statusId == null ? UNKNOWN_DEVICE_STATUS_LABEL : (DeviceStatusLabels[statusId] ?? UNKNOWN_DEVICE_STATUS_LABEL);
+}
+
 /** Diyagram üzerinde yer alan (pinli, kablolanabilir) cihazların kategorisi. 0 değeri YOKTUR. */
 export const DeviceType = {
   /** Ana kontrolcü kart (Ethernet + RS485 master). */

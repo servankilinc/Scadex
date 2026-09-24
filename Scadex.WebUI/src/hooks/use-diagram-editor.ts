@@ -328,6 +328,12 @@ export function useDiagramEditor(cabinetId: string, graph: DiagramDto): DiagramE
         deviceStatusId: null,
         deviceStatusName: null,
         lastSeen: null,
+        // İzleme varsayılan KAPALI: hangi cihazın yoklanacağına operatör karar verir (IP'siz klemensin izlenecek bir şeyi yok).
+        monitoringPort: null,
+        // Sunucudaki `DeviceDraft` ve kamera varsayılanıyla aynı (300 sn).
+        pingIntervalSec: 300,
+        isMonitoringEnabled: false,
+        lastConnectionError: null,
         template: {
           id: template.id,
           name: template.name,
@@ -335,7 +341,8 @@ export function useDiagramEditor(cabinetId: string, graph: DiagramDto): DiagramE
           width: template.width,
           height: template.height,
           backgroundColor: template.backgroundColor,
-          backgroundImageUrl: template.backgroundImageUrl
+          backgroundImageUrl: template.backgroundImageUrl,
+          isMonitorable: template.isMonitorable
         },
         // Pinler ve kanallar HEMEN doğar: kimliklerini istemci ürettiği için
         // kaydetmeyi beklemeye gerek yok. Cihaz canvas'a bırakıldığı anda
@@ -506,6 +513,10 @@ export function useDiagramEditor(cabinetId: string, graph: DiagramDto): DiagramE
         // fiziksel karta aittir — kopyalanması anlamsızdır.
         macAddress: null,
         ipAddress: null,
+        // IP kopyalanmadığı için izleme de kapalı doğar: açık kalsaydı sunucu "izleme açıkken IP zorunlu" ile
+        // kaydı 400'lerdi. Port ve periyot `...source` ile gelir — IP girilip izleme açılınca hazırdır.
+        isMonitoringEnabled: false,
+        lastConnectionError: null,
         // Canlı durum da kopyalanmaz: yeni cihaz henüz hiç telemetri görmedi.
         // `null`, `Offline` ile AYNI ŞEY DEĞİL.
         deviceStatusId: null,

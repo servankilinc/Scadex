@@ -12,6 +12,7 @@ public class ComponentTemplateDetailDto : IDto
     public double Height { get; set; }
     public string BackgroundColor { get; set; } = null!;
     public string? BackgroundImageUrl { get; set; }
+    public bool IsMonitorable { get; set; }
     public string DeviceTypeName { get; set; } = null!;
 
     #region --- IAuditableEntity ---

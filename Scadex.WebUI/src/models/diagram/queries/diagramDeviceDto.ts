@@ -36,10 +36,18 @@ export interface DiagramDeviceDto {
    */
   macAddress: string | null;
   ipAddress: string | null;
-  /** Null = hiç telemetri alınmadı. 0 DEĞİL — 0 `DeviceStatus.Offline`'dır. */
+  /** Null = bilinmiyor (canlılık kanıtı yok; arayüzde `deviceStatusLabel`). 0 DEĞİL — 0 `DeviceStatus.Offline`'dır. */
   deviceStatusId: DeviceStatus | null;
   deviceStatusName: string | null;
   lastSeen: string | null;
+  /**
+   * İzleme (sunucuda `IMonitoredAsset`). Açıksa cihaz `ipAddress:monitoringPort`'a TCP ile yoklanır ve sonucu
+   * kabin durumuna yansır. İlk üçü diyagram deltasıyla yazılır; `lastConnectionError` yalnızca yoklamayla.
+   */
+  monitoringPort: number | null;
+  pingIntervalSec: number;
+  isMonitoringEnabled: boolean;
+  lastConnectionError: string | null;
   template: DiagramTemplateDto;
   pins: DiagramPinDto[];
   ioChannels: DiagramIoChannelDto[];

@@ -13,7 +13,7 @@ export type LocatedCabinet = CabinetDetailDto & { latitude: number; longitude: n
  * Feature'a yalnızca çizim ve tıklama çözümlemesi için gerekenler konur. Durum filtresi JS'te
  * (`visibleCabinets`) uygulandığı için `deviceStatusId` / `isActive` worker'a taşınmaz.
  */
-type CabinetFeatureProperties = { id: string; name: string; isBusy: boolean };
+type CabinetFeatureProperties = { id: string; name: string; isBusy: boolean; isAlert: boolean };
 
 // Kimlikler sabit: sayfada tek bir kabin katmanı var. İkinci bir örnek gerekirse `useId` önekine geçilmeli.
 const SOURCE_ID = 'cabinets';
@@ -23,11 +23,15 @@ const POINT_LAYER_ID = 'cabinet-points';
 const HOVER_LAYER_ID = 'cabinet-point-hover';
 const IDLE_ICON_ID = 'cabinet-idle';
 const BUSY_ICON_ID = 'cabinet-busy';
+/** Modülün alarm bildirdiği kabin (örn. zorla açma): "işlem" ikonu + kırmızı rozet. Kabin durumundan bağımsızdır. */
+const ALERT_ICON_ID = 'cabinet-alert';
 
 /** Kümeleme bu zoom'un ÜSTÜNDE durur; `fitBounds`'un tek kabinde indiği zoom 17 hep tekil kabin gösterir. */
 const CLUSTER_MAX_ZOOM = 14;
 /** Kümenin içinde işlem yapılan kabin varsa kenarı bu renkte ve kalın çizilir — uzak zoom'da da kaybolmasın. */
 const BUSY_CLUSTER_STROKE = '#f59e0b';
+/** Kümenin içinde alarm olan kabin varsa kenar bu renkte — "işlem"den ÖNCELİKLİ. */
+const ALERT_CLUSTER_STROKE = '#ef4444';
 
 /** Eski DOM işaretçisinin `h-12`'si (CSS piksel). */
 const ICON_HEIGHT = 48;
@@ -61,14 +65,15 @@ const LABEL_COLORS = {
 
 const IS_CLUSTER: ExpressionSpecification = ['has', 'point_count'];
 const IS_CABINET: ExpressionSpecification = ['!', ['has', 'point_count']];
-const ICON_IMAGE: ExpressionSpecification = ['case', ['get', 'isBusy'], BUSY_ICON_ID, IDLE_ICON_ID];
+// Öncelik: alarm > işlem > boşta.
+const ICON_IMAGE: ExpressionSpecification = ['case', ['get', 'isAlert'], ALERT_ICON_ID, ['get', 'isBusy'], BUSY_ICON_ID, IDLE_ICON_ID];
 
 /** Hover katmanının filtresi: yalnızca imlecin altındaki kabin (id `null` iken hiçbir şeyle eşleşmez). */
 function hoverFilter(cabinetId: string | null): FilterSpecification {
   return ['all', IS_CABINET, ['==', ['get', 'id'], cabinetId ?? '']];
 }
 
-async function rasterizeIcon(url: string): Promise<ImageData> {
+async function rasterizeIcon(url: string, withAlertBadge = false): Promise<ImageData> {
   const image = new Image();
   image.src = url;
   await image.decode();
@@ -86,7 +91,35 @@ async function rasterizeIcon(url: string): Promise<ImageData> {
   context.shadowBlur = SHADOW.blur * ICON_PIXEL_RATIO;
   context.shadowOffsetY = SHADOW.offsetY * ICON_PIXEL_RATIO;
   context.drawImage(image, SHADOW_PAD_X * ICON_PIXEL_RATIO, SHADOW_PAD_Y * ICON_PIXEL_RATIO, width, height);
+  if (withAlertBadge) drawAlertBadge(context, SHADOW_PAD_X * ICON_PIXEL_RATIO + width, SHADOW_PAD_Y * ICON_PIXEL_RATIO);
   return context.getImageData(0, 0, canvas.width, canvas.height);
+}
+
+/**
+ * İkonun sağ üst köşesine beyaz halkalı kırmızı "!" rozeti. Ayrı bir PNG asset yerine canvas'ta çizilir: ikon
+ * görseli değişirse rozet kendiliğinden ona uyar. `right` / `top` ikonun (gölge dolgusu hariç) sağ üst köşesidir.
+ */
+function drawAlertBadge(context: CanvasRenderingContext2D, right: number, top: number) {
+  const radius = ICON_HEIGHT * 0.2 * ICON_PIXEL_RATIO;
+  const centerX = right - radius;
+  const centerY = top + radius;
+
+  context.shadowColor = 'transparent';
+  context.fillStyle = '#ffffff';
+  context.beginPath();
+  context.arc(centerX, centerY, radius, 0, Math.PI * 2);
+  context.fill();
+
+  context.fillStyle = ALERT_CLUSTER_STROKE;
+  context.beginPath();
+  context.arc(centerX, centerY, radius - 2 * ICON_PIXEL_RATIO, 0, Math.PI * 2);
+  context.fill();
+
+  context.fillStyle = '#ffffff';
+  context.font = `bold ${Math.round(radius * 1.3)}px sans-serif`;
+  context.textAlign = 'center';
+  context.textBaseline = 'middle';
+  context.fillText('!', centerX, centerY + ICON_PIXEL_RATIO);
 }
 
 /**
@@ -96,10 +129,12 @@ async function rasterizeIcon(url: string): Promise<ImageData> {
 let cabinetIcons: Promise<[string, ImageData][]> | null = null;
 
 function loadCabinetIcons(): Promise<[string, ImageData][]> {
-  cabinetIcons ??= Promise.all([rasterizeIcon(CabinetIdleIcon), rasterizeIcon(CabinetInProcessIcon)]).then(
-    ([idle, busy]): [string, ImageData][] => [
+  // Alarm ikonu "işlem" görselinden türer: alarm açık bir oturumda doğar, dolayısıyla o kabin zaten işlemdedir.
+  cabinetIcons ??= Promise.all([rasterizeIcon(CabinetIdleIcon), rasterizeIcon(CabinetInProcessIcon), rasterizeIcon(CabinetInProcessIcon, true)]).then(
+    ([idle, busy, alert]): [string, ImageData][] => [
       [IDLE_ICON_ID, idle],
-      [BUSY_ICON_ID, busy]
+      [BUSY_ICON_ID, busy],
+      [ALERT_ICON_ID, alert]
     ],
     error => {
       cabinetIcons = null;
@@ -119,8 +154,15 @@ function addCabinetLayers(map: MapLibreMap, labelColors: { text: string; halo: s
       'circle-color': ['step', ['get', 'point_count'], '#3b82f6', 25, '#1d4ed8', 250, '#1e3a8a'],
       'circle-radius': ['step', ['get', 'point_count'], 18, 25, 24, 250, 32],
       'circle-opacity': 0.9,
-      'circle-stroke-color': ['case', ['>', ['get', 'busyCount'], 0], BUSY_CLUSTER_STROKE, '#ffffff'],
-      'circle-stroke-width': ['case', ['>', ['get', 'busyCount'], 0], 3, 1]
+      'circle-stroke-color': [
+        'case',
+        ['>', ['get', 'alertCount'], 0],
+        ALERT_CLUSTER_STROKE,
+        ['>', ['get', 'busyCount'], 0],
+        BUSY_CLUSTER_STROKE,
+        '#ffffff'
+      ],
+      'circle-stroke-width': ['case', ['any', ['>', ['get', 'alertCount'], 0], ['>', ['get', 'busyCount'], 0]], 3, 1]
     }
   });
 
@@ -149,8 +191,8 @@ function addCabinetLayers(map: MapLibreMap, labelColors: { text: string; halo: s
     layout: {
       'icon-image': ICON_IMAGE,
       'icon-allow-overlap': true,
-      // Üst üste binmede meşgul kabin boştakilerin ÜSTÜNDE kalsın (yüksek anahtar sonra çizilir).
-      'symbol-sort-key': ['case', ['get', 'isBusy'], 1, 0],
+      // Üst üste binmede alarmlı kabin en üstte, meşgul kabin boştakilerin ÜSTÜNDE kalsın (yüksek anahtar sonra çizilir).
+      'symbol-sort-key': ['case', ['get', 'isAlert'], 2, ['get', 'isBusy'], 1, 0],
       'text-field': ['get', 'name'],
       'text-font': LABEL_FONT,
       'text-size': LABEL_SIZE,
@@ -264,6 +306,8 @@ type CabinetMapLayerProps = {
   cabinets: LocatedCabinet[];
   /** "İşlem yapılıyor" ikonuyla çizilecek kabinler. Referansı içerik değişmedikçe sabit olmalı — her yeni küme `setData` demektir. */
   busyCabinetIds: ReadonlySet<string>;
+  /** Alarm ikonuyla çizilecek kabinler (modülden; kabin durumundan bağımsız). Referans kuralı `busyCabinetIds` ile aynı. */
+  alertCabinetIds: ReadonlySet<string>;
   onCabinetClick: (cabinet: LocatedCabinet) => void;
   onCabinetDoubleClick: (cabinet: LocatedCabinet) => void;
   /** Kabin dışında bir yere (boş alan ya da küme) tıklandı. */
@@ -277,7 +321,7 @@ type CabinetMapLayerProps = {
  * Kurulum her stil yüklenişinde yeniden yapılır: mapcn tema değişiminde `setStyle(diff:false)` çağırıyor ve bu,
  * kaynak/katman/ikonların hepsini siler (`isLoaded` o arada `false` olur).
  */
-export function CabinetMapLayer({ cabinets, busyCabinetIds, onCabinetClick, onCabinetDoubleClick, onBackgroundClick }: CabinetMapLayerProps) {
+export function CabinetMapLayer({ cabinets, busyCabinetIds, alertCabinetIds, onCabinetClick, onCabinetDoubleClick, onBackgroundClick }: CabinetMapLayerProps) {
   const { map, isLoaded, resolvedTheme } = useMap();
 
   const geojson = useMemo<FeatureCollection<Point, CabinetFeatureProperties>>(
@@ -286,10 +330,10 @@ export function CabinetMapLayer({ cabinets, busyCabinetIds, onCabinetClick, onCa
       features: cabinets.map(cabinet => ({
         type: 'Feature',
         geometry: { type: 'Point', coordinates: [cabinet.longitude, cabinet.latitude] },
-        properties: { id: cabinet.id, name: cabinet.name, isBusy: busyCabinetIds.has(cabinet.id) }
+        properties: { id: cabinet.id, name: cabinet.name, isBusy: busyCabinetIds.has(cabinet.id), isAlert: alertCabinetIds.has(cabinet.id) }
       }))
     }),
-    [cabinets, busyCabinetIds]
+    [cabinets, busyCabinetIds, alertCabinetIds]
   );
 
   const cabinetById = useMemo(() => new Map(cabinets.map(cabinet => [cabinet.id, cabinet])), [cabinets]);
@@ -329,7 +373,10 @@ export function CabinetMapLayer({ cabinets, busyCabinetIds, onCabinetClick, onCa
           cluster: true,
           clusterMaxZoom: CLUSTER_MAX_ZOOM,
           clusterRadius: 50,
-          clusterProperties: { busyCount: ['+', ['case', ['get', 'isBusy'], 1, 0]] }
+          clusterProperties: {
+            busyCount: ['+', ['case', ['get', 'isBusy'], 1, 0]],
+            alertCount: ['+', ['case', ['get', 'isAlert'], 1, 0]]
+          }
         });
       }
       if (!map.getLayer(POINT_LAYER_ID)) addCabinetLayers(map, labelColorsRef.current);

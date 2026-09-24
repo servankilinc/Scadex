@@ -114,13 +114,18 @@ içindeki `ApplyDeletions` dağıtıcısında yaşar.
 **Organizasyon:** `Company` → `Cabinet` → `Device` → `Pin` / `IoChannel`
 
 - **`Cabinet`** — bir pano. SCADA adresi (`ScadaBaseUrl`), açık/kapalı bayrağı
-  (`ScadaIsEnabled`), komut zaman aşımı (`ScadaCommandTimeoutMs`), son ingest zamanı ve
-  toplu durum (`DeviceStatusId`) burada durur. Kabin durumu, içindeki cihazların **en kötü**
-  durumundan hesaplanır (`DeviceStatusSeverityRank`).
+  (`ScadaIsEnabled`), komut zaman aşımı (`ScadaCommandTimeoutMs`), son ingest zamanı, son SCADA
+  teması (`LastSeen`) ve toplu durum (`DeviceStatusId`) burada durur. Kabin durumu = aktif
+  cihazların **en kötü** durumu (`DeviceStatusSeverityRank`) + izlenen bir kamera `Offline` ise
+  **`Warning`** katkısı. Tek yazım yolu `ICabinetStatusService` (§ 5.3 "Canlılık").
 - **`ComponentTemplate` + `ComponentTemplatePin`** — stencil kütüphanesi. Şablon, cihazın
   kutu boyutunu, zemin rengini ve pin şemasını taşır. Palet kabinden bağımsızdır.
+  `IsMonitorable` (2026-09-24): bu şablondan türeyen cihazda ağ izlemesi açılabilir mi; seed RJ45
+  pini olanları (kontrol modülü, POS, bilgisayar) işaretler. Şablonun güncelleme ucu yoktur —
+  değer oluşturmada verilir.
 - **`Device`** — diyagramdaki bir kutu. Şablondan üretilir; `ExternalCode` SCADA'nın modül
-  kodudur (kabin içinde tekil).
+  kodudur (kabin içinde tekil). 2026-09-24'ten beri `IMonitoredAsset`'tir: şablonu izlenebilirse
+  IP + `MonitoringPort` ile TCP'den yoklanabilir (SCADA kartı, POS, bilgisayar…).
 - **`Pin`** — kutunun bir bacağı. `RelativeX/Y` şablonun genişlik/yüksekliğinin **0..1
   normalize kesridir** (veritabanında `CHECK` ile zorlanır), böylece şablon yeniden
   boyutlandığında pinler bozulmaz. `Device.CoordinateX/Y`, açıklama koordinatları ve kablo
@@ -231,8 +236,14 @@ aggregate'in controller'ında durur.
   `IsActive = 1`).
 - **`macAddress` / `ipAddress` deltada taşınır (2026-09-10).** MAC, SCADA ingest'inin kabini
   çözdüğü adrestir (§ 5.3) ve operatörün girebilmesi gerekir; ikisi de cihaz özellik
-  panelinden yazılır. `deviceStatusId` / `lastSeen` ise **taslakta yoktur** ve `WriteDevice`'ta
-  dokunulmaz — onlar telemetriyle yazılır.
+  panelinden yazılır. `deviceStatusId` / `lastSeen` / `lastConnectionError` ise **taslakta yoktur**
+  ve `WriteDevice`'ta dokunulmaz — onları yalnızca `ICabinetStatusService` yazar (§ 5.3 "Canlılık").
+- **İzleme ayarları deltada taşınır (2026-09-24).** `monitoringPort`, `pingIntervalSec`,
+  `isMonitoringEnabled` (`Device : IMonitoredAsset`). Kurallar: port 1..65535, periyot 5..86400 sn,
+  izleme açıkken `ipAddress` ve `monitoringPort` zorunlu (FluentValidation); izleme yalnızca şablonu
+  **`ComponentTemplate.IsMonitorable`** olan cihazda açılabilir (`ValidateDeviceMonitoring`, 400
+  anahtarı `Devices.Upserted[i].IsMonitoringEnabled`). Editör izleme bölümünü yalnızca izlenebilir
+  şablonda gösterir.
 - **`macAddress` benzersizliği kabin geneli değil, SİSTEM GENELİDİR**
   (`IX_Device_MacAddress`, unique, `WHERE MacAddress IS NOT NULL AND IsActive = 1`). Bir
   fiziksel kartın tek MAC'i vardır ve ingest kabini bu adresten çözer; aynı adres iki kabinde
@@ -299,10 +310,12 @@ politikası ile.
   satırı yazılır ve boş **200** döner.
 - Değişmeyen kanal değeri yazılmaz ve yayınlanmaz. Değer değiştiyse `IoChannel` güncellenir ve
   kanal **giriş yönündeyse** (`Input` ya da `AnalogInput`) bir `ChannelEvent` satırı eklenir.
-- Cihaz `LastSeen` her ingest'te güncellenir; cihaz Offline'dan Online'a çekilir (Warning /
-  Critical / Maintenance durumları **korunur**, ingest bunları silmez). Cihaz durumu
-  değiştiyse kabinin toplu durumu yeniden hesaplanır.
-- Sonuç olarak SignalR'a `ChannelValuesChanged`, `DeviceStatusChanged` ve
+- **Her ingest bir SCADA temasıdır (2026-09-24)** — kanal tanımsız ya da cihaz bulunamasa bile:
+  `ICabinetStatusService.RecordScadaContactAsync` kabinin **kontrol modülünün** (SCADA kartı)
+  `LastSeen`'ini ve `Cabinet.LastSeen`'i tazeler, kontrol modülünü Offline/`null`'dan Online'a
+  çeker (Warning / Critical / Maintenance **korunur**). Canlılık artık kanalın sahibi modüle
+  (giriş modülü) yazılmaz: kanıt kart başınadır, modül başına değil.
+- Sonuç olarak SignalR'a `ChannelValuesChanged`, `DeviceStatusChanged` (durum değiştiyse) ve
   `CabinetStatusChanged` yayınlanır.
 
 **Kart okuma (SCADA → biz, 2026-09-11):** `POST /api/Scada/card`, ingest ile aynı controller
@@ -312,8 +325,9 @@ politikası ile.
 { "macAddress": "AA:BB:CC:DD:EE:FF", "cardId": "04A2B9C1", "timestampUtc": null }
 ```
 
-- Kart numarası bir **ölçüm değildir**: `IoChannel`'a yazılmaz, `ChannelEvent` üretmez; çekirdek
-  **hiçbir satır yazmaz**. Okuyucu kimliği taşınmaz — kartın ne anlama geldiğine gözlemci karar verir.
+- Kart numarası bir **ölçüm değildir**: `IoChannel`'a yazılmaz, `ChannelEvent` üretmez. Okuyucu
+  kimliği taşınmaz — kartın ne anlama geldiğine gözlemci karar verir. Çekirdeğin yazdığı tek şey
+  (2026-09-24) SCADA temasıdır: kontrol modülü ve kabin `LastSeen`'i (`RecordScadaContactAsync`).
 - Kabin ingest ile **aynı** yoldan çözülür (`IDeviceRepository.GetCabinetIdByControlModuleMacAsync`;
   ingest'in 3. adımı da artık bunu kullanır). Bilinmeyen MAC 404, kabin pasif/SCADA kapalıysa red.
 - Kart, **aktif** kullanıcının `User.IdentityCardId`'siyle ham string olarak eşlenir. Tanımsız kart
@@ -360,15 +374,58 @@ yanıtımızı beklerken aynı kartın web sunucusunu çağırmak tek iş parça
   Yazım `SetCurrentValueIfChangedAsync` ile **koşullu tek UPDATE**'tir: komut SCADA'yı dakikalarca
   bekleyebildiği için baştaki okuma bayatlamış olabilir. Başarısız / zaman aşımı değeri değiştirmez.
   Bu bir **saha ölçümü değildir** — kartın yeniden başlaması ya da röleye elle müdahale görünmez.
+- **Komutun sonucu SCADA kartının canlılık kanıtıdır (2026-09-24).** `Succeeded` → kontrol modülü
+  temas (`RecordScadaContactAsync`), `NoResponse` → kontrol modülü **anında** Offline
+  (`RecordScadaUnreachableAsync`), `Failed` → dokunulmaz. Retry eklenmedi.
 - Bu aşamada tek komut türü vardır: `SetOutput = 1`.
 
-**Canlılık:** Push-only bir sistemde sessizliği yalnızca zaman tespit edebilir.
-`OfflineDeviceChecker` hosted service'i `Scada:StaleAfterSeconds`'ı aşan cihazları Offline'a
-çeker, kabin durumunu yeniden hesaplar ve değişiklikleri yayınlar.
+**Canlılık (2026-09-24'te yeniden yazıldı).** Kart **olay güdümlüdür**, kalp atışı yoktur
+(`Docs/scada_communication_guide.md` § 1.3): sessizlik "kart öldü" ile "giriş değişmedi"yi ayırt
+edemez. Bu yüzden canlılık üç kanıttan okunur ve **tek yazım yolu `ICabinetStatusService`'tir**
+(`CabinetStatusService` + `.Sweep`):
+
+| Kanıt | Etkisi |
+|---|---|
+| Yoklama (`MonitoredAssetProbeWorker` → `DeviceProbeSource`) — izlemesi açık cihaz | Ulaşıldı → Online, `LastSeen`, hata temizlenir. Ulaşılamadı → `LastConnectionError` yazılır ve **ilk** başarısızlıkta Offline — kamerayla aynı kural (2026-09-24 kararı; önceki "art arda ikinci" toleransı kaldırıldı). |
+| SCADA teması — ingest (tanımsız kanal dahil), kart okuma, başarılı komut | Kontrol modülü Online, `LastSeen` + `Cabinet.LastSeen` tazelenir, hata temizlenir. |
+| Komut `NoResponse` | Kontrol modülü **anında** Offline, hata = komut mesajı (zaman aşımı ≥ 5 sn güçlü kanıttır). `Failed` (HTTP 4xx/5xx) dokunulmaz. |
+
+Canlılık yalnızca `Online` / `Offline` / `null` üzerinde söz sahibidir; Warning / Critical /
+Maintenance başka bir kaynağın kararıdır ve korunur (bugün bunları üreten kod yoktur). `null`
+"bilinmiyor"dur (canlılık kanıtı yok); arayüz onu her yerde **"Bilinmiyor"** diye gösterir — tek
+etiket kaynağı `models/enums > deviceStatusLabel`. Sunucuda karşılık gelen bir enum değeri bilerek
+yoktur; DB'deki `DeviceStatus.Name` (İngilizce) arayüzde gösterilmez.
+
+**Kabin durumu** = cihaz katkılarının en kötüsü + izlenen bir kamera `Offline` ise `Warning`
+(`CabinetContribution`). **Kabin `Offline`'ı yalnızca kontrol modülünden (SCADA kartı) gelir**; kontrol
+modülü olmayan bir cihazın (POS, bilgisayar…) Offline'ı kabine `Warning` olarak katılır, kameradaki gibi
+— cihazın kendi durumu Offline kalır. Online kamera katkı vermez (SCADA'dan hiç ses gelmemiş kabin
+kamerayla "Online" görünmez). Kanıt bir cihazın durumunu değiştirdiğinde kabin hemen yeniden hesaplanır;
+kamera yoklaması da (`CameraService.RecordProbeResultAsync`) durum değişince `RecalculateAsync` çağırır.
+
+**`LastSeen`'e bakıp Offline yargısına varılmaz (2026-09-24 kararı)** — izleme açık ya da kapalı, kontrol
+kartı dahil hiçbir cihazda. İzlemesi kapalı kontrol modülü yalnızca `NoResponse` ile Offline olur.
+`OfflineDeviceChecker` (adı tarihsel; `Scada:SweepIntervalSeconds`, 5 dk) iki iş yapar: (1) izlemesi
+**kapalı** tüm cihazların (kontrol modülü dahil) ve kameraların `LastSeen`'i **23 saatten** eski (ya da
+hiç yok) iken Online/Offline kalmış durumunu `null`'a — "bilinmiyor"a, Offline'a değil — çeker. İzlenenler
+bilerek kapsam dışıdır: onları yoklama teyit eder, dahil edilseydi 23 saattir ulaşılamayan izlenen cihaz her
+turda Bilinmiyor ↔ Offline salınırdı (ölçüldü, 2026-09-24); 23 saat
+bilerek parametrik değildir (`CabinetStatusService.Sweep > StatusExpireAfter`); (2) tüm aktif kabinleri
+gruplu okumayla **uzlaştırır** (diyagramda cihaz silme, kamera pasife alma gibi kabine anında yansımayan
+yollar). "İzleniyor" = `IsMonitoringEnabled` **ve** şablon `IsMonitorable`.
+
+**Zamanlama:** Worker son sonda anı olarak sondanın **bitişini** yazar, `IsDue` ise turun başlangıcıyla
+karşılaştırır (bilinçli olarak böyle bırakıldı). Sonuç: `PingIntervalSec` tur aralığının
+(`Monitoring:SweepIntervalSeconds`, 30 sn) tam katıysa hedef bir tur daha bekler (60 sn → fiilen 90 sn),
+değilse tur aralığının katına yukarı yuvarlanır.
 
 **SignalR:** `/hubs/diagram`, grup `cabinet:{cabinetId}`, istemci `Subscribe(cabinetId)` /
 `Unsubscribe(cabinetId)` çağırır. Olaylar: `ChannelValuesChanged`, `DeviceStatusChanged`,
-`CabinetStatusChanged`, `CommandCompleted`. Hub, REST ile **aynı** JSON ayarlarını kullanır
+`CabinetStatusChanged`, `CommandCompleted`. **Özet grubu `cabinets` (2026-09-24):**
+`SubscribeCabinets()` / `UnsubscribeCabinets()`; bu gruba yalnızca `CabinetStatusChanged` gider, o da
+yalnızca kabin durumu **değişince** (`IDiagramNotifier.CabinetStatusChangedForAllAsync`; kabin grubu ise
+`CabinetStatusChangedAsync` ile her ingest'te `LastSeen` için alır). Ana sayfa
+haritası ve kabin listesi (`useCabinetOverviewLive`) olay gelince kabin listesini tazeler. Hub, REST ile **aynı** JSON ayarlarını kullanır
 (`ProjectJsonOptions`) ki tip aynaları tutsun. İş katmanı `IDiagramNotifier` üzerinden
 yayınlar; SignalR implementasyonu WebAPI'dedir.
 
@@ -464,7 +521,9 @@ Uçlar: `GET|POST|PUT /api/Camera`, `GET /api/Camera/cabinet/{cabinetId}`,
 `POST /{id}/stream-ticket`, `GET /{id}/snapshot`, `POST /{id}/capture`, `GET /{id}/captures`.
 
 **Yoklamanın HTTP yüzeyi yoktur.** Kameranın ayakta olup olmadığını `MonitoredAssetProbeWorker`
-yazar (§ 7 (d)); istemci durumu `CameraDto.deviceStatusId` üzerinden okur.
+yazar (§ 7 (d)); istemci durumu `CameraDto.deviceStatusId` üzerinden okur. İzlenen bir kameranın
+`Offline`'ı **kabine `Warning` olarak yansır** (2026-09-24; § 5.3 "Canlılık") — kamera arızası SCADA
+arızasıyla aynı renge boyanmasın diye `Offline` değil.
 
 ### 5.5 Generic CRUD tarafı
 
@@ -668,7 +727,8 @@ mount + `key` ile tazelenmesi.
 `MonitoredAssetProbeWorker` (WebAPI/BackgroundServices) `OfflineDeviceChecker` kalıbını izler.
 **Tipe özel değildir:** kayıtlı her `IMonitoredAssetProbeSource` üzerinden döner, tipleri hiç
 bilmez. Yeni bir izlenen tip eklemek = yeni bir kaynak implementasyonu + tek satırlık DI kaydı;
-worker değişmez. Bugünkü tek kaynak `CameraProbeSource`.
+worker değişmez. Kaynaklar: `CameraProbeSource` ve (2026-09-24) `DeviceProbeSource` — izlemesi açık
+ve şablonu `IsMonitorable` olan diyagram cihazları; sonucu `ICabinetStatusService` yazar.
 
 Alınan kararlar:
 
@@ -1019,6 +1079,13 @@ ekranlarını ayrı parçalara böler.
   (çekirdekte), kilitte ayrıca `UnlockTurnsOn` ile yorumlanır. Cevap `ChannelReading(IsOn, ChangedAtUtc)`;
   **`IsOn = null` "bilinmiyor"dur** (kanal pasif, hiç değer okunmamış ya da çıkış hiç başarılı komut
   görmemiş) ve motor bilinmeyen çıkışı istenen duruma **komutla netleştirir**.
+- **Modül kabin durumuna (`Cabinet.DeviceStatusId`) YANSIMAZ (2026-09-24 kararı).** Kabin durumu ağ /
+  donanım sağlığıdır (SCADA kartı, izlenen cihazlar, kameralar); güvenlik alarmı (`ForcedOpen`,
+  `UnauthorizedEntry` → `hasAlert`) modülün kendi kavramıdır ve oturumda bayrak olarak kalır. Ana sayfa
+  haritasında ayrı çizilir: manifestodaki `alertCabinetsQuery` (açık oturumlar sorgusuyla **aynı anahtar**,
+  yalnızca `select` farklı) alarmlı kabini kırmızı rozetli ikonla, alarmlı kümeyi kırmızı kenarla gösterir
+  (öncelik alarm > işlem > boşta). **Dış kapının açık kalması için ayrı bir zamanlayıcı bilerek yok** —
+  bugün yalnızca `SessionMaxDurationMin` (240 dk) sonunda `TimedOut` ile yakalanır.
 - **"Tüm iç kapılar kilitli" iki kaynağa sorulur** (`AreAllInnerDoorsLockedAsync`): kilit kanalı "açık"
   olan kapı varsa hayır; hepsi kilitli (ya da bilinmiyor) dese bile anahtarı **"açık" okunan** bir kapı
   varsa yine hayır. Siren ve oturum kapanışı sahaya sormadan tetiklenmez.

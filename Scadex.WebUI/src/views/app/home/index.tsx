@@ -8,8 +8,9 @@ import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Info, Activity, SearchIcon } from 'lucide-react';
 import type { CabinetDetailDto } from '@/models/cabinet';
-import { DeviceStatus, DeviceStatusLabels } from '@/models/enums';
-import { busyCabinetQueries } from '@/modules';
+import { DeviceStatus, deviceStatusLabel } from '@/models/enums';
+import { alertCabinetQueries, busyCabinetQueries } from '@/modules';
+import { useCabinetOverviewLive } from '@/hooks/use-cabinet-overview-live';
 import { CabinetDetailPanel } from './cabinet-detail-panel';
 import { CabinetMapLayer, type LocatedCabinet } from './cabinet-map-layer';
 import { DashboardMetrics } from './dashboard-metrics';
@@ -56,17 +57,17 @@ function cabinetBounds(cabinets: LocatedCabinet[]): LngLatBoundsLike | null {
 
 /**
  * Harita üstü durum rozetlerinin sabit sırası: Online → Warning → Critical → Maintenance →
- * Offline, en sonda "hiç telemetri alınmadı" kovası. `statusId: null` Offline'dan (0) AYRI bir
- * kovadır (bkz. `CabinetDetailDto.deviceStatusId` XML doc'u) — StatusDot ile aynı renk sözleşmesi
+ * Offline, en sonda "Bilinmiyor" kovası. `statusId: null` Offline'dan (0) AYRI bir kovadır — "canlılık
+ * kanıtı yok" demektir (bkz. `deviceStatusLabel`) — StatusDot ile aynı renk sözleşmesi
  * (bkz. `template-node.tsx`), yeni bir şema icat edilmedi.
  */
 const STATUS_CHIP_DEFS: { key: string; statusId: DeviceStatus | null; label: string; dotColor: string }[] = [
-  { key: 'online', statusId: DeviceStatus.Online, label: DeviceStatusLabels[DeviceStatus.Online], dotColor: 'bg-emerald-500' },
-  { key: 'warning', statusId: DeviceStatus.Warning, label: DeviceStatusLabels[DeviceStatus.Warning], dotColor: 'bg-amber-500' },
-  { key: 'critical', statusId: DeviceStatus.Critical, label: DeviceStatusLabels[DeviceStatus.Critical], dotColor: 'bg-red-500' },
-  { key: 'maintenance', statusId: DeviceStatus.Maintenance, label: DeviceStatusLabels[DeviceStatus.Maintenance], dotColor: 'bg-sky-500' },
-  { key: 'offline', statusId: DeviceStatus.Offline, label: DeviceStatusLabels[DeviceStatus.Offline], dotColor: 'bg-slate-500' },
-  { key: 'none', statusId: null, label: 'Telemetri yok', dotColor: 'bg-gray-400' }
+  { key: 'online', statusId: DeviceStatus.Online, label: deviceStatusLabel(DeviceStatus.Online), dotColor: 'bg-emerald-500' },
+  { key: 'warning', statusId: DeviceStatus.Warning, label: deviceStatusLabel(DeviceStatus.Warning), dotColor: 'bg-amber-500' },
+  { key: 'critical', statusId: DeviceStatus.Critical, label: deviceStatusLabel(DeviceStatus.Critical), dotColor: 'bg-red-500' },
+  { key: 'maintenance', statusId: DeviceStatus.Maintenance, label: deviceStatusLabel(DeviceStatus.Maintenance), dotColor: 'bg-sky-500' },
+  { key: 'offline', statusId: DeviceStatus.Offline, label: deviceStatusLabel(DeviceStatus.Offline), dotColor: 'bg-slate-500' },
+  { key: 'none', statusId: null, label: deviceStatusLabel(null), dotColor: 'bg-gray-400' }
 ];
 
 /**
@@ -85,11 +86,17 @@ export default function Home() {
     queryKey: cabinetKeys.list(),
     queryFn: getCabinetList
   });
+  // Kabin durumu değişince liste tazelenir: harita rozetleri ve popup sayfa yenilenmeden güncel kalır.
+  useCabinetOverviewLive();
 
   // "İşlem yapılan" kabinler modüllerden gelir (bkz. `AppModule.busyCabinetsQuery`); modül yoksa küme boştur.
   // Küme anahtar üzerinden memolanır: içerik değişmedikçe referans sabit, harita kaynağı yeniden yüklenmez.
   const busyCabinetKey = useQueries({ queries: busyCabinetQueries, combine: combineBusyCabinetKey });
   const busyCabinetIds = useMemo<ReadonlySet<string>>(() => new Set(busyCabinetKey ? busyCabinetKey.split(',') : []), [busyCabinetKey]);
+
+  // "Alarm olan" kabinler de modüllerden gelir (bkz. `AppModule.alertCabinetsQuery`); kabin durumunu değiştirmez, ayrı ikonla çizilir.
+  const alertCabinetKey = useQueries({ queries: alertCabinetQueries, combine: combineBusyCabinetKey });
+  const alertCabinetIds = useMemo<ReadonlySet<string>>(() => new Set(alertCabinetKey ? alertCabinetKey.split(',') : []), [alertCabinetKey]);
 
   const [selectedCabinet, setSelectedCabinet] = useState<CabinetDetailDto | null>(null);
 
@@ -299,6 +306,7 @@ export default function Home() {
               <CabinetMapLayer
                 cabinets={visibleCabinets}
                 busyCabinetIds={busyCabinetIds}
+                alertCabinetIds={alertCabinetIds}
                 onCabinetClick={cabinet => setPopupCabinetId(current => (current === cabinet.id ? null : cabinet.id))}
                 onCabinetDoubleClick={cabinet => {
                   setPopupCabinetId(null);
@@ -329,7 +337,7 @@ export default function Home() {
                     </div>
                     <div className="mt-1 flex items-center gap-1.5 text-sm">
                       <Activity className="size-4 text-primary" />
-                      <span className="font-medium">{popupCabinet.deviceStatusName || 'Bilinmiyor'}</span>
+                      <span className="font-medium">{deviceStatusLabel(popupCabinet.deviceStatusId)}</span>
                     </div>
 
                     <div className="mt-2 flex gap-2 border-t pt-2">

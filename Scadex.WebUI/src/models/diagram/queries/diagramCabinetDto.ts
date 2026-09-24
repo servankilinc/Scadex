@@ -9,7 +9,7 @@ export interface DiagramCabinetDto {
   id: string;
   name: string;
   companyId: string;
-  /** Null = hiç telemetri alınmadı. 0 DEĞİL — 0 `DeviceStatus.Offline`'dır. */
+  /** Null = bilinmiyor (canlılık kanıtı yok; arayüzde `deviceStatusLabel`). 0 DEĞİL — 0 `DeviceStatus.Offline`'dır. */
   deviceStatusId: DeviceStatus | null;
   deviceStatusName: string | null;
   lastSeen: string | null;

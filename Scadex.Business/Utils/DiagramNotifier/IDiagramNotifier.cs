@@ -10,6 +10,9 @@ public interface IDiagramNotifier
 
     Task CabinetStatusChangedAsync(CabinetStatusChange change, CancellationToken cancellationToken = default);
 
+    /// <summary> Kabin durumunu tüm kabinleri izleyenlere (ana sayfa haritası, kabin listesi vs.) bildirir. Yalnizca status değişince bildirir </summary>
+    Task CabinetStatusChangedForAllAsync(CabinetStatusChange change, CancellationToken cancellationToken = default);
+
     /// <summary>Bir komutun sonuclandigini ayni kabini izleyen DIGER kullanicilara bildirir. Komutu gonderen sonucu zaten HTTP yanitinda alir. </summary>
     Task CommandCompletedAsync(Guid cabinetId, CommandCompleted change, CancellationToken cancellationToken = default);
 }

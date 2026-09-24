@@ -2,7 +2,7 @@ import { lazy } from 'react';
 import { redirect, type RouteObject } from 'react-router';
 import { ChartColumnIcon, DoorOpenIcon, IdCardIcon, LandmarkIcon, SlidersHorizontalIcon } from 'lucide-react';
 import type { AppModule } from '../types';
-import { busyCabinetsQueryOptions } from './hooks/use-operator-sessions';
+import { alertCabinetsQueryOptions, busyCabinetsQueryOptions } from './hooks/use-operator-sessions';
 
 /**
  * Sinyalizasyon modülü — operatör işlemi takibi (backend: `Scadex.Signalization`, PROJECT_OVERVIEW.md § 10).
@@ -91,6 +91,9 @@ export const signalizationModule: AppModule = {
   // Ana sayfa haritası: açık operatör işlemi olan kabin "işlem yapılıyor" ikonuyla çizilir. Uyarı
   // yoklayıcısıyla aynı sorgu anahtarı — ek istek doğmaz. Anlık güncellemeyi canlı yayın verir.
   busyCabinetsQuery: busyCabinetsQueryOptions(),
+  // Alarm bayraklı (kartsız giriş / zorla açma) açık oturumu olan kabin haritada alarm ikonuyla çizilir. Aynı sorgu
+  // anahtarı, farklı `select`. Kabin DURUMUNA yansımaz — alarm ile ağ/donanım sağlığı ayrı kavramlardır.
+  alertCabinetsQuery: alertCabinetsQueryOptions(),
   // Haritadaki kabin detay paneli: o kabinde devam eden / en son biten işlem ve sahadaki operatörler.
   // `lazy` — kullanıcı bir kabinin detayını açana dek indirilmez.
   CabinetPanelSection: lazy(() => import('./components/cabinet-session-section')),

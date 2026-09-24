@@ -106,6 +106,7 @@ public partial class ComponentTemplateService : IComponentTemplateService
                 Height = t.Height,
                 BackgroundColor = t.BackgroundColor,
                 BackgroundImageUrl = t.BackgroundImageUrl,
+                IsMonitorable = t.IsMonitorable,
                 Pins = t.ComponentTemplatePins!
                     .OrderBy(p => p.Name)
                     .Select(p => new ComponentTemplatePalettePinDto

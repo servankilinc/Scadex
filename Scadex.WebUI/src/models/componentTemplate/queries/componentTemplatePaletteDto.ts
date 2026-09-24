@@ -20,6 +20,8 @@ export interface ComponentTemplatePaletteDto {
   /** `#RRGGBB` renk dizesi. */
   backgroundColor: string;
   backgroundImageUrl: string | null;
+  /** Bu şablondan türeyen cihazda ağ izlemesi açılabilir mi — editör izleme alanlarını buna göre gösterir. */
+  isMonitorable: boolean;
   /**
    * Şablonun pin şeması. Boş olabilir: pano çerçevesi gibi dekoratif bir şablonun
    * pini olmayabilir, o zaman cihaz da pinsiz doğar.

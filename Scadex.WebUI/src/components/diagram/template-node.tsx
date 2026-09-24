@@ -1,5 +1,5 @@
 import { Handle, Position, type NodeProps } from '@xyflow/react';
-import { DeviceStatus, DeviceTypeLabels, HandleSide } from '@/models/enums';
+import { DeviceStatus, DeviceTypeLabels, HandleSide, deviceStatusLabel } from '@/models/enums';
 import type { DiagramPinDto } from '@/models/diagram';
 import { readableTextColor, safeCssColor } from '@/lib/diagram/colors';
 import { useLiveChannel, useLiveDevice } from '@/lib/diagram/live-store';
@@ -185,12 +185,12 @@ const LABEL_OFFSET: Record<HandleSide, string> = {
 };
 
 /**
- * Durum rozeti. `null` = hiç telemetri alınmadı; `Offline` ile AYNI ŞEY DEĞİL. Kabin kartları da
- * (`views/app/cabinets`) aynı renk sözleşmesi için bunu kullanır.
+ * Durum rozeti. `null` = bilinmiyor (canlılık kanıtı yok); `Offline` ile AYNI ŞEY DEĞİL. Kabin kartları ve
+ * ana sayfa detay paneli de aynı renk sözleşmesi için bunu kullanır.
  */
 export function StatusDot({ statusId }: { statusId: DeviceStatus | null }) {
   if (statusId == null) {
-    return <span className='size-1.5 shrink-0 rounded-full bg-current opacity-25' title='Telemetri yok' />;
+    return <span className='size-1.5 shrink-0 rounded-full bg-current opacity-25' title={deviceStatusLabel(null)} />;
   }
 
   const color =
@@ -206,5 +206,10 @@ export function StatusDot({ statusId }: { statusId: DeviceStatus | null }) {
 
   // Online'da hafif bir nabiz: sabit bir noktanin canli mi yoksa donmus mu
   // oldugu ancak baska bir seyle karsilastirilarak anlasilir.
-  return <span className={cn('size-1.5 shrink-0 rounded-full', color, statusId === DeviceStatus.Online && 'animate-pulse')} />;
+  return (
+    <span
+      className={cn('size-1.5 shrink-0 rounded-full', color, statusId === DeviceStatus.Online && 'animate-pulse')}
+      title={deviceStatusLabel(statusId)}
+    />
+  );
 }

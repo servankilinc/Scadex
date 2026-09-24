@@ -2,16 +2,16 @@ using Scadex.Business.Abstract;
 
 namespace Scadex.WebAPI.BackgroundServices;
 
-
-// TODO: Camera gibi IMonitorabel entityler için de entegre edilmesi gerekiyor
+/// <summary>
+/// Monitoringi kaplı cihaz ve kameraların 23 saatten içinde haberleşilmediyse durumları "bilinmiyor"a çeker ve tüm kabinleri uzlaştırır.
+/// Monitoringi açık cihaz ve kameraları <c>MonitoredAssetProbeWorker</c> yoklar; burası offline/online bilgisini set etmez
+/// </summary>
 public class OfflineDeviceChecker : BackgroundService
 {
     private readonly IServiceScopeFactory _scopeFactory;
     private readonly ILogger<OfflineDeviceChecker> _logger;
-    private readonly TimeSpan _staleAfter;
     private readonly TimeSpan _interval;
 
-    private const int DefaultStaleAfterSeconds = 86400; // 1 gün içerisinde 
     private const int DefaultSweepIntervalSeconds = 300; // 5dk
 
     public OfflineDeviceChecker(IServiceScopeFactory scopeFactory, IConfiguration configuration, ILogger<OfflineDeviceChecker> logger)
@@ -19,17 +19,13 @@ public class OfflineDeviceChecker : BackgroundService
         _scopeFactory = scopeFactory;
         _logger = logger;
 
-        int staleAfterSeconds = configuration.GetValue("Scada:StaleAfterSeconds", DefaultStaleAfterSeconds);
         int intervalSeconds = configuration.GetValue("Scada:SweepIntervalSeconds", DefaultSweepIntervalSeconds);
-
-        // Eşik değeri periyottan kısa olursa cihazlar iki tarama arasinda Offline/Online arasinda gidip gelir. periyot*2 daha büyükse onla devam edilir
-        _interval = TimeSpan.FromSeconds(Math.Max(5, intervalSeconds)); //  en az 5 sn olmalı 
-        _staleAfter = TimeSpan.FromSeconds(Math.Max(intervalSeconds * 2, staleAfterSeconds));
+        _interval = TimeSpan.FromSeconds(Math.Max(5, intervalSeconds)); //  en az 5 sn olmalı
     }
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
-        _logger.LogInformation("OfflineDeviceChecker basladi: her {Interval} sn, esik {Stale} sn", _interval.TotalSeconds, _staleAfter.TotalSeconds);
+        _logger.LogInformation("OfflineDeviceChecker basladi: her {Interval} sn", _interval.TotalSeconds);
 
         using var timer = new PeriodicTimer(_interval);
 
@@ -38,11 +34,12 @@ public class OfflineDeviceChecker : BackgroundService
             try
             {
                 using var scope = _scopeFactory.CreateScope();
-                var channelEventService = scope.ServiceProvider.GetRequiredService<IChannelEventService>();
+                var cabinetStatusService = scope.ServiceProvider.GetRequiredService<ICabinetStatusService>();
 
-                int swept = await channelEventService.SetOfflineDevicesAsync(_staleAfter, stoppingToken);
-                if (swept > 0)
-                    _logger.LogInformation("{Count} cihaz Offline'a cekildi", swept);
+                var result = await cabinetStatusService.SweepAsync(stoppingToken);
+                if (result.ClearedDevices > 0 || result.ClearedCameras > 0 || result.ReconciledCabinets > 0)
+                    _logger.LogInformation("Kabin durum taramasi: {Devices} cihazin ve {Cameras} kameranin eskiyen durumu temizlendi, {Cabinets} kabin uzlastirildi",
+                        result.ClearedDevices, result.ClearedCameras, result.ReconciledCabinets);
             }
             catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
             {

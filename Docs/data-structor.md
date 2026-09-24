@@ -362,7 +362,7 @@ flowchart LR
     end
 
     subgraph SUPURUCU["⏱ Canlılık"]
-        OFF["OfflineDeviceChecker"] -->|"LastSeen bayatladıysa"| CV
+        OFF["OfflineDeviceChecker"] -->|"izlemesiz durum 23 sa eskidiyse → bilinmiyor"| CV
     end
 ```
 

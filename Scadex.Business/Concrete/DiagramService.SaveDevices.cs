@@ -107,6 +107,29 @@ public partial class DiagramService
         return rows.ToDictionary(r => r.Id, r => r.MacAddress);
     }
 
+    /// <summary>
+    /// Izlemesi ACIK gonderilen taslaklarin sablonlarindan izlenebilir olanlar (<c>ComponentTemplate.IsMonitorable</c>).
+    /// Gonderide izlemesi acik taslak yoksa sorgu ATILMAZ. Taslaktaki <c>ComponentTemplateId</c> yeterlidir: mevcut
+    /// cihazin sablonu degistirilemez ve degistirilmeye calisilirsa <see cref="ValidateDevices"/> zaten reddeder.
+    /// </summary>
+    private async Task<HashSet<Guid>> LoadMonitorableTemplateIdsAsync(DiagramSaveRequest request, CancellationToken cancellationToken)
+    {
+        var templateIds = request.Devices.Upserted
+            .Where(d => d.IsMonitoringEnabled)
+            .Select(d => d.ComponentTemplateId)
+            .Distinct()
+            .ToList();
+
+        if (templateIds.Count == 0) return [];
+
+        var rows = await _unitOfWork.ComponentTemplates.GetAllAsync(
+            select: t => t.Id,
+            where: t => templateIds.Contains(t.Id) && t.IsMonitorable,
+            cancellationToken: cancellationToken) ?? [];
+
+        return rows.ToHashSet();
+    }
+
     // ==================== REFERANS DOGRULAMA ====================
 
     /// <summary>
@@ -217,6 +240,21 @@ public partial class DiagramService
         }
     }
 
+    /// <summary>
+    /// Izleme yalnizca izlenebilir sablondan (<c>ComponentTemplate.IsMonitorable</c>) turemis cihazda acilabilir:
+    /// klemensin, sigortanin yoklanacak bir agi yoktur. Kapatmak her zaman serbesttir.
+    /// </summary>
+    private static void ValidateDeviceMonitoring(DiagramSaveRequest request, SaveContext context, Dictionary<string, List<string>> errors)
+    {
+        for (int i = 0; i < request.Devices.Upserted.Count; i++)
+        {
+            var draft = request.Devices.Upserted[i];
+            if (!draft.IsMonitoringEnabled) continue;
+            if (!context.MonitorableTemplateIds.Contains(draft.ComponentTemplateId))
+                AddError(errors, $"Devices.Upserted[{i}].IsMonitoringEnabled", "Bu cihazin sablonu izlenebilir degil; izleme acilamaz");
+        }
+    }
+
     // ==================== UYGULAMA ====================
 
     /// <summary>
@@ -289,9 +327,13 @@ public partial class DiagramService
     /// <c>Update()</c> cagirmak butun kolonlari degismis isaretler ve telemetri
     /// alanlarini eski degerleriyle geri yazma riski dogurur.
     ///
-    /// <c>DeviceStatusId</c> / <c>LastSeen</c> burada DOKUNULMAZ — taslakta zaten yoklar,
-    /// telemetriyle yazilirlar. <c>MacAddress</c> / <c>IpAddress</c> ise taslakta VARDIR:
-    /// MAC, SCADA ingest'inin kabini cozdugu adrestir ve operatorun girebilmesi gerekir.
+    /// <c>DeviceStatusId</c> / <c>LastSeen</c> / <c>LastConnectionError</c> burada DOKUNULMAZ —
+    /// taslakta zaten yoklar, yalnizca <c>ICabinetStatusService</c> yazar. <c>MacAddress</c> /
+    /// <c>IpAddress</c> ise taslakta VARDIR: MAC, SCADA ingest'inin kabini cozdugu adrestir ve
+    /// operatorun girebilmesi gerekir. Izleme ayarlari (<c>MonitoringPort</c>, <c>PingIntervalSec</c>,
+    /// <c>IsMonitoringEnabled</c>) da taslaktadir: yoklamanin hedefini operator belirler.
+    /// Izlemesi kapatilan cihazin durumu son degerinde kalir; son kaniti 23 saatten eskiyse periyodik tarama
+    /// onu <c>null</c>'a (bilinmiyor) ceker — Offline'a degil.
     /// </summary>
     private static void WriteDevice(Device device, DeviceDraft draft)
     {
@@ -307,6 +349,9 @@ public partial class DiagramService
         device.ExternalCode = draft.ExternalCode;
         device.MacAddress = draft.MacAddress;
         device.IpAddress = draft.IpAddress;
+        device.MonitoringPort = draft.MonitoringPort;
+        device.PingIntervalSec = draft.PingIntervalSec;
+        device.IsMonitoringEnabled = draft.IsMonitoringEnabled;
     }
 
     // ==================== YARDIMCI TIPLER ====================

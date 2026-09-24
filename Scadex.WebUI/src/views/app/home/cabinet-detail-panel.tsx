@@ -4,7 +4,9 @@ import { Button } from '@/components/ui/button';
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useMediaQuery } from '@/hooks/use-media-query';
+import { StatusDot } from '@/components/diagram/template-node';
 import type { CabinetDetailDto } from '@/models/cabinet';
+import { deviceStatusLabel } from '@/models/enums';
 import { cabinetPanelSections, cabinetPanelTopActions } from '@/modules';
 import { formatUtcDateTime } from '@/lib/utils';
 
@@ -74,9 +76,11 @@ function CabinetDetailBody({ cabinet }: { cabinet: CabinetDetailDto }) {
 
       <div className="space-y-1">
         <p className="text-sm font-medium text-muted-foreground">Durum</p>
+        {/* Nokta DURUMUN rengidir (eskiden `isActive`'i gösteriyordu ve başlıkla çelişiyordu); etiket DB'deki
+            İngilizce lookup adı değil, arayüzün tek etiket kaynağı. */}
         <p className="flex items-center gap-2 text-sm">
-          <span className={`size-2.5 rounded-full ${cabinet.isActive ? 'bg-green-500' : 'bg-red-500'}`} />
-          {cabinet.deviceStatusName || 'Bilinmiyor'}
+          <StatusDot statusId={cabinet.deviceStatusId} />
+          {deviceStatusLabel(cabinet.deviceStatusId)}
         </p>
       </div>
 

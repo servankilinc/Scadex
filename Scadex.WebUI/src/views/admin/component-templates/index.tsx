@@ -7,6 +7,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Skeleton } from '@/components/ui/skeleton';
+import { Switch } from '@/components/ui/switch';
 import { DeviceType, DeviceTypeLabels } from '@/models/enums';
 import type { ComponentTemplateCreateRequest, ComponentTemplatePaletteDto, TemplatePinDraft } from '@/models/componentTemplate';
 import { componentTemplateCreateSchema } from '@/models/componentTemplate';
@@ -108,6 +109,7 @@ const DEFAULT_DRAFT = {
   height: 160,
   backgroundColor: '#f0f0f0',
   backgroundImageUrl: null as string | null,
+  isMonitorable: false,
   pins: [] as TemplatePinDraft[]
 };
 
@@ -282,6 +284,21 @@ function TemplateForm({ onDone }: { onDone: () => void }) {
               ? 'En-boy oranı görsele kilitli: bir kenarı değiştirince diğeri kendiliğinden gelir. Pinler 0..1 kesri olarak saklandığı için oran korunmazsa klemenslerinden kayarlar.'
               : 'PNG, SVG, JPG veya WEBP. Görsel eklendiğinde boyut ondan türetilir ve pinleri istediğiniz noktaya koyabilirsiniz.'}
           </p>
+        </div>
+
+        {/* Şablon yalnızca ağ izlemesine İZİN verir; izlemeyi açmak cihaz başına diyagramda yapılır. Şablonların güncelleme
+            ucu olmadığı için bu seçim oluşturmada kalıcıdır. */}
+        <div className='flex items-start justify-between gap-3 rounded-md border p-3'>
+          <div className='flex flex-col gap-1'>
+            <Label htmlFor='template-monitorable' className='text-xs'>
+              Ağ izlemesi
+            </Label>
+            <p className='text-muted-foreground text-xs'>
+              Açıksa bu şablondan eklenen cihazda IP ve port girilip TCP ile yoklama açılabilir (SCADA kartı, POS, bilgisayar gibi ağ cihazları).
+              Klemens, sigorta gibi ağı olmayan parçalarda kapalı bırakın.
+            </p>
+          </div>
+          <Switch id='template-monitorable' checked={draft.isMonitorable} onCheckedChange={isMonitorable => setDraft({ ...draft, isMonitorable })} />
         </div>
 
         <div className='border-t pt-4'>

@@ -38,6 +38,12 @@ export interface AppModule {
    */
   busyCabinetsQuery?: CabinetIdsQueryOptions;
   /**
+   * Ana sayfa haritasında "alarm" ikonuyla gösterilecek kabinlerin sorgusu (örn. zorla açma). Kabinin DURUMUNU
+   * (`deviceStatusId`) değiştirmez — o ağ/donanım sağlığıdır; alarm modülün kendi kavramıdır ve ayrı çizilir. İkon
+   * önceliği alarm > işlem > boşta. Birden çok modül verirse kimlikler birleşir.
+   */
+  alertCabinetsQuery?: CabinetIdsQueryOptions;
+  /**
    * Ana sayfa haritasındaki kabin detay panelinin altına eklenen bölüm (örn. o kabinde devam eden
    * operatör işlemi). `React.lazy` ile verilmeli; çekirdek onu `Suspense` içinde render eder.
    * Üst ayırıcısını (`border-t`) bölümün kendisi çizer — çekirdek içeriği bilmez.

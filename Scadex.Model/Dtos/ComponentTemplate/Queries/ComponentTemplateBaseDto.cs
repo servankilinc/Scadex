@@ -12,4 +12,5 @@ public class ComponentTemplateBaseDto : IDto
     public double Height { get; set; }
     public string BackgroundColor { get; set; } = null!;
     public string? BackgroundImageUrl { get; set; }
+    public bool IsMonitorable { get; set; }
 }

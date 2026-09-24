@@ -347,7 +347,8 @@ public class MappingProfiles : Profile
             .ForMember(dest => dest.DeviceTypeId, opt => opt.MapFrom(src => src.DeviceTypeId))
             .ForMember(dest => dest.IsSystemTemplate, opt => opt.MapFrom(src => src.IsSystemTemplate))
             .ForMember(dest => dest.BackgroundColor, opt => opt.MapFrom(src => src.BackgroundColor))
-            .ForMember(dest => dest.BackgroundImageUrl, opt => opt.MapFrom(src => src.BackgroundImageUrl));
+            .ForMember(dest => dest.BackgroundImageUrl, opt => opt.MapFrom(src => src.BackgroundImageUrl))
+            .ForMember(dest => dest.IsMonitorable, opt => opt.MapFrom(src => src.IsMonitorable));
 
         CreateMap<ComponentTemplate, ComponentTemplateDetailDto>()
             .ForMember(dest => dest.Id, opt => opt.MapFrom(src => src.Id))
@@ -358,6 +359,7 @@ public class MappingProfiles : Profile
             .ForMember(dest => dest.Height, opt => opt.MapFrom(src => src.Height))
             .ForMember(dest => dest.BackgroundColor, opt => opt.MapFrom(src => src.BackgroundColor))
             .ForMember(dest => dest.BackgroundImageUrl, opt => opt.MapFrom(src => src.BackgroundImageUrl))
+            .ForMember(dest => dest.IsMonitorable, opt => opt.MapFrom(src => src.IsMonitorable))
             .ForMember(dest => dest.DeviceTypeName, opt => opt.MapFrom(src => src.DeviceType != default ? src.DeviceType.Name : default))
             .ForMember(dest => dest.CreatedBy, opt => opt.MapFrom(src => src.CreatedBy))
             .ForMember(dest => dest.UpdatedBy, opt => opt.MapFrom(src => src.UpdatedBy))
@@ -372,7 +374,8 @@ public class MappingProfiles : Profile
             .ForMember(dest => dest.Width, opt => opt.MapFrom(src => src.Width))
             .ForMember(dest => dest.Height, opt => opt.MapFrom(src => src.Height))
             .ForMember(dest => dest.BackgroundColor, opt => opt.MapFrom(src => src.BackgroundColor))
-            .ForMember(dest => dest.BackgroundImageUrl, opt => opt.MapFrom(src => src.BackgroundImageUrl));
+            .ForMember(dest => dest.BackgroundImageUrl, opt => opt.MapFrom(src => src.BackgroundImageUrl))
+            .ForMember(dest => dest.IsMonitorable, opt => opt.MapFrom(src => src.IsMonitorable));
         #endregion
 
         #region ComponentTemplatePin
@@ -430,6 +433,10 @@ public class MappingProfiles : Profile
             .ForMember(dest => dest.MacAddress, opt => opt.MapFrom(src => src.MacAddress))
             .ForMember(dest => dest.ExternalCode, opt => opt.MapFrom(src => src.ExternalCode))
             .ForMember(dest => dest.LastSeen, opt => opt.MapFrom(src => src.LastSeen))
+            .ForMember(dest => dest.MonitoringPort, opt => opt.MapFrom(src => src.MonitoringPort))
+            .ForMember(dest => dest.PingIntervalSec, opt => opt.MapFrom(src => src.PingIntervalSec))
+            .ForMember(dest => dest.IsMonitoringEnabled, opt => opt.MapFrom(src => src.IsMonitoringEnabled))
+            .ForMember(dest => dest.LastConnectionError, opt => opt.MapFrom(src => src.LastConnectionError))
             .ForMember(dest => dest.CreatedBy, opt => opt.MapFrom(src => src.CreatedBy))
             .ForMember(dest => dest.UpdatedBy, opt => opt.MapFrom(src => src.UpdatedBy))
             .ForMember(dest => dest.CreateDateUtc, opt => opt.MapFrom(src => src.CreateDateUtc))
@@ -520,6 +527,10 @@ public class MappingProfiles : Profile
             .ForMember(dest => dest.DeviceStatusId, opt => opt.MapFrom(src => src.DeviceStatusId))
             .ForMember(dest => dest.DeviceStatusName, opt => opt.MapFrom(src => src.DeviceStatus != default ? src.DeviceStatus.Name : default))
             .ForMember(dest => dest.LastSeen, opt => opt.MapFrom(src => src.LastSeen))
+            .ForMember(dest => dest.MonitoringPort, opt => opt.MapFrom(src => src.MonitoringPort))
+            .ForMember(dest => dest.PingIntervalSec, opt => opt.MapFrom(src => src.PingIntervalSec))
+            .ForMember(dest => dest.IsMonitoringEnabled, opt => opt.MapFrom(src => src.IsMonitoringEnabled))
+            .ForMember(dest => dest.LastConnectionError, opt => opt.MapFrom(src => src.LastConnectionError))
             // Sablon ozeti cihazla birlikte tasinir: sablon pasife alinsa bile
             // kabin dogru boyut ve renkle render olmali.
             .ForMember(dest => dest.Template, opt => opt.MapFrom(src => src.ComponentTemplate))
@@ -533,7 +544,8 @@ public class MappingProfiles : Profile
             .ForMember(dest => dest.Width, opt => opt.MapFrom(src => src.Width))
             .ForMember(dest => dest.Height, opt => opt.MapFrom(src => src.Height))
             .ForMember(dest => dest.BackgroundColor, opt => opt.MapFrom(src => src.BackgroundColor))
-            .ForMember(dest => dest.BackgroundImageUrl, opt => opt.MapFrom(src => src.BackgroundImageUrl));
+            .ForMember(dest => dest.BackgroundImageUrl, opt => opt.MapFrom(src => src.BackgroundImageUrl))
+            .ForMember(dest => dest.IsMonitorable, opt => opt.MapFrom(src => src.IsMonitorable));
 
         CreateMap<Pin, DiagramPinDto>()
             .ForMember(dest => dest.Id, opt => opt.MapFrom(src => src.Id))

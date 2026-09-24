@@ -14,13 +14,15 @@ public class CardReadService : ICardReadService
     private readonly IUnitOfWork _unitOfWork;
     private readonly IValidationService _validationService;
     private readonly IEnumerable<IScadaEventObserver> _observers;
+    private readonly ICabinetStatusService _cabinetStatusService;
     private readonly ILogger<CardReadService> _logger;
 
-    public CardReadService(IUnitOfWork unitOfWork, IValidationService validationService, IEnumerable<IScadaEventObserver> observers, ILogger<CardReadService> logger)
+    public CardReadService(IUnitOfWork unitOfWork, IValidationService validationService, IEnumerable<IScadaEventObserver> observers, ICabinetStatusService cabinetStatusService, ILogger<CardReadService> logger)
     {
         _unitOfWork = unitOfWork;
         _validationService = validationService;
         _observers = observers;
+        _cabinetStatusService = cabinetStatusService;
         _logger = logger;
     }
 
@@ -52,6 +54,9 @@ public class CardReadService : ICardReadService
             return Result.NotFound(description: "Kabin bulunamadi veya pasif durumda");
         if (!cabinet.ScadaIsEnabled)
             return Result.Failure($"Bu kabinde({cabinet.Id}) SCADA kapalı.");
+
+        // 3.1) Kart okuması SCADA kartını ile habeleşildiğinin kanıtıdır
+        await _cabinetStatusService.RecordScadaContactAsync(cabinet.Id, cancellationToken);
 
 
         // 4) Kart -> aktif kullanici.

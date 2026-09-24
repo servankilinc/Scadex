@@ -12,8 +12,9 @@ import ScadaPanelImage from '@/assets/bg-scada-diagram.jpg';
 import { GLASS_BADGE, GLASS_BUTTON } from '@/lib/glass-styles';
 import { cn } from '@/lib/utils';
 import type { CabinetDetailDto } from '@/models/cabinet';
-import { DeviceStatusLabels } from '@/models/enums';
+import { deviceStatusLabel } from '@/models/enums';
 import { useCabinets } from '@/hooks/use-cabinets';
+import { useCabinetOverviewLive } from '@/hooks/use-cabinet-overview-live';
 
 /**
  * Kabin kartları — diyagram editörünün giriş noktası.
@@ -24,6 +25,7 @@ import { useCabinets } from '@/hooks/use-cabinets';
  */
 export default function Cabinets() {
   const { data, isPending, isError, error } = useCabinets();
+  useCabinetOverviewLive();
   const [isCreating, setIsCreating] = useState(false);
   const [editing, setEditing] = useState<CabinetDetailDto | null>(null);
 
@@ -103,11 +105,11 @@ function CabinetCard({ cabinet, onEdit }: { cabinet: CabinetDetailDto; onEdit: (
         </div>
 
         <div className='flex flex-wrap items-center gap-1.5'>
-          {/* `CabinetStatusBadge` yerine cam rozet + durum noktası: onun "Telemetri yok" hâli
+          {/* `CabinetStatusBadge` yerine cam rozet + durum noktası: onun "Bilinmiyor" hâli
               `text-foreground` kullanır ve açık temada koyu katmanın üstünde görünmez olurdu. */}
           <Badge variant='outline' className={GLASS_BADGE}>
             <StatusDot statusId={cabinet.deviceStatusId} />
-            {cabinet.deviceStatusId == null ? 'Telemetri yok' : DeviceStatusLabels[cabinet.deviceStatusId]}
+            {deviceStatusLabel(cabinet.deviceStatusId)}
           </Badge>
           {/* Pasif kayitlar listede GORUNUR — IsActive global query filter'i
               bilerek yok, pasife alinan bir kabin geri alinabilsin diye. */}

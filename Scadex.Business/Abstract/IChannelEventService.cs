@@ -16,8 +16,4 @@ public interface IChannelEventService
     /// Tanınmayan cihaz kodu / kanal numarasi için tum istek reddedilmez devam edilir <c>Warning</c> seviyesinde log kaydı atılır. 
     /// </summary>
     Task<Result> IngestAsync(ScadaIngestRequest request, CancellationToken cancellationToken = default);
-
-    /// <summary> Haber alinamayan cihazlari <c>Offline</c>'a ceker ve degisenleri yayinlar. </summary>
-    /// <returns> Offline'a cekilen cihaz sayisi. </returns>
-    Task<int> SetOfflineDevicesAsync(TimeSpan staleAfter, CancellationToken cancellationToken = default);
 }

@@ -48,6 +48,15 @@ let closeTimer: number | null = null;
 const cabinetRefCounts = new Map<string, number>();
 const handlerSets = new Set<DiagramHubHandlers>();
 
+/**
+ * "Tüm kabinler" özetinin aboneleri (`SubscribeCabinets` grubu). Abonelik başına AYRI nesne: aynı fonksiyonla iki
+ * kez abone olan iki bileşen Set'te tek kayda düşüp sayacı bozmasın.
+ */
+interface OverviewSubscription {
+  onCabinetStatus: (change: CabinetStatusChange) => void;
+}
+const overviewSubscriptions = new Set<OverviewSubscription>();
+
 // ---------------------------------------------------------------- durum store
 
 let status: HubStatus = 'disconnected';
@@ -99,8 +108,11 @@ function build(): HubConnection {
     for (const handlers of handlerSets) handlers.onDeviceStatus(changes);
   });
 
+  // Aynı olay iki gruptan gelebilir (kabin grubu her ingest'te, özet grubu yalnızca durum değişince); iki dinleyici
+  // türü de değeri yerine yazdığı için çift teslim zararsız.
   built.on(DiagramHubEvents.cabinetStatusChanged, (change: CabinetStatusChange) => {
     for (const handlers of handlerSets) handlers.onCabinetStatus(change);
+    for (const subscription of overviewSubscriptions) subscription.onCabinetStatus(change);
   });
 
   built.on(DiagramHubEvents.commandCompleted, (_cabinetId: string, change: CommandCompleted) => {
@@ -114,7 +126,7 @@ function build(): HubConnection {
     // Sunucu YENIDEN BAGLANAN istemciyi eski gruplarında HATIRLAMAZ: yeni bir
     // ConnectionId gelir. Abonelikler burada yenilenmezse bağlantı "Connected"
     // görünür ama hiçbir olay gelmez — sessiz ve teşhisi zor bir kopukluk.
-    for (const cabinetId of cabinetRefCounts.keys()) void invokeSubscribe(cabinetId);
+    void invokeSubscribeAll();
   });
 
   built.onclose(() => setStatus('disconnected'));
@@ -141,6 +153,9 @@ async function ensureStarted(): Promise<HubConnection | null> {
     setStatus('connecting');
     await connection.start();
     setStatus('connected');
+    // Bağlantı kurulurken gelen aboneler `invoke`'u atlamış olabilir (durum henüz 'Connected' değildi); o an kayıtlı
+    // olan her şey burada bir kez abone edilir. Aynı gruba iki kez katılmak sunucuda zararsız.
+    void invokeSubscribeAll();
   } catch {
     // Sessizce yutulur ve durum 'disconnected' kalır: banner kullanıcıya zaten
     // görünür bir geri bildirim veriyor, toast fırlatmak kopuk bir ağda saniyede
@@ -172,13 +187,36 @@ async function invokeUnsubscribe(cabinetId: string): Promise<void> {
   }
 }
 
+/** Parametresiz hub metodu (özet grubu). Bağlantı yoksa sessizce atlanır — bağlanınca `invokeSubscribeAll` telafi eder. */
+async function invokeMethod(method: string): Promise<void> {
+  if (connection?.state !== HubConnectionState.Connected) return;
+  try {
+    await connection.invoke(method);
+  } catch {
+    /* bağlantı bu arada düştü; onreconnected yeniden dener */
+  }
+}
+
+/**
+ * Kayıtlı bütün abonelikleri sunucuya bildirir. Sunucu yeniden bağlanan istemciyi eski gruplarında HATIRLAMAZ (yeni
+ * ConnectionId); ilk bağlantıda da kurulum sırasında gelen aboneler atlanmış olabilir.
+ */
+async function invokeSubscribeAll(): Promise<void> {
+  for (const cabinetId of cabinetRefCounts.keys()) void invokeSubscribe(cabinetId);
+  if (overviewSubscriptions.size > 0) await invokeMethod(DiagramHubMethods.subscribeCabinets);
+}
+
+function hasSubscribers(): boolean {
+  return cabinetRefCounts.size > 0 || handlerSets.size > 0 || overviewSubscriptions.size > 0;
+}
+
 function scheduleCloseIfIdle(): void {
-  if (cabinetRefCounts.size > 0 || handlerSets.size > 0) return;
+  if (hasSubscribers()) return;
   if (closeTimer !== null) window.clearTimeout(closeTimer);
 
   closeTimer = window.setTimeout(() => {
     closeTimer = null;
-    if (cabinetRefCounts.size > 0 || handlerSets.size > 0) return;
+    if (hasSubscribers()) return;
 
     const closing = connection;
     connection = null;
@@ -219,6 +257,30 @@ export function subscribeToCabinet(cabinetId: string, handlers: DiagramHubHandle
       cabinetRefCounts.set(cabinetId, current - 1);
     }
 
+    scheduleCloseIfIdle();
+  };
+}
+
+/**
+ * Tüm kabinlerin durum özetine abone olur (ana sayfa haritası, kabin listesi). Dönen fonksiyon aboneliği bırakır.
+ *
+ * Sunucu bu gruba yalnızca kabin durumu DEĞİŞİNCE yayın yapar — her ingest'te değil. Birden fazla abone güvenlidir:
+ * sunucuya yalnızca ilk abone için `SubscribeCabinets`, son abone gidince `UnsubscribeCabinets` gider.
+ */
+export function subscribeToCabinetOverview(onCabinetStatus: (change: CabinetStatusChange) => void): () => void {
+  const subscription: OverviewSubscription = { onCabinetStatus };
+  const isFirst = overviewSubscriptions.size === 0;
+  overviewSubscriptions.add(subscription);
+
+  void (async () => {
+    const started = await ensureStarted();
+    // Bağlantı zaten kuruluysa grup burada açılır; kurulmakta ise `ensureStarted` bağlanınca hepsini açar.
+    if (started && isFirst) await invokeMethod(DiagramHubMethods.subscribeCabinets);
+  })();
+
+  return () => {
+    overviewSubscriptions.delete(subscription);
+    if (overviewSubscriptions.size === 0) void invokeMethod(DiagramHubMethods.unsubscribeCabinets);
     scheduleCloseIfIdle();
   };
 }

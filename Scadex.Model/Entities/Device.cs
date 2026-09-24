@@ -1,8 +1,9 @@
 using Scadex.Core.Model;
+using Scadex.Model.Entities.Abstract;
 
 namespace Scadex.Model.Entities;
 
-public class Device : IEntity, IAuditableEntity, IActivatableEntity
+public class Device : IEntity, IAuditableEntity, IActivatableEntity, IMonitoredAsset
 {
     public Guid Id { get; set; }
     public Guid CabinetId { get; set; }
@@ -12,6 +13,7 @@ public class Device : IEntity, IAuditableEntity, IActivatableEntity
     public string? IpAddress { get; set; }
     public string? MacAddress { get; set; }
     public string? ExternalCode { get; set; }
+    /// <summary> Cihazdan son başarılı ping ya da SCADA haberleşme tarihi </summary>
     public DateTime? LastSeen { get; set; }
 
     // ------------ Tasarım props ------------
@@ -26,6 +28,18 @@ public class Device : IEntity, IAuditableEntity, IActivatableEntity
     public bool IsLocked { get; set; }
     public bool IsVisible { get; set; }
     // ------------ Tasarım props ------------
+
+    // (MonitoredAssetProbeWorker) tarafından TCP connect ile yoklanan cihazlarda doldur.
+    #region --- IMonitoredAsset ---
+    /// <inheritdoc/>
+    public int? MonitoringPort { get; set; }
+    /// <inheritdoc/>
+    public int PingIntervalSec { get; set; }
+    /// <inheritdoc/>
+    public bool IsMonitoringEnabled { get; set; }
+    /// <inheritdoc/>
+    public string? LastConnectionError { get; set; }
+    #endregion
 
     #region --- IAuditableEntity ---
     public string? CreatedBy { get; set; }

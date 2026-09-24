@@ -55,6 +55,18 @@ public class DiagramNotifier : IDiagramNotifier
         }
     }
 
+    public async Task CabinetStatusChangedForAllAsync(CabinetStatusChange change, CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            await _hub.Clients.Group(DiagramHub.OverviewGroupName).CabinetStatusChanged(change);
+        }
+        catch (Exception exception)
+        {
+            _logger.LogWarning(exception, $"Canli yayin basarisiz: CabinetStatusChangedForAllAsync, kabin {change.CabinetId}");
+        }
+    }
+
     public async Task CommandCompletedAsync(Guid cabinetId, CommandCompleted change, CancellationToken cancellationToken = default)
     {
         try

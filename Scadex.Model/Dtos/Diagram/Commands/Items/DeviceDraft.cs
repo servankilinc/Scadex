@@ -27,6 +27,10 @@ public class DeviceDraft : IDto, IIdentifiableDraft
 
     public string? IpAddress { get; set; }
 
+    public int? MonitoringPort { get; set; }
+    public int PingIntervalSec { get; set; } = 300;
+    public bool IsMonitoringEnabled { get; set; }
+
     /// <summary> Olusacak pinlerin KIMLIKLERI — yalnizca OLUSTURMADA doldurulur. </summary>
     public List<DevicePinDraft> Pins { get; set; } = [];
 
@@ -46,6 +50,12 @@ public class DeviceDraftValidator : AbstractValidator<DeviceDraft>
    
         RuleFor(v => v.MacAddress).MaximumLength(17).WithMessage("MAC adresi en fazla 17 karakter olabilir");
         RuleFor(v => v.IpAddress).MaximumLength(45).WithMessage("IP adresi en fazla 45 karakter olabilir");
+
+        RuleFor(v => v.MonitoringPort!.Value).InclusiveBetween(1, 65535).When(v => v.MonitoringPort.HasValue).WithMessage("İzleme portu 1-65535 arasında olmalı");
+        RuleFor(v => v.PingIntervalSec).InclusiveBetween(5, 86400).WithMessage("Yoklama aralığı 5 saniye ile 24 saat(86400sn) arasında olmalı");
+        // Izleme özelliği açık ama Ip eksikse worker her turda uyari loglar bu nedenle reddedilir
+        RuleFor(v => v.IpAddress).NotEmpty().When(v => v.IsMonitoringEnabled).WithMessage("İzleme açıkken IP adresi zorunlu");
+        RuleFor(v => v.MonitoringPort).NotNull().When(v => v.IsMonitoringEnabled).WithMessage("İzleme açıkken izleme portu zorunlu");
 
         RuleFor(v => v.Width).GreaterThan(0).When(v => v.Width.HasValue).WithMessage("Genislik sifirdan buyuk olmali");
         RuleFor(v => v.Height).GreaterThan(0).When(v => v.Height.HasValue).WithMessage("Yukseklik sifirdan buyuk olmali");

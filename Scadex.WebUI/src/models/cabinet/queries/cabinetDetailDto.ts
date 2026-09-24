@@ -12,7 +12,8 @@ export interface CabinetDetailDto {
   gsmIp: string | null;
   networkIp: string | null;
   /**
-   * Null = kabin hiç telemetri almadı. 0 DEĞİL.
+   * Null = bilinmiyor (kabinde durumu olan hiçbir cihaz yok — canlılık kanıtı yok; arayüzde
+   * `deviceStatusLabel` → "Bilinmiyor"). 0 DEĞİL.
    * Alan bir zamanlar non-nullable'dı ve NULL 0'a düşüyordu; 0 =
    * `DeviceStatus.Offline` olduğu için "bilinmiyor" durumu "ÇEVRİMDIŞI" diye
    * raporlanıyordu. Bunu `docs/api-contract/samples/CabinetDetailDto.NoTelemetry.json`

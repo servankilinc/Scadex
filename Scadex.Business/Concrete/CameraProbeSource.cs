@@ -32,7 +32,8 @@ public class CameraProbeSource : IMonitoredAssetProbeSource
                 MonitoringPort = c.MonitoringPort,
                 PingIntervalSec = c.PingIntervalSec
             },
-            where: c => c.IsActive && c.IsMonitoringEnabled,
+            // Pasif kabinin kamerasi yoklanmaz: kabin hesaba girmedigi icin sonuc hicbir yere yansimaz (DeviceProbeSource ile ayni kosul).
+            where: c => c.IsActive && c.IsMonitoringEnabled && c.Cabinet!.IsActive,
             cancellationToken: cancellationToken) ?? [];
 
         return [.. rows];

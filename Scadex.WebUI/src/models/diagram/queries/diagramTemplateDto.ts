@@ -17,4 +17,6 @@ export interface DiagramTemplateDto {
   /** `#RRGGBB` renk dizesi. */
   backgroundColor: string;
   backgroundImageUrl: string | null;
+  /** Cihazda ağ izlemesi açılabilir mi (sunucuda `ComponentTemplate.IsMonitorable`). Kapalıysa özellik paneli izleme alanlarını göstermez. */
+  isMonitorable: boolean;
 }

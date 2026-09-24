@@ -21,7 +21,7 @@ export interface ChannelValueChange {
 
 export interface DeviceStatusChange {
   deviceId: string;
-  /** Null = hiç telemetri alınmadı. `Offline` (0) ile AYNI ŞEY DEĞİL. */
+  /** Null = bilinmiyor (canlılık kanıtı yok; arayüzde `deviceStatusLabel`). `Offline` (0) ile AYNI ŞEY DEĞİL. */
   statusId: DeviceStatus | null;
   lastSeen: string | null;
 }
@@ -76,5 +76,8 @@ export const DiagramHubEvents = {
 /** İstemcinin çağırdığı hub metotları. */
 export const DiagramHubMethods = {
   subscribe: 'Subscribe',
-  unsubscribe: 'Unsubscribe'
+  unsubscribe: 'Unsubscribe',
+  /** Tüm kabinlerin durum özeti (harita, kabin listesi). Bu gruba yalnızca `CabinetStatusChanged` gider, o da durum DEĞİŞİNCE. */
+  subscribeCabinets: 'SubscribeCabinets',
+  unsubscribeCabinets: 'UnsubscribeCabinets'
 } as const;

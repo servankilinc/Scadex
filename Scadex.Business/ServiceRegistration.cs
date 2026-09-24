@@ -47,12 +47,14 @@ public static class ServiceRegistration
 
         services.AddScoped<IDiagramService, DiagramService>();
         services.AddScoped<IChannelEventService, ChannelEventService>();
+        services.AddScoped<ICabinetStatusService, CabinetStatusService>();
         services.AddScoped<ICameraService, CameraService>();
         services.AddScoped<IScadaCommandGateway, ScadaCommandGateway>();
         services.AddScoped<IOutputPolarityResolver, OutputPolarityResolver>();
 
         // Yoklanabilir her entity servisi içim buraya bir kayıt ekle;
         services.AddScoped<IMonitoredAssetProbeSource, CameraProbeSource>();
+        services.AddScoped<IMonitoredAssetProbeSource, DeviceProbeSource>();
 
         #region KAMERA / MEDYA        
 

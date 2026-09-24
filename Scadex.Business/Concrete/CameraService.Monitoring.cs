@@ -35,6 +35,11 @@ public partial class CameraService
         camera.LastConnectionError = nextError;
 
         await _unitOfWork.Cameras.UpdateAndSaveAsync(camera, cancellationToken);
+
+        // Kamera Offline ise kabine Warning olarak yazılmıştır, durum değiştiyse kabin yeniden hesaplanır.
+        if (statusChanged)
+            await _cabinetStatusService.RecalculateAsync(camera.CabinetId, cancellationToken);
+
         return Result.Success();
     }
 }

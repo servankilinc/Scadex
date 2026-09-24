@@ -12,6 +12,8 @@ public class ComponentTemplate : IEntity, IAuditableEntity, IActivatableEntity
     public double Height { get; set; }
     public string BackgroundColor { get; set; } = null!;
     public string? BackgroundImageUrl { get; set; }
+    /// <summary> Bu template'yi kullanan cihazlarda ağ izlemesi (<c>IMonitoredAsset</c>: ping) olabilir mi. örn. SCADA kartı, POS, bilgisayar gibi ağ cihazlarında vardır. </summary>
+    public bool IsMonitorable { get; set; }
 
     #region --- IAuditableEntity ---
     public string? CreatedBy { get; set; }

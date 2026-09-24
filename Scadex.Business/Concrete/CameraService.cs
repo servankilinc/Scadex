@@ -36,6 +36,7 @@ public partial class CameraService : ICameraService
     private readonly IHttpContextManager _httpContextManager;
     private readonly ILoggingService _logger;
     private readonly IMapper _mapper;
+    private readonly ICabinetStatusService _cabinetStatusService;
 
     public CameraService(
         IUnitOfWork unitOfWork,
@@ -49,8 +50,10 @@ public partial class CameraService : ICameraService
         ICameraCaptureSettingService captureSettingService,
         IHttpContextManager httpContextManager,
         ILoggingService logger,
-        IMapper mapper)
+        IMapper mapper,
+        ICabinetStatusService cabinetStatusService)
     {
+        _cabinetStatusService = cabinetStatusService;
         _unitOfWork = unitOfWork;
         _validationService = validationService;
         _mediaGateway = mediaGateway;

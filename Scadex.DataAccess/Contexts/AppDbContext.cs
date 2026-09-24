@@ -723,6 +723,8 @@ public class AppDbContext : IdentityDbContext<User, Role, Guid>
                 Height = height,
                 BackgroundColor = TypeColor(type),
                 BackgroundImageUrl = $"/templates/system/{imageFile}",
+                // Ag izlemesi yalnizca ag portu (RJ45) olan sablonda anlamlidir: kontrol modulu, POS, bilgisayar.
+                IsMonitorable = specs.Any(s => s.Function == Fn.RJ45),
                 IsActive = true
             });
 

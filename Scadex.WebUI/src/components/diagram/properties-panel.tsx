@@ -10,7 +10,7 @@ import { Textarea } from '@/components/ui/textarea';
 import {
   AnnotationShape,
   AnnotationShapeLabels,
-  DeviceStatusLabels,
+  deviceStatusLabel,
   DeviceTypeLabels,
   EdgeRouting,
   EdgeRoutingLabels,
@@ -27,7 +27,7 @@ import { ANNOTATION_FONT_SIZE_MAX, ANNOTATION_FONT_SIZE_MIN, ANNOTATION_TEXT_MAX
 import { useLiveChannel, useLiveDevice } from '@/lib/diagram/live-store';
 import { removeWaypoint } from '@/lib/diagram/waypoints';
 import { deviceSize, type DiagramNode } from '@/lib/diagram/to-rf-nodes';
-import { cn } from '@/lib/utils';
+import { cn, formatUtcDateTime } from '@/lib/utils';
 import { AlignToolbar } from './align-toolbar';
 import { CommandHistory } from './command-history';
 import { DeleteButton } from './confirm-delete';
@@ -194,6 +194,11 @@ function DeviceForm({ node, editor }: { node: Extract<DiagramNode, { type: 'temp
         <TextInput id='device-ip-address' value={device.ipAddress ?? ''} onCommit={value => onChange({ ipAddress: value || null })} />
       </Field>
 
+      {/* İzleme yalnızca izlenebilir şablonda (`template.isMonitorable`) sunulur — klemensin, sigortanın yoklanacak bir ağı
+          yok. Şablon izlenemezken izleme bir şekilde açık kalmışsa bölüm yine görünür ki kapatılabilsin; aksi halde
+          sunucu kaydı 400'ler ve kullanıcı sebebi göremezdi. */}
+      {(device.template.isMonitorable || device.isMonitoringEnabled) && <MonitoringFields device={device} onChange={onChange} />}
+
       <Field label='Dönüş (°)' htmlFor='device-rotation'>
         <NumberInput id='device-rotation' value={device.rotation} min={0} max={359} onCommit={rotation => onChange({ rotation })} />
       </Field>
@@ -270,9 +275,10 @@ function DeviceForm({ node, editor }: { node: Extract<DiagramNode, { type: 'temp
         {/* Sıfır artık "henüz üretilmedi" demek DEĞİL: pinler cihaz bırakılır
             bırakılmaz doğuyor, dolayısıyla sıfır gerçekten pinsiz bir şablondur. */}
         <ReadOnly term='Pin' value={String(device.pins.length)} />
-        {/* null = hiç telemetri alınmadı; Offline ile AYNI ŞEY DEĞİL. */}
-        <ReadOnly term='Durum' value={statusId == null ? 'Telemetri yok' : DeviceStatusLabels[statusId]} />
-        {lastSeen && <ReadOnly term='Son görülme' value={new Date(lastSeen).toLocaleTimeString('tr-TR')} />}
+        {/* null = bilinmiyor (canlılık kanıtı yok); Offline ile AYNI ŞEY DEĞİL. */}
+        <ReadOnly term='Durum' value={deviceStatusLabel(statusId)} />
+        {/* Sunucu damgası `Z`'siz gelir; çıplak `new Date` onu yerel saat sayıp kaydırırdı. */}
+        {lastSeen && <ReadOnly term='Son görülme' value={formatUtcDateTime(lastSeen)} />}
       </dl>
 
       <LayerControls
@@ -315,6 +321,58 @@ function DeviceForm({ node, editor }: { node: Extract<DiagramNode, { type: 'temp
           yapılan bir eylemdir ve hedefin görsel olarak seçili olması gerekir.
           Panelde duran şey sonucu — geçmiş. */}
       <CommandHistory deviceId={device.id} />
+    </div>
+  );
+}
+
+/**
+ * İzleme (sunucuda `IMonitoredAsset`): açıksa cihaz `IP:port`'a TCP ile yoklanır ve sonuç hem cihazın hem kabinin
+ * durumuna yansır — SCADA kartı, POS, makbuz yazıcı… hangisi olduğu fark etmez.
+ *
+ * Kurallar sunucudaki `DeviceDraftValidator`'ın ELLE tutulan aynasıdır: port 1..65535, periyot 5..86400 sn, izleme
+ * açıkken IP ve port zorunlu. Eksik hedef burada engellenmez, yalnızca işaretlenir: IP alanı yukarıda ve kullanıcı
+ * sırayla dolduruyor olabilir — son söz kaydetmede sunucunundur.
+ */
+function MonitoringFields({ device, onChange }: { device: DiagramDeviceDto; onChange: (patch: Partial<DiagramDeviceDto>) => void }) {
+  const missingTarget = device.isMonitoringEnabled && (!device.ipAddress || device.monitoringPort == null);
+
+  return (
+    <div className='flex flex-col gap-3 border-t pt-3'>
+      <div className='flex items-center justify-between gap-2'>
+        <Label htmlFor='device-monitoring' className='text-xs'>
+          İzleme
+        </Label>
+        <Switch id='device-monitoring' checked={device.isMonitoringEnabled} onCheckedChange={isMonitoringEnabled => onChange({ isMonitoringEnabled })} />
+      </div>
+
+      {device.isMonitoringEnabled && (
+        <>
+          <div className='grid grid-cols-2 gap-2'>
+            <Field label='Port' htmlFor='device-monitoring-port'>
+              <OptionalNumberInput
+                id='device-monitoring-port'
+                value={device.monitoringPort}
+                min={1}
+                max={65535}
+                onCommit={monitoringPort => onChange({ monitoringPort })}
+              />
+            </Field>
+            <Field label='Periyot (sn)' htmlFor='device-ping-interval'>
+              <NumberInput id='device-ping-interval' value={device.pingIntervalSec} min={5} max={86400} onCommit={pingIntervalSec => onChange({ pingIntervalSec })} />
+            </Field>
+          </div>
+          {missingTarget ? (
+            <p className='text-destructive text-[10px]'>İzleme için IP adresi ve port gerekli; eksikse kaydetme reddedilir.</p>
+          ) : (
+            <p className='text-muted-foreground text-[10px]'>
+              Cihaz bu adrese TCP ile yoklanır. Yoklama başarısız olursa cihaz Çevrimdışı sayılır; kabin Uyarı'ya geçer (kontrol
+              modülünde Çevrimdışı).
+            </p>
+          )}
+        </>
+      )}
+
+      {device.lastConnectionError && <p className='text-destructive text-[10px] break-words'>Son hata: {device.lastConnectionError}</p>}
     </div>
   );
 }
@@ -819,6 +877,53 @@ function NumberInput({
       min={min}
       max={max}
       step={step}
+      value={draft}
+      onChange={e => setDraft(e.target.value)}
+      onBlur={commit}
+      onKeyDown={e => e.key === 'Enter' && e.currentTarget.blur()}
+    />
+  );
+}
+
+/**
+ * `NumberInput`'un boş bırakılabilen hâli: boş girdi `null` demektir (örn. "izleme portu yok"). Sayı olmayan ya da
+ * aralık dışı girdi `NumberInput`'taki gibi sessizce eski değere döner.
+ */
+function OptionalNumberInput({
+  id,
+  value,
+  min,
+  max,
+  onCommit
+}: {
+  id: string;
+  value: number | null;
+  min: number;
+  max: number;
+  onCommit: (value: number | null) => void;
+}) {
+  const [draft, setDraft] = useState(value == null ? '' : String(value));
+
+  const commit = () => {
+    if (draft.trim() === '') {
+      if (value != null) onCommit(null);
+      return;
+    }
+    const parsed = Number(draft);
+    if (!Number.isInteger(parsed) || parsed < min || parsed > max) {
+      setDraft(value == null ? '' : String(value));
+      return;
+    }
+    if (parsed !== value) onCommit(parsed);
+  };
+
+  return (
+    <Input
+      id={id}
+      type='number'
+      className='h-7'
+      min={min}
+      max={max}
       value={draft}
       onChange={e => setDraft(e.target.value)}
       onBlur={commit}

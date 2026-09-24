@@ -15,7 +15,6 @@ public class ChannelValueChange : IDto
 public class DeviceStatusChange : IDto
 {
     public Guid DeviceId { get; set; }
-    /// <summary>Null = hic telemetri alinmadi. <c>Offline</c> ile AYNI SEY DEGIL.</summary>
     public EntityEnums.DeviceStatus? StatusId { get; set; }
     public DateTime? LastSeen { get; set; }
 }

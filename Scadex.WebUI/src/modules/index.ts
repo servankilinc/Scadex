@@ -31,6 +31,11 @@ export const busyCabinetQueries: CabinetIdsQueryOptions[] = enabledModules.flatM
   module.busyCabinetsQuery ? [module.busyCabinetsQuery] : []
 );
 
+/** Açık modüllerin "alarm olan kabin" sorguları — ana sayfa haritası okur. Statik: liste çalışırken değişmez. */
+export const alertCabinetQueries: CabinetIdsQueryOptions[] = enabledModules.flatMap(module =>
+  module.alertCabinetsQuery ? [module.alertCabinetsQuery] : []
+);
+
 /** Açık modüllerin kabin detay paneli bölümleri — ana sayfa paneli okur. Statik: liste çalışırken değişmez. */
 export const cabinetPanelSections = enabledModules.flatMap(module =>
   module.CabinetPanelSection ? [{ key: module.key, Component: module.CabinetPanelSection }] : []

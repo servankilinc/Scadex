@@ -6,7 +6,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Switch } from '@/components/ui/switch';
-import { BackgroundVariant, BackgroundVariantLabels, DeviceStatus, DeviceStatusLabels } from '@/models/enums';
+import { BackgroundVariant, BackgroundVariantLabels, DeviceStatus, deviceStatusLabel } from '@/models/enums';
 import type { DiagramCabinetDto, DiagramCanvasSettingsDto } from '@/models/diagram';
 import { canvasSettingsUpsertSchema } from '@/models/canvasSettings';
 import { useAppDispatch, useAppSelector } from '@/hooks';
@@ -39,8 +39,8 @@ export function DiagramToolbar({ cabinet, settings, save, isDirty, hubStatus }: 
       <div className='min-w-0'>
         <h1 className='truncate text-sm font-semibold'>{cabinet.name}</h1>
         <p className='text-muted-foreground text-xs'>
-          {/* null = hic telemetri alinmadi; Offline ile AYNI SEY DEGIL */}
-          {statusId == null ? 'Telemetri yok' : (DeviceStatusLabels[statusId] ?? cabinet.deviceStatusName ?? 'Bilinmiyor')}
+          {/* null = bilinmiyor (canlilik kaniti yok); Offline ile AYNI SEY DEGIL */}
+          {deviceStatusLabel(statusId)}
         </p>
       </div>
 
@@ -196,14 +196,14 @@ export function CabinetStatusBadge({ statusId, className }: { statusId: DeviceSt
   if (statusId == null) {
     return (
       <Badge variant='outline' className={cn('shrink-0', className)}>
-        Telemetri yok
+        {deviceStatusLabel(null)}
       </Badge>
     );
   }
 
   return (
     <Badge variant={statusId === DeviceStatus.Online ? 'default' : statusId === DeviceStatus.Offline ? 'secondary' : 'destructive'} className={cn('shrink-0', className)}>
-      {DeviceStatusLabels[statusId]}
+      {deviceStatusLabel(statusId)}
     </Badge>
   );
 }

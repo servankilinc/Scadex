@@ -15,7 +15,13 @@ public class DeviceDetailDto : IDto
     public string? MacAddress { get; set; }
     public string? ExternalCode { get; set; }
     public DateTime? LastSeen { get; set; }
-    
+
+    // ------------ IMonitoredAsset Props ------------
+    public int? MonitoringPort { get; set; }
+    public int PingIntervalSec { get; set; }
+    public bool IsMonitoringEnabled { get; set; }
+    public string? LastConnectionError { get; set; }
+
     // ------------ Tasarım props ------------
     public double CoordinateX { get; set; }
     public double CoordinateY { get; set; }

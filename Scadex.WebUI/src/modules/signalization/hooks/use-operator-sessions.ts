@@ -54,6 +54,21 @@ export function busyCabinetsQueryOptions(intervalMs = LIVE_POLL_MS): CabinetIdsQ
 }
 
 /**
+ * Alarm bayraklı (kartsız giriş / zorla açma — `hasAlert`) açık oturumu olan kabinler — ana sayfa haritasındaki alarm
+ * ikonu (manifestodaki `alertCabinetsQuery`). `busyCabinetsQueryOptions` ile AYNI anahtar ve `queryFn`: ek istek
+ * doğmaz, yalnızca `select` farklı. Kabin durumuna (`deviceStatusId`) yansımaz — 2026-09-24 kararı.
+ */
+export function alertCabinetsQueryOptions(intervalMs = LIVE_POLL_MS): CabinetIdsQueryOptions {
+  return {
+    queryKey: signalizationKeys.openSessions(null),
+    queryFn: () => getOpenSessions(null),
+    refetchInterval: query => (isModuleOff(query.state.error) ? false : intervalMs),
+    refetchIntervalInBackground: true,
+    select: (sessions: OperatorSessionOpenDto[]) => [...new Set(sessions.filter(session => session.hasAlert).map(session => session.cabinetId))]
+  };
+}
+
+/**
  * Sayfalı geçmiş. `keepPreviousData`: sayfa değişiminde tablo boşalıp yeniden dolmaz.
  *
  * `enabled`: çağıran, sonucu gerçekten gerekmedikçe isteği bastırabilir (harita paneli, açık oturum
