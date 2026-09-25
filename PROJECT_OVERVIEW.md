@@ -417,7 +417,7 @@ Kabindeki öncelik: Critical > Offline > Warning > Maintenance > Online; hiç ka
 | Kontrol kartı | Yalnızca SCADA teması (Online) ve `NoResponse` (Offline). **Zamanla Offline olmaz.** |
 | Diğer cihazlar | Hiçbir şey (giriş/çıkış kartı, siren, klemens normalde hep `null`). |
 | Kamera | Hiçbir şey; son durumunda kalır, **kabin hesabına girmez**. |
-| Tarama (`OfflineDeviceChecker`, `Scada:SweepIntervalSeconds` 5 dk) | `LastSeen` **dolu ve 23 saatten eski**, durum Online/Offline → `null` (Offline değil). Boş `LastSeen` eski sayılmaz: hiç görülmemiş kartın `NoResponse` Offline'ı silinmesin (bedeli: hiç görülmemiş ama Online/Offline kalmış kayıt temizlenmez). 23 saat bilerek sabittir. |
+| Tarama (`StatusCleanupWorker` — eski adı `OfflineDeviceChecker`; `Scada:SweepIntervalSeconds` 5 dk) | `LastSeen` **dolu ve 23 saatten eski**, durum Online/Offline → `null` (Offline değil). Boş `LastSeen` eski sayılmaz: hiç görülmemiş kartın `NoResponse` Offline'ı silinmesin (bedeli: hiç görülmemiş ama Online/Offline kalmış kayıt temizlenmez). 23 saat bilerek sabittir. |
 
 **`LastSeen`'e bakıp Offline yargısına varılmaz.** İzlenenler taramanın bilerek dışındadır: dahil
 edilseydi 23 saattir ulaşılamayan izlenen cihaz her turda Bilinmiyor ↔ Offline salınırdı (ölçüldü).
@@ -767,7 +767,7 @@ mount + `key` ile tazelenmesi.
 
 **(d)** ~~`IMonitoredAsset` yoklama background servisi.~~ **TAMAMLANDI (2026-09-10).**
 
-`MonitoredAssetProbeWorker` (WebAPI/BackgroundServices) `OfflineDeviceChecker` kalıbını izler.
+`MonitoredAssetProbeWorker` (WebAPI/BackgroundServices) `StatusCleanupWorker` (eski adı `OfflineDeviceChecker`) kalıbını izler.
 **Tipe özel değildir:** kayıtlı her `IMonitoredAssetProbeSource` üzerinden döner, tipleri hiç
 bilmez. Yeni bir izlenen tip eklemek = yeni bir kaynak implementasyonu + tek satırlık DI kaydı;
 worker değişmez. Kaynaklar: `CameraProbeSource` ve (2026-09-24) `DeviceProbeSource` — izlemesi açık

@@ -251,7 +251,7 @@ builder.Services.AddHttpClient(IMediaGateway.HttpClientName);
 
 
 #region ------- HostedService -------
-builder.Services.AddHostedService<OfflineDeviceChecker>();
+builder.Services.AddHostedService<StatusCleanupWorker>();
 
 // HTTP istegini Klip, suresi kadar bekletmek yerine iş buraya dusuyor.
 builder.Services.AddHostedService<ClipCaptureWorker>();

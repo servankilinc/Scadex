@@ -6,15 +6,15 @@ namespace Scadex.WebAPI.BackgroundServices;
 /// Monitoringi kaplı cihaz ve kameraların 23 saatten içinde haberleşilmediyse durumları "bilinmiyor"a çeker ve tüm kabinleri uzlaştırır.
 /// Monitoringi açık cihaz ve kameraları <c>MonitoredAssetProbeWorker</c> yoklar; burası offline/online bilgisini set etmez
 /// </summary>
-public class OfflineDeviceChecker : BackgroundService
+public class StatusCleanupWorker : BackgroundService
 {
     private readonly IServiceScopeFactory _scopeFactory;
-    private readonly ILogger<OfflineDeviceChecker> _logger;
+    private readonly ILogger<StatusCleanupWorker> _logger;
     private readonly TimeSpan _interval;
 
     private const int DefaultSweepIntervalSeconds = 300; // 5dk
 
-    public OfflineDeviceChecker(IServiceScopeFactory scopeFactory, IConfiguration configuration, ILogger<OfflineDeviceChecker> logger)
+    public StatusCleanupWorker(IServiceScopeFactory scopeFactory, IConfiguration configuration, ILogger<StatusCleanupWorker> logger)
     {
         _scopeFactory = scopeFactory;
         _logger = logger;
@@ -25,7 +25,7 @@ public class OfflineDeviceChecker : BackgroundService
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
-        _logger.LogInformation("OfflineDeviceChecker basladi: her {Interval} sn", _interval.TotalSeconds);
+        _logger.LogInformation("StatusCleanupWorker basladi: her {Interval} sn", _interval.TotalSeconds);
 
         using var timer = new PeriodicTimer(_interval);
 
@@ -47,7 +47,7 @@ public class OfflineDeviceChecker : BackgroundService
             }
             catch (Exception exception)
             {
-                _logger.LogError(exception, "OfflineDeviceChecker turu basarisiz");
+                _logger.LogError(exception, "StatusCleanupWorker turu basarisiz");
             }
         }
     }

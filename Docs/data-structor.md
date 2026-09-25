@@ -362,7 +362,7 @@ flowchart LR
     end
 
     subgraph SUPURUCU["⏱ Canlılık"]
-        OFF["OfflineDeviceChecker"] -->|"izlemesiz durum 23 sa eskidiyse → bilinmiyor"| CV
+        OFF["StatusCleanupWorker"] -->|"izlemesiz durum 23 sa eskidiyse → bilinmiyor"| CV
     end
 ```
 
@@ -817,7 +817,7 @@ WorkflowNodeType          -- Tetikleyiciler (1-9)
 1. **Entity + enum.** Altı entity'yi `Model/Entities/Automation/` altına aç, enum'ları `EntityEnums.cs`'e **yukarıdaki sayısal değerlerle** ekle.
 2. **Tetikleyici bağlantısı — tek dokunuş noktası.** `ChannelEventService.IngestAsync`, değer değiştiğinde bir `IWorkflowTrigger.OnChannelChangedAsync(...)` çağırır. **Çağrı `SaveChanges`'ten SONRA, yayınlarla aynı yerde olmalı.** İşi bir kuyruğa bırakın — ingest sıcak yoldur, kural değerlendirmesiyle bloke edilmemelidir. Desen hazır: `IClipCaptureQueue` (singleton kuyruk + hosted service tüketici).
 3. **Etki bağlantısı.** `DeviceAction` düğümü mevcut `IDeviceCommandService.SendAsync`'i çağırır — **yeni bir kumanda yolu açmayın** (ROADMAP R2: her tabloya tek yazma yolu). Böylece operatör butonu ile otomasyon aynı kapıdan geçer ve kumanda geçmişi tek yerde toplanır.
-4. **`Delay` düğümü.** `ResumeAt` yazan bir hosted service ile çözülür; desen `OfflineDeviceChecker`'dır (periyodik tarama + `IServiceScopeFactory`). `ResumeAt` üzerinde **filtered index** gerekir (`WHERE Status = Waiting`) — motorun bekleyenleri toplayan sorgusu odur. Referans projedeki `Thread.Sleep(delay)` **kopyalanmamalıdır**: çağıran thread'i bloke ediyordu.
+4. **`Delay` düğümü.** `ResumeAt` yazan bir hosted service ile çözülür; desen `StatusCleanupWorker`'dır (periyodik tarama + `IServiceScopeFactory`). `ResumeAt` üzerinde **filtered index** gerekir (`WHERE Status = Waiting`) — motorun bekleyenleri toplayan sorgusu odur. Referans projedeki `Thread.Sleep(delay)` **kopyalanmamalıdır**: çağıran thread'i bloke ediyordu.
 5. **Koşul değerlendirme.** `DataTable.Compute` ile string ifade kurma yöntemi **taşınmamalıdır** — enjeksiyona açık ve hata ayıklanamaz. `ConfigJson` içinde tiplenmiş bir karşılaştırma nesnesi (`{ "op": "gte", "value": 30 }`) saklayıp C#'ta değerlendirin.
 6. **API.** Ekran başına uç: `GET/POST /api/Workflow`, `POST /api/Workflow/{id}/nodes` (düğüm + kenar **tek transaction'da** — kenarsız düğüm kullanılamaz; `POST /api/ComponentTemplate` ile aynı gerekçe), `POST /api/WorkflowExecution/list`.
 7. **Frontend.** Workflow editörü React Flow'u **ikinci kez** kullanır. `nodeTypes`/`edgeTypes` yine modül seviyesinde tanımlanmalı, diyagram editörünün store'larıyla **karışmamalı** — beşinci bir state evi değil, kendi `useWorkflowEditor`'ı.
@@ -1031,7 +1031,7 @@ Yukarıdaki reçetelerde tekrar eden kurallar:
 3. **Her tabloya tek yazma yolu** (ROADMAP R2). Jenerik CRUD ucu **açmayın**; sahibi olan aggregate'in controller'ına ekran başına bir uç ekleyin.
 4. **Ekran başına uç, entity başına değil.** `GET /api/Diagram/cabinet/{id}` bütün aggregate'i döner çünkü ekran onu ister.
 5. **Sözleşmeyi elle senkronlayın:** C# DTO + `docs/api-contract/*.md` + TS aynası. Hiçbir derleme bunu yakalamaz.
-6. **Sıcak yolu bloke etmeyin.** Uzun süren iş (bildirim, gecikme, çekim) kuyruk + hosted service ile yapılır. Hazır desenler: `IClipCaptureQueue`, `OfflineDeviceChecker`.
+6. **Sıcak yolu bloke etmeyin.** Uzun süren iş (bildirim, gecikme, çekim) kuyruk + hosted service ile yapılır. Hazır desenler: `IClipCaptureQueue`, `StatusCleanupWorker`.
 7. **Yaşam döngüsü arayüzlerini kullanın**, elle `IsDeleted` yazmayın — interceptor zaten zorluyor.
 8. **Enum değerlerini koruyun.** Sayı olarak serileşiyorlar; bir üyenin değerini değiştirmek sessizce yanlış veri okutur. Yeni üye **sona** eklenir (`PinDirection.AnalogInput = 3` böyle eklendi).
 9. **Migration klasörü kırılgan.** `Backend/CabinetOs.DataAccess/Migrations/` git'te izlenmiyor ve içeriği iki kez kayboldu. `dotnet ef migrations add` çıktısının delta mı tam şema mı olduğunu **her seferinde kontrol edin**.
