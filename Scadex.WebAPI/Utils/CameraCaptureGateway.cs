@@ -1,5 +1,7 @@
 using System.Globalization;
+using Microsoft.Extensions.Options;
 using Scadex.Business.Abstract;
+using Scadex.Business.Settings;
 using Scadex.Business.Utils.CameraCaptureGateway;
 using Scadex.Core.Utils.ResultPattern;
 using Scadex.Model.Entities;
@@ -11,16 +13,15 @@ namespace Scadex.WebAPI.Utils;
 /// </summary>
 public sealed partial class CameraCaptureGateway : ICameraCaptureGateway
 {
-    /// <summary> <see cref="IWebHostEnvironment.ContentRootPath"/>'e gore FFmpeg yolu </summary>
-    private const string FfmpegRelativePath = "MediaTools/ffmpeg-9.0.2/ffmpeg.exe";
-
-    private readonly IWebHostEnvironment _environment;
+    /// <summary> FFmpeg exe'nin tam yolu: <c>MediaGatewaySettings.FfmpegPath</c>, relative ise <see cref="IWebHostEnvironment.ContentRootPath"/>'e gore. </summary>
+    private readonly string _ffmpegPath;
     private readonly ICameraCaptureSettingService _cameraCaptureSettingService;
     private readonly ILogger<CameraCaptureGateway> _logger;
 
-    public CameraCaptureGateway(IWebHostEnvironment environment, ICameraCaptureSettingService cameraCaptureSettingService, ILogger<CameraCaptureGateway> logger)
+    public CameraCaptureGateway(IWebHostEnvironment environment, IOptions<MediaGatewaySettings> mediaGatewaySettings, ICameraCaptureSettingService cameraCaptureSettingService, ILogger<CameraCaptureGateway> logger)
     {
-        _environment = environment;
+        // Path.Combine ikinci arguman mutlaksa onu dondurur: ayarda mutlak yol da verilebilir.
+        _ffmpegPath = Path.GetFullPath(Path.Combine(environment.ContentRootPath, mediaGatewaySettings.Value.FfmpegPath));
         _cameraCaptureSettingService = cameraCaptureSettingService;
         _logger = logger;
     }
@@ -124,7 +125,7 @@ public sealed partial class CameraCaptureGateway : ICameraCaptureGateway
     #region Helpers
     /// <summary>
     /// Iki islemin ortak giris kismi. FFmpeg → MediaMTX baglantisi yereldir ve HEP <c>tcp</c>'dir. 
-    /// Kamera → MediaMTX tasimasi ayri: <c>MediaGatewaySetting.RtspTransport</c>. <c>-timeout</c> RTSP soket G/C zaman asimidir (mikrosaniye);
+    /// Kamera → MediaMTX tasimasi ayri: <c>MediaGatewaySettings.RtspTransport</c>. <c>-timeout</c> RTSP soket G/C zaman asimidir (mikrosaniye);
     /// kimse izlemiyorken MediaMTX kameraya baglanip ilk kareyi getirene kadar okuma bu sureyle sinirlidir.     
     /// </summary>
     private static string[] InputArguments(string sourceUrl, int ioTimeoutMs) =>

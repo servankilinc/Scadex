@@ -49,11 +49,9 @@ public partial class CameraService
         var (streamToken, expiresAt) = await IssueStreamTokenAsync(pathName, cancellationToken);
 
         // 4) client'a don
-        var mediaGatewaySettings = await _mediaGatewaySettingService.GetSettingsAsync(cancellationToken);
-
         return Result<StreamTokenDto>.Success(new StreamTokenDto
         {
-            WhepUrl = $"{mediaGatewaySettings.WebRtcPublicBaseUrl.TrimEnd('/')}/{pathName}/whep",
+            WhepUrl = $"{_mediaGatewaySettings.WebRtcPublicBaseUrl.TrimEnd('/')}/{pathName}/whep",
             Token = streamToken,
             ExpirationUtc = expiresAt
         });
@@ -69,8 +67,7 @@ public partial class CameraService
         var randomNumber = RandomNumberGenerator.GetBytes(32);
         string streamToken = Convert.ToBase64String(randomNumber).Replace('+', '-').Replace('/', '_').TrimEnd('=');
 
-        var mediaGatewaySettings = await _mediaGatewaySettingService.GetSettingsAsync(cancellationToken);
-        var ttl = TimeSpan.FromSeconds(mediaGatewaySettings.TokenTtlSeconds);
+        var ttl = TimeSpan.FromSeconds(_mediaGatewaySettings.TokenTtlSeconds);
 
         await _cache.SetStringAsync(
             StreamTokenCacheKey(pathName, streamToken),
@@ -99,7 +96,7 @@ public partial class CameraService
         string pathName = IMediaGateway.LivePathName(camera.Id, StreamProfile.Main);
         var (token, _) = await IssueStreamTokenAsync(pathName, cancellationToken);
 
-        return Result<string>.Success(IMediaGateway.LiveRtspUrl(pathName, token));
+        return Result<string>.Success(IMediaGateway.LiveRtspUrl(_mediaGatewaySettings.RtspPort, pathName, token));
     }
 
     /// <inheritdoc/>

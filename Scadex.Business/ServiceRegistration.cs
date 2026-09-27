@@ -38,7 +38,6 @@ public static class ServiceRegistration
         services.AddScoped<IDiagramAnnotationService, DiagramAnnotationService>();
         services.AddScoped<IDeviceStatusService, DeviceStatusService>();
         services.AddScoped<IDeviceTypeService, DeviceTypeService>();
-        services.AddScoped<IMediaGatewaySettingService, MediaGatewaySettingService>();
         services.AddScoped<ICameraCaptureSettingService, CameraCaptureSettingService>();
         #endregion
 
@@ -55,8 +54,7 @@ public static class ServiceRegistration
         services.AddScoped<IMonitoredAssetProbeSource, CameraProbeSource>();
         services.AddScoped<IMonitoredAssetProbeSource, DeviceProbeSource>();
 
-        #region KAMERA / MEDYA        
-
+        #region KAMERA / MEDYA
         services.AddSingleton<ICameraProtocolProfile, HikvisionProtocolProfile>();
         services.AddSingleton<ICameraProtocolProfileResolver, CameraProtocolProfileResolver>();
 

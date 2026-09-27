@@ -34,7 +34,6 @@ public static class ServiceRegistration
         services.AddScoped<IDeviceStatusRepository, DeviceStatusRepository>();
         services.AddScoped<IDeviceTypeRepository, DeviceTypeRepository>();
         services.AddScoped<IRefreshTokenRepository, RefreshTokenRepository>();
-        services.AddScoped<IMediaGatewaySettingRepository, MediaGatewaySettingRepository>();
         services.AddScoped<ICameraCaptureSettingRepository, CameraCaptureSettingRepository>();
 
         #region DB CONTEXT

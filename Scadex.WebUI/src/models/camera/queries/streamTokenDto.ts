@@ -7,7 +7,7 @@ export interface StreamTokenDto {
    * Tarayıcının SDP teklifini göndereceği WHEP adresi.
    *
    * Sunucunun değil TARAYICININ ulaşacağı adres. Bağlantı kurulamıyorsa ilk
-   * bakılacak yer sunucudaki `Mediamtx:WebRtcPublicBaseUrl` ayarıdır —
+   * bakılacak yer sunucudaki `MediaGateway:WebRtcPublicBaseUrl` ayarıdır —
    * `127.0.0.1` yazılıysa yalnızca sunucunun kendi tarayıcısında çalışır.
    */
   whepUrl: string;

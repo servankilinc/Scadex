@@ -1,5 +1,5 @@
 using Microsoft.Extensions.Logging;
-using Scadex.Business.Abstract;
+using Microsoft.Extensions.Options;
 using Scadex.Business.Settings;
 using Scadex.Business.Utils.CameraProtocolProfile.Resolver;
 using Scadex.Core.Utils.ResultPattern;
@@ -14,24 +14,24 @@ namespace Scadex.Business.Utils.MediaGateway;
 public class MediaMtxGateway : IMediaGateway
 {
     private readonly IHttpClientFactory _httpClientFactory;
-    private readonly IMediaGatewaySettingService _mediaGatewaySettingService;
+    private readonly MediaGatewaySettings _mediaGatewaySettings;
     private readonly ICameraProtocolProfileResolver _profileResolver;
     private readonly ILogger<MediaMtxGateway> _logger;
 
-    public MediaMtxGateway(IHttpClientFactory httpClientFactory, IMediaGatewaySettingService mediaGatewaySettingService, ICameraProtocolProfileResolver profileResolver, ILogger<MediaMtxGateway> logger)
+    public MediaMtxGateway(IHttpClientFactory httpClientFactory, IOptions<MediaGatewaySettings> settings, ICameraProtocolProfileResolver profileResolver, ILogger<MediaMtxGateway> logger)
     {
         _httpClientFactory = httpClientFactory;
-        _mediaGatewaySettingService = mediaGatewaySettingService;
+        _mediaGatewaySettings = settings.Value;
         _profileResolver = profileResolver;
         _logger = logger;
     }
 
-    private HttpClient CreateConfiguredClient(MediaGatewaySettings settings)
+    private HttpClient CreateConfiguredClient()
     {
         var httpClient = _httpClientFactory.CreateClient(IMediaGateway.HttpClientName);
 
-        httpClient.BaseAddress = new Uri(settings.ApiBaseUrl.TrimEnd('/') + "/");
-        httpClient.Timeout = TimeSpan.FromMilliseconds(settings.ApiTimeoutMs);
+        httpClient.BaseAddress = new Uri(_mediaGatewaySettings.ApiBaseUrl.TrimEnd('/') + "/");
+        httpClient.Timeout = TimeSpan.FromMilliseconds(_mediaGatewaySettings.ApiTimeoutMs);
 
         return httpClient;
     }
@@ -40,21 +40,20 @@ public class MediaMtxGateway : IMediaGateway
     /// <inheritdoc/>
     public async Task<Result> EnsureLivePathAsync(Camera camera, StreamProfile profile, CancellationToken cancellationToken = default)
     {
-        var settings = await _mediaGatewaySettingService.GetSettingsAsync(cancellationToken);
         var rtspUrl = _profileResolver.Resolve(camera).BuildRtspUrl(camera, profile);
 
         var payload = new Dictionary<string, object?>
         {
             ["source"] = rtspUrl,
-            // Talep uzerine baglan: izleyicisi olmayan bir kamera icin RTSP oturumu acik tutulmaz "SourceOnDemandCloseAfter" saniye sonra RTSP oturumu kapatilir.
+            // Talep uzerine baglan: izleyicisi olmayan bir kamera icin RTSP oturumu acik tutulmaz "SourceOnDemandCloseAfterSec" saniye sonra RTSP oturumu kapatilir.
             ["sourceOnDemand"] = true,
-            ["sourceOnDemandCloseAfter"] = settings.SourceOnDemandCloseAfter,
-            ["rtspTransport"] = settings.RtspTransport
+            ["sourceOnDemandCloseAfter"] = $"{_mediaGatewaySettings.SourceOnDemandCloseAfterSec}s",
+            ["rtspTransport"] = _mediaGatewaySettings.RtspTransport
         };
 
         var pathName = IMediaGateway.LivePathName(camera.Id, profile);
 
-        var httpClient = CreateConfiguredClient(settings);
+        var httpClient = CreateConfiguredClient();
 
         try
         {
@@ -102,7 +101,7 @@ public class MediaMtxGateway : IMediaGateway
     /// <inheritdoc/>
     public async Task<Result> DeletePathAsync(string pathName, CancellationToken cancellationToken = default)
     {
-        var httpClient = CreateConfiguredClient(await _mediaGatewaySettingService.GetSettingsAsync(cancellationToken));
+        var httpClient = CreateConfiguredClient();
 
         try
         {
@@ -125,7 +124,7 @@ public class MediaMtxGateway : IMediaGateway
     /// <inheritdoc/>
     public async Task<Result<IReadOnlyList<MediaPathInfo>>> ListPathsAsync(CancellationToken cancellationToken = default)
     {
-        var httpClient = CreateConfiguredClient(await _mediaGatewaySettingService.GetSettingsAsync(cancellationToken));
+        var httpClient = CreateConfiguredClient();
 
         try
         {

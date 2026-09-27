@@ -25,7 +25,6 @@ public interface IUnitOfWork : IDisposable, IAsyncDisposable
     ICameraRepository Cameras { get; }
     ICameraCaptureRepository CameraCaptures { get; }
     IChannelEventRepository ChannelEvents { get; }
-    IMediaGatewaySettingRepository MediaGatewaySettings { get; }
     ICameraCaptureSettingRepository CameraCaptureSettings { get; }
     IRefreshTokenRepository RefreshTokens { get; }
     #endregion

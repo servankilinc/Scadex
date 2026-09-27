@@ -37,7 +37,6 @@ public class AppDbContext : IdentityDbContext<User, Role, Guid>
     public DbSet<Camera> Cameras { get; set; }
     public DbSet<CameraCapture> CameraCaptures { get; set; }
     public DbSet<ChannelEvent> ChannelEvents { get; set; }
-    public DbSet<MediaGatewaySetting> MediaGatewaySettings { get; set; }
     public DbSet<CameraCaptureSetting> CameraCaptureSettings { get; set; }
     public DbSet<RefreshToken> RefreshTokens { get; set; }
     public DbSet<Log> Logs { get; set; }
@@ -479,19 +478,8 @@ public class AppDbContext : IdentityDbContext<User, Role, Guid>
 
         #region AYARLAR (tip basina TEK SATIR)
         // Degerler Business.Settings icindeki siniflarin varsayilanlariyla AYNI olmali:
-        // satir yoksa saglayici appsettings.json'a duser, satir varsa buradan okunur.
-        // Ikisi ayrisirsa "ayni kurulum farkli davraniyor" hatasi cikar.
-        modelBuilder.Entity<MediaGatewaySetting>().HasData(new MediaGatewaySetting
-        {
-            Id = MediaGatewaySetting.SingleRowId,
-            ApiTimeoutMs = 30000,
-            ApiBaseUrl = "http://127.0.0.1:9997",
-            WebRtcPublicBaseUrl = "http://127.0.0.1:8889",
-            TokenTtlSeconds = 60,
-            SourceOnDemandCloseAfter = "10s",
-            RtspTransport = "tcp"
-        });
-
+        // satir yoksa servis sinif varsayilanlarina duser. Ikisi ayrisirsa "ayni kurulum farkli davraniyor" hatasi cikar.
+        // Medya gecidi ayarlari burada DEGIL, appsettings.json > MediaGateway'dedir (mediamtx.yml ile elle senkron).
         modelBuilder.Entity<CameraCaptureSetting>().HasData(new CameraCaptureSetting
         {
             Id = CameraCaptureSetting.SingleRowId,

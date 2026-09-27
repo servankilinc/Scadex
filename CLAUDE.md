@@ -59,14 +59,23 @@ Bilinmesi gerekenler:
   değişikliğin çalıştığını iddia etmeden önce gerçekten çalıştırın. (`npm run lint` ve
   `npm run build` bugün yeşil; yeşil kalmalı.)
 - **`npm run typecheck` diye bir script yoktur** (`build` zaten `tsc -b` çalıştırır).
-- MediaMTX uygulama tarafından başlatılmaz; ayrı süreçtir
-  (`Scadex.WebAPI/mediamtx_v1.20.1/mediamtx.exe`) ve **kameraya bağlanan tek bileşendir**:
-  canlı izleme de, FFmpeg'in anlık görüntü/klip okuması da onun `cam_{id}_main` yolundan geçer.
-- **FFmpeg'i uygulama kendisi çağırır** (anlık görüntü + klip, `CameraCaptureGateway`):
-  `Scadex.WebAPI/MediaTools/ffmpeg-9.0.2/ffmpeg.exe`, `ContentRootPath` altından. Yol ayar değil
-  sabittir (`CameraCaptureGateway.FfmpegRelativePath`). **`MediaTools/` git'te yoktur**
+- **MediaMTX'i WebAPI başlatır ve kapanırsa yeniden başlatır** (`MediaMtxSupervisorWorker`,
+  2026-09-27). Exe yolu `MediaGateway:MediaMtxPath` (varsayılan
+  `MediaTools/mediamtx/mediamtx.exe`); yapılandırma exe ile aynı klasördeki `mediamtx.yml`'dir
+  — yml yoksa **başlatılmaz** (varsayılanlarla auth kapalı açılırdı). `mediamtx.exe` Windows servis
+  protokolünü uygulamadığı için `sc create` ile servis yapılamaz (1053); ayrıca servis/elle çalıştırmayın,
+  aynı portları tutar. Scadex kapanırken MediaMTX **bilerek öldürülmez**; sonraki açılış aynı yoldan
+  çalışanı sahiplenir. Çıktısı Serilog'a `[MediaMTX]` önekiyle yazılır (yml'de `logDestinations: [stdout]`
+  kalmalı). MediaMTX **kameraya bağlanan tek bileşendir**: canlı izleme de, FFmpeg'in anlık görüntü/klip
+  okuması da onun `cam_{id}_main` yolundan geçer. Portlar yml'dedir ve `appsettings.json > MediaGateway`
+  ile **elle senkron** tutulur; eşleşme listesi yml'nin en başındadır. Scadex'in kullanmadığı protokoller
+  (rtmp/hls/srt/moq, RTSP udp/multicast) yml'de port açmasın diye kapalıdır — açmayın.
+- **FFmpeg'i uygulama kendisi çağırır** (anlık görüntü + klip, `CameraCaptureGateway`). Yol
+  `MediaGateway:FfmpegPath` ayarıdır (varsayılan `MediaTools/ffmpeg/ffmpeg.exe`, göreliyse
+  `ContentRootPath` altından). **`MediaTools/` git'te yoktur** — FFmpeg, MediaMTX ve `mediamtx.yml` dahil
   (`.gitignore`; exe GitHub'ın 100 MiB sınırını aşıyor) — yeni klonda ve her sunucuda elle konur,
-  yoksa çekimler "FFmpeg bulunamadı" ile düşer. Yayında yalnızca `ffmpeg.exe` kopyalanır (csproj).
+  yoksa çekimler "FFmpeg bulunamadı" ile düşer, MediaMTX başlamaz. Yayına `ffmpeg.exe`, `mediamtx.exe`
+  ve `mediamtx.yml` kopyalanır (csproj).
 
 ## Mimari
 
@@ -194,16 +203,16 @@ Bunlar tek bir dosyaya bakarak görülemez; gerekçeleri PROJECT_OVERVIEW.md §5
   numaraları boşlukludur. **`DictionaryKeyPolicy` bilerek `null`** — `ProblemDetails.errors`
   anahtarları PascalCase kalır (`"Devices.Upserted[0].Pins"`); iki taraftan birini "düzeltmeyin".
   `null` alanlar gövdeden düşmez (`DefaultIgnoreCondition = Never`).
-- **Medya geçidi ve kamera çekim ayarları `appsettings.json`'da DEĞİL, veritabanındadır.**
-  Tip başına tek satırlık tablo + ayar nesnesi başına ayrı servis
-  (`IMediaGatewaySettingService`, `ICameraCaptureSettingService`), `ICacheService` ile
-  önbeleklenir, her yazma kendi anahtarını düşürür. `appsettings.json`'a `MediaGateway` /
-  `Cameras` bölümü geri eklemeyin — **okunmuyor**, sessizce yok sayılır.
-  Adlandırılmış `HttpClient` yine `Program.cs`'te kurulur ama `BaseAddress`/`Timeout` orada
-  **verilmez**; `MediaMtxGateway.CreateConfiguredClient` her çağrıda ayardan uygular.
-  Ekranı `/admin/settings`; zod şemaları (`models/mediaGatewaySetting`,
-  `models/cameraCaptureSetting`) sunucudaki `FluentValidation` kurallarının **elle tutulan
-  kopyasıdır** — sunucudaki kuralı değiştirirseniz şemayı da değiştirin, codegen yok.
+- **Medya geçidi ayarları `appsettings.json > MediaGateway`'dedir, kamera çekim ayarları
+  veritabanındadır (2026-09-27).** `MediaGatewaySettings` `IOptions` ile okunur (açılış doğrulaması
+  yoktur), değişiklik yeniden başlatma ister; tablosu, servisi, ucu ve ekranı **bilerek yoktur** — port/adres
+  alanları `mediamtx.yml` ile elle eşleştiği için ekrandan değiştirilmemeli. Geri DB'ye taşımayın.
+  Kamera çekimi ise tek satırlık tablo + `ICameraCaptureSettingService`, `ICacheService` ile
+  önbelleklenir, her yazma kendi anahtarını düşürür; `appsettings.json`'a `Cameras` bölümü eklemeyin
+  — okunmuyor. Adlandırılmış `HttpClient` `Program.cs`'te kurulur ama `BaseAddress`/`Timeout` orada
+  **verilmez**; `MediaMtxGateway.CreateConfiguredClient` ayardan uygular.
+  Ekranı `/admin/settings`; zod şeması (`models/cameraCaptureSetting`) sunucudaki `FluentValidation`
+  kuralının **elle tutulan kopyasıdır** — sunucudaki kuralı değiştirirseniz şemayı da değiştirin.
 - **Yoklama (ayakta mı) akışının HTTP yüzeyi yoktur ve tipe özel değildir.**
   `MonitoredAssetProbeWorker` kayıtlı her `IMonitoredAssetProbeSource` üzerinden döner; yeni
   bir izlenen tip eklemek = yeni kaynak + tek satır DI kaydı, worker'a dokunulmaz. Sonda
@@ -283,11 +292,13 @@ Bir şeyin çalıştığını varsaymadan önce doğrulayın:
   `Scadex.WebUI/.env.development`, `.env.production` ve
   [axios-helper.ts:7](Scadex.WebUI/src/lib/axios-helper.ts#L7) bu adreste birleştirildi.
   Portu değiştirirseniz dördünü birden güncelleyin. (`src/lib/diagram/template-image.ts`
-  içindeki bir yorum hâlâ eski `:7042`'yi anıyor — yalnızca yorum.)
-- **MediaMTX'in RTSP adresi kodda sabittir: `IMediaGateway.InternalRtspBaseUrl` =
-  `rtsp://127.0.0.1:8554`** (ayar değil; MediaMTX ile API aynı sunucuda — 2026-09-25 kararı).
-  `mediamtx.yml > rtspAddress` (`:8554`) değişirse, MediaMTX başka makineye taşınırsa ya da RTSPS
-  açılırsa bu sabit de değişmeli; yoksa tüm çekimler "Medya geçidine ulaşılamıyor" ile düşer.
+  içindeki bir yorum hâlâ eski `:7042`'yi anıyor — yalnızca yorum.) IIS'te HTTPS bağlaması
+  varsa `UseHttpsRedirection` MediaMTX'in HTTP auth isteğini yönlendirir: yml'de doğrudan https
+  adresi verin (kendinden imzalıysa `authHTTPFingerprint`).
+- **FFmpeg'in okuduğu RTSP adresi `rtsp://127.0.0.1:{MediaGateway:RtspPort}`'tur**
+  (`IMediaGateway.LiveRtspUrl`). Host bilerek sabittir (MediaMTX ile API aynı sunucuda — 2026-09-25
+  kararı); port `mediamtx.yml > rtspAddress` ile eşleşmezse tüm çekimler "Medya geçidine
+  ulaşılamıyor" ile düşer. MediaMTX başka makineye taşınırsa ya da RTSPS açılırsa `LiveRtspUrl` değişmeli.
 - **AutoMapper 14.0.0 `NU1903` uyarısı kabul edilmiş risktir, yapılacak iş değildir** —
   AutoMapper 15 ticari lisans istiyor, bu yüzden yükseltilmeyecek. `dotnet build` çıktısındaki
   proje başına birer `NU1903` (modül AutoMapper'ı Business'tan geçişli aldığı için 6 proje)

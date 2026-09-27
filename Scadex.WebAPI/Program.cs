@@ -5,6 +5,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.IdentityModel.Tokens;
 using Scadex.Business;
 using Scadex.Business.Mappings;
+using Scadex.Business.Settings;
 using Scadex.Business.Utils.CameraCaptureGateway;
 using Scadex.Business.Utils.CaptureFileStore;
 using Scadex.Business.Utils.DiagramNotifier;
@@ -245,6 +246,9 @@ builder.Services.AddHttpClient(IMediaGateway.HttpClientName);
 
 
 #region ------- HostedService -------
+// MediaMTX'i baslatir, kapanirsa yeniden baslatir (MediaGateway:MediaMtxPath).
+builder.Services.AddHostedService<MediaMtxSupervisorWorker>();
+
 builder.Services.AddHostedService<StatusCleanupWorker>();
 
 // HTTP istegini Klip, suresi kadar bekletmek yerine iş buraya dusuyor.
@@ -261,11 +265,15 @@ builder.Services.AddHostedService<CaptureRetentionWorker>();
 #endregion
 
 #region ------- Kamera / medya gecidi -------
+// appsettings.json > MediaGateway (mediamtx.yml ile elle senkron).
+builder.Services.AddOptions<MediaGatewaySettings>()
+    .Bind(builder.Configuration.GetSection(MediaGatewaySettings.SectionName));
+
 // Cekim dosyalarinin diske yazan servis.
 // SCOPED: cekim koku artik veritabanindaki ayardan okunuyor, o servis de scoped.
 builder.Services.AddScoped<ICaptureFileStore, CaptureFileStore>();
 
-// Anlik goruntu + klip: MediaMTX canli yolundan FFmpeg ile (MediaTools/ffmpeg-*/ffmpeg.exe, ContentRootPath altinda).
+// Anlik goruntu + klip: MediaMTX canli yolundan FFmpeg ile.
 builder.Services.AddScoped<ICameraCaptureGateway, CameraCaptureGateway>();
 #endregion
 

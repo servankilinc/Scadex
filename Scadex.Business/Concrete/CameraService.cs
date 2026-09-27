@@ -2,6 +2,7 @@ using AutoMapper;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Caching.Distributed;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using Scadex.Business.Abstract;
 using Scadex.Business.Settings;
 using Scadex.Business.Utils.CameraCaptureGateway;
@@ -32,7 +33,7 @@ public partial class CameraService : ICameraService
     private readonly ICaptureFileStore _captureFileStore;
     private readonly IClipCaptureQueue _clipCaptureQueue;
     private readonly IDistributedCache _cache;
-    private readonly IMediaGatewaySettingService _mediaGatewaySettingService;
+    private readonly MediaGatewaySettings _mediaGatewaySettings;
     private readonly ICameraCaptureSettingService _captureSettingService;
     private readonly IHttpContextManager _httpContextManager;
     private readonly ILoggingService _logger;
@@ -48,7 +49,7 @@ public partial class CameraService : ICameraService
         ICaptureFileStore captureFileStore,
         IClipCaptureQueue clipCaptureQueue,
         IDistributedCache cache,
-        IMediaGatewaySettingService mediaGatewaySettingService,
+        IOptions<MediaGatewaySettings> mediaGatewaySettings,
         ICameraCaptureSettingService captureSettingService,
         ICabinetStatusService cabinetStatusService,
         ICameraProtocolProfileResolver cameraProtocolProfileResolver,
@@ -64,7 +65,7 @@ public partial class CameraService : ICameraService
         _captureFileStore = captureFileStore;
         _clipCaptureQueue = clipCaptureQueue;
         _cache = cache;
-        _mediaGatewaySettingService = mediaGatewaySettingService;
+        _mediaGatewaySettings = mediaGatewaySettings.Value;
         _httpContextManager = httpContextManager;
         _captureSettingService = captureSettingService;
         _cameraProtocolProfileResolver = cameraProtocolProfileResolver;

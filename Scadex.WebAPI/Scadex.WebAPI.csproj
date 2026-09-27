@@ -25,8 +25,9 @@
   </ItemGroup>
 
   <ItemGroup>
-    <!-- FFmpeg ContentRootPath altindan cagrilir (CameraCaptureGateway): gelistirmede proje klasorunden okunur, bin'e kopyalanmaz; yalnizca publish ciktisina girer. -->
-    <None Update="MediaTools\ffmpeg-9.0.2\ffmpeg.exe" CopyToPublishDirectory="PreserveNewest" />
+    <!-- FFmpeg ve MediaMTX ContentRootPath altindan calistirilir (MediaGateway:FfmpegPath / MediaMtxPath): gelistirmede proje klasorunden okunur, bin'e kopyalanmaz; yalnizca publish ciktisina girer. -->
+    <None Update="MediaTools\ffmpeg\*" CopyToPublishDirectory="PreserveNewest" />
+    <None Update="MediaTools\mediamtx\*" CopyToPublishDirectory="PreserveNewest" />
   </ItemGroup>
 
 </Project>

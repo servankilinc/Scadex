@@ -25,21 +25,16 @@ public interface IMediaGateway
     #region Static Path Name Generators
     private const string LivePathPrefix = "cam_";
 
-    /// <summary>
-    /// Sunucunun MediaMTX'ten okudugu RTSP dinleyicisi. <c>mediamtx.yml => rtspAddress</c> (<c>:8554</c>) ile ESLESMELI; yml'de port degisirse, MediaMTX baska makineye tasinirsa ya da RTSPS acilirsa burasi da degisir. 
-    /// MediaMTX ile Proje aynı sunucuda old için localhost sabit yazılır.
-    /// </summary>
-    private const string InternalRtspBaseUrl = "rtsp://127.0.0.1:8554";
-
     /// <summary> Canli izleme yolunun adi. <c>Id</c>'den turetilir </summary>
     static string LivePathName(Guid cameraId, StreamProfile profile) => $"{LivePathPrefix}{cameraId:N}_{profile.ToString().ToLowerInvariant()}";
 
     /// <summary>
     /// Sunucu ici okuyucunun (FFmpeg) canli path'e baglandigi adres. Token PAROLA alanindadir: MediaMTX onu auth hook'a (<c>POST /api/MediaGateway/auth</c>) iletir, tarayicinin token gibi dogrulanir. Kullanici adi onemsizdir sabit girildi.
+    /// Host <c>127.0.0.1</c>: MediaMTX ile API ayni sunucuda. Port <c>MediaGatewaySettings.RtspPort</c> (<c>mediamtx.yml &gt; rtspAddress</c> ile eslesmeli).
     /// </summary>
-    static string LiveRtspUrl(string pathName, string token) =>
-        new UriBuilder(InternalRtspBaseUrl) { UserName = "scadex", Password = token, Path = pathName }.Uri.ToString();
-
+    // exp => "rtsp://127.0.0.1:8554/path"
+    static string LiveRtspUrl(int rtspPort, string pathName, string token) =>
+        new UriBuilder("rtsp", "127.0.0.1", rtspPort, pathName) { UserName = "scadex", Password = token }.Uri.ToString();
     /// <summary> Yol BIZIM urettigimiz bir path m? Gün sonu temizleyici worker servisi yalnızca bunlara uygulanır. </summary>
     static bool IsManagedPathName(string pathName) => pathName.StartsWith(LivePathPrefix, StringComparison.Ordinal);
     #endregion

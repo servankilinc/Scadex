@@ -30,7 +30,7 @@ public sealed partial class CameraCaptureGateway
     /// </summary>
     private async Task<FfmpegRun> RunFfmpegAsync(IReadOnlyList<string> arguments, TimeSpan timeout, CancellationToken cancellationToken)
     {
-        string exePath = Path.GetFullPath(Path.Combine(_environment.ContentRootPath, FfmpegRelativePath));
+        string exePath = _ffmpegPath;
         if (!File.Exists(exePath))
         {
             _logger.LogError("FFmpeg bulunamadi: {Path}", exePath);
@@ -102,7 +102,7 @@ public sealed partial class CameraCaptureGateway
     private CaptureFailure? DescribeFailure(FfmpegRun run, Camera camera, string operation, string timeoutMessage, string genericMessage = CameraUnavailableMessage)
     {
         if (run.NotFound)
-            return new CaptureFailure("FFmpeg bulunamadı; sunucuda MediaTools klasörü eksik olabilir.");
+            return new CaptureFailure("FFmpeg bulunamadı; sunucuda FFmpeg eksik ya da MediaGateway:FfmpegPath ayarı yanlış olabilir.");
 
         if (!run.TimedOut && run.ExitCode == 0)
             return null;
@@ -121,7 +121,7 @@ public sealed partial class CameraCaptureGateway
         if (Contains(error, "401 Unauthorized") || Contains(error, "authorization failed"))
             return new CaptureFailure("Medya geçidi çekim biletini reddetti.");
 
-        // "Connection to tcp://127.0.0.1:8554?timeout=... failed" — MediaMTX'in kendisine baglanilamadi.
+        // "Connection to tcp://127.0.0.1:{RtspPort}?timeout=... failed" — MediaMTX'in kendisine baglanilamadi.
         if (Contains(error, "Connection to tcp://") || Contains(error, "Connection refused"))
             return new CaptureFailure("Medya geçidine ulaşılamıyor. MediaMTX çalışmıyor olabilir.");
 

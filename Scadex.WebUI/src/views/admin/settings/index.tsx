@@ -1,38 +1,22 @@
-import { useMemo } from 'react';
-import { Controller, useForm } from 'react-hook-form';
+import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Field, FieldDescription, FieldError, FieldGroup, FieldLabel } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Skeleton } from '@/components/ui/skeleton';
 import { handleFormApiError } from '@/lib/axios-helper';
-import {
-  useCameraCaptureSetting,
-  useMediaGatewaySetting,
-  useUpdateCameraCaptureSetting,
-  useUpdateMediaGatewaySetting
-} from '@/hooks/use-settings';
-import {
-  RTSP_TRANSPORTS,
-  mediaGatewaySettingFormSchema,
-  toRtspTransport,
-  type MediaGatewaySettingFormValues
-} from '@/models/mediaGatewaySetting';
+import { useCameraCaptureSetting, useUpdateCameraCaptureSetting } from '@/hooks/use-settings';
 import { cameraCaptureSettingFormSchema, type CameraCaptureSettingFormValues } from '@/models/cameraCaptureSetting';
 
 /**
  * Sistem ayarları — `/admin/settings`.
  *
- * Buradaki değerler `appsettings.json`'da DEĞİL veritabanındadır ve kaydedildikleri an
- * etkilidir: sunucu her yazmada kendi önbellek anahtarını düşürüyor, `MediaMtxGateway`
- * de adresi ve zaman aşımını her çağrıda ayardan okuyor. Yeniden başlatma gerekmez.
+ * Buradaki değerler veritabanındadır ve kaydedildikleri an etkilidir: sunucu her yazmada
+ * kendi önbellek anahtarını düşürüyor. Yeniden başlatma gerekmez.
  *
- * **İki ayrı form, tek ekran.** Sekme değil kart: iki grubun toplamı on üç alan, hepsi
- * tek ekrana sığıyor ve sekme, kullanıcıyı hangi grubun neyi kapsadığını tahmin etmeye
- * zorlardı. Formlar ayrı çünkü uçları, tabloları ve önbellek anahtarları da ayrı —
- * medya geçidini kaydetmek kamera ayarlarına dokunmaz.
+ * Medya geçidi (MediaMTX) ayarları bu ekranda DEĞİL: sunucunun `appsettings.json >
+ * MediaGateway` bölümündedir ve `mediamtx.yml` ile elle senkron tutulur.
  *
  * Bu ekranda henüz izin kontrolü YOK; `permission` claim'i üretiliyor ama hiçbir yerde
  * okunmuyor (bilinçli boşluk, bkz. PROJECT_OVERVIEW.md § 7 (b)).
@@ -47,140 +31,8 @@ export default function Settings() {
         </p>
       </div>
 
-      <MediaGatewayForm />
       <CameraCaptureForm />
     </div>
-  );
-}
-
-function MediaGatewayForm() {
-  const query = useMediaGatewaySetting();
-  const mutation = useUpdateMediaGatewaySetting();
-
-  // Kolon serbest metin olduğu için taşıma değeri okuma tarafında daraltılıyor.
-  // `useMemo` şart değil (RHF `values`'ı derin karşılaştırır) ama niyeti görünür kılar.
-  const values = useMemo<MediaGatewaySettingFormValues | undefined>(
-    () => (query.data ? { ...query.data, rtspTransport: toRtspTransport(query.data.rtspTransport) } : undefined),
-    [query.data]
-  );
-
-  const form = useForm<MediaGatewaySettingFormValues>({
-    resolver: zodResolver(mediaGatewaySettingFormSchema),
-    // `values` + `keepDirtyValues`: form sunucudan gelen veriyle KENDİLİĞİNDEN
-    // eşitlenir, `useEffect` + `reset` gerekmez (kod tabanının efekt kuralı).
-    // `keepDirtyValues`, arka planda bir refetch olursa kullanıcının dokunduğu
-    // alanları korur; dokunulmayanlar sunucudaki doğruya güncellenir.
-    values,
-    resetOptions: { keepDirtyValues: true }
-  });
-
-  const errors = form.formState.errors;
-
-  const submit = form.handleSubmit(values =>
-    mutation.mutate(values, {
-      // Kaydedilen değerler artık "temiz": aksi hâlde Kaydet düğmesi açık kalır
-      // ve kullanıcı kaydın gittiğinden emin olamaz.
-      onSuccess: () => form.reset(values),
-      onError: error => handleFormApiError(error, form.setError)
-    })
-  );
-
-  return (
-    <Card>
-      <CardHeader>
-        <CardTitle>Medya Geçidi</CardTitle>
-        <CardDescription>
-          MediaMTX Control API adresi, izleme bileti ve RTSP oturum davranışı. Kameraya yalnızca MediaMTX bağlanır; canlı izleme de
-          anlık görüntü ve klip de onun üzerinden alınır. Uygulama tarafından başlatılmaz; ayrı bir süreçtir.
-        </CardDescription>
-      </CardHeader>
-
-      <CardContent>
-        {query.isPending && <Skeleton className='h-72 w-full rounded-lg' />}
-        {query.isError && <p className='text-sm text-destructive'>{query.error.message}</p>}
-
-        {query.data && (
-          <form onSubmit={submit} noValidate>
-            <FieldGroup>
-              <Field>
-                <FieldLabel htmlFor='mg-api-base-url'>Control API adresi</FieldLabel>
-                <Input id='mg-api-base-url' placeholder='http://127.0.0.1:9997' {...form.register('apiBaseUrl')} />
-                <FieldDescription>
-                  Sunucudan MediaMTX'e giden adres. Kaydedilen değer sondaki `/` kırpılarak saklanır.
-                </FieldDescription>
-                {errors.apiBaseUrl && <FieldError>{errors.apiBaseUrl.message}</FieldError>}
-              </Field>
-
-              <Field>
-                <FieldLabel htmlFor='mg-webrtc-url'>WebRTC genel adresi</FieldLabel>
-                <Input id='mg-webrtc-url' placeholder='http://localhost:8889' {...form.register('webRtcPublicBaseUrl')} />
-                <FieldDescription>
-                  Tarayıcının WHEP isteğini attığı adres — Control API'den FARKLI bir porttur ve dışarıdan erişilebilir olmalıdır.
-                </FieldDescription>
-                {errors.webRtcPublicBaseUrl && <FieldError>{errors.webRtcPublicBaseUrl.message}</FieldError>}
-              </Field>
-
-              <div className='grid gap-4 sm:grid-cols-2'>
-                <Field>
-                  <FieldLabel htmlFor='mg-timeout'>Control API zaman aşımı (ms)</FieldLabel>
-                  <Input id='mg-timeout' type='number' {...form.register('apiTimeoutMs', { valueAsNumber: true })} />
-                  <FieldDescription>1.000 – 300.000 ms.</FieldDescription>
-                  {errors.apiTimeoutMs && <FieldError>{errors.apiTimeoutMs.message}</FieldError>}
-                </Field>
-
-                <Field>
-                  <FieldLabel htmlFor='mg-token-ttl'>Bilet ömrü (sn)</FieldLabel>
-                  <Input id='mg-token-ttl' type='number' {...form.register('tokenTtlSeconds', { valueAsNumber: true })} />
-                  <FieldDescription>İzleme bileti bu süre sonunda geçersizleşir. 10 – 3600 sn.</FieldDescription>
-                  {errors.tokenTtlSeconds && <FieldError>{errors.tokenTtlSeconds.message}</FieldError>}
-                </Field>
-              </div>
-
-              <div className='grid gap-4 sm:grid-cols-2'>
-                <Field>
-                  <FieldLabel htmlFor='mg-close-after'>Oturum kapanma süresi (sn)</FieldLabel>
-                  <Input id='mg-close-after' type='number' {...form.register('sourceOnDemandCloseAfterSec', { valueAsNumber: true })} />
-                  <FieldDescription>Son izleyici ayrıldıktan sonra kameraya giden RTSP oturumu kapanır. Yol silinmez.</FieldDescription>
-                  {errors.sourceOnDemandCloseAfterSec && <FieldError>{errors.sourceOnDemandCloseAfterSec.message}</FieldError>}
-                </Field>
-
-                <Field>
-                  <FieldLabel htmlFor='mg-rtsp-transport'>RTSP taşıma katmanı</FieldLabel>
-                  <Controller
-                    control={form.control}
-                    name='rtspTransport'
-                    render={({ field }) => (
-                      // Serbest metin değil seçim: MediaMTX yalnızca bu dört değeri
-                      // tanır, başkası gönderilirse yol hiç kurulmaz.
-                      <Select value={field.value} onValueChange={value => field.onChange(value ?? field.value)}>
-                        <SelectTrigger id='mg-rtsp-transport'>
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {RTSP_TRANSPORTS.map(transport => (
-                            <SelectItem key={transport} value={transport}>
-                              {transport}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    )}
-                  />
-                  <FieldDescription>Kamera bağlantısı kopuyorsa `tcp` en güvenlisidir.</FieldDescription>
-                  {errors.rtspTransport && <FieldError>{errors.rtspTransport.message}</FieldError>}
-                </Field>
-              </div>
-            </FieldGroup>
-
-            <div className='mt-4 flex justify-end'>
-              <Button type='submit' disabled={mutation.isPending || !form.formState.isDirty}>
-                {mutation.isPending ? 'Kaydediliyor…' : 'Kaydet'}
-              </Button>
-            </div>
-          </form>
-        )}
-      </CardContent>
-    </Card>
   );
 }
 

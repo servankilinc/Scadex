@@ -3733,65 +3733,6 @@ namespace Scadex.DataAccess.Migrations
                     b.ToTable("IoChannel", (string)null);
                 });
 
-            modelBuilder.Entity("Scadex.Model.Entities.MediaGatewaySetting", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("int");
-
-                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
-
-                    b.Property<string>("ApiBaseUrl")
-                        .IsRequired()
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<int>("ApiTimeoutMs")
-                        .HasColumnType("int");
-
-                    b.Property<DateTime?>("CreateDateUtc")
-                        .HasColumnType("datetime2");
-
-                    b.Property<string>("CreatedBy")
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<string>("RtspTransport")
-                        .IsRequired()
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<string>("SourceOnDemandCloseAfter")
-                        .IsRequired()
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<int>("TokenTtlSeconds")
-                        .HasColumnType("int");
-
-                    b.Property<DateTime?>("UpdateDateUtc")
-                        .HasColumnType("datetime2");
-
-                    b.Property<string>("UpdatedBy")
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<string>("WebRtcPublicBaseUrl")
-                        .IsRequired()
-                        .HasColumnType("nvarchar(max)");
-
-                    b.HasKey("Id");
-
-                    b.ToTable("MediaGatewaySettings");
-
-                    b.HasData(
-                        new
-                        {
-                            Id = 1,
-                            ApiBaseUrl = "http://127.0.0.1:9997",
-                            ApiTimeoutMs = 30000,
-                            RtspTransport = "tcp",
-                            SourceOnDemandCloseAfter = "10s",
-                            TokenTtlSeconds = 60,
-                            WebRtcPublicBaseUrl = "http://127.0.0.1:8889"
-                        });
-                });
-
             modelBuilder.Entity("Scadex.Model.Entities.Permission", b =>
                 {
                     b.Property<int>("Id")

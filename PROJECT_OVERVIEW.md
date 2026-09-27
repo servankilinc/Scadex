@@ -53,7 +53,7 @@ Scadex/
 ├─ Scadex.DataAccess/       # AppDbContext, repository'ler, UoW, interceptor'lar
 ├─ Scadex.Business/         # Servisler, gateway'ler, mapping, ayar sınıfları
 ├─ Scadex.WebAPI/           # Controller'lar, SignalR hub, hosted service'ler, Program.cs
-│  └─ mediamtx_v1.20.1/     # Medya sunucusu (uygulama tarafından başlatılmaz)
+│  └─ MediaTools/           # ffmpeg/ + mediamtx/ (git'te yok; MediaMTX'i API başlatır ve gözetir)
 ├─ Scadex.Signalization/    # Müşteri modülü: sinyalizasyon operatör işlemi takibi (§ 10)
 │                           # — kendi context'i (signalization şeması), uçları, arka plan işleri
 └─ Scadex.WebUI/            # React 19 + Vite 8 + TS 6 — diyagram editörü, kamera izleme
@@ -553,18 +553,18 @@ gelmez — bu platform onları kendisi yoklar.
 
   **Okuma izni:** `CameraService.PrepareCaptureSourceAsync` önce yolu kurar (`EnsureLivePathAsync`),
   sonra tarayıcıyla **aynı** bilet mekanizmasından bir bilet alır (`IssueStreamTokenAsync`). Adres
-  `rtsp://scadex:{bilet}@127.0.0.1:8554/cam_{id}_main` olur (`IMediaGateway.LiveRtspUrl`); bilet
-  parola alanındadır ve auth kancası onu tarayıcınınki gibi doğrular. `127.0.0.1:8554` ayar değil
-  sabittir (`InternalRtspBaseUrl`). MediaMTX ile API aynı sunucudadır; yml'deki `rtspAddress`
-  değişirse bu sabit de değişmelidir. MediaMTX RTSP okumasında auth'u yalnızca oturum kurulurken
+  `rtsp://scadex:{bilet}@127.0.0.1:{RtspPort}/cam_{id}_main` olur (`IMediaGateway.LiveRtspUrl`); bilet
+  parola alanındadır ve auth kancası onu tarayıcınınki gibi doğrular. Host `127.0.0.1` sabittir
+  (MediaMTX ile API aynı sunucudadır); port `MediaGateway:RtspPort` ayarıdır ve yml'deki
+  `rtspAddress` ile eşleşmelidir (2026-09-27). MediaMTX RTSP okumasında auth'u yalnızca oturum kurulurken
   sorar. Ölçüldü: 60 sn ömürlü biletle 65 sn'lik klip kopmadan tamamlandı, kanca yalnızca başta
   çağrıldı. Her FFmpeg oturumu kancayı 3 kez çağırır (ilki kimliksiz, 401); bu, auth ucunun hız
   sınırının (5 sn'de 300) çok altındadır.
 
   FFmpeg tarafı `ICameraCaptureGateway` → `CameraCaptureGateway` (WebAPI/Utils) üzerinden gider. Geçit
   kaynak adresini dışarıdan alır; kamerayı da markayı da bilmez. Ayrıntılar:
-  - **FFmpeg'in yeri:** `Scadex.WebAPI/MediaTools/ffmpeg-9.0.2/ffmpeg.exe`, `ContentRootPath`
-    altından çağrılır. Yol ayar değil sabittir (`FfmpegRelativePath`). Klasör **git'te yoktur**
+  - **FFmpeg'in yeri:** `MediaGateway:FfmpegPath` ayarı (varsayılan
+    `MediaTools/ffmpeg/ffmpeg.exe`; göreliyse `ContentRootPath` altından, mutlak da olur). Klasör **git'te yoktur**
     (exe GitHub'ın 100 MiB sınırını aşıyor) ve her kuruluma elle konur. Eksikse çekimler
     "FFmpeg bulunamadı" ile düşer.
   - **Klip iki adımdır.** FFmpeg `-t` süresini kaynaktan gelen *ilk paketten* sayar, ama kopyalama
@@ -614,8 +614,9 @@ gelmez — bu platform onları kendisi yoklar.
 
     ISAPI ile anlık görüntü ~0,2 sn sürüyordu. `CameraCapture.CapturedAtUtc` bu yüzden **karenin
     geldiği anda** yazılır.
-- **MediaMTX uygulamanın dışında çalışır ve kameraya bağlanan tek bileşendir**; API onu başlatmaz,
-  yalnızca `127.0.0.1:9997` üzerindeki Control API ile konuşur. Kayıt özelliği kullanılmaz.
+- **MediaMTX ayrı bir süreçtir ve kameraya bağlanan tek bileşendir**; API onu başlatır ve kapanırsa
+  yeniden başlatır (`MediaMtxSupervisorWorker`), yapılandırmasına dokunmaz, yalnızca Control API ile konuşur
+  (`MediaGateway:ApiBaseUrl`, varsayılan `127.0.0.1:9997`). Kayıt özelliği kullanılmaz.
 - **Yayın biletleri yola bağlıdır**, kısa ömürlüdür (60 sn) ve TTL içinde çok kullanımlıktır —
   MediaMTX oturum ortasında hook'u yeniden çağırabilir. Aynı bilet mekanizmasını sunucu içi çekim
   (FFmpeg) de kullanır. `POST /api/MediaGateway/auth`
@@ -923,6 +924,18 @@ migration ile tohumlanır. Okuma yolu ayar nesnesi başına **ayrı bir servisti
 
 Ekranı da yazıldı — bkz. (c).
 
+> **2026-09-27 — medya geçidi için geri alındı.** `MediaGatewaySettings` yeniden
+> `appsettings.json > MediaGateway`'dedir (`IOptions`);
+> `MediaGatewaySetting` tablosu (`RemoveMediaGatewaySetting` migration'ı), servisi, `GET|PUT
+> /api/MediaGatewaySetting` ucu ve ekran kartı kaldırıldı. Gerekçe: MediaMTX kendi
+> `mediamtx.yml`'siyle çalışıyor ve port/adres alanları o dosyayla
+> **elle** eşleşmek zorunda; ekrandan tek tarafı değiştirmek sistemi sessizce bozuyordu. Eşleşme
+> listesi yml'nin başındadır. Yeni alanlar: `RtspPort` (eski `InternalRtspBaseUrl` sabiti) ve
+> `FfmpegPath` (eski `FfmpegRelativePath` sabiti); süre `SourceOnDemandCloseAfterSec` (saniye).
+> Değişiklik yeniden başlatma ister. Kamera çekim ayarları DB'de kalmaya devam eder.
+> Aynı gün: `mediamtx.exe` Windows servis protokolünü uygulamadığı için (`sc create` → 1053) ayrı
+> servis yerine **API başlatır ve gözetir** (`MediaMtxSupervisorWorker`, `MediaGateway:MediaMtxPath`).
+
 **(f)** ~~Günlük MediaMTX yol temizliği background servisi.~~ **TAMAMLANDI (2026-09-10).**
 
 `MediaPathCleanupWorker` her gün `Jobs:MediaPathCleanupHour` saatinde (varsayılan 03:00,
@@ -1013,8 +1026,15 @@ Windows kimlik doğrulaması). JWT imza anahtarı yoksa uygulama açılışta du
 dotnet user-secrets set "TokenSettings:SecurityKey" "<64+ karakter>" --project Scadex.WebAPI
 ```
 
-MediaMTX ayrı bir süreç olarak çalıştırılır (`Scadex.WebAPI/mediamtx_v1.20.1/mediamtx.exe`).
-Depodaki `mediamtx.yml` kısmen yamalı: `authMethod: http` ve `authHTTPExclude` altında
+MediaMTX'i API kendisi başlatır (`MediaMtxSupervisorWorker`): `MediaGateway:MediaMtxPath`
+(`Scadex.WebAPI/MediaTools/mediamtx/mediamtx.exe`) ve yanındaki `mediamtx.yml`. Kapanırsa 5 sn
+sonra yeniden başlatır (açılır açılmaz ölürse bekleme 60 sn'ye kadar katlanır); API kapanırken
+öldürmez, sonraki açılışta aynı yoldan çalışanı sahiplenir. Çıktısı Serilog'a `[MediaMTX]` önekiyle
+düşer. yml değişince `mediamtx.exe`'yi sonlandırmak yeterlidir. `mediamtx.yml` ile
+`appsettings.json > MediaGateway` elle senkron tutulur; liste yml'nin başındadır. Scadex'in
+kullanmadığı protokoller (rtmp, hls, srt, moq, RTSP udp/multicast) port açmasın diye kapalıdır;
+açık kalan portlar yalnızca RTSP (`:8554`), WebRTC (`:8889` + UDP `:8189`) ve Control API
+(`127.0.0.1:9997`). Depodaki `mediamtx.yml` ayrıca: `authMethod: http` ve `authHTTPExclude` altında
 `api` / `metrics` / `pprof` eylemleri tanımlı. Bu muafiyet kaldırılırsa MediaMTX kendi Control
 API'sini kilitler — yol açmaya çalışan her istek kimlik doğrulamaya, o da Control API'ye düşer.
 
