@@ -54,13 +54,19 @@ export function toFormPath(serverKey: string): string {
  * Ağaç formlarının hata politikası: alan hataları ilgili girdinin altına yazılır VE ilk mesaj bir toast olarak
  * da gösterilir — hata kapanmış/kaydırılmış bir kapı kartında kalabilir, kullanıcı kaydın neden gitmediğini
  * görmeli.
+ *
+ * @returns Hata yazılan form yolları, sunucunun sırasıyla — ağaç ekranı ilk hatalı düğüme geçmek için kullanır.
  */
-export function handleTreeFormApiError<TFieldValues extends FieldValues>(error: unknown, setError: UseFormSetError<TFieldValues>): void {
+export function handleTreeFormApiError<TFieldValues extends FieldValues>(error: unknown, setError: UseFormSetError<TFieldValues>): string[] {
   const apiError = toApiError(error);
   toast.error(apiError.message);
 
   // `fieldErrors` anahtarlarının ilk harfi transport katmanında zaten küçültülmüş; kalan segmentler burada.
+  const paths: string[] = [];
   for (const [field, messages] of Object.entries(apiError.fieldErrors)) {
-    setError(toFormPath(field) as Path<TFieldValues>, { message: messages[0] });
+    const path = toFormPath(field);
+    setError(path as Path<TFieldValues>, { message: messages[0] });
+    paths.push(path);
   }
+  return paths;
 }

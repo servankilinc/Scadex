@@ -3269,9 +3269,6 @@ namespace Scadex.DataAccess.Migrations
                     b.Property<int?>("DeviceStatusId")
                         .HasColumnType("int");
 
-                    b.Property<string>("ExternalCode")
-                        .HasColumnType("nvarchar(450)");
-
                     b.Property<double?>("Height")
                         .HasColumnType("float");
 
@@ -3326,6 +3323,8 @@ namespace Scadex.DataAccess.Migrations
 
                     b.HasKey("Id");
 
+                    b.HasIndex("CabinetId");
+
                     b.HasIndex("ComponentTemplateId");
 
                     b.HasIndex("DeviceStatusId");
@@ -3333,10 +3332,6 @@ namespace Scadex.DataAccess.Migrations
                     b.HasIndex("MacAddress")
                         .IsUnique()
                         .HasFilter("[MacAddress] IS NOT NULL AND [IsActive] = 1");
-
-                    b.HasIndex("CabinetId", "ExternalCode")
-                        .IsUnique()
-                        .HasFilter("[ExternalCode] IS NOT NULL AND [IsActive] = 1");
 
                     b.ToTable("Device", (string)null);
                 });

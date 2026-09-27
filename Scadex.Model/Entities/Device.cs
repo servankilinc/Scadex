@@ -12,11 +12,8 @@ public class Device : IEntity, IAuditableEntity, IActivatableEntity, IMonitoredA
     public int? DeviceStatusId { get; set; }
     public string? IpAddress { get; set; }
     public string? MacAddress { get; set; }
-    public string? ExternalCode { get; set; }
-    /// <summary> Cihazdan son başarılı ping ya da SCADA haberleşme tarihi </summary>
-    public DateTime? LastSeen { get; set; }
 
-    // ------------ Tasarım props ------------
+    #region --- Diagrma Props ---
     public double CoordinateX { get; set; }
     public double CoordinateY { get; set; }
 
@@ -27,10 +24,11 @@ public class Device : IEntity, IAuditableEntity, IActivatableEntity, IMonitoredA
     public int ZIndex { get; set; }
     public bool IsLocked { get; set; }
     public bool IsVisible { get; set; }
-    // ------------ Tasarım props ------------
+    #endregion
 
-    // (MonitoredAssetProbeWorker) tarafından TCP connect ile yoklanan cihazlarda doldur.
     #region --- IMonitoredAsset ---
+    /// <inheritdoc/>
+    public DateTime? LastSeen { get; set; }
     /// <inheritdoc/>
     public int? MonitoringPort { get; set; }
     /// <inheritdoc/>

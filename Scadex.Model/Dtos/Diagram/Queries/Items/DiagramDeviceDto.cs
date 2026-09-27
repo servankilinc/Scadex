@@ -18,8 +18,6 @@ public class DiagramDeviceDto : IDto
     public double? Width { get; set; }
     public double? Height { get; set; }
     public Guid ComponentTemplateId { get; set; }
-    /// <summary>SCADA tarafindaki kimlik; YALNIZCA GOSTERIM icindir, cozumlemede kullanilmaz.</summary>
-    public string? ExternalCode { get; set; }
     public string? MacAddress { get; set; }
     public string? IpAddress { get; set; }
     public int? DeviceStatusId { get; set; }

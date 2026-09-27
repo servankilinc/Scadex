@@ -1,6 +1,6 @@
 using System.Diagnostics;
 using System.Net.Sockets;
-using Scadex.Business.Abstract;
+using Scadex.Business.Utils.MonitoredAssetService;
 using Scadex.Model.Dtos.Monitoring.Commands;
 using Scadex.Model.Dtos.Monitoring.Queries;
 

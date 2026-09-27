@@ -123,8 +123,10 @@ içindeki `ApplyDeletions` dağıtıcısında yaşar.
   `IsMonitorable` (2026-09-24): bu şablondan türeyen cihazda ağ izlemesi açılabilir mi; seed RJ45
   pini olanları (kontrol modülü, POS, bilgisayar) işaretler. Şablonun güncelleme ucu yoktur —
   değer oluşturmada verilir.
-- **`Device`** — diyagramdaki bir kutu. Şablondan üretilir; `ExternalCode` SCADA'nın modül
-  kodudur (kabin içinde tekil). 2026-09-24'ten beri `IMonitoredAsset`'tir: şablonu izlenebilirse
+- **`Device`** — diyagramdaki bir kutu. Şablondan üretilir. SCADA onu bir kodla tanımaz: kabin
+  kontrol modülünün MAC'inden, kanal kabin içi adresten (`IN3`/`OUT1`) çözülür — eski `ExternalCode`
+  adreslemede kullanılmadığı için 2026-09-27'de kaldırıldı (`RemoveDeviceExternalCode`).
+  2026-09-24'ten beri `IMonitoredAsset`'tir: şablonu izlenebilirse
   IP + `MonitoringPort` ile TCP'den yoklanabilir (SCADA kartı, POS, bilgisayar…).
 - **`Pin`** — kutunun bir bacağı. `RelativeX/Y` şablonun genişlik/yüksekliğinin **0..1
   normalize kesridir** (veritabanında `CHECK` ile zorlanır), böylece şablon yeniden
@@ -232,8 +234,7 @@ aggregate'in controller'ında durur.
   adresi işgal eden cihazın **adını** da söyler.
 - **Bir cihazı silmek kanallarını serbest bırakmaz.** Cihaz `IsActive = false` olur, pinleri
   ve kabloları düşer, ama `IoChannel` satırları yerinde kalır — dolayısıyla `IN1` işgal
-  edilmeye devam eder. `ExternalCode` ve `MacAddress` ise serbest kalır (index filtreleri
-  `IsActive = 1`).
+  edilmeye devam eder. `MacAddress` ise serbest kalır (index filtresi `IsActive = 1`).
 - **`macAddress` / `ipAddress` deltada taşınır (2026-09-10).** MAC, SCADA ingest'inin kabini
   çözdüğü adrestir (§ 5.3) ve operatörün girebilmesi gerekir; ikisi de cihaz özellik
   panelinden yazılır. `deviceStatusId` / `lastSeen` / `lastConnectionError` ise **taslakta yoktur**
@@ -249,8 +250,7 @@ aggregate'in controller'ında durur.
   fiziksel kartın tek MAC'i vardır ve ingest kabini bu adresten çözer; aynı adres iki kabinde
   olsaydı telemetri yanlış kabine yazılırdı. Bu yüzden çarpışma **başka bir kabindeki** cihazla
   da olabilir ve `LoadDeviceMacAddressesAsync` kabinle değil gönderilen adreslerle daraltılır.
-  Çakışma `400` döner (`Devices.Upserted[i].MacAddress`) — `ExternalCode`'daki gibi, DB
-  kısıtına çarpıp 500 üretmemek için.
+  Çakışma `400` döner (`Devices.Upserted[i].MacAddress`) — DB kısıtına çarpıp 500 üretmemek için.
 - Karşılığı bulunamayan `deleted` kimlikleri **sessizce atlanır** ve sayılmaz — istemciyi
   "bu kayıt sunucuya gitti mi" bilgisini taşımaktan kurtaran karar budur. Buna karşılık
   `upserted`'da başka kabine ait ya da silinmiş/pasif bir kimlik `400`'dür: soft-delete
@@ -738,8 +738,8 @@ Bu blokta duran dört acil madde **kapandı** (bkz. aşağıdaki "kabul edilmiş
 2. ~~`Migrations/` klasörü yok~~ — `InitialCreate` üretildi ve uygulandı. Doğrulandı: `Pin` ve
    `ComponentTemplatePin` için `RelativeX/Y` 0..1 `CHECK`'leri, `CK_Connection_DistinctPins`,
    `IX_IoChannel_CabinetId_Direction_ChannelNumber` ve `IX_Connection_SourcePinId_TargetPinId`
-   (`WHERE IsDeleted = 0`), `IX_Device_CabinetId_ExternalCode`
-   (`WHERE ExternalCode IS NOT NULL AND IsActive = 1`) migration'da yerinde. Seed indi:
+   (`WHERE IsDeleted = 0`) migration'da yerinde (`IX_Device_CabinetId_ExternalCode` de oradaydı;
+   kolonla birlikte 2026-09-27'de kaldırıldı). Seed indi:
    5 DeviceStatus, 12 DeviceType, 10 Permission, **19 şablon + 190 pin**, 4 rol, admin, 1 şirket.
 3. ~~Port tutarsızlıkları~~ — **kanonik adres `http://localhost:5208`**. `mediamtx.yml`
    (`authHTTPAddress`), `Scadex.WebUI/.env.development`, `.env.production` ve
@@ -1248,7 +1248,10 @@ ekranlarını ayrı parçalara böler.
   `UnauthorizedEntry` → `hasAlert`) modülün kendi kavramıdır ve oturumda bayrak olarak kalır. Ana sayfa
   haritasında ayrı çizilir: manifestodaki `alertCabinetsQuery` (açık oturumlar sorgusuyla **aynı anahtar**,
   yalnızca `select` farklı) alarmlı kabini kırmızı rozetli ikonla, alarmlı kümeyi kırmızı kenarla gösterir
-  (öncelik alarm > işlem > boşta). **Dış kapının açık kalması için ayrı bir zamanlayıcı bilerek yok** —
+  (öncelik alarm > işlem > boşta). Kabin DURUMU ise ikonun sol üstündeki renkli noktadır (kümede en kötüsü,
+  dairenin sağ üst kenarında); ikon tabanı ve küme kenarı ona karışmaz. Modül `busyCabinetsQuery` /
+  `alertCabinetsQuery` verdiğinde haritanın rozet satırında durum rozetlerinin yanında "İşlemde" / "Alarm"
+  sayacı ve filtresi çıkar; modül kapalıyken çıkmaz. **Dış kapının açık kalması için ayrı bir zamanlayıcı bilerek yok** —
   bugün yalnızca `SessionMaxDurationMin` (240 dk) sonunda `TimedOut` ile yakalanır.
 - **"Tüm iç kapılar kilitli" iki kaynağa sorulur** (`AreAllInnerDoorsLockedAsync`): kilit kanalı "açık"
   olan kapı varsa hayır; hepsi kilitli (ya da bilinmiyor) dese bile anahtarı **"açık" okunan** bir kapı

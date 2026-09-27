@@ -23,8 +23,8 @@ import { ConfirmDeleteDialog } from './confirm-delete';
 /**
  * Cihaza sağ tık menüsü: kumanda + düzenleme.
  *
- * **Menü, sunucunun ön kontrollerini ÖNCEDEN söyler.** Dış kodu olmayan bir
- * cihaza ya da SCADA'sı kapalı bir kabine komut göndermek 400 döner; kullanıcıya
+ * **Menü, sunucunun ön kontrollerini ÖNCEDEN söyler.** Kaydedilmemiş bir
+ * cihaza ya da SCADA'sı kapalı bir kabine komut göndermek başarısız olur; kullanıcıya
  * bir hata mesajı yerine sebebi menüde göstermek, tıklanabilir görünüp
  * başarısız olan bir menüden iyidir. Bu doğrulamanın YERİNE GEÇMEZ — sunucu
  * kontrolleri yerinde duruyor ve tek gerçek engel onlar.
@@ -46,18 +46,13 @@ export function DeviceNodeMenu({ device, children }: { device: DiagramDeviceDto;
 
   if (!context) return <>{children}</>;
 
-  // Giriş yönlü kanal kumanda hedefi olamaz (sunucu 400 döner) — dijital `Input`
-  // ve `AnalogInput` birlikte dışarıda. Bidirectional GEÇERLİDİR: adı gereği
-  // çıkış da verebilir. Koşul `DeviceCommandService.Send`'deki kontrolün aynısı
-  // olmalı; sapma buradaki butonu görünür yapıp isteği 400'e düşürürdü.
-  const targets = device.ioChannels.filter(
-    channel =>
-      channel.isEnabled &&
-      channel.direction !== PinDirection.Input &&
-      channel.direction !== PinDirection.AnalogInput
-  );
+  // Kumanda hedefi YALNIZCA `Output` kanalıdır — Bidirectional dahil diğer her yön
+  // sunucuda reddedilir. Koşul `DeviceCommandService.SendAsync`'teki kontrolün
+  // (`channel.Direction != PinDirection.Output`) aynısı olmalı; sapma buradaki
+  // butonu görünür yapıp isteği hataya düşürürdü.
+  const targets = device.ioChannels.filter(channel => channel.isEnabled && channel.direction === PinDirection.Output);
 
-  const blocker = findBlocker(device, context.scadaIsEnabled, isUnsaved);
+  const blocker = findBlocker(context.scadaIsEnabled, isUnsaved);
 
   const dispatch = (request: DeviceCommandSendRequest) => send.mutate(request);
 
@@ -149,11 +144,10 @@ export function DeviceNodeMenu({ device, children }: { device: DiagramDeviceDto;
  * Sıra sunucudaki ön kontrol sırasıyla aynı tutuldu ki kullanıcı önce hangi
  * engelle karşılaşacaksa onu görsün.
  */
-function findBlocker(device: DiagramDeviceDto, scadaIsEnabled: boolean, isUnsaved: boolean): string | null {
+function findBlocker(scadaIsEnabled: boolean, isUnsaved: boolean): string | null {
   // Kaydedilmemişlik Id'den OKUNAMAZ (Guid'i istemci üretiyor); çağıran taraf
   // `useIsUnsaved` ile okuyup buraya geçirir.
   if (isUnsaved) return 'Cihaz henüz kaydedilmedi. Kaydettikten sonra kumanda gönderilebilir.';
   if (!scadaIsEnabled) return 'Bu kabinde SCADA kapalı; kumanda gönderilemez.';
-  if (!device.externalCode) return 'Cihazın dış kodu yok — SCADA onu tanımaz. Özellikler panelinden ekleyin.';
   return null;
 }

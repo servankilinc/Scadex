@@ -18,7 +18,8 @@ public interface IMonitoredAsset : IEntity
     int? MonitoringPort { get; set; }
     
     int? DeviceStatusId { get; set; }
-    
+
+    /// <summary> Cihazdan son başarılı ping ya da SCADA ise haberleşme tarihi </summary>
     DateTime? LastSeen { get; set; }
     
     /// <summary> Cihaz başına yoklama periyodu (sn). Fiilî periyot worker'ın tur aralığının katına yukarı yuvarlanır. </summary>

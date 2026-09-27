@@ -3,6 +3,7 @@ import type { FeatureCollection, Point } from 'geojson';
 import type { ExpressionSpecification, FilterSpecification, GeoJSONSource, Map as MapLibreMap, MapLayerMouseEvent, MapMouseEvent, Subscription } from 'maplibre-gl';
 import { useMap } from '@/components/ui/map';
 import type { CabinetDetailDto } from '@/models/cabinet';
+import { DeviceStatus } from '@/models/enums';
 import CabinetIdleIcon from '@/assets/cabinet-idle-2.png';
 import CabinetInProcessIcon from '@/assets/cabinet-inproces-2.png';
 
@@ -10,21 +11,66 @@ import CabinetInProcessIcon from '@/assets/cabinet-inproces-2.png';
 export type LocatedCabinet = CabinetDetailDto & { latitude: number; longitude: number };
 
 /**
- * Feature'a yalnızca çizim ve tıklama çözümlemesi için gerekenler konur. Durum filtresi JS'te
- * (`visibleCabinets`) uygulandığı için `deviceStatusId` / `isActive` worker'a taşınmaz.
+ * Feature'a yalnızca çizim ve tıklama çözümlemesi için gerekenler konur. Durum FİLTRESİ JS'te (`visibleCabinets`)
+ * uygulandığı için `deviceStatusId` / `isActive` worker'a taşınmaz; ikondaki durum noktası için yalnızca türetilmiş
+ * `statusKey` (görsel seçimi) ve `statusRank` (kümenin en kötü durumu) taşınır.
  */
-type CabinetFeatureProperties = { id: string; name: string; isBusy: boolean; isAlert: boolean };
+type CabinetFeatureProperties = { id: string; name: string; isBusy: boolean; isAlert: boolean; statusKey: StatusKey; statusRank: number };
 
 // Kimlikler sabit: sayfada tek bir kabin katmanı var. İkinci bir örnek gerekirse `useId` önekine geçilmeli.
 const SOURCE_ID = 'cabinets';
 const CLUSTER_LAYER_ID = 'cabinet-clusters';
 const CLUSTER_COUNT_LAYER_ID = 'cabinet-cluster-count';
+const CLUSTER_STATUS_LAYER_ID = 'cabinet-cluster-status';
 const POINT_LAYER_ID = 'cabinet-points';
 const HOVER_LAYER_ID = 'cabinet-point-hover';
-const IDLE_ICON_ID = 'cabinet-idle';
-const BUSY_ICON_ID = 'cabinet-busy';
-/** Modülün alarm bildirdiği kabin (örn. zorla açma): "işlem" ikonu + kırmızı rozet. Kabin durumundan bağımsızdır. */
-const ALERT_ICON_ID = 'cabinet-alert';
+
+/**
+ * İkonun tabanı. `alert`: modülün alarm bildirdiği kabin (örn. zorla açma) — "işlem" ikonu + kırmızı rozet; kabin
+ * durumundan bağımsızdır. Öncelik: alarm > işlem > boşta.
+ */
+const ICON_BASES = ['idle', 'busy', 'alert'] as const;
+type IconBase = (typeof ICON_BASES)[number];
+
+type StatusKey = 'unknown' | 'online' | 'maintenance' | 'warning' | 'offline' | 'critical';
+
+/**
+ * İkonun sol üstündeki kabin DURUMU noktası. Renkler `StatusDot` (template-node.tsx) ve ana sayfa rozetlerinin
+ * (`STATUS_CHIP_DEFS`) Tailwind renklerinin hex kopyasıdır — canvas sınıf okuyamaz; birini değiştirirseniz ötekileri de.
+ * `rank` yalnızca kümenin "en kötü" noktası içindir ve sunucudaki `DeviceStatusSeverityRank` sırasını izler, tek farkla:
+ * Online, Bilinmiyor'dan yüksektir — "hepsi çevrimiçi" küme yeşil görünsün. `rank` 0 olan kümede nokta çizilmez.
+ */
+const STATUS_BADGES: Record<StatusKey, { color: string; rank: number }> = {
+  unknown: { color: '#9ca3af', rank: 0 },
+  online: { color: '#10b981', rank: 1 },
+  maintenance: { color: '#0ea5e9', rank: 2 },
+  warning: { color: '#f59e0b', rank: 3 },
+  offline: { color: '#64748b', rank: 4 },
+  critical: { color: '#ef4444', rank: 5 }
+};
+const STATUS_KEYS = Object.keys(STATUS_BADGES) as StatusKey[];
+
+/** `null` "Bilinmiyor"dur (canlılık kanıtı yok) — `Offline` (0) ile AYNI ŞEY DEĞİL; ayrı gri nokta alır. */
+function statusKeyOf(statusId: DeviceStatus | null): StatusKey {
+  switch (statusId) {
+    case DeviceStatus.Online:
+      return 'online';
+    case DeviceStatus.Warning:
+      return 'warning';
+    case DeviceStatus.Critical:
+      return 'critical';
+    case DeviceStatus.Maintenance:
+      return 'maintenance';
+    case DeviceStatus.Offline:
+      return 'offline';
+    default:
+      return 'unknown';
+  }
+}
+
+const cabinetIconId = (base: IconBase, statusKey: StatusKey) => `cabinet-${base}-${statusKey}`;
+const CLUSTER_DOT_ICON_PREFIX = 'cabinet-status-dot-';
+const clusterDotIconId = (rank: number) => `${CLUSTER_DOT_ICON_PREFIX}${rank}`;
 
 /** Kümeleme bu zoom'un ÜSTÜNDE durur; `fitBounds`'un tek kabinde indiği zoom 17 hep tekil kabin gösterir. */
 const CLUSTER_MAX_ZOOM = 14;
@@ -65,34 +111,85 @@ const LABEL_COLORS = {
 
 const IS_CLUSTER: ExpressionSpecification = ['has', 'point_count'];
 const IS_CABINET: ExpressionSpecification = ['!', ['has', 'point_count']];
-// Öncelik: alarm > işlem > boşta.
-const ICON_IMAGE: ExpressionSpecification = ['case', ['get', 'isAlert'], ALERT_ICON_ID, ['get', 'isBusy'], BUSY_ICON_ID, IDLE_ICON_ID];
+// Taban önceliği alarm > işlem > boşta; durum noktası görsele gömülüdür (`cabinetIconId`).
+const ICON_BASE: ExpressionSpecification = ['case', ['get', 'isAlert'], 'alert', ['get', 'isBusy'], 'busy', 'idle'];
+const ICON_IMAGE: ExpressionSpecification = ['concat', 'cabinet-', ICON_BASE, '-', ['get', 'statusKey']];
 
 /** Hover katmanının filtresi: yalnızca imlecin altındaki kabin (id `null` iken hiçbir şeyle eşleşmez). */
 function hoverFilter(cabinetId: string | null): FilterSpecification {
   return ['all', IS_CABINET, ['==', ['get', 'id'], cabinetId ?? '']];
 }
 
-async function rasterizeIcon(url: string, withAlertBadge = false): Promise<ImageData> {
+/** Durum noktasının yarıçapı (atlas pikseli). Alarm rozetinden küçük: ikincil bilgi, "!"in önüne geçmesin. */
+const STATUS_DOT_RADIUS = ICON_HEIGHT * 0.13 * ICON_PIXEL_RATIO;
+/**
+ * Küme dairesinin (yarıçap 18/24/32, bkz. `circle-radius`) sağ üst kenarına oturan nokta ofseti, CSS pikseli.
+ * `circle-radius` basamaklarıyla aynı eşikler; yarıçap × ~0,7 = 45°'deki kenar.
+ */
+const CLUSTER_DOT_OFFSET: ExpressionSpecification = [
+  'step',
+  ['get', 'point_count'],
+  ['literal', [13, -13]],
+  25,
+  ['literal', [17, -17]],
+  250,
+  ['literal', [22, -22]]
+];
+
+async function decodeImage(url: string): Promise<HTMLImageElement> {
   const image = new Image();
   image.src = url;
   await image.decode();
+  return image;
+}
 
-  const width = Math.round((image.naturalWidth / image.naturalHeight) * ICON_HEIGHT) * ICON_PIXEL_RATIO;
-  const height = ICON_HEIGHT * ICON_PIXEL_RATIO;
+function createContext(width: number, height: number): CanvasRenderingContext2D {
   const canvas = document.createElement('canvas');
-  canvas.width = width + SHADOW_PAD_X * 2 * ICON_PIXEL_RATIO;
-  canvas.height = height + SHADOW_PAD_Y * 2 * ICON_PIXEL_RATIO;
-
+  canvas.width = width;
+  canvas.height = height;
   const context = canvas.getContext('2d');
   if (!context) throw new Error('Kabin ikonu için 2D canvas bağlamı alınamadı.');
+  return context;
+}
+
+function rasterizeIcon(image: HTMLImageElement, options: { alertBadge: boolean; statusColor: string }): ImageData {
+  const width = Math.round((image.naturalWidth / image.naturalHeight) * ICON_HEIGHT) * ICON_PIXEL_RATIO;
+  const height = ICON_HEIGHT * ICON_PIXEL_RATIO;
+  const left = SHADOW_PAD_X * ICON_PIXEL_RATIO;
+  const top = SHADOW_PAD_Y * ICON_PIXEL_RATIO;
+  const context = createContext(width + left * 2, height + top * 2);
+
   context.imageSmoothingQuality = 'high';
   context.shadowColor = SHADOW.color;
   context.shadowBlur = SHADOW.blur * ICON_PIXEL_RATIO;
   context.shadowOffsetY = SHADOW.offsetY * ICON_PIXEL_RATIO;
-  context.drawImage(image, SHADOW_PAD_X * ICON_PIXEL_RATIO, SHADOW_PAD_Y * ICON_PIXEL_RATIO, width, height);
-  if (withAlertBadge) drawAlertBadge(context, SHADOW_PAD_X * ICON_PIXEL_RATIO + width, SHADOW_PAD_Y * ICON_PIXEL_RATIO);
-  return context.getImageData(0, 0, canvas.width, canvas.height);
+  context.drawImage(image, left, top, width, height);
+  // Durum noktası sol üstte, alarm rozeti sağ üstte: ikisi aynı ikonda birlikte görünebilir.
+  drawStatusDot(context, left + STATUS_DOT_RADIUS, top + STATUS_DOT_RADIUS, options.statusColor);
+  if (options.alertBadge) drawAlertBadge(context, left + width, top);
+  return context.getImageData(0, 0, context.canvas.width, context.canvas.height);
+}
+
+/** Kümenin durum noktası: ikondakinin aynısı, tek başına. */
+function rasterizeDot(color: string): ImageData {
+  const size = Math.ceil(STATUS_DOT_RADIUS * 2);
+  const context = createContext(size, size);
+  drawStatusDot(context, size / 2, size / 2, color);
+  return context.getImageData(0, 0, size, size);
+}
+
+/** Beyaz halkalı renkli nokta — haritanın her iki temasında da ikonun üstünde seçilsin. */
+function drawStatusDot(context: CanvasRenderingContext2D, centerX: number, centerY: number, color: string) {
+  context.shadowColor = 'transparent';
+  context.fillStyle = '#ffffff';
+  context.beginPath();
+  context.arc(centerX, centerY, STATUS_DOT_RADIUS, 0, Math.PI * 2);
+  context.fill();
+
+  context.fillStyle = color;
+  context.beginPath();
+  context.arc(centerX, centerY, STATUS_DOT_RADIUS - 1.5 * ICON_PIXEL_RATIO, 0, Math.PI * 2);
+  context.fill();
 }
 
 /**
@@ -129,18 +226,32 @@ function drawAlertBadge(context: CanvasRenderingContext2D, right: number, top: n
 let cabinetIcons: Promise<[string, ImageData][]> | null = null;
 
 function loadCabinetIcons(): Promise<[string, ImageData][]> {
-  // Alarm ikonu "işlem" görselinden türer: alarm açık bir oturumda doğar, dolayısıyla o kabin zaten işlemdedir.
-  cabinetIcons ??= Promise.all([rasterizeIcon(CabinetIdleIcon), rasterizeIcon(CabinetInProcessIcon), rasterizeIcon(CabinetInProcessIcon, true)]).then(
-    ([idle, busy, alert]): [string, ImageData][] => [
-      [IDLE_ICON_ID, idle],
-      [BUSY_ICON_ID, busy],
-      [ALERT_ICON_ID, alert]
-    ],
-    error => {
+  cabinetIcons ??= Promise.all([decodeImage(CabinetIdleIcon), decodeImage(CabinetInProcessIcon)])
+    .then(([idle, busy]) => {
+      // Alarm ikonu "işlem" görselinden türer: alarm açık bir oturumda doğar, dolayısıyla o kabin zaten işlemdedir.
+      const sources: Record<IconBase, { image: HTMLImageElement; alertBadge: boolean }> = {
+        idle: { image: idle, alertBadge: false },
+        busy: { image: busy, alertBadge: false },
+        alert: { image: busy, alertBadge: true }
+      };
+
+      // Taban × durum: 18 hazır görsel. Nokta ayrı bir katman değil, çünkü o katman bütün ikonların üstünde çizilir —
+      // üst üste binen kabinlerde alttakinin noktası öndekinin üstüne çıkar, hover'da büyüyen ikonla da kaymazdı.
+      const icons: [string, ImageData][] = [];
+      for (const base of ICON_BASES) {
+        for (const statusKey of STATUS_KEYS) {
+          icons.push([cabinetIconId(base, statusKey), rasterizeIcon(sources[base].image, { alertBadge: sources[base].alertBadge, statusColor: STATUS_BADGES[statusKey].color })]);
+        }
+      }
+      for (const { color, rank } of Object.values(STATUS_BADGES)) {
+        if (rank > 0) icons.push([clusterDotIconId(rank), rasterizeDot(color)]);
+      }
+      return icons;
+    })
+    .catch((error: unknown) => {
       cabinetIcons = null;
       throw error;
-    }
-  );
+    });
   return cabinetIcons;
 }
 
@@ -179,6 +290,21 @@ function addCabinetLayers(map: MapLibreMap, labelColors: { text: string; halo: s
       'text-ignore-placement': true
     },
     paint: { 'text-color': '#ffffff' }
+  });
+
+  // Kümedeki en kötü kabin durumu, dairenin sağ üst kenarında nokta. Kenar rengi alarm/işlem için ayrılmış
+  // (Uyarı'nın amber'i "işlem" kenarıyla aynı renk) — durum oraya karıştırılmaz.
+  map.addLayer({
+    id: CLUSTER_STATUS_LAYER_ID,
+    type: 'symbol',
+    source: SOURCE_ID,
+    filter: ['all', IS_CLUSTER, ['>', ['get', 'statusRank'], 0]],
+    layout: {
+      'icon-image': ['concat', CLUSTER_DOT_ICON_PREFIX, ['to-string', ['get', 'statusRank']]],
+      'icon-offset': CLUSTER_DOT_OFFSET,
+      'icon-allow-overlap': true,
+      'icon-ignore-placement': true
+    }
   });
 
   // İkon her zaman çizilir; etiket başka bir sembolle çakışırsa düşer (`text-optional`) ve yakın zoom'da
@@ -301,6 +427,18 @@ function bindCabinetEvents(map: MapLibreMap, callbacks: RefObject<LayerCallbacks
   };
 }
 
+function toFeatureProperties(cabinet: LocatedCabinet, busyCabinetIds: ReadonlySet<string>, alertCabinetIds: ReadonlySet<string>): CabinetFeatureProperties {
+  const statusKey = statusKeyOf(cabinet.deviceStatusId);
+  return {
+    id: cabinet.id,
+    name: cabinet.name,
+    isBusy: busyCabinetIds.has(cabinet.id),
+    isAlert: alertCabinetIds.has(cabinet.id),
+    statusKey,
+    statusRank: STATUS_BADGES[statusKey].rank
+  };
+}
+
 type CabinetMapLayerProps = {
   /** Haritada gösterilecek (durum filtresinden geçmiş) kabinler. */
   cabinets: LocatedCabinet[];
@@ -330,7 +468,7 @@ export function CabinetMapLayer({ cabinets, busyCabinetIds, alertCabinetIds, onC
       features: cabinets.map(cabinet => ({
         type: 'Feature',
         geometry: { type: 'Point', coordinates: [cabinet.longitude, cabinet.latitude] },
-        properties: { id: cabinet.id, name: cabinet.name, isBusy: busyCabinetIds.has(cabinet.id), isAlert: alertCabinetIds.has(cabinet.id) }
+        properties: toFeatureProperties(cabinet, busyCabinetIds, alertCabinetIds)
       }))
     }),
     [cabinets, busyCabinetIds, alertCabinetIds]
@@ -375,7 +513,8 @@ export function CabinetMapLayer({ cabinets, busyCabinetIds, alertCabinetIds, onC
           clusterRadius: 50,
           clusterProperties: {
             busyCount: ['+', ['case', ['get', 'isBusy'], 1, 0]],
-            alertCount: ['+', ['case', ['get', 'isAlert'], 1, 0]]
+            alertCount: ['+', ['case', ['get', 'isAlert'], 1, 0]],
+            statusRank: ['max', ['get', 'statusRank']]
           }
         });
       }
@@ -388,7 +527,7 @@ export function CabinetMapLayer({ cabinets, busyCabinetIds, alertCabinetIds, onC
       cancelled = true;
       unbind?.();
       try {
-        for (const layerId of [HOVER_LAYER_ID, POINT_LAYER_ID, CLUSTER_COUNT_LAYER_ID, CLUSTER_LAYER_ID]) {
+        for (const layerId of [HOVER_LAYER_ID, POINT_LAYER_ID, CLUSTER_STATUS_LAYER_ID, CLUSTER_COUNT_LAYER_ID, CLUSTER_LAYER_ID]) {
           if (map.getLayer(layerId)) map.removeLayer(layerId);
         }
         if (map.getSource(SOURCE_ID)) map.removeSource(SOURCE_ID);

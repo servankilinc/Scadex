@@ -6,7 +6,7 @@ using static Scadex.Model.Enums.EntityEnums;
 namespace Scadex.Business.Concrete;
 
 // DiagramService kaydetme boru hattinin cihaz ailesine ait PIN / KANAL alt dilimi:
-// yukleme -> dogrulama -> uygulama. Cihazin kendi govdesi (ad, konum, dis kod, MAC)
+// yukleme -> dogrulama -> uygulama. Cihazin kendi govdesi (ad, konum, MAC, izleme)
 // DiagramService.SaveDevices.cs'te; genel gerekce ve akis haritasi
 // DiagramService.SaveContext.cs'te.
 //

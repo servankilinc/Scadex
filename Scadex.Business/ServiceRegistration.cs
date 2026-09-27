@@ -6,6 +6,7 @@ using Scadex.Business.Utils.CameraProtocolProfile;
 using Scadex.Business.Utils.CameraProtocolProfile.Resolver;
 using Scadex.Business.Utils.ClipCaptureQueue;
 using Scadex.Business.Utils.MediaGateway;
+using Scadex.Business.Utils.MonitoredAssetService;
 using Scadex.Business.Utils.OutputPolarity;
 using Scadex.Business.Utils.ScadaCommandGateway;
 using Scadex.Business.Utils.TokenService;

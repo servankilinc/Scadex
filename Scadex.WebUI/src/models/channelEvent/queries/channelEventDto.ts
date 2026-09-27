@@ -26,7 +26,6 @@ export interface ChannelEventDto {
   channelNumber: number | null;
   deviceId: string | null;
   deviceName: string | null;
-  deviceExternalCode: string | null;
 
   /** Bugün yalnızca "1" / "0". String kalıyor: analog kapsama girdiğinde "23.5" aynı alana düşecek. */
   value: string;

@@ -9,7 +9,6 @@ public class DeviceDto : IDto
     public Guid ComponentTemplateId { get; set; }
     public string Name { get; set; } = null!;
     public int? DeviceStatusId { get; set; }
-    public string? ExternalCode { get; set; }
     public DateTime? LastSeen { get; set; }
 
     // ------------ Tasarım props ------------

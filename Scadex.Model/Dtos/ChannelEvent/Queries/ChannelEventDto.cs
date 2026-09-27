@@ -12,7 +12,6 @@ public class ChannelEventDto : IDto
 
     public Guid? DeviceId { get; set; }
     public string? DeviceName { get; set; }
-    public string? DeviceExternalCode { get; set; }
 
     public string Value { get; set; } = null!;
     public string? PreviousValue { get; set; }

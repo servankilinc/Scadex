@@ -13,7 +13,6 @@ public class DeviceDetailDto : IDto
     public string? DeviceStatusName { get; set; }
     public string? IpAddress { get; set; }
     public string? MacAddress { get; set; }
-    public string? ExternalCode { get; set; }
     public DateTime? LastSeen { get; set; }
 
     // ------------ IMonitoredAsset Props ------------

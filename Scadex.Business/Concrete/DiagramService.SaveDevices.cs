@@ -63,27 +63,10 @@ public partial class DiagramService
     }
 
     /// <summary>
-    /// Kabindeki aktif cihazlarin dis kodlari —
-    /// <c>IX_Device_CabinetId_ExternalCode</c> (unique, WHERE ExternalCode IS NOT NULL
-    /// AND IsActive = 1). Gonderide hic kod yoksa sorgu ATILMAZ.
-    /// </summary>
-    private async Task<Dictionary<Guid, string>> LoadDeviceExternalCodesAsync(Guid cabinetId, DiagramSaveRequest request, CancellationToken cancellationToken)
-    {
-        if (!request.Devices.Upserted.Any(d => !string.IsNullOrWhiteSpace(d.ExternalCode))) return [];
-
-        var rows = await _unitOfWork.Devices.GetAllAsync(
-            select: d => new DeviceCodeRow(d.Id, d.ExternalCode!),
-            where: d => d.CabinetId == cabinetId && d.IsActive && d.ExternalCode != null,
-            cancellationToken: cancellationToken) ?? [];
-
-        return rows.ToDictionary(r => r.Id, r => r.ExternalCode);
-    }
-
-    /// <summary>
     /// Gonderilen MAC adreslerinin SAHIPLERI — <c>IX_Device_MacAddress</c>
     /// (unique, WHERE MacAddress IS NOT NULL AND IsActive = 1).
     ///
-    /// <b>Neden kabinle daraltilmiyor.</b> Dis kod index'i kabin bazlidir, MAC index'i
+    /// <b>Neden kabinle daraltilmiyor.</b> MAC index'i kabin bazli DEGIL,
     /// GLOBALDIR: bir fiziksel kartin tek MAC'i vardir ve ingest kabini bu adresten cozer.
     /// Dolayisiyla carpisma baska bir kabindeki cihazla da olabilir; sorgu kabinle degil,
     /// GONDERILEN ADRESLERLE daraltilir. Gonderide hic adres yoksa sorgu ATILMAZ.
@@ -180,33 +163,6 @@ public partial class DiagramService
             }
 
             ValidateDevicePinIdentities(draft, key, context, seenPinIds, seenChannelIds, seenChannelAddresses, errors);
-        }
-    }
-
-    /// <summary>
-    /// Dis kodlarin kabin icinde benzersizligi — <c>IX_Device_CabinetId_ExternalCode</c>.
-    /// Kod SCADA tarafindaki kimliktir; ayni kodun iki cihaza dusmesi telemetriyi
-    /// yanlis cihaza yazardi, dolayisiyla index yalnizca bir performans detayi degil.
-    /// </summary>
-    private static void ValidateDeviceExternalCodes(DiagramSaveRequest request, SaveContext context, Dictionary<string, List<string>> errors)
-    {
-        var upsertedIds = request.Devices.Upserted.Select(d => d.Id).ToHashSet();
-        var codes = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-
-        foreach (var (deviceId, code) in context.DeviceExternalCodes)
-        {
-            // Silinen cihaz index filtresinden duser, yazilan cihazin YENI degeri
-            // asagida eklenecek — ikisi de mevcut kod sayilmaz.
-            if (context.DeletedDeviceIds.Contains(deviceId) || upsertedIds.Contains(deviceId)) continue;
-            codes.Add(code);
-        }
-
-        for (int i = 0; i < request.Devices.Upserted.Count; i++)
-        {
-            var code = request.Devices.Upserted[i].ExternalCode;
-            if (string.IsNullOrWhiteSpace(code)) continue;
-            if (!codes.Add(code))
-                AddError(errors, $"Devices.Upserted[{i}].ExternalCode", "Bu kabinde ayni dis koda sahip baska bir cihaz var");
         }
     }
 
@@ -346,7 +302,6 @@ public partial class DiagramService
         device.ZIndex = draft.ZIndex;
         device.IsLocked = draft.IsLocked;
         device.IsVisible = draft.IsVisible;
-        device.ExternalCode = draft.ExternalCode;
         device.MacAddress = draft.MacAddress;
         device.IpAddress = draft.IpAddress;
         device.MonitoringPort = draft.MonitoringPort;
@@ -355,8 +310,6 @@ public partial class DiagramService
     }
 
     // ==================== YARDIMCI TIPLER ====================
-
-    private sealed record DeviceCodeRow(Guid Id, string ExternalCode);
 
     private sealed record DeviceMacRow(Guid Id, string MacAddress);
 }

@@ -124,7 +124,6 @@ classDiagram
         +int? DeviceStatusId
         +string? IpAddress
         +string? MacAddress
-        +string? ExternalCode
         +DateTime? LastSeen
         +bool IsActive
     }
@@ -454,7 +453,6 @@ Hepsi `Backend/CabinetOs.Model/Entities/` altındadır. Audit alanları (`Create
 | `DeviceStatusId` | `int?` | telemetriyle yazılır |
 | `IpAddress` | `string?` | `MacAddress` ile birlikte diyagram deltasından yazılır; benzersizlik kısıtı yok |
 | `MacAddress` | `string?` | `DeviceType.ControlModule` cihazlarda **ingest'in kabin çözümlemesidir** — SCADA bu adresi gönderir, sunucu birebir string eşleşmesiyle kabini bulur. **Sistem genelinde benzersiz** (`IX_Device_MacAddress`, `WHERE MacAddress IS NOT NULL AND IsActive = 1`) — kabin bazlı değil |
-| `ExternalCode` | `string?` | **çözümlemede kullanılmıyor** — yalnız gösterim |
 | `LastSeen` | `DateTime?` | bayat süpürücüsünün baktığı alan |
 | `IsActive` | `bool` | |
 
@@ -616,7 +614,6 @@ Permission          ViewDiagram=0, EditDiagram=1, ControlOutput=2, AcknowledgeAl
 | Tablo | Kısıt | Gerekçe |
 |---|---|---|
 | `IoChannel` | **`(CabinetId, Direction, ChannelNumber)` UNIQUE**, `WHERE IsDeleted = 0` | Benzersizlik cihazda değil **kabinde**: kabin bir kontrol kartıdır, `IN1` kartta tektir. `Direction` anahtarın parçasıdır çünkü `IN1`, `AI1` ve `OUT1` **üç ayrı noktadır** — çerçeve başlığı dijitali `'I'`, analogu `'A'`, çıkışı `'O'` ile ayırır ve bu üç kod uzayı bağımsızdır. Yön çıkarılırsa noktalar tek satıra düşer ve birbirlerinin değerini **ezer**. Her ingest bu indeksten geçer; çakışma uygulama kodunda değil şemada yakalanır. |
-| `Device` | `(CabinetId, ExternalCode)` filtered unique (`ExternalCode IS NOT NULL AND IsActive = 1`) | Çevre birimlerinde null'dır, birden fazla null olabilmeli. **Çözümlemede kullanılmaz.** |
 | `Connection` | `(SourcePinId, TargetPinId)` unique (`IsDeleted = 0`) + `CHECK SourcePinId <> TargetPinId` | Aynı çifti iki kez kablolamak ve pini kendine bağlamak şemada engellenir. |
 | `Pin` | `CHECK RelativeX/Y ∈ [0,1]` · `(DeviceId, Name)` filtered unique | Şablon yeniden boyutlanınca pinler geçersizleşmesin. |
 | `ComponentTemplatePin` | `(ComponentTemplateId, Name)` unique | |
@@ -649,7 +646,7 @@ Permission          ViewDiagram=0, EditDiagram=1, ControlOutput=2, AcknowledgeAl
 
 Kumanda ters yönde aynı dili konuşur: `{ commandId, cabinetId, pin: "OUT5", commandType, value, issuedAtUtc }`.
 
-> **Modül kimliği adreslemede yoktur.** Protokolde modül baytı yok; kart kimliği soketin kendisidir. Cihaz, çözümlenen kanalın üzerinden bulunur. `Device.ExternalCode` bir zamanlar çözümlemenin parçasıydı, kaldırıldı.
+> **Modül kimliği adreslemede yoktur.** Protokolde modül baytı yok; kart kimliği soketin kendisidir. Cihaz, çözümlenen kanalın üzerinden bulunur. `Device.ExternalCode` bir zamanlar çözümlemenin parçasıydı; önce çözümlemeden, 2026-09-27'de kolon olarak da kaldırıldı.
 >
 > **Kimlik gövdededir ve bir sır DEĞİLDİR.** `cabinetId` her diyagram URL'inde görünür; ingest ucu `[AllowAnonymous]`'tur ve ağ seviyesinde korunmalıdır (VPN / IP allowlist / mTLS). Sertleştirme yolu: `Cabinet` üzerinde hiçbir okuma DTO'sunda serialize edilmeyen bir `IngestKey` kolonu — **bugün yapılmamıştır**.
 >

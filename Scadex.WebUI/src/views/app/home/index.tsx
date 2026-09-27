@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, useMemo } from 'react';
+import { useEffect, useRef, useState, useMemo, type ReactNode } from 'react';
 import { useQueries, useQuery, type UseQueryResult } from '@tanstack/react-query';
 import type { LngLatBoundsLike } from 'maplibre-gl';
 import { getCabinetList } from '@/api/cabinet';
@@ -6,10 +6,11 @@ import { cabinetKeys } from '@/api/query-keys';
 import { Map, MapControls, MapPopup, type MapRef } from '@/components/ui/map';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Info, Activity, SearchIcon } from 'lucide-react';
+import { Info, Activity, SearchIcon, TriangleAlert } from 'lucide-react';
 import type { CabinetDetailDto } from '@/models/cabinet';
 import { DeviceStatus, deviceStatusLabel } from '@/models/enums';
 import { alertCabinetQueries, busyCabinetQueries } from '@/modules';
+import CabinetInProcessIcon from '@/assets/cabinet-inproces-2.png';
 import { useCabinetOverviewLive } from '@/hooks/use-cabinet-overview-live';
 import { CabinetDetailPanel } from './cabinet-detail-panel';
 import { CabinetMapLayer, type LocatedCabinet } from './cabinet-map-layer';
@@ -81,6 +82,46 @@ function buildStatusChips(activeCabinets: { deviceStatusId: DeviceStatus | null 
   }));
 }
 
+/**
+ * Haritanın tek seçimli filtresi: `'all'`, bir kabin durumu (`null` = Bilinmiyor) ya da modülden gelen kimlik listesi
+ * (`'busy'` işlem yapılan, `'alert'` alarm olan). Durum ile işlem birlikte seçilmez.
+ */
+type MapFilter = 'all' | 'busy' | 'alert' | DeviceStatus | null;
+
+/** `'all'` pasifleri de gösterir (ilk açılıştaki gibi); diğer filtreler yalnızca AKTİF kabinleri — rozet sayılarıyla aynı taban. */
+function matchesMapFilter(cabinet: CabinetDetailDto, filter: MapFilter, busyCabinetIds: ReadonlySet<string>, alertCabinetIds: ReadonlySet<string>): boolean {
+  if (filter === 'all') return true;
+  if (!cabinet.isActive) return false;
+  if (filter === 'busy') return busyCabinetIds.has(cabinet.id);
+  if (filter === 'alert') return alertCabinetIds.has(cabinet.id);
+  return cabinet.deviceStatusId === filter;
+}
+
+/**
+ * Modül rozetleri — yalnızca bir modül ilgili sorguyu verdiyse (`AppModule.busyCabinetsQuery` / `alertCabinetsQuery`);
+ * modül kapalıyken rozet satırı değişmez. Çekirdek "işlem"in ne olduğunu bilmez, kimlikleri sayar. Nokta yerine
+ * haritadaki işaretle eşleşen simge: amber/kırmızı nokta Uyarı/Kritik rozetleriyle karışırdı. Statik: modül listesi
+ * çalışırken değişmez.
+ */
+const MODULE_CHIP_DEFS: { filter: 'busy' | 'alert'; label: string; icon: ReactNode }[] = [
+  ...(busyCabinetQueries.length > 0
+    ? [{ filter: 'busy' as const, label: 'İşlemde', icon: <img src={CabinetInProcessIcon} alt="" className="h-3.5 w-auto shrink-0" aria-hidden="true" /> }]
+    : []),
+  ...(alertCabinetQueries.length > 0
+    ? [{ filter: 'alert' as const, label: 'Alarm', icon: <TriangleAlert className="size-3 shrink-0 text-red-500" aria-hidden="true" /> }]
+    : [])
+];
+
+/** Durum ve modül rozetlerinin ortak görünümü. Kenarlık kalınlığı seçimde sabit: rozet boyutu kaymasın. */
+function chipClassName(selected: boolean) {
+  return cn(
+    'flex shrink-0 cursor-pointer items-center gap-1.5 whitespace-nowrap rounded-lg px-2 py-1 text-[11px] font-medium',
+    selected
+      ? 'border-1 bg-white dark:bg-white/80 dark:text-secondary shadow-sm'
+      : 'border-1 border-primary/5 bg-primary/5 dark:bg-secondary text-foreground shadow-sm hover:bg-accent'
+  );
+}
+
 export default function Home() {
   const { data: cabinets = [], isLoading } = useQuery({
     queryKey: cabinetKeys.list(),
@@ -140,12 +181,22 @@ export default function Home() {
   // harita onları çerçeveye sığdırır; sayısı 0 olan rozette harita boşalır ve kamera yerinde kalır.
   // 'all' (Tümü) filtreyi tamamen kaldırır — haritada koordinatlı
   // TÜM kabinler (aktif/pasif fark etmeksizin) yeniden görünür, tıpkı ilk açılıştaki gibi.
-  const [statusFilter, setStatusFilter] = useState<'all' | DeviceStatus | null>('all');
+  // Modül rozetleri de aynı filtreyi sürer: "İşlemde" seçiliyken oturum kapanınca kabin haritadan düşer.
+  const [mapFilter, setMapFilter] = useState<MapFilter>('all');
 
   const visibleCabinets = useMemo(() => {
-    if (statusFilter === 'all') return validCabinets;
-    return validCabinets.filter(c => c.isActive && c.deviceStatusId === statusFilter);
-  }, [validCabinets, statusFilter]);
+    if (mapFilter === 'all') return validCabinets;
+    return validCabinets.filter(c => matchesMapFilter(c, mapFilter, busyCabinetIds, alertCabinetIds));
+  }, [validCabinets, mapFilter, busyCabinetIds, alertCabinetIds]);
+
+  const moduleChips = useMemo(
+    () =>
+      MODULE_CHIP_DEFS.map(def => ({
+        ...def,
+        count: activeCabinets.filter(c => matchesMapFilter(c, def.filter, busyCabinetIds, alertCabinetIds)).length
+      })),
+    [activeCabinets, busyCabinetIds, alertCabinetIds]
+  );
 
   // Kabinlerin TAMAMINI çerçeveye sığdırır. Eski "ağırlık merkezi + sabit zoom", iki şehre dağılmış kabinlerde
   // haritayı aradaki boş bir noktaya, sokak seviyesinde götürüyordu. Tek kabinde sonuç aynıdır (`maxZoom`).
@@ -154,15 +205,15 @@ export default function Home() {
     if (map && bounds) map.fitBounds(bounds, { padding: FIT_PADDING, maxZoom: DEFAULT_ZOOM, duration: animate ? 600 : 0 });
   };
 
-  const handleStatusFilter = (statusId: 'all' | DeviceStatus | null) => {
-    setStatusFilter(statusId);
-    fitCabinets(statusId === 'all' ? validCabinets : validCabinets.filter(c => c.isActive && c.deviceStatusId === statusId), true);
+  const handleMapFilter = (filter: MapFilter) => {
+    setMapFilter(filter);
+    fitCabinets(validCabinets.filter(c => matchesMapFilter(c, filter, busyCabinetIds, alertCabinetIds)), true);
   };
 
   const handleFilter = () => {
     fitCabinets(selectedCabinetId === ALL_CABINETS ? validCabinets : validCabinets.filter(c => c.id === selectedCabinetId), true);
     // Seçilen kabin bir durum filtresi yüzünden haritada gizli kalmasın diye filtre sıfırlanır.
-    setStatusFilter('all');
+    setMapFilter('all');
   };
 
   // Veri geldikten sonra haritayı kabinlere sığdır — yalnızca BİR KEZ; sonraki refetch'ler operatörün kaydırdığı
@@ -262,10 +313,10 @@ export default function Home() {
                 aria-label="Kabin durum filtresi">
                 <button
                   type="button"
-                  onClick={() => handleStatusFilter('all')}
+                  onClick={() => handleMapFilter('all')}
                   className={cn(
                     'flex shrink-0 cursor-pointer items-center gap-1.5 whitespace-nowrap rounded-md px-2 py-1 text-[11px] font-medium',
-                    statusFilter === 'all'
+                    mapFilter === 'all'
 ? 'border-1 bg-white dark:bg-white/80 dark:text-secondary shadow-sm'
                         : 'border-1 border-primary/5 bg-primary/5 dark:bg-secondary text-foreground shadow-sm hover:bg-accent'
                   )}
@@ -279,16 +330,27 @@ export default function Home() {
                   <button
                     type="button"
                     key={chip.key}
-                    onClick={() => handleStatusFilter(chip.statusId)}
-                    className={cn(
-                      'flex shrink-0 cursor-pointer items-center gap-1.5 whitespace-nowrap rounded-lg px-2 py-1 text-[11px] font-medium',
-                      statusFilter === chip.statusId
-                        ? 'border-1 bg-white dark:bg-white/80 dark:text-secondary shadow-sm'
-                        : 'border-1 border-primary/5 bg-primary/5 dark:bg-secondary text-foreground shadow-sm hover:bg-accent'
-                    )}
+                    onClick={() => handleMapFilter(chip.statusId)}
+                    className={chipClassName(mapFilter === chip.statusId)}
                     title={`${chip.label}: ${chip.count}`}
                   >
                     <span className={`size-2 shrink-0 rounded-full ${chip.dotColor}`} aria-hidden="true" />
+                    <span>{chip.label}</span>
+                    <span className="font-semibold tabular-nums">{chip.count}</span>
+                  </button>
+                ))}
+
+                {/* Modül rozetleri (İşlemde / Alarm): kabin durumundan bağımsız bir eksen, ince çizgiyle ayrılır. */}
+                {moduleChips.length > 0 && <span className="mx-0.5 w-px shrink-0 self-stretch bg-border" aria-hidden="true" />}
+                {moduleChips.map((chip) => (
+                  <button
+                    type="button"
+                    key={chip.filter}
+                    onClick={() => handleMapFilter(chip.filter)}
+                    className={chipClassName(mapFilter === chip.filter)}
+                    title={`${chip.label}: ${chip.count}`}
+                  >
+                    {chip.icon}
                     <span>{chip.label}</span>
                     <span className="font-semibold tabular-nums">{chip.count}</span>
                   </button>

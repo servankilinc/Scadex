@@ -86,7 +86,6 @@ function toDeviceDraft(node: DeviceNode): DeviceDraft {
     // `node.width` DEĞİL — bkz. dosya başındaki not.
     width: device.width,
     height: device.height,
-    externalCode: device.externalCode,
     macAddress: device.macAddress,
     ipAddress: device.ipAddress,
     monitoringPort: device.monitoringPort,

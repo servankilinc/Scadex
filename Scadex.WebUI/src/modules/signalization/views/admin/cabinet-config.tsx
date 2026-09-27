@@ -1,7 +1,6 @@
-import { useEffect, useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
   Controller,
-  useFieldArray,
   useForm,
   useWatch,
   type Control,
@@ -11,7 +10,7 @@ import {
 } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Link, useBlocker, useSearchParams } from 'react-router';
-import { DoorClosedIcon, DoorOpenIcon, LockIcon, LockOpenIcon, PlusIcon, SirenIcon, Trash2Icon } from 'lucide-react';
+import { ChevronRightIcon, DoorClosedIcon, DoorOpenIcon, LockIcon, LockOpenIcon, PlusIcon, SettingsIcon, SirenIcon, Trash2Icon } from 'lucide-react';
 import {
   AlertDialog,
   AlertDialogCancel,
@@ -31,6 +30,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Switch } from '@/components/ui/switch';
 import { useCabinets } from '@/hooks/use-cabinets';
 import { newId } from '@/lib/sequential-id';
+import { cn } from '@/lib/utils';
 import { AuthoritySelect, CameraSelect, ChannelSelect, type ChannelUsage } from '../../components/config-selects';
 import { useSaveSignalCabinet, useSignalCabinet, useSignalCabinetOptions } from '../../hooks/use-signal-config';
 import { handleTreeFormApiError } from '../../lib';
@@ -51,6 +51,9 @@ import {
  * Kullanıcının hiyerarşi JSON'unun görsel karşılığı: kabin (ortak siren, süreler) → dış kapılar (anahtar,
  * kamera) → iç kapılar (kurum, anahtar, kilit). Kapılar SANALDIR; seçilen her şey diyagramdaki kartların
  * KANALLARIDIR. Kanalı olmayan bir kapı tanımlanamaz — önce diyagramda kartı ekleyin.
+ *
+ * Düzen: solda kabin → dış kapı → iç kapı AĞACI, sağda yalnızca seçili düğümün alanları. Form tektir; görünmeyen
+ * düğümlerin değerleri formda kalır (`shouldUnregister` kapalı), hatalı düğüm ağaçta kırmızı noktayla işaretlenir.
  *
  * Kayıt TAM ağaçtır (`PUT /api/SignalCabinet/{cabinetId}`): formdan çıkarılan kapı kaydedince PASİFE alınır.
  * Kilit / siren durumu burada yalnızca GÖSTERİLİR; onları motor yazar.
@@ -171,6 +174,73 @@ interface DoorContext {
   unlockedById: Map<string, boolean>;
 }
 
+type WatchedValues = DeepPartialSkipArrayKey<SignalCabinetFormValues>;
+
+/**
+ * Ağaçta seçili düğüm. İndeks değil kapı KİMLİĞİ tutulur: kapı eklenip çıkarıldıkça indeksler kayar, kimlik kaymaz.
+ * Çözümleme render'da yapılır (`resolveSelection`); çıkarılan kapıyı gösteren seçim kendiliğinden üst düğüme düşer.
+ */
+type Selection = { kind: 'cabinet' } | { kind: 'outer'; outerId: string } | { kind: 'inner'; outerId: string; innerId: string };
+type ResolvedSelection = { kind: 'cabinet' } | { kind: 'outer'; outerIndex: number } | { kind: 'inner'; outerIndex: number; innerIndex: number };
+
+function resolveSelection(selection: Selection, values: WatchedValues): ResolvedSelection {
+  if (selection.kind === 'cabinet') return selection;
+
+  const outerIndex = values.outerDoors?.findIndex(outer => outer?.doorId === selection.outerId) ?? -1;
+  if (outerIndex < 0) return { kind: 'cabinet' };
+  if (selection.kind === 'outer') return { kind: 'outer', outerIndex };
+
+  const innerIndex = values.outerDoors?.[outerIndex]?.innerDoors?.findIndex(inner => inner?.doorId === selection.innerId) ?? -1;
+  return innerIndex < 0 ? { kind: 'outer', outerIndex } : { kind: 'inner', outerIndex, innerIndex };
+}
+
+// ─────────────────────────────────────────────────────────── hata → düğüm
+
+const CABINET_FIELDS = ['isEnabled', 'sirenIoChannelId', 'sirenDurationSec', 'entrySnapshotCount', 'entrySnapshotIntervalMs', 'awaitingCardTimeoutSec', 'sessionMaxDurationMin'] as const;
+const OUTER_FIELDS = ['name', 'switchIoChannelId', 'switchOpenValue', 'cameraId', 'lightIoChannelId'] as const;
+
+function hasCabinetError(errors: FieldErrors<SignalCabinetFormValues>): boolean {
+  return CABINET_FIELDS.some(field => errors[field]);
+}
+
+/** Dış kapının KENDİ alanları + "en az bir iç kapı" kuralı. İç kapıların hatası kendi düğümlerinde gösterilir. */
+function hasOuterError(errors: FieldErrors<SignalCabinetFormValues>, outerIndex: number): boolean {
+  const doorErrors = errors.outerDoors?.[outerIndex];
+  if (!doorErrors) return false;
+  return OUTER_FIELDS.some(field => doorErrors[field]) || Boolean(doorErrors.innerDoors?.message ?? doorErrors.innerDoors?.root);
+}
+
+function hasInnerError(errors: FieldErrors<SignalCabinetFormValues>, outerIndex: number, innerIndex: number): boolean {
+  return Boolean(errors.outerDoors?.[outerIndex]?.innerDoors?.[innerIndex]);
+}
+
+/** İstemci doğrulaması düştüğünde gidilecek düğüm: ağaç sırasıyla ilk hatalı olan. */
+function firstErrorSelection(errors: FieldErrors<SignalCabinetFormValues>, values: SignalCabinetFormValues): Selection | null {
+  if (hasCabinetError(errors)) return { kind: 'cabinet' };
+
+  for (const [outerIndex, outer] of values.outerDoors.entries()) {
+    if (hasOuterError(errors, outerIndex)) return { kind: 'outer', outerId: outer.doorId };
+    for (const [innerIndex, inner] of outer.innerDoors.entries()) {
+      if (hasInnerError(errors, outerIndex, innerIndex)) return { kind: 'inner', outerId: outer.doorId, innerId: inner.doorId };
+    }
+  }
+  return null;
+}
+
+/** Sunucu hatasının form yolu (`outerDoors.0.innerDoors.1.lockIoChannelId`) → düğüm. Kök `outerDoors` hatası düğüme ait değildir. */
+function selectionFromPath(path: string, values: SignalCabinetFormValues): Selection | null {
+  const match = /^outerDoors\.(\d+)(?:\.innerDoors\.(\d+)(?:\.|$))?/.exec(path);
+  if (!match) return path.startsWith('outerDoors') ? null : { kind: 'cabinet' };
+
+  const outer = values.outerDoors[Number(match[1])];
+  if (!outer) return null;
+
+  const inner = match[2] === undefined ? undefined : outer.innerDoors[Number(match[2])];
+  return inner ? { kind: 'inner', outerId: outer.doorId, innerId: inner.doorId } : { kind: 'outer', outerId: outer.doorId };
+}
+
+// ─────────────────────────────────────────────────────────── ekran
+
 function CabinetConfigForm({
   cabinetId,
   config,
@@ -187,10 +257,10 @@ function CabinetConfigForm({
     defaultValues: toCabinetFormValues(config)
   });
 
-  const { fields, append, remove } = useFieldArray({ control: form.control, name: 'outerDoors' });
   const mutation = useSaveSignalCabinet();
   const errors = form.formState.errors;
   const isDirty = form.formState.isDirty;
+  const isSubmitted = form.formState.isSubmitted;
 
   // `form.watch()` DEĞİL: React Compiler onu memoize edemiyor (çekirdek formlarıyla aynı kural).
   const watched = useWatch({ control: form.control });
@@ -203,15 +273,70 @@ function CabinetConfigForm({
 
   const ctx: DoorContext = { control: form.control, register: form.register, errors, options, usage, unlockedById };
 
-  const submit = form.handleSubmit(values =>
-    mutation.mutate(
-      { cabinetId, request: toCabinetSaveRequest(values) },
-      {
-        // Kaydedilen değerler artık "temiz"; engelleyici ve Kaydet düğmesi buna bakar.
-        onSuccess: () => form.reset(values),
-        onError: error => handleTreeFormApiError(error, form.setError)
-      }
-    )
+  const [selection, setSelection] = useState<Selection>({ kind: 'cabinet' });
+  const resolved = resolveSelection(selection, watched);
+
+  // Kapı ağacı `useFieldArray` ile DEĞİL, dizinin tamamı yazılarak değişir: ağaç (ekle) ve panel (çıkar) aynı iç kapı
+  // dizisine iki ayrı bileşenden dokunuyor, `useFieldArray` ise bir dizi için tek sahip ister. Kayıt denendiyse
+  // doğrulama `outerDoors` altında yeniden koşar: kayan indekslerde eski hata yanlış kapıda kalmasın.
+  const setOuterDoors = (next: SignalOuterDoorFormValues[]) =>
+    form.setValue('outerDoors', next, { shouldDirty: true, shouldValidate: isSubmitted });
+
+  const addOuterDoor = () => {
+    const door = newOuterDoor();
+    setOuterDoors([...form.getValues('outerDoors'), door]);
+    setSelection({ kind: 'outer', outerId: door.doorId });
+  };
+
+  const removeOuterDoor = (outerIndex: number) => setOuterDoors(form.getValues('outerDoors').filter((_, index) => index !== outerIndex));
+
+  const addInnerDoor = (outerIndex: number) => {
+    const outers = form.getValues('outerDoors');
+    const parent = outers[outerIndex];
+    if (!parent) return;
+
+    const door = newInnerDoor();
+    setOuterDoors(outers.map((outer, index) => (index === outerIndex ? { ...outer, innerDoors: [...outer.innerDoors, door] } : outer)));
+    setSelection({ kind: 'inner', outerId: parent.doorId, innerId: door.doorId });
+  };
+
+  const removeInnerDoor = (outerIndex: number, innerIndex: number) =>
+    setOuterDoors(
+      form.getValues('outerDoors').map((outer, index) =>
+        index === outerIndex ? { ...outer, innerDoors: outer.innerDoors.filter((_, i) => i !== innerIndex) } : outer
+      )
+    );
+
+  const selectOuter = (outerIndex: number) => {
+    const outerId = form.getValues(`outerDoors.${outerIndex}.doorId`);
+    setSelection({ kind: 'outer', outerId });
+  };
+
+  const selectInner = (outerIndex: number, innerIndex: number) => {
+    const outerId = form.getValues(`outerDoors.${outerIndex}.doorId`);
+    const innerId = form.getValues(`outerDoors.${outerIndex}.innerDoors.${innerIndex}.doorId`);
+    setSelection({ kind: 'inner', outerId, innerId });
+  };
+
+  const submit = form.handleSubmit(
+    values =>
+      mutation.mutate(
+        { cabinetId, request: toCabinetSaveRequest(values) },
+        {
+          // Kaydedilen değerler artık "temiz"; engelleyici ve Kaydet düğmesi buna bakar.
+          onSuccess: () => form.reset(values),
+          onError: error => {
+            const paths = handleTreeFormApiError(error, form.setError);
+            const target = paths.map(path => selectionFromPath(path, values)).find(Boolean);
+            if (target) setSelection(target);
+          }
+        }
+      ),
+    // Hata seçili olmayan bir düğümde olabilir (paneli görünmüyor): ilk hatalı düğüme geçilir.
+    invalid => {
+      const target = firstErrorSelection(invalid, form.getValues());
+      if (target) setSelection(target);
+    }
   );
 
   const rootDoorsError = errors.outerDoors?.message ?? errors.outerDoors?.root?.message;
@@ -240,27 +365,51 @@ function CabinetConfigForm({
         </p>
       )}
 
-      <CabinetSettingsCard ctx={ctx} />
+      {/* Solda kabin → dış kapı → iç kapı ağacı, sağda YALNIZCA seçili düğümün alanları. Dar ekranda ağaç üstte kalır. */}
+      <div className='grid items-start gap-4 md:grid-cols-[17rem_minmax(0,1fr)]'>
+        <div className='flex flex-col gap-2 md:sticky md:top-4'>
+          <DoorTree
+            values={watched}
+            errors={errors}
+            options={options}
+            unlockedById={unlockedById}
+            resolved={resolved}
+            onSelectCabinet={() => setSelection({ kind: 'cabinet' })}
+            onSelectOuter={selectOuter}
+            onSelectInner={selectInner}
+            onAddOuter={addOuterDoor}
+            onAddInner={addInnerDoor}
+          />
+          {rootDoorsError && <FieldError>{rootDoorsError}</FieldError>}
+        </div>
 
-      <div className='flex items-center justify-between gap-2'>
-        <h2 className='font-medium'>Dış kapılar</h2>
-        <Button type='button' size='sm' variant='outline' onClick={() => append(newOuterDoor())}>
-          <PlusIcon />
-          Dış kapı ekle
-        </Button>
+        {/* Panel, düğüm VE indeks başına yeniden mount edilir: indeks kayınca kayıtlı alan yolları da yenilensin. */}
+        {resolved.kind === 'cabinet' && <CabinetSettingsCard ctx={ctx} />}
+        {resolved.kind === 'outer' && (
+          <OuterDoorPanel
+            key={`outer-${resolved.outerIndex}-${watched.outerDoors?.[resolved.outerIndex]?.doorId}`}
+            index={resolved.outerIndex}
+            values={watched}
+            ctx={ctx}
+            onSelectCabinet={() => setSelection({ kind: 'cabinet' })}
+            onSelectInner={innerIndex => selectInner(resolved.outerIndex, innerIndex)}
+            onAddInner={() => addInnerDoor(resolved.outerIndex)}
+            onRemove={() => removeOuterDoor(resolved.outerIndex)}
+          />
+        )}
+        {resolved.kind === 'inner' && (
+          <InnerDoorPanel
+            key={`inner-${resolved.outerIndex}-${resolved.innerIndex}-${watched.outerDoors?.[resolved.outerIndex]?.innerDoors?.[resolved.innerIndex]?.doorId}`}
+            outerIndex={resolved.outerIndex}
+            index={resolved.innerIndex}
+            values={watched}
+            ctx={ctx}
+            onSelectCabinet={() => setSelection({ kind: 'cabinet' })}
+            onSelectOuter={() => selectOuter(resolved.outerIndex)}
+            onRemove={() => removeInnerDoor(resolved.outerIndex, resolved.innerIndex)}
+          />
+        )}
       </div>
-
-      {fields.length === 0 && (
-        <p className='rounded-xl border border-dashed p-6 text-center text-sm text-muted-foreground'>
-          Dış kapı yok. Her dış kapının bir anahtar (giriş) kanalı ve ardında en az bir iç kapısı olmalı.
-        </p>
-      )}
-
-      {fields.map((field, index) => (
-        <OuterDoorCard key={field.id} index={index} ctx={ctx} onRemove={() => remove(index)} />
-      ))}
-
-      {rootDoorsError && <FieldError>{rootDoorsError}</FieldError>}
 
       {/* Uzun ağaçta Kaydet görünür kalsın: kaydırılan `main` içinde altta yapışık. */}
       <div className='sticky bottom-0 -mx-4 flex justify-end gap-2 border-t bg-background/95 px-4 py-3 backdrop-blur'>
@@ -276,13 +425,178 @@ function CabinetConfigForm({
   );
 }
 
+// ─────────────────────────────────────────────────────────── ağaç
+
+const outerDoorTitle = (name: string | undefined) => name?.trim() || 'Yeni dış kapı';
+const innerDoorTitle = (name: string | undefined) => name?.trim() || 'Yeni iç kapı';
+
+function channelAddress(channels: SignalCabinetOptionsDto['inputChannels'], channelId: string | undefined): string | undefined {
+  return channelId ? channels.find(channel => channel.id === channelId)?.address : undefined;
+}
+
+function authorityName(options: SignalCabinetOptionsDto, authorityId: string | undefined): string | undefined {
+  return authorityId ? options.authorities.find(authority => authority.id === authorityId)?.name : undefined;
+}
+
+/** Kayıtlı iç kapının son bilinen kilit durumu ikonla; yeni kapıda kilit bilgisi yoktur. */
+function InnerDoorIcon({ unlocked }: { unlocked: boolean | undefined }) {
+  if (unlocked === true) return <LockOpenIcon className='size-4 shrink-0 text-amber-600 dark:text-amber-400' aria-label='Kilitsiz' />;
+  if (unlocked === false) return <LockIcon className='size-4 shrink-0 text-muted-foreground' aria-label='Kilitli' />;
+  return <DoorClosedIcon className='size-4 shrink-0 text-muted-foreground' />;
+}
+
+function DoorTree({
+  values,
+  errors,
+  options,
+  unlockedById,
+  resolved,
+  onSelectCabinet,
+  onSelectOuter,
+  onSelectInner,
+  onAddOuter,
+  onAddInner
+}: {
+  values: WatchedValues;
+  errors: FieldErrors<SignalCabinetFormValues>;
+  options: SignalCabinetOptionsDto;
+  unlockedById: Map<string, boolean>;
+  resolved: ResolvedSelection;
+  onSelectCabinet: () => void;
+  onSelectOuter: (outerIndex: number) => void;
+  onSelectInner: (outerIndex: number, innerIndex: number) => void;
+  onAddOuter: () => void;
+  onAddInner: (outerIndex: number) => void;
+}) {
+  const outerDoors = values.outerDoors ?? [];
+  const sirenAddress = channelAddress(options.outputChannels, values.sirenIoChannelId);
+
+  return (
+    <nav aria-label='Kapı ağacı' className='flex flex-col gap-0.5 rounded-xl border bg-card p-2'>
+      <TreeItem
+        icon={<SettingsIcon className='size-4 shrink-0 text-muted-foreground' />}
+        title='Kabin ayarları'
+        subtitle={sirenAddress ? `Siren ${sirenAddress}` : 'Siren yok'}
+        selected={resolved.kind === 'cabinet'}
+        hasError={hasCabinetError(errors)}
+        onClick={onSelectCabinet}
+      />
+
+      {outerDoors.map((outer, outerIndex) => {
+        const innerDoors = outer?.innerDoors ?? [];
+        const switchAddress = channelAddress(options.inputChannels, outer?.switchIoChannelId);
+
+        return (
+          <div key={outer?.doorId ?? outerIndex} className='mt-1.5 flex flex-col gap-0.5'>
+            <TreeItem
+              icon={<DoorOpenIcon className='size-4 shrink-0 text-primary' />}
+              title={outerDoorTitle(outer?.name)}
+              subtitle={`Dış kapı · ${switchAddress ?? 'anahtar seçilmedi'} · ${innerDoors.length} iç kapı`}
+              selected={resolved.kind === 'outer' && resolved.outerIndex === outerIndex}
+              hasError={hasOuterError(errors, outerIndex)}
+              onClick={() => onSelectOuter(outerIndex)}
+            />
+
+            {/* Girinti + sol çizgi: iç kapının hangi dış kapının ardında olduğu bir bakışta görünsün. */}
+            <div className='ml-4 flex flex-col gap-0.5 border-l pl-2'>
+              {innerDoors.map((inner, innerIndex) => (
+                <TreeItem
+                  key={inner?.doorId ?? innerIndex}
+                  icon={<InnerDoorIcon unlocked={inner?.doorId ? unlockedById.get(inner.doorId) : undefined} />}
+                  title={innerDoorTitle(inner?.name)}
+                  subtitle={`İç kapı · ${authorityName(options, inner?.authorityId) ?? 'kurum seçilmedi'}`}
+                  selected={resolved.kind === 'inner' && resolved.outerIndex === outerIndex && resolved.innerIndex === innerIndex}
+                  hasError={hasInnerError(errors, outerIndex, innerIndex)}
+                  onClick={() => onSelectInner(outerIndex, innerIndex)}
+                />
+              ))}
+              <Button type='button' size='sm' variant='ghost' className='justify-start text-muted-foreground' onClick={() => onAddInner(outerIndex)}>
+                <PlusIcon />
+                İç kapı ekle
+              </Button>
+            </div>
+          </div>
+        );
+      })}
+
+      {outerDoors.length === 0 && (
+        <p className='px-2 py-3 text-xs text-muted-foreground'>Dış kapı yok. Her dış kapının bir anahtar (giriş) kanalı ve ardında en az bir iç kapısı olmalı.</p>
+      )}
+
+      <Button type='button' size='sm' variant='outline' className='mt-2' onClick={onAddOuter}>
+        <PlusIcon />
+        Dış kapı ekle
+      </Button>
+    </nav>
+  );
+}
+
+function TreeItem({
+  icon,
+  title,
+  subtitle,
+  selected,
+  hasError,
+  onClick
+}: {
+  icon: React.ReactNode;
+  title: string;
+  subtitle: string;
+  selected: boolean;
+  hasError: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type='button'
+      onClick={onClick}
+      aria-current={selected || undefined}
+      className={cn('flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left', selected ? 'bg-accent text-accent-foreground' : 'hover:bg-muted')}
+    >
+      {icon}
+      <span className='min-w-0 flex-1'>
+        <span className={cn('block truncate text-sm', selected && 'font-medium')}>{title}</span>
+        <span className='block truncate text-xs text-muted-foreground'>{subtitle}</span>
+      </span>
+      {hasError && <span className='size-2 shrink-0 rounded-full bg-destructive' role='img' aria-label='Hatalı alan var' />}
+    </button>
+  );
+}
+
+// ─────────────────────────────────────────────────────────── panel başlığı
+
+/** Seçili düğümün ağaçtaki yolu; üst düğümler tıklanabilir. */
+function Breadcrumb({ items }: { items: { label: string; onClick?: () => void }[] }) {
+  return (
+    <nav aria-label='Konum' className='flex flex-wrap items-center gap-1 text-xs text-muted-foreground'>
+      {items.map((item, index) => (
+        <span key={index} className='flex items-center gap-1'>
+          {index > 0 && <ChevronRightIcon className='size-3' />}
+          {item.onClick ? (
+            <button type='button' className='hover:text-foreground hover:underline' onClick={item.onClick}>
+              {item.label}
+            </button>
+          ) : (
+            <span className='text-foreground'>{item.label}</span>
+          )}
+        </span>
+      ))}
+    </nav>
+  );
+}
+
+// ─────────────────────────────────────────────────────────── paneller
+
 function CabinetSettingsCard({ ctx }: { ctx: DoorContext }) {
   const { control, register, errors, options, usage } = ctx;
 
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Kabin</CardTitle>
+        <CardTitle className='flex items-center gap-2'>
+          <SettingsIcon className='size-4 shrink-0' />
+          Kabin ayarları
+        </CardTitle>
         <CardDescription>Ortak siren ve tüm dış kapılar için geçerli süreler.</CardDescription>
         <CardAction>
           <Controller
@@ -362,19 +676,39 @@ function CabinetSettingsCard({ ctx }: { ctx: DoorContext }) {
   );
 }
 
-function OuterDoorCard({ index, ctx, onRemove }: { index: number; ctx: DoorContext; onRemove: () => void }) {
-  const { control, register, errors, options, usage } = ctx;
-  const { fields, append, remove } = useFieldArray({ control, name: `outerDoors.${index}.innerDoors` });
+function OuterDoorPanel({
+  index,
+  values,
+  ctx,
+  onSelectCabinet,
+  onSelectInner,
+  onAddInner,
+  onRemove
+}: {
+  index: number;
+  values: WatchedValues;
+  ctx: DoorContext;
+  onSelectCabinet: () => void;
+  onSelectInner: (innerIndex: number) => void;
+  onAddInner: () => void;
+  onRemove: () => void;
+}) {
+  const { control, register, errors, options, usage, unlockedById } = ctx;
   const doorErrors = errors.outerDoors?.[index];
   const innerRootError = doorErrors?.innerDoors?.message ?? doorErrors?.innerDoors?.root?.message;
   const prefix = `outer-${index}`;
+  const outer = values.outerDoors?.[index];
+  const title = outerDoorTitle(outer?.name);
+  const innerDoors = outer?.innerDoors ?? [];
 
   return (
     <Card>
       <CardHeader>
+        <Breadcrumb items={[{ label: 'Kabin', onClick: onSelectCabinet }, { label: title }]} />
         <CardTitle className='flex items-center gap-2'>
-          <DoorOpenIcon className='size-4 shrink-0' />
-          <OuterDoorTitle control={control} index={index} />
+          <DoorOpenIcon className='size-4 shrink-0 text-primary' />
+          <span className='truncate'>{title}</span>
+          <Badge variant='secondary'>Dış kapı</Badge>
         </CardTitle>
         <CardDescription>Kayıttan çıkarılan dış kapı ve iç kapıları pasife alınır; geçmiş işlemler kalır.</CardDescription>
         <CardAction>
@@ -458,45 +792,77 @@ function OuterDoorCard({ index, ctx, onRemove }: { index: number; ctx: DoorConte
           </Field>
         </div>
 
-        <div className='flex items-center justify-between gap-2'>
-          <h3 className='text-sm font-medium'>İç kapılar</h3>
-          <Button type='button' size='sm' variant='outline' onClick={() => append(newInnerDoor())}>
-            <PlusIcon />
-            İç kapı ekle
-          </Button>
+        {/* İç kapılar burada yalnızca özet + kısayol; alanları kendi düğümlerinde düzenlenir. */}
+        <div className='flex flex-col gap-2 border-t pt-4'>
+          <div className='flex items-center justify-between gap-2'>
+            <h3 className='text-sm font-medium'>Bu dış kapının ardındaki iç kapılar</h3>
+            <Button type='button' size='sm' variant='outline' onClick={onAddInner}>
+              <PlusIcon />
+              İç kapı ekle
+            </Button>
+          </div>
+
+          <ul className='flex flex-col gap-1'>
+            {innerDoors.map((inner, innerIndex) => (
+              <li key={inner?.doorId ?? innerIndex}>
+                <button
+                  type='button'
+                  onClick={() => onSelectInner(innerIndex)}
+                  className='flex w-full items-center gap-2 rounded-md border px-3 py-2 text-left text-sm hover:bg-muted'
+                >
+                  <InnerDoorIcon unlocked={inner?.doorId ? unlockedById.get(inner.doorId) : undefined} />
+                  <span className='min-w-0 flex-1 truncate'>{innerDoorTitle(inner?.name)}</span>
+                  <span className='truncate text-xs text-muted-foreground'>{authorityName(options, inner?.authorityId) ?? 'Kurum seçilmedi'}</span>
+                  {hasInnerError(errors, index, innerIndex) && <span className='size-2 shrink-0 rounded-full bg-destructive' role='img' aria-label='Hatalı alan var' />}
+                  <ChevronRightIcon className='size-4 shrink-0 text-muted-foreground' />
+                </button>
+              </li>
+            ))}
+          </ul>
+
+          {innerRootError && <FieldError>{innerRootError}</FieldError>}
         </div>
-
-        {fields.map((field, innerIndex) => (
-          <InnerDoorRow key={field.id} outerIndex={index} index={innerIndex} ctx={ctx} onRemove={() => remove(innerIndex)} />
-        ))}
-
-        {innerRootError && <FieldError>{innerRootError}</FieldError>}
       </CardContent>
     </Card>
   );
 }
 
-/** Başlık, yazılan adı canlı gösterir (useWatch yalnızca bu alanı dinler). */
-function OuterDoorTitle({ control, index }: { control: Control<SignalCabinetFormValues>; index: number }) {
-  const name = useWatch({ control, name: `outerDoors.${index}.name` });
-  return <span className='truncate'>{name?.trim() || 'Yeni dış kapı'}</span>;
-}
-
-function InnerDoorRow({ outerIndex, index, ctx, onRemove }: { outerIndex: number; index: number; ctx: DoorContext; onRemove: () => void }) {
+function InnerDoorPanel({
+  outerIndex,
+  index,
+  values,
+  ctx,
+  onSelectCabinet,
+  onSelectOuter,
+  onRemove
+}: {
+  outerIndex: number;
+  index: number;
+  values: WatchedValues;
+  ctx: DoorContext;
+  onSelectCabinet: () => void;
+  onSelectOuter: () => void;
+  onRemove: () => void;
+}) {
   const { control, register, errors, options, usage, unlockedById } = ctx;
   const base = `outerDoors.${outerIndex}.innerDoors.${index}` as const;
   const doorErrors = errors.outerDoors?.[outerIndex]?.innerDoors?.[index];
   const prefix = `inner-${outerIndex}-${index}`;
 
-  const doorId = useWatch({ control, name: `${base}.doorId` });
-  const unlocked = unlockedById.get(doorId);
+  const outer = values.outerDoors?.[outerIndex];
+  const inner = outer?.innerDoors?.[index];
+  const outerTitle = outerDoorTitle(outer?.name);
+  const title = innerDoorTitle(inner?.name);
+  const unlocked = inner?.doorId ? unlockedById.get(inner.doorId) : undefined;
 
   return (
-    <div className='flex flex-col gap-3 rounded-lg border bg-muted/20 p-3'>
-      <div className='flex items-center justify-between gap-2'>
-        <div className='flex items-center gap-2 text-sm font-medium'>
-          <DoorClosedIcon className='size-4 text-muted-foreground' />
-          İç kapı {index + 1}
+    <Card>
+      <CardHeader>
+        <Breadcrumb items={[{ label: 'Kabin', onClick: onSelectCabinet }, { label: outerTitle, onClick: onSelectOuter }, { label: title }]} />
+        <CardTitle className='flex items-center gap-2'>
+          <DoorClosedIcon className='size-4 shrink-0' />
+          <span className='truncate'>{title}</span>
+          <Badge variant='outline'>İç kapı</Badge>
           {/* Kayıtlı kapının son bilinen kilit durumu; yeni kapıda yok. */}
           {unlocked === true && (
             <Badge variant='outline'>
@@ -510,95 +876,104 @@ function InnerDoorRow({ outerIndex, index, ctx, onRemove }: { outerIndex: number
               Kilitli
             </Badge>
           )}
+        </CardTitle>
+        <CardDescription>
+          <span className='font-medium text-foreground'>{outerTitle}</span> dış kapısının ardında. Kurumun kartı okutulunca bu kapının kilidi açılır.
+        </CardDescription>
+        <CardAction>
+          <Button type='button' size='sm' variant='ghost' onClick={onRemove}>
+            <Trash2Icon />
+            İç kapıyı çıkar
+          </Button>
+        </CardAction>
+      </CardHeader>
+
+      <CardContent>
+        <div className='grid gap-4 sm:grid-cols-2'>
+          <Field>
+            <FieldLabel htmlFor={`${prefix}-name`}>Ad</FieldLabel>
+            <Input id={`${prefix}-name`} placeholder='örn. Belediye iç kapı' {...register(`${base}.name`)} />
+            {doorErrors?.name && <FieldError>{doorErrors.name.message}</FieldError>}
+          </Field>
+
+          <Field>
+            <FieldLabel htmlFor={`${prefix}-authority`}>Kurum</FieldLabel>
+            <Controller
+              control={control}
+              name={`${base}.authorityId`}
+              render={({ field }) => (
+                <AuthoritySelect id={`${prefix}-authority`} authorities={options.authorities} value={field.value} onChange={field.onChange} invalid={Boolean(doorErrors?.authorityId)} />
+              )}
+            />
+            {doorErrors?.authorityId && <FieldError>{doorErrors.authorityId.message}</FieldError>}
+          </Field>
+
+          <Field>
+            <FieldLabel htmlFor={`${prefix}-switch`}>Anahtar kanalı (giriş)</FieldLabel>
+            <Controller
+              control={control}
+              name={`${base}.switchIoChannelId`}
+              render={({ field }) => (
+                <ChannelSelect
+                  id={`${prefix}-switch`}
+                  path={`${base}.switchIoChannelId`}
+                  channels={options.inputChannels}
+                  usage={usage}
+                  value={field.value}
+                  onChange={field.onChange}
+                  placeholder='Giriş kanalı seçin'
+                  invalid={Boolean(doorErrors?.switchIoChannelId)}
+                />
+              )}
+            />
+            {doorErrors?.switchIoChannelId && <FieldError>{doorErrors.switchIoChannelId.message}</FieldError>}
+          </Field>
+
+          <Field>
+            <FieldLabel htmlFor={`${prefix}-open-value`}>Anahtarın “açık” değeri</FieldLabel>
+            <Input id={`${prefix}-open-value`} className='font-mono' {...register(`${base}.switchOpenValue`)} />
+            <FieldDescription>Kapı açıkken kanalın değeri — genelde 1.</FieldDescription>
+            {doorErrors?.switchOpenValue && <FieldError>{doorErrors.switchOpenValue.message}</FieldError>}
+          </Field>
+
+          <Field>
+            <FieldLabel htmlFor={`${prefix}-lock`}>Kilit kanalı (çıkış)</FieldLabel>
+            <Controller
+              control={control}
+              name={`${base}.lockIoChannelId`}
+              render={({ field }) => (
+                <ChannelSelect
+                  id={`${prefix}-lock`}
+                  path={`${base}.lockIoChannelId`}
+                  channels={options.outputChannels}
+                  usage={usage}
+                  value={field.value}
+                  onChange={field.onChange}
+                  placeholder='Çıkış kanalı seçin'
+                  invalid={Boolean(doorErrors?.lockIoChannelId)}
+                />
+              )}
+            />
+            {doorErrors?.lockIoChannelId && <FieldError>{doorErrors.lockIoChannelId.message}</FieldError>}
+          </Field>
+
+          <Controller
+            control={control}
+            name={`${base}.unlockTurnsOn`}
+            render={({ field }) => (
+              <Field>
+                <FieldLabel htmlFor={`${prefix}-polarity`}>Kilit polaritesi</FieldLabel>
+                <div className='flex h-8 items-center gap-2'>
+                  <Switch id={`${prefix}-polarity`} checked={field.value} onCheckedChange={checked => field.onChange(checked)} />
+                  <span className='text-sm'>{field.value ? 'Açmak için çıkış 1' : 'Açmak için çıkış 0'}</span>
+                </div>
+                <FieldDescription>Kilit türüne göre: çıkış verilince açılan kilitte açık bırakın.</FieldDescription>
+              </Field>
+            )}
+          />
         </div>
-        <Button type='button' size='icon-sm' variant='ghost' aria-label='İç kapıyı çıkar' onClick={onRemove}>
-          <Trash2Icon />
-        </Button>
-      </div>
-
-      <div className='grid gap-3 sm:grid-cols-2 lg:grid-cols-3'>
-        <Field>
-          <FieldLabel htmlFor={`${prefix}-name`}>Ad</FieldLabel>
-          <Input id={`${prefix}-name`} placeholder='örn. Belediye iç kapı' {...register(`${base}.name`)} />
-          {doorErrors?.name && <FieldError>{doorErrors.name.message}</FieldError>}
-        </Field>
-
-        <Field>
-          <FieldLabel htmlFor={`${prefix}-authority`}>Kurum</FieldLabel>
-          <Controller
-            control={control}
-            name={`${base}.authorityId`}
-            render={({ field }) => (
-              <AuthoritySelect id={`${prefix}-authority`} authorities={options.authorities} value={field.value} onChange={field.onChange} invalid={Boolean(doorErrors?.authorityId)} />
-            )}
-          />
-          {doorErrors?.authorityId && <FieldError>{doorErrors.authorityId.message}</FieldError>}
-        </Field>
-
-        <Field>
-          <FieldLabel htmlFor={`${prefix}-open-value`}>Anahtarın “açık” değeri</FieldLabel>
-          <Input id={`${prefix}-open-value`} className='font-mono' {...register(`${base}.switchOpenValue`)} />
-          {doorErrors?.switchOpenValue && <FieldError>{doorErrors.switchOpenValue.message}</FieldError>}
-        </Field>
-
-        <Field>
-          <FieldLabel htmlFor={`${prefix}-switch`}>Anahtar kanalı (giriş)</FieldLabel>
-          <Controller
-            control={control}
-            name={`${base}.switchIoChannelId`}
-            render={({ field }) => (
-              <ChannelSelect
-                id={`${prefix}-switch`}
-                path={`${base}.switchIoChannelId`}
-                channels={options.inputChannels}
-                usage={usage}
-                value={field.value}
-                onChange={field.onChange}
-                placeholder='Giriş kanalı seçin'
-                invalid={Boolean(doorErrors?.switchIoChannelId)}
-              />
-            )}
-          />
-          {doorErrors?.switchIoChannelId && <FieldError>{doorErrors.switchIoChannelId.message}</FieldError>}
-        </Field>
-
-        <Field>
-          <FieldLabel htmlFor={`${prefix}-lock`}>Kilit kanalı (çıkış)</FieldLabel>
-          <Controller
-            control={control}
-            name={`${base}.lockIoChannelId`}
-            render={({ field }) => (
-              <ChannelSelect
-                id={`${prefix}-lock`}
-                path={`${base}.lockIoChannelId`}
-                channels={options.outputChannels}
-                usage={usage}
-                value={field.value}
-                onChange={field.onChange}
-                placeholder='Çıkış kanalı seçin'
-                invalid={Boolean(doorErrors?.lockIoChannelId)}
-              />
-            )}
-          />
-          {doorErrors?.lockIoChannelId && <FieldError>{doorErrors.lockIoChannelId.message}</FieldError>}
-        </Field>
-
-        <Controller
-          control={control}
-          name={`${base}.unlockTurnsOn`}
-          render={({ field }) => (
-            <Field>
-              <FieldLabel htmlFor={`${prefix}-polarity`}>Kilit polaritesi</FieldLabel>
-              <div className='flex h-8 items-center gap-2'>
-                <Switch id={`${prefix}-polarity`} checked={field.value} onCheckedChange={checked => field.onChange(checked)} />
-                <span className='text-sm'>{field.value ? 'Açmak için çıkış 1' : 'Açmak için çıkış 0'}</span>
-              </div>
-              <FieldDescription>Kilit türüne göre: çıkış verilince açılan kilitte açık bırakın.</FieldDescription>
-            </Field>
-          )}
-        />
-      </div>
-    </div>
+      </CardContent>
+    </Card>
   );
 }
 

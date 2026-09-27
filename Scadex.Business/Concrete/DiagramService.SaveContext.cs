@@ -17,7 +17,7 @@ namespace Scadex.Business.Concrete;
 /// <code>
 /// Istek -> 1. FluentValidation (DiagramSaveRequest.cs)  — sekil / uzunluk / enum
 ///          2. Kabin var mi + IsEmpty kisa devresi       — Save.cs
-///          3. LoadSaveContextAsync                      — TEK okuma turu (en fazla 15 sorgu)
+///          3. LoadSaveContextAsync                      — TEK okuma turu (en fazla 14 sorgu)
 ///          4. ValidateReferences                        — DB kisitlarinin on kontrolu -> 400
 ///          -- transaction --
 ///          5. ApplyDeletions  -> SaveChangesAsync       — kablo -> pin -> cihaz -> not
@@ -97,7 +97,6 @@ public partial class DiagramService
             PinsOfDeletedDevices = await LoadPinsOfDeletedDevicesAsync(deletedDeviceIds, cancellationToken),
             CascadeConnections = await LoadCascadeConnectionsAsync(cabinetId, deletedDeviceIds, cancellationToken),
             PinPairCandidates = await LoadPinPairCandidatesAsync(cabinetId, referencedPinIds, cancellationToken),
-            DeviceExternalCodes = await LoadDeviceExternalCodesAsync(cabinetId, request, cancellationToken),
             DeviceMacAddresses = await LoadDeviceMacAddressesAsync(request, cancellationToken),
             MonitorableTemplateIds = await LoadMonitorableTemplateIdsAsync(request, cancellationToken),
             NewPins = BuildNewPinRefs(newDevices, templatePins),
@@ -123,7 +122,6 @@ public partial class DiagramService
         var errors = new Dictionary<string, List<string>>(StringComparer.Ordinal);
 
         ValidateDevices(request, context, errors);
-        ValidateDeviceExternalCodes(request, context, errors);
         ValidateDeviceMacAddresses(request, context, errors);
         ValidateDeviceMonitoring(request, context, errors);
         ValidateConnections(request, context, errors);
@@ -254,8 +252,6 @@ public partial class DiagramService
         public required List<Pin> PinsOfDeletedDevices { get; init; }
         /// <summary>Cihazi silindigi icin birlikte kalkacak kablolar.</summary>
         public required List<Connection> CascadeConnections { get; init; }
-        /// <summary>Kabindeki aktif cihazlarin dis kodlari (yalnizca gerektiginde okunur).</summary>
-        public required Dictionary<Guid, string> DeviceExternalCodes { get; init; }
         /// <summary>Gonderilen MAC adreslerinin sahipleri — KABIN GENELI DEGIL, SISTEM GENELI.</summary>
         public required Dictionary<Guid, string> DeviceMacAddresses { get; init; }
         /// <summary>Izlemesi acik gonderilen taslaklarin sablonlarindan izlenebilir olanlar (yalnizca gerektiginde okunur).</summary>

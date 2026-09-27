@@ -86,7 +86,6 @@ export function TemplateNode({ data, selected }: NodeProps<DeviceNode>) {
 
             <div className='flex flex-1 flex-col justify-center px-1.5 text-center'>
               <span className='truncate opacity-80'>{DeviceTypeLabels[device.template.deviceTypeId]}</span>
-              {device.externalCode && <span className='truncate font-mono text-[10px] opacity-60'>{device.externalCode}</span>}
             </div>
           </>
         )}

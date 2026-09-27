@@ -28,8 +28,6 @@ export interface DiagramDeviceDto {
   width: number | null;
   height: number | null;
   componentTemplateId: string;
-  /** SCADA tarafındaki kimlik; YALNIZCA GÖSTERİM içindir, çözümlemede kullanılmaz. */
-  externalCode: string | null;
   /**
    * Kontrol modüllerinde SCADA ingest'inin kabini çözdüğü adres; kanal ise
    * `(direction, channelNumber)` çiftinden çözülür.

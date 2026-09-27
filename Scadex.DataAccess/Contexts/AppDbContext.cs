@@ -183,9 +183,6 @@ public class AppDbContext : IdentityDbContext<User, Role, Guid>
             d.HasMany(d => d.Pins).WithOne(p => p.Device).HasForeignKey(p => p.DeviceId).OnDelete(DeleteBehavior.Restrict);
             d.HasMany(d => d.DeviceCommands).WithOne(d => d.Device).HasForeignKey(d => d.DeviceId).OnDelete(DeleteBehavior.Restrict);
 
-            // Restriction: Ayni kabinde ayni ExternalCode en fazla bir tane olabilir; pasif cihazlar serbesttir.
-            d.HasIndex(d => new { d.CabinetId, d.ExternalCode }).IsUnique().HasFilter("[ExternalCode] IS NOT NULL AND [IsActive] = 1");
-
             // Restriction: Bir MAC adresi en fazla bir aktif cihaza ait olabilir; pasif cihazlar serbesttir.
             d.HasIndex(d => d.MacAddress).IsUnique().HasFilter("[MacAddress] IS NOT NULL AND [IsActive] = 1");
         });

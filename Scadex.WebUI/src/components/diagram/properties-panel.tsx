@@ -36,7 +36,7 @@ import { DeleteButton } from './confirm-delete';
  * Seçili öğenin, canvas üzerinde düzenlenemeyen alanları — ve seçime uygulanan
  * eylemler.
  *
- * Canvas konumu ve bağlantıyı yönetir; ad, dış kod, kablo tipi ve rengi gibi
+ * Canvas konumu ve bağlantıyı yönetir; ad, MAC adresi, kablo tipi ve rengi gibi
  * alanların başka bir yeri yok. Kablo için bu kritik: `onConnect` yeni kabloyu
  * nötr bir varsayılanla (gri, düz, Sinyal) doğuruyor — panel olmasaydı çizilen
  * hiçbir kablonun tipi belirlenemezdi.
@@ -178,14 +178,8 @@ function DeviceForm({ node, editor }: { node: Extract<DiagramNode, { type: 'temp
         <TextInput id='device-name' value={device.name} onCommit={value => value && onChange({ name: value })} />
       </Field>
 
-      <Field label='Dış kod' htmlFor='device-external-code' hint='SCADA bu kodla cihazı tanır.'>
-        {/* Boş girdi null'a çevrilir: boş dize benzersizlik index'inde ikinci bir
-            boş kodla çakışırdı, null'lar ise çakışmaz. */}
-        <TextInput id='device-external-code' value={device.externalCode ?? ''} onCommit={value => onChange({ externalCode: value || null })} />
-      </Field>
-
-      {/* Boş girdi burada da null'a çevrilir — aynı gerekçe, bu kez
-          `IX_Device_MacAddress` için. */}
+      {/* Boş girdi null'a çevrilir: boş dize `IX_Device_MacAddress` benzersizlik
+          index'inde ikinci bir boş adresle çakışırdı, null'lar ise çakışmaz. */}
       <Field label='MAC adresi' htmlFor='device-mac-address' hint='SCADA kontrol modülünü bu adresle tanır.'>
         <TextInput id='device-mac-address' value={device.macAddress ?? ''} onCommit={value => onChange({ macAddress: value || null })} />
       </Field>
@@ -828,7 +822,7 @@ function TextInput({ id, value, onCommit }: { id: string; value: string; onCommi
       onBlur={commit}
       onKeyDown={e => {
         if (e.key === 'Enter') e.currentTarget.blur();
-        // Escape yazılanı atar: yanlış girilen bir dış kodu geri almanın en hızlı
+        // Escape yazılanı atar: yanlış girilen bir adresi geri almanın en hızlı
         // yolu. Blur commit'i tetiklemesin diye taslak önce geri alınır.
         if (e.key === 'Escape') {
           setDraft(value);

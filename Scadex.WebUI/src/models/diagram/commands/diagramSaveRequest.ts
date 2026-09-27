@@ -88,7 +88,6 @@ export interface DeviceDraft {
    */
   width: number | null;
   height: number | null;
-  externalCode: string | null;
   /**
    * Kontrol modüllerinde SCADA ingest'inin kabini çözdüğü adres. Sistem genelinde
    * benzersizdir (`IX_Device_MacAddress`); çakışırsa sunucu 400 döner.

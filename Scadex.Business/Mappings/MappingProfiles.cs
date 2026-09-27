@@ -410,7 +410,6 @@ public class MappingProfiles : Profile
             .ForMember(dest => dest.IsLocked, opt => opt.MapFrom(src => src.IsLocked))
             .ForMember(dest => dest.CabinetId, opt => opt.MapFrom(src => src.CabinetId))
             .ForMember(dest => dest.DeviceStatusId, opt => opt.MapFrom(src => src.DeviceStatusId))
-            .ForMember(dest => dest.ExternalCode, opt => opt.MapFrom(src => src.ExternalCode))
             .ForMember(dest => dest.LastSeen, opt => opt.MapFrom(src => src.LastSeen));
 
         CreateMap<Device, DeviceDetailDto>()
@@ -429,7 +428,6 @@ public class MappingProfiles : Profile
             .ForMember(dest => dest.DeviceStatusName, opt => opt.MapFrom(src => src.DeviceStatus != default ? src.DeviceStatus.Name : default))
             .ForMember(dest => dest.IpAddress, opt => opt.MapFrom(src => src.IpAddress))
             .ForMember(dest => dest.MacAddress, opt => opt.MapFrom(src => src.MacAddress))
-            .ForMember(dest => dest.ExternalCode, opt => opt.MapFrom(src => src.ExternalCode))
             .ForMember(dest => dest.LastSeen, opt => opt.MapFrom(src => src.LastSeen))
             .ForMember(dest => dest.MonitoringPort, opt => opt.MapFrom(src => src.MonitoringPort))
             .ForMember(dest => dest.PingIntervalSec, opt => opt.MapFrom(src => src.PingIntervalSec))
@@ -519,7 +517,6 @@ public class MappingProfiles : Profile
             .ForMember(dest => dest.Width, opt => opt.MapFrom(src => src.Width))
             .ForMember(dest => dest.Height, opt => opt.MapFrom(src => src.Height))
             .ForMember(dest => dest.ComponentTemplateId, opt => opt.MapFrom(src => src.ComponentTemplateId))
-            .ForMember(dest => dest.ExternalCode, opt => opt.MapFrom(src => src.ExternalCode))
             .ForMember(dest => dest.MacAddress, opt => opt.MapFrom(src => src.MacAddress))
             .ForMember(dest => dest.IpAddress, opt => opt.MapFrom(src => src.IpAddress))
             .ForMember(dest => dest.DeviceStatusId, opt => opt.MapFrom(src => src.DeviceStatusId))
@@ -643,7 +640,6 @@ public class MappingProfiles : Profile
             .ForMember(dest => dest.ChannelNumber, opt => opt.MapFrom(src => src.IoChannel != default ? (int?)src.IoChannel.ChannelNumber : default))
             .ForMember(dest => dest.DeviceId, opt => opt.MapFrom(src => src.IoChannel != default ? (Guid?)src.IoChannel.DeviceId : default))
             .ForMember(dest => dest.DeviceName, opt => opt.MapFrom(src => src.IoChannel != default && src.IoChannel.Device != default ? src.IoChannel.Device.Name : default))
-            .ForMember(dest => dest.DeviceExternalCode, opt => opt.MapFrom(src => src.IoChannel != default && src.IoChannel.Device != default ? src.IoChannel.Device.ExternalCode : default))
             .ForMember(dest => dest.Value, opt => opt.MapFrom(src => src.Value))
             .ForMember(dest => dest.PreviousValue, opt => opt.MapFrom(src => src.PreviousValue))
             .ForMember(dest => dest.OccurredAtUtc, opt => opt.MapFrom(src => src.OccurredAtUtc))

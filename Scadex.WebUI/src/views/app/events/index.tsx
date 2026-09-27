@@ -267,7 +267,6 @@ function EventRow({ event }: { event: ChannelEventDto }) {
         {/* Türev alanlar null = kaynak kanal silinmiş. Olay satırı DURUR (silinmiş
             bir kanalın geçmişi de delildir) ama adı artık çözülemiyor. */}
         {event.deviceName ?? <span className='text-muted-foreground italic'>silinmiş cihaz</span>}
-        {event.deviceExternalCode && <span className='ml-1.5 font-mono text-xs text-muted-foreground'>{event.deviceExternalCode}</span>}
       </td>
 
       <td className='max-w-[14rem] truncate'>

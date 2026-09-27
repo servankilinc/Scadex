@@ -181,13 +181,13 @@ Bunlar tek bir dosyaya bakarak görülemez; gerekçeleri PROJECT_OVERVIEW.md §5
   `{ upserted: [...], deleted: [ids] }`; **Guid'i istemci üretir**, sunucu kimliği arar.
   Pin ve kanal kimlikleri salt-oluşturmadır; mevcut cihaza `pins`/`ioChannels` göndermek 400'dür.
 - **Kanal adresleri kabin genelinde tekildir**, cihaz genelinde değil. Bir cihazı silmek
-  kanallarını serbest bırakmaz (`IN1` işgal edilmeye devam eder), `ExternalCode` ise serbest kalır.
+  kanallarını serbest bırakmaz (`IN1` işgal edilmeye devam eder), `MacAddress` ise serbest kalır.
 - **`MacAddress` benzersizliği kabin genelinde DEĞİL, sistem genelindedir.**
   `IX_Device_MacAddress` (unique, `WHERE MacAddress IS NOT NULL AND IsActive = 1`) globaldir:
   bir fiziksel kartın tek MAC'i vardır ve ingest kabini bu adresten çözer — aynı adres iki
   kabinde olsaydı telemetri yanlış kabine yazılırdı. Bu yüzden `LoadDeviceMacAddressesAsync`
-  kabinle değil, **gönderilen adreslerle** daraltılır; `ExternalCode`'un kabin bazlı sürümünü
-  kopyalarken bu farkı atlamayın. Ön doğrulama (`ValidateDeviceMacAddresses`) DB kısıtına
+  kabinle değil, **gönderilen adreslerle** daraltılır; yeni bir benzersizlik kuralını bu kalıptan
+  kopyalarken kabin/sistem farkını atlamayın. Ön doğrulama (`ValidateDeviceMacAddresses`) DB kısıtına
   çarpıp 500 üretmemek içindir, süs değil.
 - **Lifecycle interceptor'ları sessizce geçmez, istisna atar.** `IImmutableEntity` güncelleme
   ve silmede, `IActivatableEntity` silmede patlar (`IsActive = false` kullanın);
