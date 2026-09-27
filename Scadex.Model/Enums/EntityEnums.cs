@@ -225,6 +225,11 @@ public static class EntityEnums
         Sub = 2
     }
 
+    public enum CameraBrand
+    {
+        Hikvision = 1
+    }
+
     /// <summary> Yakalanan kamera kaydının cinsi. </summary>
     public enum CaptureType
     {

@@ -14,7 +14,6 @@ public class MediaGatewaySettingUpdateDto : IDto
     public int SourceOnDemandCloseAfterSec { get; set; }
 
     public string RtspTransport { get; set; } = null!;
-    public string RecordRoot { get; set; } = null!;
 }
 
 public class MediaGatewaySettingUpdateDtoValidator : AbstractValidator<MediaGatewaySettingUpdateDto>
@@ -36,8 +35,6 @@ public class MediaGatewaySettingUpdateDtoValidator : AbstractValidator<MediaGate
         // MediaMTX yalnizca bu ucunu tanir; serbest metin gonderilirse yol kurulamaz.
         RuleFor(v => v.RtspTransport).Must(v => v is "tcp" or "udp" or "multicast" or "automatic")
             .WithMessage("RTSP taşıma katmanı tcp, udp, multicast veya automatic olmalı");
-
-        RuleFor(v => v.RecordRoot).NotEmpty().WithMessage("Kayıt kök dizini zorunlu");
     }
 
     private static bool BeAbsoluteHttpUrl(string? value) =>

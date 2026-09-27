@@ -1,6 +1,10 @@
+import type { CameraBrand } from '@/models/enums/entityEnums';
+
 /**
  * Ayna: Scadex.Model/Dtos/Camera/Queries/CameraDto.cs
  * Sözleşme: docs/api-contract/11-camera.md
+ *
+ * Port ve kanal alanı YOK: markaya aittirler, sunucuda `ICameraProtocolProfile` üretir.
  */
 export interface CameraDto {
   id: string;
@@ -8,13 +12,10 @@ export interface CameraDto {
   cabinetName: string | null;
   name: string;
   description: string | null;
-  manufacturer: string | null;
+  brand: CameraBrand;
   model: string | null;
 
   ipAddress: string;
-  rtspPort: number;
-  httpPort: number;
-  httpsPort: number | null;
 
   username: string | null;
   /**
@@ -27,12 +28,6 @@ export interface CameraDto {
    * Yazma yolu YİNE ÜÇ DURUMLU: `undefined` = dokunma, `''` = sil, dolu = değiştir.
    */
   password: string | null;
-
-  mainStreamChannel: number;
-  subStreamChannel: number;
-  mainStreamEnabled: boolean;
-  subStreamEnabled: boolean;
-  snapshotChannel: number;
 
   monitoringPort: number | null;
   /**

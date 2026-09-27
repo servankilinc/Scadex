@@ -90,7 +90,8 @@ function MediaGatewayForm() {
       <CardHeader>
         <CardTitle>Medya Geçidi</CardTitle>
         <CardDescription>
-          MediaMTX Control API adresi, izleme bileti ve RTSP oturum davranışı. MediaMTX uygulama tarafından başlatılmaz; ayrı bir süreçtir.
+          MediaMTX Control API adresi, izleme bileti ve RTSP oturum davranışı. Kameraya yalnızca MediaMTX bağlanır; canlı izleme de
+          anlık görüntü ve klip de onun üzerinden alınır. Uygulama tarafından başlatılmaz; ayrı bir süreçtir.
         </CardDescription>
       </CardHeader>
 
@@ -169,13 +170,6 @@ function MediaGatewayForm() {
                   {errors.rtspTransport && <FieldError>{errors.rtspTransport.message}</FieldError>}
                 </Field>
               </div>
-
-              <Field>
-                <FieldLabel htmlFor='mg-record-root'>Kayıt kök dizini</FieldLabel>
-                <Input id='mg-record-root' {...form.register('recordRoot')} />
-                <FieldDescription>MediaMTX'in klip dosyalarını yazdığı dizin. MediaMTX süreci bu yola yazabilmelidir.</FieldDescription>
-                {errors.recordRoot && <FieldError>{errors.recordRoot.message}</FieldError>}
-              </Field>
             </FieldGroup>
 
             <div className='mt-4 flex justify-end'>
@@ -213,7 +207,10 @@ function CameraCaptureForm() {
     <Card>
       <CardHeader>
         <CardTitle>Kamera Çekimi</CardTitle>
-        <CardDescription>Anlık görüntü ve klip davranışı, dosyaların nereye yazılacağı ve ne kadar saklanacağı.</CardDescription>
+        <CardDescription>
+          Anlık görüntü ve klip davranışı, dosyaların nereye yazılacağı ve ne kadar saklanacağı. İkisi de sunucuda FFmpeg ile MediaMTX'in
+          ana akım yolundan alınır; izleme açıksa kameraya ikinci bağlantı açılmaz.
+        </CardDescription>
       </CardHeader>
 
       <CardContent>
@@ -225,9 +222,12 @@ function CameraCaptureForm() {
             <FieldGroup>
               <div className='grid gap-4 sm:grid-cols-2'>
                 <Field>
-                  <FieldLabel htmlFor='cc-snapshot-timeout'>Anlık görüntü zaman aşımı (ms)</FieldLabel>
+                  <FieldLabel htmlFor='cc-snapshot-timeout'>Bağlantı / ilk kare zaman aşımı (ms)</FieldLabel>
                   <Input id='cc-snapshot-timeout' type='number' {...form.register('snapshotTimeoutMs', { valueAsNumber: true })} />
-                  <FieldDescription>500 – 60.000 ms.</FieldDescription>
+                  <FieldDescription>
+                    İlk anahtar kareyi almak için azami süre (kimse izlemiyorsa MediaMTX'in kameraya bağlanması dahil); kameranın I-kare
+                    aralığından uzun olmalı. Klipte kayıt süresine eklenir. 500 – 60.000 ms.
+                  </FieldDescription>
                   {errors.snapshotTimeoutMs && <FieldError>{errors.snapshotTimeoutMs.message}</FieldError>}
                 </Field>
 
@@ -269,7 +269,7 @@ function CameraCaptureForm() {
                 <Field>
                   <FieldLabel htmlFor='cc-finalize-grace'>Sonlandırma payı (ms)</FieldLabel>
                   <Input id='cc-finalize-grace' type='number' {...form.register('clipFinalizeGraceMs', { valueAsNumber: true })} />
-                  <FieldDescription>MediaMTX'in dosyayı kapatması için klip bittikten sonra beklenen süre.</FieldDescription>
+                  <FieldDescription>Kayıt süresi dolduktan sonra FFmpeg'in MP4 dosyasını kapatması için tanınan ek süre.</FieldDescription>
                   {errors.clipFinalizeGraceMs && <FieldError>{errors.clipFinalizeGraceMs.message}</FieldError>}
                 </Field>
               </div>

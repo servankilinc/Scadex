@@ -113,15 +113,10 @@ public class MediaPathCleanupWorker : BackgroundService
         // 2) Yapilandirmada yoksa silinecek bir sey de yok.
         if (!path.IsConfigured) return false;
 
-        // 3) KAYIT YAPAN path asla silinmez.
+        // 3) KAYIT YAPAN path asla silinmez. Projede klip kaydı MediaMTX'te Path recording aracılığı ile yapılmıyor yine de manuel kayıt yapan bir path KORUNUR.
         if (path.RecordEnabled)
         {
-            // Cekim akisi yolu kendi `finally` blogunda dusuruyor. Buraya dusen bir
-            // klip yolu ya hala cekiliyordur ya da cekimi cokmus bir artiktir; ikisi
-            // ayirt edilemedigi icin KORUNUR ve gorunur olsun diye loglanir.
-            protectReason = IMediaGateway.IsClipPathName(path.Name)
-                ? "kayit yapan klip yolu"
-                : "kayit acik";
+            protectReason = "kayit acik";
             return false;
         }
 

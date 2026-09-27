@@ -13,5 +13,4 @@ public class MediaGatewaySettingDto : IDto
     public int SourceOnDemandCloseAfterSec { get; set; }
 
     public string RtspTransport { get; set; } = null!;
-    public string RecordRoot { get; set; } = null!;
 }

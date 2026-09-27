@@ -1,4 +1,4 @@
-using Scadex.Business.Utils.SnapshotGateway;
+using Scadex.Business.Utils.CameraCaptureGateway;
 using Scadex.Core.Utils.ResultPattern;
 using Scadex.Model.Dtos.Camera.Commands;
 using Scadex.Model.Dtos.Camera.Queries;
@@ -45,7 +45,7 @@ public interface ICameraService
 
     /// <summary> 
     /// Kuyruga alinmis bir klip cekimini yurutur. Yalnizca <c>ClipCaptureWorker</c> cagirir; HTTP yolundan erisilmez. 
-    /// Akis: gecici bir KAYIT YOLU kur → sure kadar bekle → yolu sil (segment boylece kapanir) → uretilen dosyayi kalici konuma tasi.
+    /// Akis: MediaMTX canli yolundan (token) geciçi bir MP4'e sure kadar kayit (FFmpeg) → dosyayi kalici konuma tasi → gecici klasoru sil.
     /// </summary>
     Task RunClipCaptureAsync(long captureId, CancellationToken cancellationToken = default);
 

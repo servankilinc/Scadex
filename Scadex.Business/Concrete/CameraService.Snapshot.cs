@@ -1,5 +1,5 @@
 ﻿using Microsoft.Extensions.Caching.Distributed;
-using Scadex.Business.Utils.SnapshotGateway;
+using Scadex.Business.Utils.CameraCaptureGateway;
 using Scadex.Core.Utils.ResultPattern;
 using System.Collections.Concurrent;
 
@@ -48,7 +48,11 @@ public partial class CameraService
                 if (cached != null) return Result<SnapshotPayload>.Success(cached);
             }
 
-            var result = await _snapshotGateway.GetSnapshotAsync(camera, cancellationToken);
+            var source = await PrepareCaptureSourceAsync(camera, cancellationToken);
+            if (!source.IsSuccess)
+                return Result<SnapshotPayload>.Failure(description: source.Error.Description);
+
+            var result = await _captureGateway.GetSnapshotAsync(camera, source.Data, cancellationToken);
             if (!result.IsSuccess) return result;
 
             var captureSettings = await _captureSettingService.GetSettingsAsync(cancellationToken);

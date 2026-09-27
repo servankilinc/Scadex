@@ -8,7 +8,6 @@ using Scadex.Business.Utils.ClipCaptureQueue;
 using Scadex.Business.Utils.MediaGateway;
 using Scadex.Business.Utils.OutputPolarity;
 using Scadex.Business.Utils.ScadaCommandGateway;
-using Scadex.Business.Utils.SnapshotGateway;
 using Scadex.Business.Utils.TokenService;
 
 namespace Scadex.Business;
@@ -62,7 +61,7 @@ public static class ServiceRegistration
         services.AddSingleton<ICameraProtocolProfileResolver, CameraProtocolProfileResolver>();
 
         services.AddScoped<IMediaGateway, MediaMtxGateway>();
-        services.AddScoped<ISnapshotGateway, IsapiSnapshotGateway>();
+        // ICameraCaptureGateway (FFmpeg) WebAPI'de kaydedilir: exe yolu ContentRootPath'ten cozulur.
 
         // Klip kuyrugu SINGLETON olmak zorunda
         services.AddSingleton<IClipCaptureQueue, ClipCaptureQueue>();

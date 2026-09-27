@@ -44,8 +44,8 @@ public class ClipCaptureWorker : BackgroundService
             // Kapaniyoruz; devam eden cekimler asagida beklenir.
         }
 
-        // Yarim kalan cekim, dusurulmemis bir MediaMTX yolu ve silinmemis bir gecici
-        // klasor birakir. Kapanmadan once bitmelerine firsat verilir.
+        // Kapanis iptali FFmpeg surecini oldurur ve gecici klasoru siler; devam eden
+        // cekimlerin bu temizligi bitirmesine firsat verilir.
         var pending = _running.Keys.ToArray();
         if (pending.Length > 0)
         {

@@ -5,8 +5,9 @@ using static Scadex.Model.Enums.EntityEnums;
 namespace Scadex.Model.Entities;
 
 /// <summary>
-/// Anlık görüntü — ISAPI: <c>http://{IpAddress}:{HttpPort}/ISAPI/Streaming/channels/{SnapshotChannel}/picture</c>. <para/>
-/// Canlı yayın — RTSP: <c>rtsp://{Username}:{Password}@{IpAddress}:{RtspPort}/Streaming/Channels/{kanal}</c>
+/// İzleme ayarları RTSP adresi, port, kanal vs. desteği markaya aittir: <see cref="Brand"/>'e karşılık gelen <c>ICameraProtocolProfile</c> üretir.
+/// (Hikvision) RTSP: <c>rtsp://{Username}:{Password}@{IpAddress}:554/Streaming/Channels/{101|102}</c> — bu adrese YALNIZCA MediaMTX bağlanır.
+/// Canlı yayın, anlık görüntü ve klip (FFmpeg, ana akım) MediaMTX'in yolundan okunur; marka API'si (ISAPI) kullanılmaz.
 /// </summary>
 public class Camera : IEntity, IAuditableEntity, IActivatableEntity, IMonitoredAsset
 {
@@ -14,42 +15,17 @@ public class Camera : IEntity, IAuditableEntity, IActivatableEntity, IMonitoredA
     public Guid CabinetId { get; set; }
     public string Name { get; set; } = null!;
     public string? Description { get; set; }
-    public string? Manufacturer { get; set; }
+    public CameraBrand Brand { get; set; }
     public string? Model { get; set; }
 
     #region Network
     /// <summary>Monitoring ile ilgili alanlar (IpAddress hem monitoring için kullanılır hem de görüntü için)</summary>
     public string IpAddress { get; set; } = null!;
-    /// <summary>Varsayılanı 554.</summary>
-    public int RtspPort { get; set; }
-    /// <summary>Varsayılanı 80.</summary>
-    public int HttpPort { get; set; }
-    /// <summary>kamerada TLS kapalıysa <c>null</c>.</summary>
-    public int? HttpsPort { get; set; } 
     #endregion
 
     #region Erişim
     public string? Username { get; set; }
-    public string? Password { get; set; } 
-    #endregion
-
-    #region Akış
-    /// <summary> Main stream kanal numarası Hikvision'da 101. </summary>
-    public int MainStreamChannel { get; set; }
-
-    /// <summary> Sub stream kanal numarası Hikvision'da 102. </summary>
-    public int SubStreamChannel { get; set; }
-
-    /// <summary> Main stream kullanılabilir mi? </summary>
-    public bool MainStreamEnabled { get; set; }
-
-    /// <summary> Sub stream kullanılabilir mi? Kapalıysa liste ekranın da yayın gösterilmez sadece anlık görüntü alabilir veya detaylı şekilde main stream alabilir. </summary>
-    public bool SubStreamEnabled { get; set; }
-    #endregion
-
-    #region Anlık görüntü
-    /// <summary> ISAPI snapshot kanal numarası. Main stream(101) veya Sub stream(102) ile alınabilir. </summary>
-    public int SnapshotChannel { get; set; }
+    public string? Password { get; set; }
     #endregion
 
     #region İzleme IMonitoredAsset

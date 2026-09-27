@@ -14,6 +14,7 @@ import { useCabinets } from '@/hooks/use-cabinets';
 import { useCameras } from '@/hooks/use-cameras';
 import { cn } from '@/lib/utils';
 import type { CameraDto } from '@/models/camera';
+import { CameraBrandLabels } from '@/models/enums/entityEnums';
 
 /**
  * Canlı izleme, adım 2 — `/cameras/cabinet/:cabinetId`: seçilen kabinin kameraları.
@@ -151,7 +152,7 @@ function CameraFacts({ camera, onEdit }: { camera: CameraDto; onEdit: () => void
       </div>
 
       <p className='truncate text-xs text-muted-foreground'>
-        {camera.ipAddress}:{camera.rtspPort}
+        {camera.ipAddress} · {CameraBrandLabels[camera.brand]}
         {camera.model ? ` · ${camera.model}` : ''}
       </p>
       {camera.lastConnectionError && (

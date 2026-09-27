@@ -4,10 +4,11 @@ using Microsoft.Extensions.Caching.Distributed;
 using Microsoft.Extensions.Logging;
 using Scadex.Business.Abstract;
 using Scadex.Business.Settings;
+using Scadex.Business.Utils.CameraCaptureGateway;
+using Scadex.Business.Utils.CameraProtocolProfile.Resolver;
 using Scadex.Business.Utils.CaptureFileStore;
 using Scadex.Business.Utils.ClipCaptureQueue;
 using Scadex.Business.Utils.MediaGateway;
-using Scadex.Business.Utils.SnapshotGateway;
 using Scadex.Core.Utils.HttpContextManager;
 using Scadex.Core.Utils.Logging;
 using Scadex.Core.Utils.ResultPattern;
@@ -27,7 +28,7 @@ public partial class CameraService : ICameraService
     private readonly IUnitOfWork _unitOfWork;
     private readonly IValidationService _validationService;
     private readonly IMediaGateway _mediaGateway;
-    private readonly ISnapshotGateway _snapshotGateway;
+    private readonly ICameraCaptureGateway _captureGateway;
     private readonly ICaptureFileStore _captureFileStore;
     private readonly IClipCaptureQueue _clipCaptureQueue;
     private readonly IDistributedCache _cache;
@@ -37,33 +38,36 @@ public partial class CameraService : ICameraService
     private readonly ILoggingService _logger;
     private readonly IMapper _mapper;
     private readonly ICabinetStatusService _cabinetStatusService;
+    private readonly ICameraProtocolProfileResolver _cameraProtocolProfileResolver;
 
     public CameraService(
         IUnitOfWork unitOfWork,
         IValidationService validationService,
         IMediaGateway mediaGateway,
-        ISnapshotGateway snapshotGateway,
+        ICameraCaptureGateway captureGateway,
         ICaptureFileStore captureFileStore,
         IClipCaptureQueue clipCaptureQueue,
         IDistributedCache cache,
         IMediaGatewaySettingService mediaGatewaySettingService,
         ICameraCaptureSettingService captureSettingService,
+        ICabinetStatusService cabinetStatusService,
+        ICameraProtocolProfileResolver cameraProtocolProfileResolver,
         IHttpContextManager httpContextManager,
         ILoggingService logger,
-        IMapper mapper,
-        ICabinetStatusService cabinetStatusService)
+        IMapper mapper)
     {
         _cabinetStatusService = cabinetStatusService;
         _unitOfWork = unitOfWork;
         _validationService = validationService;
         _mediaGateway = mediaGateway;
-        _snapshotGateway = snapshotGateway;
+        _captureGateway = captureGateway;
         _captureFileStore = captureFileStore;
         _clipCaptureQueue = clipCaptureQueue;
         _cache = cache;
         _mediaGatewaySettingService = mediaGatewaySettingService;
-        _captureSettingService = captureSettingService;
         _httpContextManager = httpContextManager;
+        _captureSettingService = captureSettingService;
+        _cameraProtocolProfileResolver = cameraProtocolProfileResolver;
         _logger = logger;
         _mapper = mapper;
     }
@@ -121,6 +125,8 @@ public partial class CameraService : ICameraService
         //camera.Id = Guid.NewGuid();
         camera.DeviceStatusId = null;
         camera.IsActive = true;
+        // Monitoring portu bos birakildiysa markanin RTSP portu yoklanir.
+        camera.MonitoringPort ??= _cameraProtocolProfileResolver.Resolve(camera).RtspPort;
 
         await _unitOfWork.Cameras.AddAndSaveAsync(camera, cancellationToken);
         return Result<CreatedDto>.Success(new CreatedDto(camera.Id));
@@ -143,13 +149,11 @@ public partial class CameraService : ICameraService
 
         // Medya gateway (MediaMTX) path kameranin bilgilerine bağımlıdır biri degistiginde ya da kamera pasife alındığında path silinmelidir.
         // Aksi takdirde MediaMTX eski bilgilerle baglanmaya calisir ve zaman asimina duserek baglantiyi keser. 
-        // ex: $"rtsp://{camera.Username}:{camera.Password}@{camera.IpAddress}:{camera.RtspPort}/Streaming/Channels/{channel}"
+        // RTSP adresini IP, kimlik bilgileri ve MARKA belirler (port ve kanal markanin protokol profilindedir).
         bool connectionChanged =
             camera.IpAddress != request.IpAddress ||
-            camera.RtspPort != request.RtspPort ||
             camera.Username != request.Username ||
-            camera.MainStreamChannel != request.MainStreamChannel ||
-            camera.SubStreamChannel != request.SubStreamChannel;
+            camera.Brand != request.Brand;
 
         bool passwordChanged = request.Password != null && camera.Password != request.Password;
 
@@ -159,6 +163,8 @@ public partial class CameraService : ICameraService
 
         if (passwordChanged)
             camera.Password = request.Password;
+
+        camera.MonitoringPort ??= _cameraProtocolProfileResolver.Resolve(camera).RtspPort;
 
         await _unitOfWork.Cameras.UpdateAndSaveAsync(camera, cancellationToken);
 

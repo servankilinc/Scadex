@@ -56,9 +56,7 @@ export const mediaGatewaySettingFormSchema = z.object({
     .min(0, 'Oturum kapanma süresi 0-3600 saniye arasında olmalı')
     .max(3600, 'Oturum kapanma süresi 0-3600 saniye arasında olmalı'),
 
-  rtspTransport: z.enum(RTSP_TRANSPORTS, 'RTSP taşıma katmanı tcp, udp, multicast veya automatic olmalı'),
-
-  recordRoot: z.string().trim().min(1, 'Kayıt kök dizini zorunlu')
+  rtspTransport: z.enum(RTSP_TRANSPORTS, 'RTSP taşıma katmanı tcp, udp, multicast veya automatic olmalı')
 });
 
 export type MediaGatewaySettingFormValues = z.infer<typeof mediaGatewaySettingFormSchema>;

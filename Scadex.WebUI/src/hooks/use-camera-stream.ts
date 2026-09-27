@@ -39,19 +39,12 @@ export function useCameraStream(
   const [state, setState] = useState<StreamState>('queued');
   const [error, setError] = useState<string | undefined>();
 
+  // Tali akımı olmayan markada `Sub` isteğini sunucu ana akım yoluna düşürür;
+  // istemci farkı görmez, doğru yol WHEP adresinin içinde gelir.
   const cameraId = camera?.id;
 
-  // İlgili akım kapalıysa hiç bağlanma. Sunucu zaten 400 döner; bu kontrol
-  // yalnızca boşuna gidiş-gelişi engelliyor ve sebebi anında gösteriyor.
-  //
-  // Tali akım kapalıyken ana akıma SESSİZCE DÜŞÜLMÜYOR: `Camera.SubStreamEnabled`
-  // "bilinçli bir tercih olmalı" diye işaretli ve otomatik düşmek, 12 kutucuklu
-  // bir grid'i kamera başına ~4 Mbps'e çıkarırdı.
-  const streamDisabled =
-    camera != null && (profile === StreamProfile.Main ? !camera.mainStreamEnabled : !camera.subStreamEnabled);
-
   useEffect(() => {
-    if (!enabled || !cameraId || streamDisabled) return;
+    if (!enabled || !cameraId) return;
 
     const videoEl = videoRef.current;
     if (!videoEl) return;
@@ -72,17 +65,9 @@ export function useCameraStream(
       session.close();
       sessionRef.current = null;
     };
-  }, [cameraId, profile, enabled, streamDisabled, videoRef]);
+  }, [cameraId, profile, enabled, videoRef]);
 
   const retry = useCallback(() => sessionRef.current?.retry(), []);
-
-  if (streamDisabled) {
-    return {
-      state: 'failed',
-      error: profile === StreamProfile.Main ? 'Ana akım bu kamerada kapalı.' : 'Tali akım bu kamerada kapalı.',
-      retry
-    };
-  }
 
   return { state, error, retry };
 }

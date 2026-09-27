@@ -24,4 +24,9 @@
     <!-- MODULES -->
   </ItemGroup>
 
+  <ItemGroup>
+    <!-- FFmpeg ContentRootPath altindan cagrilir (CameraCaptureGateway): gelistirmede proje klasorunden okunur, bin'e kopyalanmaz; yalnizca publish ciktisina girer. -->
+    <None Update="MediaTools\ffmpeg-9.0.2\ffmpeg.exe" CopyToPublishDirectory="PreserveNewest" />
+  </ItemGroup>
+
 </Project>

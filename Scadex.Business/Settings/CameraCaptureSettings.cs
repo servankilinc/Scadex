@@ -5,9 +5,9 @@ public class CameraCaptureSettings
     public const string SectionName = "Cameras";
 
     /// <summary>
-    /// Anlık goruntu beklerken uygulanan zaman aşımı. <para/>
-    /// <c>HttpClient.Timeout</c> ile arasındaki fark: <c>HttpClient.Timeout</c> tum request-response zincirini kapsar, bu ayar ise sadece goruntu cekimi icin gecen suredir. 
-    /// Bu sureyi asan bir cekim, <c>CancellationToken</c> ile iptal edilir.
+    /// FFmpeg'in MediaMTX'in canli yolundan ilk kareyi almasi icin azami sure (kimse izlemiyorsa MediaMTX'in kameraya baglanmasi + ilk anahtar kare beklemesi). <para/>
+    /// Anlik goruntude surecin tamami bu sureyle sinirlanir; asilirsa surec oldurulur. Klipte kayit suresinin UZERINE baglanti payi olarak eklenir
+    /// ve RTSP soket zaman asimi (<c>-timeout</c>) olarak da verilir.
     /// </summary>
     public int SnapshotTimeoutMs { get; set; } = 5000;
 
@@ -26,8 +26,8 @@ public class CameraCaptureSettings
     public int MaxClipDurationSec { get; set; } = 600;
 
     /// <summary>
-    /// Kayit suresinin uzerine eklenen pay: MediaMTX'in kameraya baglanmasi,
-    /// ilk anahtar kareyi beklemesi ve segmenti kapatmasi zaman alir.
+    /// Kayit suresi dolduktan sonra FFmpeg'in MP4'u kapatmasi (faststart icin dosyayi yeniden yazmasi) icin taninan ek pay.
+    /// Klibin zaman asimi = <see cref="SnapshotTimeoutMs"/> + sure + bu pay; asilirsa surec oldurulur ve cekim basarisiz sayilir.
     /// </summary>
     public int ClipFinalizeGraceMs { get; set; } = 3000;
 }

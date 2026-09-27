@@ -674,19 +674,11 @@ public class MappingProfiles : Profile
             .ForMember(dest => dest.CabinetName, opt => opt.MapFrom(src => src.Cabinet != null ? src.Cabinet.Name : ""))
             .ForMember(dest => dest.Name, opt => opt.MapFrom(src => src.Name))
             .ForMember(dest => dest.Description, opt => opt.MapFrom(src => src.Description))
-            .ForMember(dest => dest.Manufacturer, opt => opt.MapFrom(src => src.Manufacturer))
+            .ForMember(dest => dest.Brand, opt => opt.MapFrom(src => src.Brand))
             .ForMember(dest => dest.Model, opt => opt.MapFrom(src => src.Model))
             .ForMember(dest => dest.IpAddress, opt => opt.MapFrom(src => src.IpAddress))
-            .ForMember(dest => dest.RtspPort, opt => opt.MapFrom(src => src.RtspPort))
-            .ForMember(dest => dest.HttpPort, opt => opt.MapFrom(src => src.HttpPort))
-            .ForMember(dest => dest.HttpsPort, opt => opt.MapFrom(src => src.HttpsPort))
             .ForMember(dest => dest.Username, opt => opt.MapFrom(src => src.Username))
             .ForMember(dest => dest.Password, opt => opt.MapFrom(src => src.Password))
-            .ForMember(dest => dest.MainStreamChannel, opt => opt.MapFrom(src => src.MainStreamChannel))
-            .ForMember(dest => dest.SubStreamChannel, opt => opt.MapFrom(src => src.SubStreamChannel))
-            .ForMember(dest => dest.MainStreamEnabled, opt => opt.MapFrom(src => src.MainStreamEnabled))
-            .ForMember(dest => dest.SubStreamEnabled, opt => opt.MapFrom(src => src.SubStreamEnabled))
-            .ForMember(dest => dest.SnapshotChannel, opt => opt.MapFrom(src => src.SnapshotChannel))
             .ForMember(dest => dest.MonitoringPort, opt => opt.MapFrom(src => src.MonitoringPort))
             .ForMember(dest => dest.DeviceStatusId, opt => opt.MapFrom(src => src.DeviceStatusId))
             .ForMember(dest => dest.DeviceStatusName, opt => opt.MapFrom(src => src.DeviceStatus != null ? src.DeviceStatus.Name : null))
@@ -702,40 +694,24 @@ public class MappingProfiles : Profile
             .ForMember(dest => dest.CabinetId, opt => opt.MapFrom(src => src.CabinetId))
             .ForMember(dest => dest.Name, opt => opt.MapFrom(src => src.Name))
             .ForMember(dest => dest.Description, opt => opt.MapFrom(src => src.Description))
-            .ForMember(dest => dest.Manufacturer, opt => opt.MapFrom(src => src.Manufacturer))
+            .ForMember(dest => dest.Brand, opt => opt.MapFrom(src => src.Brand))
             .ForMember(dest => dest.Model, opt => opt.MapFrom(src => src.Model))
             .ForMember(dest => dest.IpAddress, opt => opt.MapFrom(src => src.IpAddress))
-            .ForMember(dest => dest.RtspPort, opt => opt.MapFrom(src => src.RtspPort))
-            .ForMember(dest => dest.HttpPort, opt => opt.MapFrom(src => src.HttpPort))
-            .ForMember(dest => dest.HttpsPort, opt => opt.MapFrom(src => src.HttpsPort))
             .ForMember(dest => dest.Username, opt => opt.MapFrom(src => src.Username))
             .ForMember(dest => dest.Password, opt => opt.MapFrom(src => src.Password))
-            .ForMember(dest => dest.MainStreamChannel, opt => opt.MapFrom(src => src.MainStreamChannel))
-            .ForMember(dest => dest.SubStreamChannel, opt => opt.MapFrom(src => src.SubStreamChannel))
-            .ForMember(dest => dest.MainStreamEnabled, opt => opt.MapFrom(src => src.MainStreamEnabled))
-            .ForMember(dest => dest.SubStreamEnabled, opt => opt.MapFrom(src => src.SubStreamEnabled))
-            .ForMember(dest => dest.SnapshotChannel, opt => opt.MapFrom(src => src.SnapshotChannel))
-            .ForMember(dest => dest.MonitoringPort, opt => opt.MapFrom(src => src.MonitoringPort ?? src.RtspPort)) // monitoring port null ise rtsp portu kullan
+            .ForMember(dest => dest.MonitoringPort, opt => opt.MapFrom(src => src.MonitoringPort)) // null ise CameraService markanin RTSP portunu yazar
             .ForMember(dest => dest.PingIntervalSec, opt => opt.MapFrom(src => src.PingIntervalSec))
             .ForMember(dest => dest.IsMonitoringEnabled, opt => opt.MapFrom(src => src.IsMonitoringEnabled));
 
         CreateMap<CameraUpdateDto, Camera>()
             .ForMember(dest => dest.Name, opt => opt.MapFrom(src => src.Name))
             .ForMember(dest => dest.Description, opt => opt.MapFrom(src => src.Description))
-            .ForMember(dest => dest.Manufacturer, opt => opt.MapFrom(src => src.Manufacturer))
+            .ForMember(dest => dest.Brand, opt => opt.MapFrom(src => src.Brand))
             .ForMember(dest => dest.Model, opt => opt.MapFrom(src => src.Model))
             .ForMember(dest => dest.IpAddress, opt => opt.MapFrom(src => src.IpAddress))
-            .ForMember(dest => dest.RtspPort, opt => opt.MapFrom(src => src.RtspPort))
-            .ForMember(dest => dest.HttpPort, opt => opt.MapFrom(src => src.HttpPort))
-            .ForMember(dest => dest.HttpsPort, opt => opt.MapFrom(src => src.HttpsPort))
             .ForMember(dest => dest.Username, opt => opt.MapFrom(src => src.Username))
             .ForMember(dest => dest.Password, opt => opt.Ignore()) // şifre özel iş kuralı ile mapleniyor, null ise dokunmaz, boş veya dolu ise günceller
-            .ForMember(dest => dest.MainStreamChannel, opt => opt.MapFrom(src => src.MainStreamChannel))
-            .ForMember(dest => dest.SubStreamChannel, opt => opt.MapFrom(src => src.SubStreamChannel))
-            .ForMember(dest => dest.MainStreamEnabled, opt => opt.MapFrom(src => src.MainStreamEnabled))
-            .ForMember(dest => dest.SubStreamEnabled, opt => opt.MapFrom(src => src.SubStreamEnabled))
-            .ForMember(dest => dest.SnapshotChannel, opt => opt.MapFrom(src => src.SnapshotChannel))
-            .ForMember(dest => dest.MonitoringPort, opt => opt.MapFrom(src => src.MonitoringPort ?? src.RtspPort)) // monitoring port null ise rtsp portu kullan
+            .ForMember(dest => dest.MonitoringPort, opt => opt.MapFrom(src => src.MonitoringPort)) // null ise CameraService markanin RTSP portunu yazar
             .ForMember(dest => dest.PingIntervalSec, opt => opt.MapFrom(src => src.PingIntervalSec))
             .ForMember(dest => dest.IsMonitoringEnabled, opt => opt.MapFrom(src => src.IsMonitoringEnabled))
             .ForMember(dest => dest.IsActive, opt => opt.MapFrom(src => src.IsActive));
@@ -749,8 +725,7 @@ public class MappingProfiles : Profile
             .ForMember(dest => dest.WebRtcPublicBaseUrl, opt => opt.MapFrom(src => src.WebRtcPublicBaseUrl))
             .ForMember(dest => dest.TokenTtlSeconds, opt => opt.MapFrom(src => src.TokenTtlSeconds))
             .ForMember(dest => dest.SourceOnDemandCloseAfter, opt => opt.MapFrom(src => src.SourceOnDemandCloseAfter))
-            .ForMember(dest => dest.RtspTransport, opt => opt.MapFrom(src => src.RtspTransport))
-            .ForMember(dest => dest.RecordRoot, opt => opt.MapFrom(src => src.RecordRoot));
+            .ForMember(dest => dest.RtspTransport, opt => opt.MapFrom(src => src.RtspTransport));
 
         // Ayar nesnesi -> ekran DTO'su. Sure alani MediaMTX bicimindedir ("10s"),
         // istemciye SANIYE olarak cikar.
@@ -760,8 +735,7 @@ public class MappingProfiles : Profile
             .ForMember(dest => dest.WebRtcPublicBaseUrl, opt => opt.MapFrom(src => src.WebRtcPublicBaseUrl))
             .ForMember(dest => dest.TokenTtlSeconds, opt => opt.MapFrom(src => src.TokenTtlSeconds))
             .ForMember(dest => dest.SourceOnDemandCloseAfterSec, opt => opt.MapFrom(src => ParseSeconds(src.SourceOnDemandCloseAfter)))
-            .ForMember(dest => dest.RtspTransport, opt => opt.MapFrom(src => src.RtspTransport))
-            .ForMember(dest => dest.RecordRoot, opt => opt.MapFrom(src => src.RecordRoot));
+            .ForMember(dest => dest.RtspTransport, opt => opt.MapFrom(src => src.RtspTransport));
 
         // Guncelleme DTO'su -> entity. Tek satirlik tablo oldugu icin Id ASLA yazilmaz;
         // audit alanlarini interceptor dolduruyor. Sure SANIYEDEN MediaMTX bicimine cevrilir.
@@ -773,7 +747,6 @@ public class MappingProfiles : Profile
             .ForMember(dest => dest.TokenTtlSeconds, opt => opt.MapFrom(src => src.TokenTtlSeconds))
             .ForMember(dest => dest.SourceOnDemandCloseAfter, opt => opt.MapFrom(src => src.SourceOnDemandCloseAfterSec + "s"))
             .ForMember(dest => dest.RtspTransport, opt => opt.MapFrom(src => src.RtspTransport))
-            .ForMember(dest => dest.RecordRoot, opt => opt.MapFrom(src => src.RecordRoot))
             .ForMember(dest => dest.CreatedBy, opt => opt.Ignore())
             .ForMember(dest => dest.UpdatedBy, opt => opt.Ignore())
             .ForMember(dest => dest.CreateDateUtc, opt => opt.Ignore())

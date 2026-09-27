@@ -3,6 +3,7 @@ using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Scadex.DataAccess.Contexts;
 
@@ -11,9 +12,11 @@ using Scadex.DataAccess.Contexts;
 namespace Scadex.DataAccess.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    partial class AppDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260925073724_SimplifyCameraProtocolFields")]
+    partial class SimplifyCameraProtocolFields
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -3754,6 +3757,10 @@ namespace Scadex.DataAccess.Migrations
                     b.Property<string>("CreatedBy")
                         .HasColumnType("nvarchar(max)");
 
+                    b.Property<string>("RecordRoot")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
                     b.Property<string>("RtspTransport")
                         .IsRequired()
                         .HasColumnType("nvarchar(max)");
@@ -3785,6 +3792,7 @@ namespace Scadex.DataAccess.Migrations
                             Id = 1,
                             ApiBaseUrl = "http://127.0.0.1:9997",
                             ApiTimeoutMs = 30000,
+                            RecordRoot = "C:\\Scadex\\mediamtx-records",
                             RtspTransport = "tcp",
                             SourceOnDemandCloseAfter = "10s",
                             TokenTtlSeconds = 60,

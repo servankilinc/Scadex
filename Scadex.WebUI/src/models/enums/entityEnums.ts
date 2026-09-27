@@ -377,11 +377,26 @@ export const StreamProfileLabels: Record<StreamProfile, string> = {
 };
 
 /**
+ * Kameranın markası. 0 değeri YOKTUR.
+ *
+ * Port, kanal ve RTSP yolu markaya aittir ve sunucuda
+ * `ICameraProtocolProfile` içinde durur — formda bu yüzden port/kanal alanı yok.
+ * Tali akımı olmayan bir markada ızgaranın `Sub` isteği sunucuda ana akıma düşer.
+ */
+export const CameraBrand = {
+  Hikvision: 1
+} as const;
+export type CameraBrand = (typeof CameraBrand)[keyof typeof CameraBrand];
+
+export const CameraBrandLabels: Record<CameraBrand, string> = {
+  [CameraBrand.Hikvision]: 'Hikvision'
+};
+
+/**
  * Merkeze alınan görüntünün cinsi. 0 değeri YOKTUR.
  *
- * NOT: Çekim yolu (ISAPI / medya geçidi) HENÜZ YAZILMADI — bu enum ve
- * `CaptureStatus` şemada hazır durur ama bugün onlara yazan bir kod yolu yok.
- * Bkz. `docs/api-contract/11-camera.md` § Kapsam dışı.
+ * İkisi de sunucuda FFmpeg ile MediaMTX'in ana akım yolundan alınır:
+ * `Snapshot` → JPEG, `Clip` → sessiz MP4 (yeniden kodlama yok).
  */
 export const CaptureType = {
   Snapshot: 1,

@@ -16,9 +16,9 @@ public class MediaGatewaySettings
     /// </summary>
     public string SourceOnDemandCloseAfter { get; set; } = "10s";
 
-    /// <summary> RTSP tasima katmani. <c>tcp</c>, <c>udp</c> veya <c>multicast</c> </summary>
+    /// <summary>
+    /// MediaMTX'in kameraya baglanirken kullandigi RTSP tasima katmani. <c>tcp</c>, <c>udp</c> veya <c>multicast</c>. Cekimler de ayni yoldan
+    /// okundugu icin onlar icin de gecerlidir; FFmpeg → MediaMTX baglantisi ise yereldir ve hep <c>tcp</c>'dir.
+    /// </summary>
     public string RtspTransport { get; set; } = "tcp";
-
-    /// <summary> MediaMTX'in klip segmentlerini yazdigi gecici kok dizin. NOT: Ikisi ayri makinede calisacaksa klip cekimi calismaz. </summary>
-    public string RecordRoot { get; set; } = "C:\\Scadex\\mediamtx-records";
 }

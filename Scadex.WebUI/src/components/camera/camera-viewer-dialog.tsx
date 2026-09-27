@@ -33,7 +33,7 @@ export function CameraViewerDialog({
           <DialogTitle>{camera.data?.name ?? 'Kamera'}</DialogTitle>
           {camera.data && (
             <DialogDescription>
-              {camera.data.ipAddress} · Ana akım (kanal {camera.data.mainStreamChannel})
+              {camera.data.ipAddress} · Ana akım
             </DialogDescription>
           )}
         </DialogHeader>

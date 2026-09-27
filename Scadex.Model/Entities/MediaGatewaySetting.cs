@@ -14,7 +14,6 @@ public class MediaGatewaySetting : IEntity, IAuditableEntity
     public int TokenTtlSeconds { get; set; }
     public string SourceOnDemandCloseAfter { get; set; } = null!;
     public string RtspTransport { get; set; } = null!;
-    public string RecordRoot { get; set; } = null!;
 
     #region --- IAuditableEntity ---
     public string? CreatedBy { get; set; }

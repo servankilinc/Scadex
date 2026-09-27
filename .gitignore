@@ -386,3 +386,6 @@ MigrationBackup/
 
 # Fody - auto-generated XML schema
 FodyWeavers.xsd
+
+# Harici medya araclari (FFmpeg vb.): exe'ler GitHub'in 100 MiB sinirini asiyor, her kuruluma elle konur.
+Scadex.WebAPI/MediaTools/

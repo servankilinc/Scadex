@@ -12,7 +12,7 @@ import { toApiError } from '@/lib/axios-helper';
  * Tek kamera — `/cameras/:cameraId`.
  *
  * Grid'den farkı **ana akım**: burada tek bir yayın var, dolayısıyla tam
- * çözünürlük hem mümkün hem gerekli (`Camera.MainStreamChannel`).
+ * çözünürlük hem mümkün hem gerekli (`StreamProfile.Main`; kanalı markanın protokol profili belirler).
  *
  * Oynatıcı + çekim kontrolleri `CameraViewer`'da (bkz. `components/camera/camera-viewer.tsx`) —
  * burada yalnızca sayfaya özgü kroma (başlık, "Grid'e dön") kalır; sanal sinyalizasyon kabini
@@ -51,7 +51,7 @@ export default function CameraDetail() {
           <h1 className='text-lg font-semibold'>{camera.data.name}</h1>
           <div className='flex flex-wrap items-center gap-2'>
             <span className='text-sm text-muted-foreground'>
-              {camera.data.ipAddress} · Ana akım (kanal {camera.data.mainStreamChannel})
+              {camera.data.ipAddress} · Ana akım
             </span>
             <CameraStatusBadge camera={camera.data} />
             {!camera.data.isActive && <Badge variant='secondary'>Pasif</Badge>}

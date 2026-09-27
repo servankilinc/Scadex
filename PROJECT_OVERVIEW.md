@@ -517,24 +517,118 @@ gelmez — bu platform onları kendisi yoklar.
 - **Tek bir `MonitoredDevice` tablosu bilerek yoktur.** Her izlenen tip kendi tablosunu alır;
   bugün yalnızca `Camera`. Ortak alanları `IMonitoredAsset` *arayüzü* garanti eder.
   TPH kalıtımı, EF'in her şeyi tek tabloya toplaması yüzünden reddedildi. SNMP kapsam dışıdır.
-- **Hiçbir şey hard-code değildir.** Portlar (554/80), stream kanalları (101/102) ve snapshot
-  kanalı DTO varsayılanlarıdır. RTSP URL'i ve ISAPI yolu **asla kolon değildir** — tam URL
-  saklamak `IpAddress`/port bilgisini bir string içinde ikinci kez tutmak olurdu.
-- **Tarayıcı RTSP görmez.** Zincir `Kamera → MediaMTX → Tarayıcı` (WHEP); medya ASP.NET'ten
-  geçmez. Tek istisna snapshot JPEG proxy'sidir.
-- **MediaMTX uygulamanın dışında çalışır**; API onu başlatmaz, yalnızca `127.0.0.1:9997`
-  üzerindeki Control API ile konuşur.
+- **Marka ayrıntıları tabloda değil, protokol profilindedir (2026-09-25).** `Camera` yalnızca
+  kameranın kendi bilgisini tutar: IP, kimlik bilgileri, `Brand` (`CameraBrand` enum'u, int)
+  ve izleme ayarları. RTSP portu (554), akım kanalları (Hikvision'da 101/102) ve tali akım
+  desteği `Brand`'e karşılık gelen `ICameraProtocolProfile`'dadır. Bunlar
+  bir tur kolon olarak tutuldu, ancak başka bir markada boş ya da anlamsız kalacakları için
+  kaldırıldı; geri eklemeyin. Yeni marka eklemek için enum'a bir değer, yeni bir profil ve tek
+  satırlık DI kaydı gerekir. Profili eksik marka varsa resolver ilk kullanımda hata fırlatır;
+  sessiz geri düşüş yoktur. RTSP URL'i **asla kolon değildir**.
+- **Kameraya yalnızca MediaMTX bağlanır, yalnızca RTSP ile; marka API'si kullanılmaz
+  (2026-09-25).** Profilde markaya özgü tek iş `BuildRtspUrl`'dir ve o adresi yalnızca MediaMTX
+  yolunun kaynağı kullanır (`EnsureLivePathAsync`). Üç tüketici de aynı yoldan (`cam_{id}_main`) okur:
+  - **Canlı izleme:** `Kamera → MediaMTX → Tarayıcı` (WHEP); medya ASP.NET'ten geçmez.
+  - **Anlık görüntü:** `Kamera → MediaMTX → FFmpeg → JPEG (stdout)`. Tek kare, JPEG proxy'si
+    olarak sunucudan geçer. Hikvision ISAPI ve elle yazılmış Digest kodu kaldırıldı.
+  - **Klip:** `Kamera → MediaMTX → FFmpeg → MP4`. Yeniden kodlama yok (`-c:v copy`), ses
+    yok (`-an`; kameraların G.711 sesi MP4'te tarayıcıda çalmaz).
+
+  **Neden arada MediaMTX var (kullanıcı kararı, 2026-09-25):**
+  - Operatör canlı izlerken kayıt alırsa FFmpeg görüntüyü MediaMTX'ten yerel olarak okur. Kameraya
+    ikinci bir ana akım bağlantısı açılmaz; kabin hattı (4G/VPN) aynı görüntüyü iki kez taşımaz ve
+    kameranın oturum sınırı zorlanmaz.
+  - Kimse izlemiyorsa MediaMTX kameraya bağlanır ve oturumu `sourceOnDemandCloseAfter` (10 sn)
+    boyunca açık tutar. Giriş serisinin sonraki kareleri bu yüzden kameraya yeniden bağlanmaz.
+  - Kazanç yalnızca kameraya bağlanma süresidir ve ancak gerçek bir hatta görünür; yerel testte iki
+    yol aynı süreyi verdi (1,8–3 sn). Canlı izleme açıkken süreyi anahtar kare beklemesi belirler ve
+    MediaMTX GOP tutmadığı için bu değişmez. O durumda en etkili hızlandırma kamerada
+    "I Frame Interval"ı kare hızına eşitlemektir. Anlık görüntüdeki analiz kısaltması için aşağıya
+    bakın.
+  - **Bedeller:**
+    - MediaMTX kapalıysa çekim de düşer.
+    - FFmpeg kamerayı görmediği için kamera parolası yanlış, marka yanlış ve kamera kapalı
+      durumları tek bir genel mesaja düşer: "Kamera görüntü vermiyor…". Ayrıntı MediaMTX'in
+      logundadır.
+
+  **Okuma izni:** `CameraService.PrepareCaptureSourceAsync` önce yolu kurar (`EnsureLivePathAsync`),
+  sonra tarayıcıyla **aynı** bilet mekanizmasından bir bilet alır (`IssueStreamTokenAsync`). Adres
+  `rtsp://scadex:{bilet}@127.0.0.1:8554/cam_{id}_main` olur (`IMediaGateway.LiveRtspUrl`); bilet
+  parola alanındadır ve auth kancası onu tarayıcınınki gibi doğrular. `127.0.0.1:8554` ayar değil
+  sabittir (`InternalRtspBaseUrl`). MediaMTX ile API aynı sunucudadır; yml'deki `rtspAddress`
+  değişirse bu sabit de değişmelidir. MediaMTX RTSP okumasında auth'u yalnızca oturum kurulurken
+  sorar. Ölçüldü: 60 sn ömürlü biletle 65 sn'lik klip kopmadan tamamlandı, kanca yalnızca başta
+  çağrıldı. Her FFmpeg oturumu kancayı 3 kez çağırır (ilki kimliksiz, 401); bu, auth ucunun hız
+  sınırının (5 sn'de 300) çok altındadır.
+
+  FFmpeg tarafı `ICameraCaptureGateway` → `CameraCaptureGateway` (WebAPI/Utils) üzerinden gider. Geçit
+  kaynak adresini dışarıdan alır; kamerayı da markayı da bilmez. Ayrıntılar:
+  - **FFmpeg'in yeri:** `Scadex.WebAPI/MediaTools/ffmpeg-9.0.2/ffmpeg.exe`, `ContentRootPath`
+    altından çağrılır. Yol ayar değil sabittir (`FfmpegRelativePath`). Klasör **git'te yoktur**
+    (exe GitHub'ın 100 MiB sınırını aşıyor) ve her kuruluma elle konur. Eksikse çekimler
+    "FFmpeg bulunamadı" ile düşer.
+  - **Klip iki adımdır.** FFmpeg `-t` süresini kaynaktan gelen *ilk paketten* sayar, ama kopyalama
+    *ilk anahtar kareden* başlar. Tek adımda I-kare aralığı 2 sn olan kamerada 5 sn'lik klip
+    ~4,5 sn çıkıyordu. Bu yüzden önce süre + `SnapshotTimeoutMs` kadar ham kayıt (Matroska)
+    alınır, sonra ham dosya anahtar kareyle başladığı için tam süreye kırpılıp MP4'e (faststart)
+    paketlenir. **Bedeli:** klip yola süre + bağlantı payı kadar (varsayılan +5 sn) bağlı kalır.
+  - **Zaman aşımları.**
+    - Anlık görüntüde süreç `SnapshotTimeoutMs` + 1 sn ile sınırlıdır. Payın sebebi, FFmpeg'in
+      kendi RTSP `-timeout`'unun önce düşmesi ve "ulaşılamadı" ile "görüntü vermedi"nin ayırt
+      edilebilmesidir.
+    - Klipte sınır `SnapshotTimeoutMs` + ham süre + `ClipFinalizeGraceMs` + 1 sn'dir.
+    - FFmpeg → MediaMTX bağlantısı yereldir ve her zaman `tcp`'dir. Kamera → MediaMTX taşımasını
+      `RtspTransport` ayarı belirler ve bu ayar çekimler için de geçerlidir.
+  - **Bilet ve parola sızmaz.** FFmpeg hata satırlarında kaynak adresini (içinde bilet) tekrarlar.
+    Bu yüzden `FailureReason` (veritabanı ve istemci) yalnızca sabit Türkçe mesaj alır. Mesajlar
+    şunlardır:
+    - "Medya geçidi çekim biletini reddetti" (401);
+    - "Medya geçidine ulaşılamıyor";
+    - "Kamera görüntü vermiyor…" (kamera tarafındaki her şey);
+    - zaman aşımı;
+    - FFmpeg yok.
+
+    Ham stderr yalnızca `rtsp://***@` ile maskelenip loglanır. Kamera parolası artık FFmpeg'in komut
+    satırında da görünmez; orada yalnızca kısa ömürlü bilet vardır.
+  - **Anlık görüntüde akış analizi kapalıdır** (`-analyzeduration 0 -probesize 32`,
+    `InputArguments(skipProbe: true)`). FFmpeg akışın başını okuyup codec parametrelerini
+    doğrulamaz, SDP'deki SPS/PPS'e (`sprop-parameter-sets`) güvenir.
+    - **Ölçüm (2026-09-25):** gerçek kamera, 1920x1080 H.264, 25 fps, I-kare aralığı 2 sn; aynı
+      MediaMTX sürümü.
+
+      | Durum | Analiz açık | Analiz kapalı |
+      |---|---|---|
+      | Kimse izlemiyor (soğuk) | ort. 1,8 sn | ort. 0,64 sn |
+      | Seri, 2.–5. kareler | 2,4–2,6 sn | ort. 0,97 sn |
+      | Canlı izleme açık | ort. 2,1 sn | ort. 1,33 sn |
+
+    - **Farkın nedeni:** Soğukta kamera yeni oturuma anahtar kareyle başlar ve tek bekleme
+      analizdir. Yol açıkken FFmpeg sıradaki anahtar kareyi bekler (0–2 sn) ve analiz bu beklemeyle
+      örtüşür.
+    - **Dayandığı koşul:** kamera SPS/PPS'i SDP'de göndermelidir. İki Hikvision kamera gönderiyor;
+      yeni marka için şart `ICameraProtocolProfile` doc'undadır. Göndermeyen kamerada kimse
+      izlemiyorken alınan ilk kare düşebilir.
+    - **Klipte analiz açıktır (bilinçli).** Analiz kapalıyken kare hızı çıkarılamaz (25 fps
+      kamerada "50 tbr"); `-c copy` klibe yanlış kare hızı yazılabilir. Klipte kazanç da yalnızca
+      kaydın ~1 sn erken başlamasıdır.
+
+    ISAPI ile anlık görüntü ~0,2 sn sürüyordu. `CameraCapture.CapturedAtUtc` bu yüzden **karenin
+    geldiği anda** yazılır.
+- **MediaMTX uygulamanın dışında çalışır ve kameraya bağlanan tek bileşendir**; API onu başlatmaz,
+  yalnızca `127.0.0.1:9997` üzerindeki Control API ile konuşur. Kayıt özelliği kullanılmaz.
 - **Yayın biletleri yola bağlıdır**, kısa ömürlüdür (60 sn) ve TTL içinde çok kullanımlıktır —
-  MediaMTX oturum ortasında hook'u yeniden çağırabilir. `POST /api/MediaGateway/auth`
+  MediaMTX oturum ortasında hook'u yeniden çağırabilir. Aynı bilet mekanizmasını sunucu içi çekim
+  (FFmpeg) de kullanır. `POST /api/MediaGateway/auth`
   yalnızca `read` eylemini kabul eder, gövdesiz `200`/`401` döner (MediaMTX yalnızca duruma bakar).
-- **Kapalı bir profil sessizce diğerine düşmez.** `CreateStreamTokenAsync`, istenen profilin
-  `MainStreamEnabled` / `SubStreamEnabled` bayrağı kapalıysa bilet üretmez; `400` ile
-  "bu kamerada kapalı" der. Geri düşüş olsaydı 12 kutucuklu bir ızgara kamera başına
-  ~4 Mbps'ye çıkabilirdi. Hangi ekranın hangi profili isteyeceği bir **istemci kararıdır** ve
-  `Scadex.WebUI` bunu beklendiği gibi uyguluyor: ızgara kutucuğu `StreamProfile.Sub`
-  (`components/camera/camera-tile.tsx`), detay ekranı `StreamProfile.Main`
-  (`views/app/cameras/detail.tsx`). Profil `stream-ticket` çağrısında query string'den gider;
-  kapalı profil `hooks/use-camera-stream.ts` içinde istek atılmadan yakalanır.
+- **Tali akım desteği markaya aittir, kamera başına bayrak yoktur (2026-09-25).** Hangi
+  ekranın hangi profili isteyeceği bir **istemci kararıdır**: ızgara kutucuğu
+  `StreamProfile.Sub` (`components/camera/camera-tile.tsx`), detay ekranı `StreamProfile.Main`
+  (`views/app/cameras/detail.tsx`) ister. Profil `stream-ticket` çağrısında query string'den
+  gider. Markanın profilinde `HasSubStream = false` ise `CreateStreamTokenAsync`, `Sub`
+  isteğini **ana akım yoluna** (`cam_{id}_main`) düşürür. Ayrı bir `_sub` yolu açılmaz, böylece
+  kameraya aynı akım için ikinci bir RTSP bağlantısı kurulmaz. İstemci farkı görmez, çünkü
+  doğru yol WHEP adresinde gelir. Eski `MainStreamEnabled` / `SubStreamEnabled` bayrakları ve
+  "kapalı profil 400 döner" kuralı kaldırıldı.
 - **`SnapshotLocks` `static`'tir ve öyle kalmalıdır.** Servis scoped'dur; alan örnek bazlı
   olsaydı her istek kendi kilidini alır ve sürü koruması hiçbir işe yaramazdı. Snapshot'lar
   ayrıca `IDistributedCache` üzerinde birkaç saniye tutulur.
@@ -543,10 +637,10 @@ gelmez — bu platform onları kendisi yoklar.
   service'i HTTP isteğini klip süresi kadar bekletmemek için vardır. **Paralel çalışır**
   (2026-09-10): kuyruktan alınan her çekim kendi görevinde başlar, eşzamanlılık sınırı yoktur.
   Bkz. § 7 yol haritası (g).
-- **MediaMTX yolları düzenli olarak temizlenmez.** Klip yolları (`clip_{captureId}`) çekim
-  akışının `finally` bloğunda düşürülür. Canlı izleme yolları (`cam_{id}_{profile}`) yalnızca
+- **MediaMTX yolları düzenli olarak temizlenmez.** Klip yolu artık yoktur (2026-09-25; klip
+  FFmpeg ile alınır). Canlı izleme yolları (`cam_{id}_{profile}`) yalnızca
   **kameranın kendisi değiştiğinde** silinir: `CameraService.UpdateAsync`, bağlantıyı etkileyen
-  bir alan (IP, RTSP portu, kullanıcı adı, parola, stream kanalları) değiştiğinde ya da kamera
+  bir alan (IP, marka, kullanıcı adı, parola) değiştiğinde ya da kamera
   pasife alındığında iki profilin yolunu da düşürür — aksi halde MediaMTX eski bilgilerle
   bağlanmaya çalışıp zaman aşımına düşerdi. Hiç dokunulmayan bir kameranın yolunu ise artık
   **`MediaPathCleanupWorker` gün sonunda düşürür**; izleyicisi olan ve kayıt yapan yollara
@@ -670,8 +764,7 @@ değil, bilinçli bir karardır; `dotnet build` çıktısındaki 5 uyarı bu yü
   token'a yansır (§ 5.5).
 - ~~Yoklama servisi yok~~ — **yazıldı (2026-09-10)**, bkz. (d).
 - ~~MediaMTX yolları birikiyor~~ — **günlük temizlik yazıldı (2026-09-10)**, bkz. (f).
-  Kalan tek birikme kaynağı: kayıt bayrağı açık kalmış **artık klip yolları** (çekimi çökmüş
-  olanlar) bilerek korunuyor, dolayısıyla temizlenmiyor.
+  Klip kaydı FFmpeg'e taşındığı için (2026-09-25) artık klip yolu da oluşmuyor.
 - ~~Ayarlar uzaktan düzenlenemiyor~~ — **veritabanına taşındı ve ekranı yazıldı (2026-09-10)**,
   bkz. (e). `/admin/settings`; kaydedilen değer yeniden başlatma olmadan etkili.
 - **Kiracı izolasyonu yok** (§ 6'daki gerekçeyle sonradan tek noktadan gelecek).
@@ -777,8 +870,9 @@ Alınan kararlar:
 
 - **ICMP dalı yok** — sonda yalnızca TCP connect yapar. `MonitoringPort` null ise varlık
   atlanır ve bir `Warning` loglanır; `IMonitoredAsset.MonitoringPort` doc'u buna göre
-  düzeltildi. `MonitoringPort ?? RtspPort` mapping'i **korundu**, dolayısıyla API üzerinden
-  oluşturulan kamerada alan zaten hiç null olmuyor.
+  düzeltildi. Kamerada boş bırakılan izleme portunu `CameraService` (Create/Update) markanın
+  RTSP portuyla doldurur (`ICameraProtocolProfile.RtspPort`, 2026-09-25), dolayısıyla API
+  üzerinden oluşturulan kamerada alan hiç null olmuyor.
 - **Periyot varlık başınadır** (`PingIntervalSec`); worker `Monitoring:SweepIntervalSeconds`
   (30 sn) aralıklarla tur atar ve yalnızca periyodu dolanları yoklar. Son yoklama anı
   **bellekte** tutulur — bunun için kolon yok ve `LastSeen` uygun değil, çünkü o yalnızca
@@ -840,12 +934,13 @@ kadar okunur.
 **Üç koruma kuralı** (şüpheli her durumda korur — yanlış silmenin bedeli, beklemenin
 bedelinden büyüktür):
 
-1. **Bizim üretmediğimiz yollara hiç dokunulmaz.** Yalnızca `cam_` / `clip_` önekli adlar
-   aday olur (`IMediaGateway.IsManagedPathName`). Bu kural şart: `mediamtx.yml` içinde
-   **`all_others`** adında bir girdi var ve silinseydi geçit komple yapılandırmasız kalırdı.
-2. **`record: true` olan yol asla silinmez** — devam eden klip çekimleri böyle korunur; yolu
-   düşürmek yazılmakta olan segmenti yarıda keserdi. Çekimi çökmüş bir artık klip yolu da bu
-   kurala takılır (ikisi ayırt edilemiyor), bu yüzden korunur ve görünür olsun diye loglanır.
+1. **Bizim üretmediğimiz yollara hiç dokunulmaz.** Yalnızca `cam_` önekli adlar aday olur
+   (`IMediaGateway.IsManagedPathName`). 2026-09-25'ten önce `clip_` da adaydı; klip FFmpeg'e
+   taşınınca çıkarıldı. Bu kural şart: `mediamtx.yml` içinde **`all_others`** adında bir girdi
+   var ve silinseydi geçit komple yapılandırmasız kalırdı.
+2. **`record: true` olan yol asla silinmez** — yolu düşürmek yazılmakta olan segmenti yarıda
+   keserdi. Klip kaydı artık MediaMTX'te yapılmıyor (2026-09-25), ama elle kayıt açılmış bir yol
+   için kural **korundu**.
 3. **İzleyicisi olan (`readers > 0`) yol silinmez** — birinin ekranındaki yayın kesilirdi.
 
 Doğrulandı (gerçek MediaMTX v1.20.1 üzerinde): izleyicisiz `cam_…_sub` **silindi**,
@@ -855,6 +950,11 @@ Doğrulandı (gerçek MediaMTX v1.20.1 üzerinde): izleyicisiz `cam_…_sub` **s
 
 `ClipCaptureWorker` kuyruktan aldığı her çekimi kendi görevinde başlatır; öncekinin
 `Task.Delay(klip süresi)`'sini beklemez. **Sınırsız paralel**, eşzamanlılık sınırı yok.
+
+> **2026-09-25:** Klip MediaMTX'ten FFmpeg'e taşındı (§ 5.4). Aşağıdaki `clip_` yolu,
+> `RecordRoot`, `FindNewestClip` ve `DeletePathAsync` anlatımı tarihçedir. Bugün her çekimin
+> kendi FFmpeg süreci ve kendi geçici klasörü (`%TEMP%/scadex-clips/{captureId}`) var; paralellik
+> kuralı ve kapanışta bekleme aynen geçerli.
 
 - **Çakışma yok**, çünkü akıştaki her şey çekim bazlıdır: yol adı `clip_{captureId}`, geçici
   klasör `RecordRoot/clip_{captureId}`, `FindNewestClip` taraması, `TryDeleteTempDirectory` ve
@@ -872,9 +972,10 @@ Doğrulandı (gerçek MediaMTX v1.20.1 üzerinde): izleyicisiz `cam_…_sub` **s
 sonra yazılır) damgaları **5,8 ms** arayla düştü. Seri çalışsaydı ikincisi ~12 sn sonra
 başlayacaktı. Her iki çekimin `finally` bloğu da kendi yolunu düşürdü.
 
-**Kalan risk:** aynı kameradan eşzamanlı çekimler `sourceOnDemand: false` ile **ayrı ayrı RTSP
-oturumu** açar; kameranın eşzamanlı oturum limiti aşılırsa çekim "Medya geçidi klip dosyası
-üretmedi" ile düşer.
+**Eski risk (2026-09-25'te kapandı):** aynı kameradan eşzamanlı çekimler kameraya ayrı ayrı RTSP
+oturumu açıyordu. Bugün her çekimin kendi FFmpeg süreci var, ama hepsi MediaMTX'in tek canlı
+yolundan okur. Kameraya ana akım için tek oturum açılır; eşzamanlı çekim ve izleyici sayısı
+kameranın oturum sınırını zorlamaz.
 
 **(h)** ~~Kart okuyucu ingest'i.~~ **TAMAMLANDI (2026-09-11)** — `POST /api/Scada/card`, § 5.3.
 Okuyucu kimliği gövdede yok: kartın hangi kapıyı açacağına gözlemci (modül) karar veriyor.
@@ -1196,7 +1297,15 @@ ekranlarını ayrı parçalara böler.
   sıralı, kabinler arasında paralel** işler (kabin başına bir şerit): durum makinesinde yarış
   olmaz, bir kabinde SCADA'nın 180 sn'lik zaman aşımı diğerlerini bekletmez.
 - `EntrySnapshotWorker` kareleri şeridin **dışında**, başlangıçtan başlangıca `T0 + i × aralık`
-  zamanlamasıyla çeker (`ICameraService.CreateCaptureAsync` — snapshot önbelleğini atlar). Seri
+  zamanlamasıyla çeker (`ICameraService.CreateCaptureAsync` — snapshot önbelleğini atlar).
+  2026-09-25'ten beri her kare, MediaMTX'in canlı yolundan ayrı bir FFmpeg çalıştırmasıdır
+  (§ 5.4). Akış analizi kapalı olduğu için gerçek kamerada kare başına ~0,35–2,3 sn ölçüldü
+  (duruma göre ortalama 0,64–1,33 sn); üst sınırı anahtar kare beklemesi belirler. İlk kare MediaMTX'i
+  kameraya bağlar; oturum 10 sn açık kaldığı için sonraki kareler kameraya yeniden bağlanmaz.
+  Kareler sırayla alındığı için bir kare aralıktan uzun sürerse seri kayar; 1 sn aralıklı 5 karelik
+  serinin ~5–8 sn'ye yayılması beklenir (tahmin; seri uçtan uca ölçülmedi). Olay zamanı
+  (`CapturedAtUtc`) karenin geldiği an olduğu için yine doğrudur (kullanıcı kararı: tek
+  FFmpeg'le seri çekme eklenmedi). Seri
   **her `OuterOpened` olayında** kuyruğa girer, yalnızca oturumun ilk açılışında değil: iş bitmeden
   kapanan kapı oturumu açık bıraktığı için aksi hâlde ikinci giriş tanıksız kalırdı (kare yok, kart
   bekleme sayacı ilk kartta zaten `null`'lanmış). Bu yüzden tek oturumda birden çok kare serisi olabilir.

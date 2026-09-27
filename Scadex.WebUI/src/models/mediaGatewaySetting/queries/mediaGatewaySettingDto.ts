@@ -1,7 +1,8 @@
 /** Ayna: Scadex.Model/Dtos/MediaGatewaySetting/Queries/MediaGatewaySettingDto.cs */
 
 /**
- * Medya geçidi (MediaMTX) ayarları.
+ * Medya geçidi (MediaMTX) ayarları. Kameraya YALNIZCA MediaMTX bağlanır: canlı izleme
+ * tarayıcıya WebRTC ile, anlık görüntü ve klip sunucudaki FFmpeg'e aynı yoldan (biletli RTSP) gider.
  *
  * Bu değerler `appsettings.json`'dan DEĞİL veritabanından gelir ve tek satırlık bir
  * tabloda durur; sunucu tarafında `ICacheService` ile önbelleklenir, her yazma kendi
@@ -28,6 +29,4 @@ export interface MediaGatewaySettingDto {
 
   /** MediaMTX'in tanıdığı dört değerden biri — bkz. `RTSP_TRANSPORTS`. */
   rtspTransport: string;
-  /** MediaMTX'in klipleri yazdığı kök dizin. */
-  recordRoot: string;
 }

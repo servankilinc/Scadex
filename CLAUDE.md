@@ -60,7 +60,13 @@ Bilinmesi gerekenler:
   `npm run build` bugün yeşil; yeşil kalmalı.)
 - **`npm run typecheck` diye bir script yoktur** (`build` zaten `tsc -b` çalıştırır).
 - MediaMTX uygulama tarafından başlatılmaz; ayrı süreçtir
-  (`Scadex.WebAPI/mediamtx_v1.20.1/mediamtx.exe`).
+  (`Scadex.WebAPI/mediamtx_v1.20.1/mediamtx.exe`) ve **kameraya bağlanan tek bileşendir**:
+  canlı izleme de, FFmpeg'in anlık görüntü/klip okuması da onun `cam_{id}_main` yolundan geçer.
+- **FFmpeg'i uygulama kendisi çağırır** (anlık görüntü + klip, `CameraCaptureGateway`):
+  `Scadex.WebAPI/MediaTools/ffmpeg-9.0.2/ffmpeg.exe`, `ContentRootPath` altından. Yol ayar değil
+  sabittir (`CameraCaptureGateway.FfmpegRelativePath`). **`MediaTools/` git'te yoktur**
+  (`.gitignore`; exe GitHub'ın 100 MiB sınırını aşıyor) — yeni klonda ve her sunucuda elle konur,
+  yoksa çekimler "FFmpeg bulunamadı" ile düşer. Yayında yalnızca `ffmpeg.exe` kopyalanır (csproj).
 
 ## Mimari
 
@@ -223,10 +229,21 @@ Bunlar tek bir dosyaya bakarak görülemez; gerekçeleri PROJECT_OVERVIEW.md §5
   23 saat bilerek sabittir. Canlılık yalnızca Online/Offline/`null`'a karar verir,
   Warning/Critical/Maintenance korunur. Sinyalizasyon modülü kabin durumuna **bilerek**
   yansımaz (alarm haritada ayrı ikon; `AppModule.alertCabinetsQuery`).
-- **MediaMTX yol temizliği üç şeyi asla silmez:** bizim üretmediğimiz adlar (yalnızca `cam_` /
-  `clip_` önekliler adaydır — `mediamtx.yml`'deki **`all_others`** silinseydi geçit
-  yapılandırmasız kalırdı), `record: true` olan yollar (devam eden klip çekimi) ve
-  `readers > 0` olan yollar. Bu kuralları gevşetmeyin; `MediaPathCleanupWorker.ShouldDelete`.
+- **MediaMTX yol temizliği üç şeyi asla silmez:** bizim üretmediğimiz adlar (yalnızca `cam_`
+  önekliler adaydır — `mediamtx.yml`'deki **`all_others`** silinseydi geçit
+  yapılandırmasız kalırdı), `record: true` olan yollar ve `readers > 0` olan yollar. Bu kuralları
+  gevşetmeyin; `MediaPathCleanupWorker.ShouldDelete`. (`clip_` yolu 2026-09-25'te kalktı: klip
+  artık MediaMTX'te değil FFmpeg ile kaydediliyor.)
+- **Kameraya yalnızca MediaMTX bağlanır, yalnızca RTSP ile; marka API'si (Hikvision ISAPI vb.)
+  kullanılmaz (2026-09-25).** Markaya özgü tek bilgi `ICameraProtocolProfile.BuildRtspUrl`'dir ve
+  yalnızca MediaMTX yolunun kaynağıdır. Çekimde FFmpeg kameraya **doğrudan bağlanmaz**:
+  `CameraService.PrepareCaptureSourceAsync` yolu kurar ve tarayıcıyla aynı bilet mekanizmasından
+  (`IssueStreamTokenAsync`) bir bilet alır; FFmpeg `IMediaGateway.LiveRtspUrl` adresinden okur
+  (izleme açıkken kameraya ikinci oturum açılmasın diye — kullanıcı kararı; geri çevirmeyin).
+  FFmpeg hata satırlarında kaynak adresini (içinde bilet) tekrarlar: `CameraCapture.FailureReason`'a
+  yalnızca `CameraCaptureGateway.DescribeFailure`'ın sabit mesajları yazılır, ham stderr yalnızca
+  `rtsp://***@` maskesiyle loglanır — bu ayrımı bozmayın. Klip bilinçli olarak iki adımdır
+  (ham kayıt + tam süreye kırpma); tek `-t` klibi anahtar kare beklemesi kadar kısa keser.
 - **Rate limit politika adı `Program.cs`'te tanımlı değilse o uç HER istekte 500 döner.**
   Bir `[EnableRateLimiting]` adını silmeden/değiştirmeden önce `RateLimiterKey`'e bakın.
   Politikalar: `Default`, `Scada`, `MediaGateway`. Sinyalizasyon modülünün uçlarında politika
@@ -267,6 +284,10 @@ Bir şeyin çalıştığını varsaymadan önce doğrulayın:
   [axios-helper.ts:7](Scadex.WebUI/src/lib/axios-helper.ts#L7) bu adreste birleştirildi.
   Portu değiştirirseniz dördünü birden güncelleyin. (`src/lib/diagram/template-image.ts`
   içindeki bir yorum hâlâ eski `:7042`'yi anıyor — yalnızca yorum.)
+- **MediaMTX'in RTSP adresi kodda sabittir: `IMediaGateway.InternalRtspBaseUrl` =
+  `rtsp://127.0.0.1:8554`** (ayar değil; MediaMTX ile API aynı sunucuda — 2026-09-25 kararı).
+  `mediamtx.yml > rtspAddress` (`:8554`) değişirse, MediaMTX başka makineye taşınırsa ya da RTSPS
+  açılırsa bu sabit de değişmeli; yoksa tüm çekimler "Medya geçidine ulaşılamıyor" ile düşer.
 - **AutoMapper 14.0.0 `NU1903` uyarısı kabul edilmiş risktir, yapılacak iş değildir** —
   AutoMapper 15 ticari lisans istiyor, bu yüzden yükseltilmeyecek. `dotnet build` çıktısındaki
   proje başına birer `NU1903` (modül AutoMapper'ı Business'tan geçişli aldığı için 6 proje)

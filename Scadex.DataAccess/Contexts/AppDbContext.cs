@@ -489,8 +489,7 @@ public class AppDbContext : IdentityDbContext<User, Role, Guid>
             WebRtcPublicBaseUrl = "http://127.0.0.1:8889",
             TokenTtlSeconds = 60,
             SourceOnDemandCloseAfter = "10s",
-            RtspTransport = "tcp",
-            RecordRoot = "C:\\Scadex\\mediamtx-records"
+            RtspTransport = "tcp"
         });
 
         modelBuilder.Entity<CameraCaptureSetting>().HasData(new CameraCaptureSetting

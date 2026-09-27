@@ -5,11 +5,11 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.IdentityModel.Tokens;
 using Scadex.Business;
 using Scadex.Business.Mappings;
+using Scadex.Business.Utils.CameraCaptureGateway;
 using Scadex.Business.Utils.CaptureFileStore;
 using Scadex.Business.Utils.DiagramNotifier;
 using Scadex.Business.Utils.MediaGateway;
 using Scadex.Business.Utils.ScadaCommandGateway;
-using Scadex.Business.Utils.SnapshotGateway;
 using Scadex.Core;
 using Scadex.Core.Utils;
 using Scadex.Core.Utils.Auth;
@@ -240,12 +240,6 @@ builder.Services.AddHttpClient(IScadaCommandGateway.HttpClientName, client =>
 });
 
 // MediaGateway
-builder.Services.AddHttpClient(ISnapshotGateway.HttpClientName, client =>
-{
-    // Timeout yine SONSUZ ve zaman asimini gecit kendi CancellationTokenSource'uyla uyguluyor
-    client.Timeout = Timeout.InfiniteTimeSpan;
-});
-
 builder.Services.AddHttpClient(IMediaGateway.HttpClientName);
 #endregion
 
@@ -270,6 +264,9 @@ builder.Services.AddHostedService<CaptureRetentionWorker>();
 // Cekim dosyalarinin diske yazan servis.
 // SCOPED: cekim koku artik veritabanindaki ayardan okunuyor, o servis de scoped.
 builder.Services.AddScoped<ICaptureFileStore, CaptureFileStore>();
+
+// Anlik goruntu + klip: MediaMTX canli yolundan FFmpeg ile (MediaTools/ffmpeg-*/ffmpeg.exe, ContentRootPath altinda).
+builder.Services.AddScoped<ICameraCaptureGateway, CameraCaptureGateway>();
 #endregion
 
 

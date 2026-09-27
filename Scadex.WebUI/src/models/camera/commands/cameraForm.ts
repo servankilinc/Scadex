@@ -8,8 +8,12 @@
  * `toUpdateRequest` ile yapılır. Sunucuda da ortak kurallar tek bir
  * `CameraRules` sınıfında toplanmış durumda — ikisi ayrışırsa create'te
  * reddedilen bir değer update ile içeri girebilirdi.
+ *
+ * Port ve kanal alanı YOK: markaya aittirler, sunucuda `ICameraProtocolProfile`
+ * `brand`'e göre üretir.
  */
 import { z } from 'zod';
+import { CameraBrand } from '@/models/enums/entityEnums';
 import type { CameraDto } from '../queries/cameraDto';
 
 // Sayısal alanlarda `z.coerce.number()` KULLANILMIYOR: zod v4'te coerce girdi
@@ -20,8 +24,6 @@ import type { CameraDto } from '../queries/cameraDto';
 const port = (label: string) =>
   z.number(`${label} sayı olmalı`).int(`${label} tam sayı olmalı`).min(1, `${label} 1-65535 arasında olmalı`).max(65535, `${label} 1-65535 arasında olmalı`);
 
-const channel = (label: string) => z.number(`${label} sayı olmalı`).int(`${label} tam sayı olmalı`).positive(`${label} sıfırdan büyük olmalı`);
-
 /**
  * Boş bırakılabilen port alanı.
  *
@@ -31,55 +33,39 @@ const channel = (label: string) => z.number(`${label} sayı olmalı`).int(`${lab
  */
 const optionalPort = (label: string) => port(label).nullable();
 
-export const cameraFormSchema = z
-  .object({
-    name: z.string().trim().min(1, 'İsim girilmeli').max(150, 'İsim en fazla 150 karakter olabilir'),
-    description: z.string().trim().max(512, 'Açıklama en fazla 512 karakter olabilir'),
-    manufacturer: z.string().trim().max(64, 'Üretici en fazla 64 karakter olabilir'),
-    model: z.string().trim().max(64, 'Model en fazla 64 karakter olabilir'),
+export const cameraFormSchema = z.object({
+  name: z.string().trim().min(1, 'İsim girilmeli').max(150, 'İsim en fazla 150 karakter olabilir'),
+  description: z.string().trim().max(512, 'Açıklama en fazla 512 karakter olabilir'),
+  /** Sunucudaki `IsInEnum` kuralının aynası: adres ve portları marka belirler. */
+  brand: z.enum(CameraBrand, 'Kamera markası seçilmeli'),
+  model: z.string().trim().max(64, 'Model en fazla 64 karakter olabilir'),
 
-    ipAddress: z.string().trim().min(1, 'IP adresi girilmeli').max(64, 'IP adresi en fazla 64 karakter olabilir'),
-    rtspPort: port('RTSP portu'),
-    httpPort: port('HTTP portu'),
-    httpsPort: optionalPort('HTTPS portu'),
+  ipAddress: z.string().trim().min(1, 'IP adresi girilmeli').max(64, 'IP adresi en fazla 64 karakter olabilir'),
 
-    username: z.string().trim().max(128, 'Kullanıcı adı en fazla 128 karakter olabilir'),
-    /**
-     * Formda HER ZAMAN boş başlar ve boş bırakılırsa gövdeden tümden çıkarılır
-     * ("dokunma").
-     *
-     * Okuma DTO'su artık parolayı döndürüyor, yani `toCameraForm` onu önceden
-     * DOLDURABİLİRDİ; bilerek doldurulmuyor. Doldurulsaydı "alanı temizle"
-     * hareketi `''` üretir, `orUndefined` onu `undefined`'a çevirir ve kullanıcı
-     * parolayı SİLEMEZ hale gelirdi. Doldurmak istenirse `toUpdateRequest`'in
-     * üç durumlu eşlemesi de birlikte değişmelidir.
-     */
-    password: z.string(),
+  username: z.string().trim().max(128, 'Kullanıcı adı en fazla 128 karakter olabilir'),
+  /**
+   * Formda HER ZAMAN boş başlar ve boş bırakılırsa gövdeden tümden çıkarılır
+   * ("dokunma").
+   *
+   * Okuma DTO'su artık parolayı döndürüyor, yani `toCameraForm` onu önceden
+   * DOLDURABİLİRDİ; bilerek doldurulmuyor. Doldurulsaydı "alanı temizle"
+   * hareketi `''` üretir, `orUndefined` onu `undefined`'a çevirir ve kullanıcı
+   * parolayı SİLEMEZ hale gelirdi. Doldurmak istenirse `toUpdateRequest`'in
+   * üç durumlu eşlemesi de birlikte değişmelidir.
+   */
+  password: z.string(),
 
-    mainStreamChannel: channel('Ana akım kanalı'),
-    subStreamChannel: channel('Tali akım kanalı'),
-    mainStreamEnabled: z.boolean(),
-    subStreamEnabled: z.boolean(),
-    snapshotChannel: channel('Anlık görüntü kanalı'),
+  monitoringPort: optionalPort('İzleme portu'),
+  pingIntervalSec: z
+    .number('Yoklama aralığı sayı olmalı')
+    .int('Yoklama aralığı tam sayı olmalı')
+    .min(10, 'Yoklama aralığı en az 10 saniye olmalı')
+    .max(86400, 'Yoklama aralığı en fazla 24 saat olabilir'),
+  isMonitoringEnabled: z.boolean(),
 
-    monitoringPort: optionalPort('İzleme portu'),
-    pingIntervalSec: z
-      .number('Yoklama aralığı sayı olmalı')
-      .int('Yoklama aralığı tam sayı olmalı')
-      .min(10, 'Yoklama aralığı en az 10 saniye olmalı')
-      .max(86400, 'Yoklama aralığı en fazla 24 saat olabilir'),
-    isMonitoringEnabled: z.boolean(),
-
-    /** Yalnızca düzenlemede anlamlı; ekleme her zaman aktif doğurur. */
-    isActive: z.boolean()
-  })
-  // Sunucudaki kuralın aynısı: ikisi de kapalıysa kamera hiç izlenemez ve
-  // arayüz sebebini gösteremez. Hata `mainStreamEnabled`'a bağlanıyor ki forma
-  // inline düşsün.
-  .refine(v => v.mainStreamEnabled || v.subStreamEnabled, {
-    message: 'Ana akım ve tali akım aynı anda kapatılamaz',
-    path: ['mainStreamEnabled']
-  });
+  /** Yalnızca düzenlemede anlamlı; ekleme her zaman aktif doğurur. */
+  isActive: z.boolean()
+});
 
 export type CameraFormValues = z.infer<typeof cameraFormSchema>;
 
@@ -87,19 +73,11 @@ export type CameraFormValues = z.infer<typeof cameraFormSchema>;
 export const emptyCameraForm: CameraFormValues = {
   name: '',
   description: '',
-  manufacturer: 'Hikvision',
+  brand: CameraBrand.Hikvision,
   model: '',
   ipAddress: '',
-  rtspPort: 554,
-  httpPort: 80,
-  httpsPort: null,
   username: '',
   password: '',
-  mainStreamChannel: 101,
-  subStreamChannel: 102,
-  mainStreamEnabled: true,
-  subStreamEnabled: true,
-  snapshotChannel: 101,
   monitoringPort: null,
   pingIntervalSec: 300,
   isMonitoringEnabled: true,
@@ -111,19 +89,12 @@ export interface CameraCreateRequest {
   cabinetId: string;
   name: string;
   description?: string;
-  manufacturer?: string;
+  brand: CameraBrand;
   model?: string;
   ipAddress: string;
-  rtspPort: number;
-  httpPort: number;
-  httpsPort: number | null;
   username?: string;
   password?: string;
-  mainStreamChannel: number;
-  subStreamChannel: number;
-  mainStreamEnabled: boolean;
-  subStreamEnabled: boolean;
-  snapshotChannel: number;
+  /** `null` ise sunucu markanın RTSP portunu yazar. */
   monitoringPort: number | null;
   pingIntervalSec: number;
   isMonitoringEnabled: boolean;
@@ -143,19 +114,11 @@ export function toCreateRequest(values: CameraFormValues, cabinetId: string): Ca
     cabinetId,
     name: values.name,
     description: orUndefined(values.description),
-    manufacturer: orUndefined(values.manufacturer),
+    brand: values.brand,
     model: orUndefined(values.model),
     ipAddress: values.ipAddress,
-    rtspPort: values.rtspPort,
-    httpPort: values.httpPort,
-    httpsPort: values.httpsPort,
     username: orUndefined(values.username),
     password: orUndefined(values.password),
-    mainStreamChannel: values.mainStreamChannel,
-    subStreamChannel: values.subStreamChannel,
-    mainStreamEnabled: values.mainStreamEnabled,
-    subStreamEnabled: values.subStreamEnabled,
-    snapshotChannel: values.snapshotChannel,
     monitoringPort: values.monitoringPort,
     pingIntervalSec: values.pingIntervalSec,
     isMonitoringEnabled: values.isMonitoringEnabled
@@ -190,19 +153,11 @@ export function toCameraForm(camera: CameraDto): CameraFormValues {
   return {
     name: camera.name,
     description: camera.description ?? '',
-    manufacturer: camera.manufacturer ?? '',
+    brand: camera.brand,
     model: camera.model ?? '',
     ipAddress: camera.ipAddress,
-    rtspPort: camera.rtspPort,
-    httpPort: camera.httpPort,
-    httpsPort: camera.httpsPort,
     username: camera.username ?? '',
     password: '',
-    mainStreamChannel: camera.mainStreamChannel,
-    subStreamChannel: camera.subStreamChannel,
-    mainStreamEnabled: camera.mainStreamEnabled,
-    subStreamEnabled: camera.subStreamEnabled,
-    snapshotChannel: camera.snapshotChannel,
     monitoringPort: camera.monitoringPort,
     pingIntervalSec: camera.pingIntervalSec,
     isMonitoringEnabled: camera.isMonitoringEnabled,

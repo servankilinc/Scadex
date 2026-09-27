@@ -235,19 +235,11 @@ classDiagram
         +Guid Id
         +Guid CabinetId
         +string Name
-        +string? Manufacturer
+        +CameraBrand Brand
         +string? Model
         +string IpAddress
-        +int RtspPort
-        +int HttpPort
-        +int? HttpsPort
         +string? Username
         +string? Password
-        +int MainStreamChannel
-        +int SubStreamChannel
-        +bool MainStreamEnabled
-        +bool SubStreamEnabled
-        +int SnapshotChannel
         +int? MonitoringPort
         +int? DeviceStatusId
         +DateTime? LastSeen
@@ -520,7 +512,9 @@ Hepsi `Backend/CabinetOs.Model/Entities/` altındadır. Audit alanları (`Create
 #### Monitoring
 
 **`Camera`** — `IMonitoredAsset` uygular.
-`Id` · `CabinetId` · `Name` · `Description?` · `Manufacturer?` · `Model?` · `IpAddress` · `RtspPort` · `HttpPort` · `HttpsPort?` · `Username?` · `Password?` · `MainStreamChannel` · `SubStreamChannel` · `MainStreamEnabled` · `SubStreamEnabled` · `SnapshotChannel` · `MonitoringPort?` · `DeviceStatusId?` · `LastSeen?` · `PingIntervalSec` · `IsMonitoringEnabled` · `LastConnectionError?` · `IsActive`.
+`Id` · `CabinetId` · `Name` · `Description?` · `Brand` · `Model?` · `IpAddress` · `Username?` · `Password?` · `MonitoringPort?` · `DeviceStatusId?` · `LastSeen?` · `PingIntervalSec` · `IsMonitoringEnabled` · `LastConnectionError?` · `IsActive`.
+
+> **Port, kanal ve akım bayrağı kolonu YOKTUR (2026-09-25).** `Brand` (`CameraBrand`, int) karşılık gelen `ICameraProtocolProfile`'ı seçer; RTSP yolu, RTSP portu (554), akım kanalları ve tali akım desteği oradan gelir. Kameraya yalnızca MediaMTX bağlanır; anlık görüntü ve klip de onun canlı yolundan FFmpeg ile alınır (2026-09-25), marka API'si (ISAPI) kullanılmaz. `RtspPort`, `HttpPort`, `HttpsPort`, `Main/SubStreamChannel`, `Main/SubStreamEnabled`, `SnapshotChannel` ve serbest metin `Manufacturer` bu yüzden kaldırıldı — başka markada boş kalıyorlardı.
 
 > ⚠ **Parola düz metin saklanır ve okuma DTO'sunda düz metin döner** — kullanıcı kararı (kapalı ağ). Şifreleme katmanı bilinçle **yoktur**; bir `ICameraSecretProtector` bir tur var olup kullanıcı talimatıyla kaldırıldı, geri getirmeyin.
 > **RTSP URL'i hiçbir zaman tarayıcıya ulaşmaz** — bu ayrı bir kuraldır ve geçerlidir. URL kolon olarak da saklanmaz: `IpAddress`/port'u bir string içinde tekrarlar ve biri değiştiğinde sessizce ayrışırdı.
@@ -584,6 +578,7 @@ BackgroundVariant   None=0, Dots=1, Lines=2, Cross=3
 DeviceCommandType   SetOutput=1                                          (TEK ÜYE)
 CommandStatus       Sent=1, Succeeded=2, Failed=3, NoResponse=4                (0 YOK)
 StreamProfile       Main=1, Sub=2
+CameraBrand         Hikvision=1                                                (0 YOK)
 CaptureType         Snapshot=1, Clip=2
 CaptureStatus       Pending=1, Available=2, Failed=3                           (0 YOK)
 Permission          ViewDiagram=0, EditDiagram=1, ControlOutput=2, AcknowledgeAlarm=3,

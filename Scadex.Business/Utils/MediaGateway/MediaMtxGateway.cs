@@ -100,64 +100,6 @@ public class MediaMtxGateway : IMediaGateway
     }
 
     /// <inheritdoc/>
-    public async Task<Result> EnsureClipPathAsync(Camera camera, long captureId, string recordPath, string segmentDuration, CancellationToken cancellationToken = default)
-    {
-        var settings = await _mediaGatewaySettingService.GetSettingsAsync(cancellationToken);
-
-        // Video kaydı her zaman Main stream'den alinir:
-        var rtspUrl = _profileResolver.Resolve(camera).BuildRtspUrl(camera, StreamProfile.Main);
-
-        var payload = new Dictionary<string, object?>
-        {
-            ["source"] = rtspUrl,
-            // Talep BEKLENMEZ: kaydin hemen baslamasi gerekiyor, yoksa ilk izleyici gelene kadar hicbir sey yazilmaz.
-            ["sourceOnDemand"] = false,
-            ["rtspTransport"] = settings.RtspTransport,
-            ["record"] = true,
-            ["recordPath"] = recordPath,
-            // fmp4 -> tarayicinin dogrudan oynatabildigi .mp4 dosyasi.
-            ["recordFormat"] = "fmp4",
-            ["recordSegmentDuration"] = segmentDuration,
-            // Otomatik silme KAPALI: dosyayi biz tasiyacagiz. MediaMTX'in silmesi, tam da okumaya calistigimiz dosyayi kaybettirebilirdi.
-            ["recordDeleteAfter"] = "0s"
-        };
-
-        var pathName = IMediaGateway.ClipPathName(captureId);
-
-        var httpClient = CreateConfiguredClient(settings);
-
-        try
-        {
-            // Video kaydı path'i doğrudan yazilir, Ad her cekimde benzersiz (clip_{captureId})
-            using var addResponse = await httpClient.PostAsJsonAsync($"v3/config/paths/add/{pathName}", payload, cancellationToken);
-            if (addResponse.IsSuccessStatusCode)
-                return Result.Success();
-
-            string addError = await ReadErrorAsync(addResponse, cancellationToken);
-
-            if (!addError.Contains("already exists", StringComparison.OrdinalIgnoreCase))
-                return Result.Failure(description: $"Medya geçidi yolu oluşturulamadı: {addError}");
-
-            return await ControlApiPathRequestAsync(httpClient, "replace", pathName, payload, cancellationToken);
-        }
-        catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
-        {
-            _logger.LogError("Medya gecidi {Timeout} sn icinde yanit vermedi ({BaseAddress})", httpClient.Timeout.TotalSeconds, httpClient.BaseAddress);
-            return Result.Failure(description: "Medya geçidi yanıt vermiyor.");
-        }
-        catch (HttpRequestException exception)
-        {
-            _logger.LogError(exception, "Medya gecidine ulasilamadi ({BaseAddress})", httpClient.BaseAddress);
-            return Result.Failure(description: "Medya geçidine ulaşılamıyor. MediaMTX çalışmıyor olabilir.");
-        }
-        catch (Exception exception) when (exception is not OperationCanceledException)
-        {
-            _logger.LogError(exception, "Medya gecidi yolu yazilirken beklenmeyen hata: {PathName}", pathName);
-            return Result.Failure(description: "Medya geçidi yapılandırılamadı.");
-        }
-    }
-
-    /// <inheritdoc/>
     public async Task<Result> DeletePathAsync(string pathName, CancellationToken cancellationToken = default)
     {
         var httpClient = CreateConfiguredClient(await _mediaGatewaySettingService.GetSettingsAsync(cancellationToken));

@@ -193,13 +193,11 @@ export function CameraViewer({ camera, showClipAndHistory = true }: { camera: Ca
               <Button
                 variant='secondary'
                 onClick={() => createCapture.mutate({ type: CaptureType.Clip, durationSec: clipSeconds })}
-                disabled={isBusy || !camera.isActive || !camera.mainStreamEnabled}
+                disabled={isBusy || !camera.isActive}
               >
                 <FilmIcon />
                 {isBusy ? 'Başlatılıyor…' : 'Klip çek'}
               </Button>
-
-              {!camera.mainStreamEnabled && <p className='text-xs text-destructive'>Klip ana akımdan alınır; bu kamerada ana akım kapalı.</p>}
             </CardContent>
           </Card>
 
