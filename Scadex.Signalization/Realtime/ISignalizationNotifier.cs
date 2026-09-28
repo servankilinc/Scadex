@@ -14,4 +14,7 @@ public interface ISignalizationNotifier
 
     /// <summary> Bir kapinin anahtari degisti. Kanal degeri cekirdekte YAZILDIKTAN sonra cagrilir. </summary>
     Task SignalDoorSwitchChangedAsync(SignalDoorSwitchChangedMessage message, CancellationToken cancellationToken = default);
+
+    /// <summary> Kart okutuldu ve motor sonucu belirledi. Kabul edilen okumada olay satiri YAZILDIKTAN sonra cagrilir. </summary>
+    Task SignalCardPresentedAsync(SignalCardPresentedMessage message, CancellationToken cancellationToken = default);
 }

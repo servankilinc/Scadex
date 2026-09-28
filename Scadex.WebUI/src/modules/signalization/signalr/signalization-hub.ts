@@ -7,6 +7,7 @@ import {
   SignalizationHubMethods,
   type OperatorSessionChangedMessage,
   type SignalCabinetStateChangedMessage,
+  type SignalCardPresentedMessage,
   type SignalDoorSwitchChangedMessage
 } from '../models/realtime';
 
@@ -37,6 +38,7 @@ export interface SessionHubHandlers {
 export interface CabinetStateHubHandlers {
   onCabinetStateChanged: (message: SignalCabinetStateChangedMessage) => void;
   onDoorSwitchChanged: (message: SignalDoorSwitchChangedMessage) => void;
+  onCardPresented: (message: SignalCardPresentedMessage) => void;
 }
 
 /** Son abone ayrıldıktan sonra kapanış gecikmesi — `<StrictMode>` çift effect'inde kapanıp hemen yeniden açılmasın. */
@@ -112,6 +114,11 @@ function build(): HubConnection {
   built.on(SignalizationHubEvents.signalDoorSwitchChanged, (message: SignalDoorSwitchChangedMessage) => {
     const handlers = cabinetHandlers.get(message.cabinetId);
     if (handlers) for (const handler of handlers) handler.onDoorSwitchChanged(message);
+  });
+
+  built.on(SignalizationHubEvents.signalCardPresented, (message: SignalCardPresentedMessage) => {
+    const handlers = cabinetHandlers.get(message.cabinetId);
+    if (handlers) for (const handler of handlers) handler.onCardPresented(message);
   });
 
   built.onreconnecting(() => setStatus('reconnecting'));
@@ -235,7 +242,8 @@ export function subscribeToSessions(handlers: SessionHubHandlers): () => void {
 }
 
 /**
- * TEK kabinin durum değişikliklerine (siren / aydınlatma / kilit / kapı anahtarları) abone olur. Dönen fonksiyon aboneliği bırakır.
+ * TEK kabinin durum değişikliklerine (siren / aydınlatma / kilit / kapı anahtarları / kart okumaları) abone olur. Dönen fonksiyon
+ * aboneliği bırakır.
  *
  * Aynı kabine birden fazla abone güvenlidir: sunucuya yalnızca ilk abone için `SubscribeCabinet`, sonuncusu gidince
  * `UnsubscribeCabinet` gider.

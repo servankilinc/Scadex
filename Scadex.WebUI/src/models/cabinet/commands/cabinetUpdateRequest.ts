@@ -21,4 +21,9 @@ export interface CabinetUpdateRequest {
   scadaIsEnabled: boolean;
   /** Kabin `IActivatableEntity` — silme yok, pasife alma var ve geri alınabilir. */
   isActive: boolean;
+  /**
+   * Okumada `deviceStatusId === Maintenance`. Açıkken kabin durumu yapışkan "Bakımda"dır; cihazlardan hesaplanmaz.
+   * Sunucu bunu ayrı bir kolonda değil `Cabinet.DeviceStatusId`'de tutar (`ICabinetStatusService.SetMaintenanceAsync`).
+   */
+  isUnderMaintenance: boolean;
 }

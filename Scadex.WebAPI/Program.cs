@@ -2,6 +2,8 @@ using FluentValidation;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.StaticFiles;
+using Microsoft.Extensions.FileProviders;
 using Microsoft.IdentityModel.Tokens;
 using Scadex.Business;
 using Scadex.Business.Mappings;
@@ -303,6 +305,28 @@ app.UseStaticFiles();
 app.UseHttpsRedirection();
 
 app.UseCors("policy_cors");
+
+#region MapTiles
+// basemap.pmtiles  Yukarıdaki UseStaticFiles'tan ayrı ve CORS'tan SONRA: tarayıcı dosyayı başka origin'den fetch + Range ile okur,
+// CORS başlığı olmadan okuyamaz. Kimlik doğrulamasız ve rate limit dışı.
+string basemapDirectory = Path.GetFullPath(Path.Combine(app.Environment.ContentRootPath, app.Configuration["Basemap:Directory"] ?? "MapTiles"));
+if (Directory.Exists(basemapDirectory))
+{
+    var basemapContentTypes = new FileExtensionContentTypeProvider();
+    basemapContentTypes.Mappings[".pmtiles"] = "application/vnd.pmtiles";
+    basemapContentTypes.Mappings[".pbf"] = "application/x-protobuf";
+    app.UseStaticFiles(new StaticFileOptions
+    {
+        FileProvider = new PhysicalFileProvider(basemapDirectory),
+        RequestPath = "/basemap",
+        ContentTypeProvider = basemapContentTypes
+    });
+}
+else
+{
+    app.Logger.LogWarning("Map tiles klasörü bulunamadı: {BasemapDirectory} — harita zemini boş görünecek.", basemapDirectory);
+}
+#endregion
 
 app.UseAuthentication();
 

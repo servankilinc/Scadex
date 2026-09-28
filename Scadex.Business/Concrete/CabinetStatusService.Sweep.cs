@@ -82,7 +82,8 @@ public partial class CabinetStatusService
     {
         var cabinets = await _unitOfWork.Cabinets.GetAllAsync(
             select: c => new { c.Id, c.DeviceStatusId },
-            where: c => c.IsActive,
+            // Bakimdaki kabin, uzlastirmaya girmez
+            where: c => c.IsActive && c.DeviceStatusId != (int)DeviceStatus.Maintenance,
             cancellationToken: cancellationToken
         ) ?? [];
         if (cabinets.Count == 0)

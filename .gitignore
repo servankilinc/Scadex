@@ -389,3 +389,6 @@ FodyWeavers.xsd
 
 # Harici medya araclari (FFmpeg vb.): exe'ler GitHub'in 100 MiB sinirini asiyor, her kuruluma elle konur.
 Scadex.WebAPI/MediaTools/ffmpeg
+
+# Harita altligi (basemap.pmtiles + font + sprite): pmtiles GitHub'in 100 MiB sinirini asiyor, her kuruluma elle konur.
+Scadex.WebAPI/MapTiles/

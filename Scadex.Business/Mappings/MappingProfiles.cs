@@ -115,7 +115,9 @@ public class MappingProfiles : Profile
             .ForMember(dest => dest.ScadaCommandTimeoutMs, opt => opt.MapFrom(src => src.ScadaCommandTimeoutMs))
             .ForMember(dest => dest.ScadaIsEnabled, opt => opt.MapFrom(src => src.ScadaIsEnabled))
             .ForMember(dest => dest.IsActive, opt => opt.MapFrom(src => src.IsActive))
-            .ReverseMap();
+            // `IsUnderMaintenance` bilerek eşlenmez: kabin durumunu yalnızca `ICabinetStatusService.SetMaintenanceAsync` yazar.
+            .ReverseMap()
+            .ForMember(dest => dest.IsUnderMaintenance, opt => opt.MapFrom(src => src.DeviceStatusId == (int)Scadex.Model.Enums.EntityEnums.DeviceStatus.Maintenance));
         #endregion
 
         #region User

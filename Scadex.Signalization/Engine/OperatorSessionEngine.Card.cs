@@ -4,6 +4,7 @@ using Scadex.Model.Dtos.Scada.Events;
 using Scadex.Signalization.Enums;
 using Scadex.Signalization.Model.Entities;
 using Scadex.Signalization.Model.Utils;
+using Scadex.Signalization.Realtime;
 using static Scadex.Signalization.Enums.SignalEnums;
 
 namespace Scadex.Signalization.Engine;
@@ -78,6 +79,12 @@ public partial class OperatorSessionEngine
             cardIdRaw: card.CardIdRaw,
             detail: implicitSessionDetail
         );
+
+        // Okuma, kilit komutunu (SCADA zaman aşımı kadar sürebilir) beklemeden kalıcı olur ve sanal kabine duyurulur: ekranın
+        // "son okumalar" listesi yayını alınca yeniden çeker, satır o an yazılmış olmalı. Yeni oturum burada Id alır; adım 8'in
+        // sorgusu yine false döner (oturumun henüz InnerOpened olayı yok), davranış değişmez.
+        await _db.SaveChangesAsync(cancellationToken);
+        await _notifier.SignalCardPresentedAsync(new SignalCardPresentedMessage(cabinet.CabinetId, IsAccepted: true, card.OccurredAtUtc), cancellationToken);
 
         // 6) İç kapı kilidinin durumu kilit kanalından okunur ("bilinmiyor" kilitli muamelesi görür).
         var lockState = await _signalizationChannelState.GetLockStateAsync(innerDoor, cancellationToken);
@@ -189,6 +196,9 @@ public partial class OperatorSessionEngine
         if (session == null)
         {
             _logger.LogWarning("Kabin {CabinetId}: kart {CardId} reddedildi ({Reason}) ve acik oturum yok; yalnizca loglandi.", cabinet.CabinetId, card.CardIdRaw, reason);
+
+            // Kayit yok ama okuma oldu: okuyucu efekti yine oynar (ekranin "son okumalar" listesinde gorunmez).
+            await _notifier.SignalCardPresentedAsync(new SignalCardPresentedMessage(cabinet.CabinetId, IsAccepted: false, card.OccurredAtUtc), cancellationToken);
             return;
         }
 
@@ -202,7 +212,8 @@ public partial class OperatorSessionEngine
             detail: reason
         );
         await _db.SaveChangesAsync(cancellationToken);
-
+        await _notifier.SignalCardPresentedAsync(new SignalCardPresentedMessage(cabinet.CabinetId, IsAccepted: false, card.OccurredAtUtc), cancellationToken);
+        
         // Reddedilen kart hangi ic kapiya aitti cozulemedi; kamera dis kapidan (session.OuterDoorId) gelir.
         var cameraId = await _db.OuterDoors.AsNoTracking()
             .Where(o => o.Id == session.OuterDoorId)

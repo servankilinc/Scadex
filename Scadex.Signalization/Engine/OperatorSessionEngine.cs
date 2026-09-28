@@ -7,6 +7,7 @@ using Scadex.Model.Dtos.DeviceCommand.Commands;
 using Scadex.Signalization.DataAccess;
 using Scadex.Signalization.Model.Entities;
 using Scadex.Signalization.Model.Utils;
+using Scadex.Signalization.Realtime;
 using Scadex.Signalization.Runtime;
 using Scadex.Signalization.Services.Abstract;
 using static Scadex.Model.Enums.EntityEnums;
@@ -23,8 +24,9 @@ public partial class OperatorSessionEngine
     private readonly EntrySnapshotQueue _snapshotQueue;
     private readonly ILogger<OperatorSessionEngine> _logger;
     private readonly ISignalChannelStateService _signalizationChannelState;
+    private readonly ISignalizationNotifier _notifier;
 
-    public OperatorSessionEngine(SignalizationDbContext db, IUnitOfWork unitOfWork, IDeviceCommandService commandService, IUserRoleService userRoleService, EntrySnapshotQueue snapshotQueue, ILogger<OperatorSessionEngine> logger, ISignalChannelStateService signalizationChannelState)
+    public OperatorSessionEngine(SignalizationDbContext db, IUnitOfWork unitOfWork, IDeviceCommandService commandService, IUserRoleService userRoleService, EntrySnapshotQueue snapshotQueue, ILogger<OperatorSessionEngine> logger, ISignalChannelStateService signalizationChannelState, ISignalizationNotifier notifier)
     {
         _db = db;
         _unitOfWork = unitOfWork;
@@ -33,6 +35,7 @@ public partial class OperatorSessionEngine
         _snapshotQueue = snapshotQueue;
         _logger = logger;
         _signalizationChannelState = signalizationChannelState;
+        _notifier = notifier;
     }
 
     public async Task HandleAsync(SignalWorkItem item, CancellationToken cancellationToken)

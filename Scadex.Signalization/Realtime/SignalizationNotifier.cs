@@ -50,4 +50,16 @@ public class SignalizationNotifier : ISignalizationNotifier
             _logger.LogWarning(exception, "Canli yayin basarisiz: SignalDoorSwitchChangedAsync, kabin {CabinetId}, kapi {DoorId}", message.CabinetId, message.DoorId);
         }
     }
+
+    public async Task SignalCardPresentedAsync(SignalCardPresentedMessage message, CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            await _hub.Clients.Group(SignalizationHub.CabinetGroupName(message.CabinetId)).SignalCardPresented(message);
+        }
+        catch (Exception exception)
+        {
+            _logger.LogWarning(exception, "Canli yayin basarisiz: SignalCardPresentedAsync, kabin {CabinetId}", message.CabinetId);
+        }
+    }
 }

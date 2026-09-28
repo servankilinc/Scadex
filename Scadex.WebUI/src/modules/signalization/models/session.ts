@@ -98,6 +98,29 @@ export interface OperatorSessionEventDto {
   detail: string | null;
 }
 
+/**
+ * Kabinin kart okuyucusundaki tek okuma — sanal kabinin "son okumalar" listesi. `CardPresented` / `AccessDenied` olaylarından
+ * türetilir; açık oturum yokken reddedilen kart olay olarak yazılmadığı için listede görünmez.
+ */
+export interface SignalCardReadDto {
+  /** Olayın kimliği (IDENTITY — `number`). */
+  id: number;
+  sessionId: number;
+  occurredAtUtc: string;
+  cardIdRaw: string | null;
+  /** `false` = reddedildi; gerekçe `detail`'dedir. */
+  isAccepted: boolean;
+  /** Tanımsız kartta `null`. */
+  userId: string | null;
+  userFullName: string | null;
+  /** Yalnızca kabul edilen okumada. */
+  authorityName: string | null;
+  /** Yalnızca kabul edilen okumada: kartın açtığı / kilitlediği iç kapı. */
+  innerDoorName: string | null;
+  /** Anahtar (`UnknownCard`) ya da `Anahtar: mesaj` — `formatEventDetail` çevirir. */
+  detail: string | null;
+}
+
 /** İç kapının oturumdaki özeti — olaylardan türetilir. */
 export interface OperatorSessionDoorDto {
   innerDoorId: string;

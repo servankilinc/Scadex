@@ -28,6 +28,8 @@
     <!-- FFmpeg ve MediaMTX ContentRootPath altindan calistirilir (MediaGateway:FfmpegPath / MediaMtxPath): gelistirmede proje klasorunden okunur, bin'e kopyalanmaz; yalnizca publish ciktisina girer. -->
     <None Update="MediaTools\ffmpeg\*" CopyToPublishDirectory="PreserveNewest" />
     <None Update="MediaTools\mediamtx\*" CopyToPublishDirectory="PreserveNewest" />
+    <!-- Map Tile, /basemap altindan publish edilir. -->
+    <None Update="MapTiles\**\*" CopyToPublishDirectory="PreserveNewest" />
   </ItemGroup>
 
 </Project>

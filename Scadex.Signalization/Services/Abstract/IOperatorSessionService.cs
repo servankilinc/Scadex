@@ -15,4 +15,7 @@ public interface IOperatorSessionService
     Task<Result<OperatorSessionDetailDto>> GetDetailAsync(long sessionId, CancellationToken cancellationToken = default);
 
     Task<Result<OperatorSessionSummaryDto>> GetSummaryAsync(OperatorSessionSummaryRequest request, CancellationToken cancellationToken = default);
+
+    /// <summary> Kabinin kart okuyucusundaki son okumalar (en yenisi basta). </summary>
+    Task<Result<ICollection<SignalCardReadDto>>> GetRecentCardReadsAsync(Guid cabinetId, CancellationToken cancellationToken = default);
 }

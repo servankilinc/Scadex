@@ -13,6 +13,7 @@ using Scadex.Model.Dtos.Cabinet.Queries;
 using Scadex.Model.Dtos.Common;
 using Scadex.Model.Entities;
 using System.Linq.Expressions;
+using DeviceStatus = Scadex.Model.Enums.EntityEnums.DeviceStatus;
 
 namespace Scadex.Business.Concrete;
 
@@ -21,11 +22,13 @@ public class CabinetService : ICabinetService
     private readonly IUnitOfWork _unitOfWork;
     private readonly IValidationService _validationService;
     private readonly IMapper _mapper;
-    public CabinetService(IUnitOfWork unitOfWork, IValidationService validationService, IMapper mapper)
+    private readonly ICabinetStatusService _cabinetStatusService;
+    public CabinetService(IUnitOfWork unitOfWork, IValidationService validationService, IMapper mapper, ICabinetStatusService cabinetStatusService)
     {
         _unitOfWork = unitOfWork;
         _validationService = validationService;
         _mapper = mapper;
+        _cabinetStatusService = cabinetStatusService;
     }
 
     #region Get
@@ -136,7 +139,12 @@ public class CabinetService : ICabinetService
         var entity = await _unitOfWork.Cabinets.GetAsync(where: (f) => f.Id == request.Id, cancellationToken: cancellationToken);
         if (entity == null)
             return Result.NotFound();
+        bool wasUnderMaintenance = entity.DeviceStatusId == (int)DeviceStatus.Maintenance;
         await _unitOfWork.Cabinets.UpdateAndSaveAsync(_mapper.Map(request, entity), cancellationToken);
+
+        // Kabin durumu yalnizca durum servisi uzerinden yazılır ve degişen durum oradan signalR ile yayınlanır
+        if (request.IsUnderMaintenance != wasUnderMaintenance)
+            await _cabinetStatusService.SetMaintenanceAsync(request.Id, request.IsUnderMaintenance, cancellationToken);
         return Result.Success();
     }
     #endregion

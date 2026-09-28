@@ -17,6 +17,10 @@ export const signalizationKeys = {
   cabinetOptions: (cabinetId: string) => [...root, 'cabinet-options', cabinetId] as const,
   /** Sanal kabin ekranının okuması: kabinin o anki durumu. Yoklanmaz — canlı yayın invalidate eder. */
   cabinetLive: (cabinetId: string) => [...root, 'cabinet-live', cabinetId] as const,
+  /** Sanal kabinin kart okuyucusu: son okumalar. Yoklanmaz — `SignalCardPresented` yayını invalidate eder. */
+  cabinetCardReads: (cabinetId: string) => [...root, 'cabinet-card-reads', cabinetId] as const,
+  /** Sanal kabinin çizimi (`cabinet-inside.svg` metni). Paketlenmiş asset'tir, oturum boyunca değişmez. */
+  cabinetArtwork: () => [...root, 'cabinet-artwork'] as const,
 
   sessions: () => [...root, 'session'] as const,
   /** Canlı panel. Uyarı yoklayıcısı ve oturum ekranı AYNI anahtarı paylaşır (tüm kabinler). */

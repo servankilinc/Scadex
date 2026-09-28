@@ -1,9 +1,9 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { toApiError } from '@/lib/axios-helper';
 import { CommandStatus, CommandStatusLabels } from '@/models/enums';
-import { getSignalCabinetLive, sendSignalCabinetCommand } from '../api/signalization';
+import { getCabinetCardReads, getSignalCabinetLive, sendSignalCabinetCommand } from '../api/signalization';
 import { signalizationKeys } from '../api/query-keys';
 import { SignalDoorKind, type SignalCabinetStateChangedMessage, type SignalDoorSwitchChangedMessage } from '../models/realtime';
 import { subscribeToCabinetState, useSignalizationHubStatus } from '../signalr/signalization-hub';
@@ -18,6 +18,18 @@ export function useSignalCabinetLive(cabinetId: string) {
     queryKey: signalizationKeys.cabinetLive(cabinetId),
     queryFn: () => getSignalCabinetLive(cabinetId),
     enabled: Boolean(cabinetId)
+  });
+}
+
+/**
+ * Kart okuyucunun son okumaları. Yalnızca liste açıkken çekilir (`enabled`); **yoklanmaz** — her okumada
+ * `useVirtualCabinetLive` anahtarı invalidate eder, açık liste kendiliğinden tazelenir.
+ */
+export function useCabinetCardReads(cabinetId: string, enabled: boolean) {
+  return useQuery({
+    queryKey: signalizationKeys.cabinetCardReads(cabinetId),
+    queryFn: () => getCabinetCardReads(cabinetId),
+    enabled: enabled && Boolean(cabinetId)
   });
 }
 
@@ -58,22 +70,40 @@ export function useSignalCabinetCommand(cabinetId: string) {
  * bağlanılmaz: sunucu çekirdeğin kanal değişimlerini (`IScadaEventObserver`) kapı/siren/aydınlatma/kilide eşleyip anlamlı
  * olaylar olarak yayınlar.
  *
- * Her iki olay da VERİYİ taşır; önbellekteki ilgili alan `setQueryData` ile yamalanır, HTTP isteği atılmaz.
+ * Durum olayları VERİYİ taşır; önbellekteki ilgili alan `setQueryData` ile yamalanır, HTTP isteği atılmaz.
+ *
+ * Kart okuması ise bildirimdir: son okumalar anahtarı invalidate edilir ve okuyucu efekti için geçici bir durum döner
+ * (`CARD_FLASH_MS` sonra `null`). Her okuma yeni bir `key` üretir — üst üste gelen okumada efekt baştan başlar.
  *
  * Yeniden bağlanmada (ilk bağlantı hariç) tazeleme yapılır: kopukluk sırasında kaçan olayların tek telafisi budur.
  */
-export function useVirtualCabinetLive(cabinetId: string): void {
+export function useVirtualCabinetLive(cabinetId: string): CardFlash | null {
   const queryClient = useQueryClient();
   const status = useSignalizationHubStatus();
   const hasConnectedBefore = useRef(false);
+  const [cardFlash, setCardFlash] = useState<(CardFlash & { cabinetId: string }) | null>(null);
 
   useEffect(() => {
     if (!cabinetId) return;
 
-    return subscribeToCabinetState(cabinetId, {
+    let flashTimer: number | undefined;
+
+    const unsubscribe = subscribeToCabinetState(cabinetId, {
       onCabinetStateChanged: message => patchCabinetLive(queryClient, cabinetId, live => applyStateChanged(live, message)),
-      onDoorSwitchChanged: message => patchCabinetLive(queryClient, cabinetId, live => applyDoorSwitchChanged(live, message))
+      onDoorSwitchChanged: message => patchCabinetLive(queryClient, cabinetId, live => applyDoorSwitchChanged(live, message)),
+      onCardPresented: message => {
+        void queryClient.invalidateQueries({ queryKey: signalizationKeys.cabinetCardReads(cabinetId) });
+
+        window.clearTimeout(flashTimer);
+        setCardFlash({ cabinetId, isAccepted: message.isAccepted, key: Date.now() });
+        flashTimer = window.setTimeout(() => setCardFlash(null), CARD_FLASH_MS);
+      }
     });
+
+    return () => {
+      window.clearTimeout(flashTimer);
+      unsubscribe();
+    };
   }, [cabinetId, queryClient]);
 
   // İLK bağlantıda tazeleme YAPILMAZ — sorgu zaten yeni çekildi. Sonraki her "connected" bir YENİDEN bağlanmadır ve aradaki
@@ -87,7 +117,20 @@ export function useVirtualCabinetLive(cabinetId: string): void {
     }
 
     void queryClient.invalidateQueries({ queryKey: signalizationKeys.cabinetLive(cabinetId) });
+    void queryClient.invalidateQueries({ queryKey: signalizationKeys.cabinetCardReads(cabinetId) });
   }, [status, cabinetId, queryClient]);
+
+  // Kabin değişince önceki kabinin efekti taşınmaz (zamanlayıcısı aboneliğiyle birlikte temizlendi).
+  return cardFlash?.cabinetId === cabinetId ? cardFlash : null;
+}
+
+/** Kart okuyucu efektinin süresi. */
+export const CARD_FLASH_MS = 3000;
+
+/** Son kart okumasının sonucu — okuyucu efekti. `key` her okumada değişir. */
+export interface CardFlash {
+  isAccepted: boolean;
+  key: number;
 }
 
 // ------------------------------------------------------------------ önbellek yamaları

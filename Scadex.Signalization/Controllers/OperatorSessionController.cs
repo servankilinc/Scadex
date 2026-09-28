@@ -40,4 +40,12 @@ public class OperatorSessionController : SignalizationControllerBase
         var result = await _service.GetSummaryAsync(request, cancellationToken);
         return ToAction(result);
     }
+
+    /// <summary> Kabinin son kart okumalari. </summary>
+    [HttpGet("cabinet/{cabinetId:guid}/card-reads")]
+    public async Task<IActionResult> GetRecentCardReads(Guid cabinetId, CancellationToken cancellationToken)
+    {
+        var result = await _service.GetRecentCardReadsAsync(cabinetId, cancellationToken);
+        return ToAction(result);
+    }
 }

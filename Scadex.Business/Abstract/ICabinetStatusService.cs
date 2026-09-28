@@ -19,8 +19,11 @@ public interface ICabinetStatusService
     /// <summary> SCADA'ya ulaşılamadığında kabinin scada kontrol kartı <c>Offline</c>'a çekilir  </summary>
     Task RecordScadaUnreachableAsync(Guid cabinetId, string? error, CancellationToken cancellationToken = default);
 
-    /// <summary> Kabin durumunu yeniden hesaplar; değiştiyse yazar ve yayınlar (örn. kamera durumu değişince). </summary>
+    /// <summary> Kabin durumunu yeniden hesaplar; değiştiyse yazar ve yayınlar (örn. kamera durumu değişince). Bakımdaki kabine dokunmaz. </summary>
     Task RecalculateAsync(Guid cabinetId, CancellationToken cancellationToken = default);
+
+    /// <summary> Kabini bakıma alır (<c>DeviceStatusId = Maintenance</c>) ya da bakımdan çıkarır. </summary>
+    Task SetMaintenanceAsync(Guid cabinetId, bool underMaintenance, CancellationToken cancellationToken = default);
 
     /// <summary>
     /// 1) izlemesi kapalı cihazların durumunu → <c>null</c> (bilinmiyor) yapar.

@@ -1,13 +1,26 @@
 import { useState, type ReactNode } from 'react';
 import { Link, useParams } from 'react-router';
-import { ArrowLeftIcon, CameraIcon, DoorClosedIcon, DoorOpenIcon, HelpCircleIcon, LightbulbIcon, LockIcon, LockOpenIcon, SirenIcon } from 'lucide-react';
+import {
+  ArrowLeftIcon,
+  CameraIcon,
+  CreditCardIcon,
+  DoorClosedIcon,
+  DoorOpenIcon,
+  HelpCircleIcon,
+  LightbulbIcon,
+  LockIcon,
+  LockOpenIcon,
+  SirenIcon
+} from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { CameraViewerDialog } from '@/components/camera/camera-viewer-dialog';
 import { Skeleton } from '@/components/ui/skeleton';
 import { cn, formatUtcDateTime, toUtcDate } from '@/lib/utils';
-import { CabinetShell } from '../../components/virtual-cabinet/cabinet-shell';
+import { CabinetArtwork } from '../../components/virtual-cabinet/cabinet-artwork';
 import { CameraFigure } from '../../components/virtual-cabinet/camera-figure';
+import { CardReaderFigure } from '../../components/virtual-cabinet/card-reader-figure';
+import { CardReadsDialog } from '../../components/virtual-cabinet/card-reads-dialog';
 import { CommandDialog, type CommandTarget } from '../../components/virtual-cabinet/command-dialog';
 import { IndoorGrid } from '../../components/virtual-cabinet/indoor-grid';
 import { LedFigure } from '../../components/virtual-cabinet/led-figure';
@@ -33,13 +46,14 @@ export default function VirtualCabinetDetail() {
   const { cabinetId = '', outerDoorId = '' } = useParams<{ cabinetId: string; outerDoorId: string }>();
 
   const { data, isPending, error } = useSignalCabinetLive(cabinetId);
-  useVirtualCabinetLive(cabinetId);
+  const cardFlash = useVirtualCabinetLive(cabinetId);
   const command = useSignalCabinetCommand(cabinetId);
 
   const [target, setTarget] = useState<CommandTarget | null>(null);
   // Kameraya kabin ekranından tıklanınca `/cameras/:id`'ye gitmek yerine burada bir diyalog
   // açılır — operatör bu kabin görünümünden ayrılmadan izler, gride "dönmesi" gerekmez.
   const [activeCameraId, setActiveCameraId] = useState<string | null>(null);
+  const [cardReadsOpen, setCardReadsOpen] = useState(false);
 
   const outer = data?.outerDoors.find(door => door.id === outerDoorId);
 
@@ -137,13 +151,13 @@ export default function VirtualCabinetDetail() {
 
       <div className='flex flex-col gap-4 lg:flex-row'>
         <div className='mx-auto aspect-square w-full max-w-[min(100%,calc(100vh-14rem))] lg:mx-0'>
-          <CabinetShell
-            className='h-full w-full'
-            camera={<CameraFigure cameraName={outer.cameraName} onOpen={outer.cameraId ? () => setActiveCameraId(outer.cameraId) : undefined} />}
-            led={<LedFigure isOn={outer.lightIsOn === true} onActivate={outer.lightIoChannelId ? selectLight : undefined} />}
-            siren={<SirenFigure isOn={data.sirenIsOn === true} onActivate={data.sirenIoChannelId ? selectSiren : undefined} />}
-            indoors={<IndoorGrid doors={outer.innerDoors} onSelect={selectInnerDoor} />}
-          />
+          <CabinetArtwork className='h-full w-full'>
+            <CameraFigure cameraName={outer.cameraName} onOpen={outer.cameraId ? () => setActiveCameraId(outer.cameraId) : undefined} />
+            <LedFigure isOn={outer.lightIsOn === true} onActivate={outer.lightIoChannelId ? selectLight : undefined} />
+            <SirenFigure isOn={data.sirenIsOn === true} onActivate={data.sirenIoChannelId ? selectSiren : undefined} />
+            <IndoorGrid doors={outer.innerDoors} onSelect={selectInnerDoor} />
+            <CardReaderFigure flash={cardFlash} onActivate={() => setCardReadsOpen(true)} />
+          </CabinetArtwork>
         </div>
 
         <aside className='flex w-full shrink-0 flex-col gap-3 lg:w-80'>
@@ -177,6 +191,18 @@ export default function VirtualCabinetDetail() {
             }
           />
 
+          <StateRow
+            icon={<CreditCardIcon className={cn('size-4', cardFlash && (cardFlash.isAccepted ? 'text-emerald-600' : 'text-destructive'))} />}
+            title='Kart okuyucu'
+            value={cardFlash ? (cardFlash.isAccepted ? 'Kart kabul edildi' : 'Kart reddedildi') : 'Bekliyor'}
+            emphasize={cardFlash?.isAccepted === false}
+            action={
+              <Button size='xs' variant='outline' onClick={() => setCardReadsOpen(true)}>
+                Son okumalar
+              </Button>
+            }
+          />
+
           <div className='space-y-2'>
             <p className='text-xs font-medium tracking-wide text-muted-foreground uppercase'>İç kapılar</p>
             {outer.innerDoors.length === 0 ? (
@@ -190,6 +216,7 @@ export default function VirtualCabinetDetail() {
 
       <CommandDialog target={target} isPending={command.isPending} onClose={() => setTarget(null)} onSend={send} />
       <CameraViewerDialog cameraId={activeCameraId} onOpenChange={open => setActiveCameraId(open ? activeCameraId : null)} />
+      <CardReadsDialog cabinetId={cabinetId} open={cardReadsOpen} onOpenChange={setCardReadsOpen} />
     </div>
   );
 }

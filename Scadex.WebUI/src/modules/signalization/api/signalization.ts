@@ -16,7 +16,8 @@ import type {
   OperatorSessionOpenDto,
   OperatorSessionQueryRequest,
   OperatorSessionSummaryDto,
-  OperatorSessionSummaryRequest
+  OperatorSessionSummaryRequest,
+  SignalCardReadDto
 } from '../models/session';
 
 const AUTHORITY_ROUTE = '/api/SignalAuthority';
@@ -98,4 +99,9 @@ export async function getSessionDetail(id: number): Promise<OperatorSessionDetai
 
 export async function getSessionSummary(request: OperatorSessionSummaryRequest): Promise<OperatorSessionSummaryDto> {
   return http.post<OperatorSessionSummaryDto>(`${SESSION_ROUTE}/summary`, request);
+}
+
+/** Kabinin kart okuyucusundaki son okumalar (en yenisi başta) — sanal kabin ekranı. */
+export async function getCabinetCardReads(cabinetId: string): Promise<SignalCardReadDto[]> {
+  return http.get<SignalCardReadDto[]>(`${SESSION_ROUTE}/cabinet/${cabinetId}/card-reads`);
 }

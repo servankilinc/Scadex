@@ -105,8 +105,40 @@ public partial class CabinetStatusService : ICabinetStatusService
     public async Task RecalculateAsync(Guid cabinetId, CancellationToken cancellationToken = default)
     {
         var cabinet = await _unitOfWork.Cabinets.GetAsync(where: c => c.Id == cabinetId && c.IsActive, tracking: true, cancellationToken: cancellationToken);
+        // Bakim yapiskandir: yalnizca SetMaintenanceAsync kaldirir.
+        if (cabinet == null || cabinet.DeviceStatusId == (int)DeviceStatus.Maintenance)
+            return;
+
+        await ApplyCalculatedStatusAsync(cabinet, cancellationToken);
+    }
+
+    /// <inheritdoc />
+    public async Task SetMaintenanceAsync(Guid cabinetId, bool underMaintenance, CancellationToken cancellationToken = default)
+    {
+        var cabinet = await _unitOfWork.Cabinets.GetAsync(where: c => c.Id == cabinetId && c.IsActive, tracking: true, cancellationToken: cancellationToken);
         if (cabinet == null)
             return;
+
+        bool isUnderMaintenance = cabinet.DeviceStatusId == (int)DeviceStatus.Maintenance;
+        if (isUnderMaintenance == underMaintenance)
+            return;
+
+        if (!underMaintenance)
+        {
+            // Bakimdan cikis: durum canliliktan yeniden hesaplanir (hesaplama Maintenance uretmez, deger mutlaka degisir).
+            await ApplyCalculatedStatusAsync(cabinet, cancellationToken);
+            return;
+        }
+
+        cabinet.DeviceStatusId = (int)DeviceStatus.Maintenance;
+        await _unitOfWork.SaveChangesAsync(cancellationToken);
+        await PublishCabinetChangeAsync(cabinet, cancellationToken);
+    }
+
+    /// <summary> Kabin durumunu cihaz/kamera katkilarindan hesaplar; farkliysa yazar ve yayinlar. <paramref name="cabinet"/> takipli olmali. </summary>
+    private async Task ApplyCalculatedStatusAsync(Cabinet cabinet, CancellationToken cancellationToken)
+    {
+        Guid cabinetId = cabinet.Id;
 
         // Secimli okuma takipsizdir ve VERITABANINI okur: cagiran degisikliklerini bundan once kaydetmis olmali.
         var deviceStatuses = await _unitOfWork.Devices.GetAllAsync(
@@ -190,6 +222,9 @@ public partial class CabinetStatusService : ICabinetStatusService
     /// <summary>
     /// Kabin durumu = cihaz katkilarinin (<see cref="CabinetContribution"/>) en kotusu; izlenen bir kamera Offline ise
     /// <c>Warning</c> katkisi. <see cref="RecalculateAsync"/> ve tarama uzlastirmasi AYNI kurali kullanir.
+    /// Hesaplama HICBIR ZAMAN <c>Maintenance</c> uretmez: kabinde <c>Maintenance</c> yalnizca operatorun elle verdigi
+    /// yapiskan karardir (<see cref="SetMaintenanceAsync"/>, 2026-09-28). Bir cihazin Maintenance'i kabine tasinsaydi
+    /// kabin kendiliginden bakima duser ve hesaplama ona bir daha dokunmazdi.
     /// </summary>
     private static int? CalculateCabinetStatus(IEnumerable<int?> deviceContributions, bool hasOfflineCamera)
     {
@@ -201,7 +236,7 @@ public partial class CabinetStatusService : ICabinetStatusService
 
         foreach (var candidate in candidates)
         {
-            if (candidate is not int status)
+            if (candidate is not int status || status == (int)DeviceStatus.Maintenance)
                 continue;
             int rank = Model.Enums.EntityEnums.DeviceStatusSeverityRank(status);
             if (rank <= worstRank)

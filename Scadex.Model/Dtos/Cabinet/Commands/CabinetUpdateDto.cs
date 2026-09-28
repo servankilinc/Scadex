@@ -16,6 +16,8 @@ public class CabinetUpdateDto : IDto
     public int ScadaCommandTimeoutMs { get; set; }
     public bool ScadaIsEnabled { get; set; }
     public bool IsActive { get; set; }
+    /// <summary> <c>DeviceStatusId == Maintenance</c>. </summary>
+    public bool IsUnderMaintenance { get; set; }
 }
 
 public class CabinetUpdateDtoValidator : AbstractValidator<CabinetUpdateDto>

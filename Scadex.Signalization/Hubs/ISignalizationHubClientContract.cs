@@ -19,4 +19,7 @@ public interface ISignalizationHubClientContract
     /// NOT: Scadex çekirdeğinde("/hubs/diagram") input değişimleri yayınlanıyor ancak burada işlenmiş modül için spesifik bir yaynılama yapıyoruz
     /// </summary>
     Task SignalDoorSwitchChanged(SignalDoorSwitchChangedMessage message);
+
+    /// <summary> Kabinin kart okuyucusuna kart okutuldu (kabul ya da red). </summary>
+    Task SignalCardPresented(SignalCardPresentedMessage message);
 }

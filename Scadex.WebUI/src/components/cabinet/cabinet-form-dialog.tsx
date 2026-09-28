@@ -272,6 +272,25 @@ export function CabinetFormDialog({ open, onOpenChange, cabinet }: CabinetFormDi
                     <FieldDescription className='mt-2'>Pasif kabinler listede kalır ve tekrar aktifleştirilebilir.</FieldDescription>
                   </div>
                 )}
+
+                {isEdit && (
+                  <div className='rounded-lg border p-3'>
+                    <Field orientation='horizontal'>
+                      <FieldLabel htmlFor='cabinet-maintenance'>Bakımda</FieldLabel>
+                      <Controller
+                        control={form.control}
+                        name='isUnderMaintenance'
+                        render={({ field }) => (
+                          <Switch id='cabinet-maintenance' checked={field.value} onCheckedChange={checked => field.onChange(checked)} />
+                        )}
+                      />
+                    </Field>
+                    {/* Durum sunucuda yeniden hesaplanır (`Cabinet.IsUnderMaintenance`): bakım her şeyi ezer. */}
+                    <FieldDescription className='mt-2'>
+                      Açıkken kabin haritada ve listede "Bakımda" görünür; cihaz arızaları kabin durumuna yansımaz.
+                    </FieldDescription>
+                  </div>
+                )}
               </FieldGroup>
 
               <DialogFooter className='mx-0 mb-0'>

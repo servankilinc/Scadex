@@ -5,17 +5,18 @@ import { getCabinetList } from '@/api/cabinet';
 import { cabinetKeys } from '@/api/query-keys';
 import { Map, MapControls, MapPopup, type MapRef } from '@/components/ui/map';
 import { Button } from '@/components/ui/button';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Info, Activity, SearchIcon, TriangleAlert } from 'lucide-react';
+import { Combobox, ComboboxContent, ComboboxEmpty, ComboboxInput, ComboboxItem, ComboboxList } from '@/components/ui/combobox';
+import { Info, Activity, SearchIcon } from 'lucide-react';
 import type { CabinetDetailDto } from '@/models/cabinet';
 import { DeviceStatus, deviceStatusLabel } from '@/models/enums';
 import { alertCabinetQueries, busyCabinetQueries } from '@/modules';
 import CabinetInProcessIcon from '@/assets/cabinet-inproces-2.png';
 import { useCabinetOverviewLive } from '@/hooks/use-cabinet-overview-live';
+import { BASEMAP_STYLES } from '@/lib/map-basemap';
 import { CabinetDetailPanel } from './cabinet-detail-panel';
 import { CabinetMapLayer, type LocatedCabinet } from './cabinet-map-layer';
 import { DashboardMetrics } from './dashboard-metrics';
-import { cn } from '@/lib/utils';
+import { cn, toSearchKey } from '@/lib/utils';
 
 /**
  * Modüllerin kimlik listelerini sıralı, tekil bir anahtara indirger. Modül düzeyinde: kararlı referans.
@@ -25,9 +26,6 @@ import { cn } from '@/lib/utils';
 function combineBusyCabinetKey(results: UseQueryResult<string[]>[]): string {
   return [...new Set(results.flatMap(result => result.data ?? []))].sort().join(',');
 }
-
-/** Kabin filtresinde "hepsi" için sentinel — Base UI Select boş string'i "seçim yok" sayar. */
-const ALL_CABINETS = 'all';
 
 /** Konumlu kabin yokken haritanın açıldığı yer. */
 const DEFAULT_CENTER: [number, number] = [35.2433, 38.9637];
@@ -84,33 +82,28 @@ function buildStatusChips(activeCabinets: { deviceStatusId: DeviceStatus | null 
 
 /**
  * Haritanın tek seçimli filtresi: `'all'`, bir kabin durumu (`null` = Bilinmiyor) ya da modülden gelen kimlik listesi
- * (`'busy'` işlem yapılan, `'alert'` alarm olan). Durum ile işlem birlikte seçilmez.
+ * (`'busy'` işlem yapılan). Durum ile işlem birlikte seçilmez.
  */
-type MapFilter = 'all' | 'busy' | 'alert' | DeviceStatus | null;
+type MapFilter = 'all' | 'busy' | DeviceStatus | null;
 
-/** `'all'` pasifleri de gösterir (ilk açılıştaki gibi); diğer filtreler yalnızca AKTİF kabinleri — rozet sayılarıyla aynı taban. */
-function matchesMapFilter(cabinet: CabinetDetailDto, filter: MapFilter, busyCabinetIds: ReadonlySet<string>, alertCabinetIds: ReadonlySet<string>): boolean {
-  if (filter === 'all') return true;
+/** Yalnızca AKTİF kabinler eşleşir — rozet sayılarıyla aynı taban (`validCabinets` pasifleri zaten dışarıda bırakır). */
+function matchesMapFilter(cabinet: CabinetDetailDto, filter: MapFilter, busyCabinetIds: ReadonlySet<string>): boolean {
   if (!cabinet.isActive) return false;
+  if (filter === 'all') return true;
   if (filter === 'busy') return busyCabinetIds.has(cabinet.id);
-  if (filter === 'alert') return alertCabinetIds.has(cabinet.id);
   return cabinet.deviceStatusId === filter;
 }
 
 /**
- * Modül rozetleri — yalnızca bir modül ilgili sorguyu verdiyse (`AppModule.busyCabinetsQuery` / `alertCabinetsQuery`);
- * modül kapalıyken rozet satırı değişmez. Çekirdek "işlem"in ne olduğunu bilmez, kimlikleri sayar. Nokta yerine
- * haritadaki işaretle eşleşen simge: amber/kırmızı nokta Uyarı/Kritik rozetleriyle karışırdı. Statik: modül listesi
- * çalışırken değişmez.
+ * Modül rozetleri — yalnızca bir modül ilgili sorguyu verdiyse (`AppModule.busyCabinetsQuery`); modül kapalıyken rozet
+ * satırı değişmez. Çekirdek "işlem"in ne olduğunu bilmez, kimlikleri sayar. Nokta yerine haritadaki işaretle eşleşen
+ * simge: amber nokta Uyarı rozetiyle karışırdı. Statik: modül listesi çalışırken değişmez. Alarm için rozet BİLEREK
+ * yok (2026-09-28, kullanılmıyordu); alarmlı kabin haritada kırmızı "!" ikonuyla görünmeye devam eder.
  */
-const MODULE_CHIP_DEFS: { filter: 'busy' | 'alert'; label: string; icon: ReactNode }[] = [
-  ...(busyCabinetQueries.length > 0
-    ? [{ filter: 'busy' as const, label: 'İşlemde', icon: <img src={CabinetInProcessIcon} alt="" className="h-3.5 w-auto shrink-0" aria-hidden="true" /> }]
-    : []),
-  ...(alertCabinetQueries.length > 0
-    ? [{ filter: 'alert' as const, label: 'Alarm', icon: <TriangleAlert className="size-3 shrink-0 text-red-500" aria-hidden="true" /> }]
-    : [])
-];
+const MODULE_CHIP_DEFS: { filter: 'busy'; label: string; icon: ReactNode }[] =
+  busyCabinetQueries.length > 0
+    ? [{ filter: 'busy', label: 'İşlemde', icon: <img src={CabinetInProcessIcon} alt="" className="h-3.5 w-auto shrink-0" aria-hidden="true" /> }]
+    : [];
 
 /** Durum ve modül rozetlerinin ortak görünümü. Kenarlık kalınlığı seçimde sabit: rozet boyutu kaymasın. */
 function chipClassName(selected: boolean) {
@@ -145,11 +138,17 @@ export default function Home() {
   // sürülür. Controlled modda her `move` olayı (pan sırasında ~60/sn) bu bileşeni baştan render ediyordu.
   const [map, setMap] = useState<MapRef | null>(null);
 
-  const validCabinets = useMemo(() => cabinets.filter((c): c is LocatedCabinet => c.latitude != null && c.longitude != null), [cabinets]);
+  // Haritaya yalnızca AKTİF ve konumu olan kabinler gelir. Pasif kabin haritada hiçbir filtrede görünmez: rozet sayıları
+  // aktifleri sayar, pasif kabinin durumu da artık hesaplanmadığı için bayattır (`RecalculateAsync` pasife dokunmaz).
+  const validCabinets = useMemo(
+    () => cabinets.filter((c): c is LocatedCabinet => c.isActive && c.latitude != null && c.longitude != null),
+    [cabinets]
+  );
 
   // Harita üst solundaki arama/filtre paneli: seçilen kabne (ya da tümüne) göre haritayı ortalar.
   const [filterOpen, setFilterOpen] = useState(false);
-  const [selectedCabinetId, setSelectedCabinetId] = useState(ALL_CABINETS);
+  /** `null` = tüm kabinler (combobox boş). */
+  const [selectedCabinetId, setSelectedCabinetId] = useState<string | null>(null);
   const filterRef = useRef<HTMLDivElement>(null);
 
   // Panel açıkken dışarıya (rozetler, harita, sayfanın geri kalanı) tıklanınca otomatik kapansın.
@@ -158,10 +157,10 @@ export default function Home() {
     const handleClickOutside = (e: MouseEvent) => {
       const target = e.target as Node;
       if (filterRef.current?.contains(target)) return;
-      // `Select` açılır listesi `document.body`'ye PORTAL'lanıyor — filterRef'in DOM alt ağacında
+      // Combobox açılır listesi `document.body`'ye PORTAL'lanıyor — filterRef'in DOM alt ağacında
       // DEĞİL. Bu kontrol olmadan bir seçeneğe tıklamak "dışarı tıklama" sayılıp paneli, seçim daha
       // gerçekleşmeden kapatıyordu.
-      if (target instanceof Element && target.closest('[data-slot="select-content"]')) return;
+      if (target instanceof Element && target.closest('[data-slot="combobox-content"]')) return;
       setFilterOpen(false);
     };
     document.addEventListener('mousedown', handleClickOutside);
@@ -169,6 +168,12 @@ export default function Home() {
   }, [filterOpen]);
 
   const cabinetOptions = useMemo(() => [...validCabinets].sort((a, b) => a.name.localeCompare(b.name, 'tr')), [validCabinets]);
+  const filterCabinet = cabinetOptions.find(c => c.id === selectedCabinetId) ?? null;
+
+  // Base UI'ın varsayılan filtresi (`Intl.Collator`) "kizilay" yazınca "Kızılay"ı bulmuyor — bkz. `toSearchKey`.
+  // Kutuda seçili kabinin adı dururken liste yalnızca ona daralmasın: varsayılan tek seçim filtresi de böyle davranır.
+  const matchesCabinetQuery = (cabinet: LocatedCabinet, query: string) =>
+    query === filterCabinet?.name || toSearchKey(cabinet.name).includes(toSearchKey(query));
 
   // Harita üst-sağındaki durum rozetleri: yalnızca AKTİF kabinler sayılır (isActive === true);
   // deaktive kabinler koordinatı olsun olmasın tamamen hariç. `cabinets` (tam liste) kullanılır,
@@ -179,23 +184,23 @@ export default function Home() {
 
   // Durum rozetine tıklanınca haritada YALNIZCA o duruma sahip (ve aktif) kabinler gösterilir ve
   // harita onları çerçeveye sığdırır; sayısı 0 olan rozette harita boşalır ve kamera yerinde kalır.
-  // 'all' (Tümü) filtreyi tamamen kaldırır — haritada koordinatlı
-  // TÜM kabinler (aktif/pasif fark etmeksizin) yeniden görünür, tıpkı ilk açılıştaki gibi.
+  // 'all' (Tümü) filtreyi tamamen kaldırır — haritada koordinatlı tüm AKTİF kabinler yeniden görünür, tıpkı ilk
+  // açılıştaki gibi.
   // Modül rozetleri de aynı filtreyi sürer: "İşlemde" seçiliyken oturum kapanınca kabin haritadan düşer.
   const [mapFilter, setMapFilter] = useState<MapFilter>('all');
 
   const visibleCabinets = useMemo(() => {
     if (mapFilter === 'all') return validCabinets;
-    return validCabinets.filter(c => matchesMapFilter(c, mapFilter, busyCabinetIds, alertCabinetIds));
-  }, [validCabinets, mapFilter, busyCabinetIds, alertCabinetIds]);
+    return validCabinets.filter(c => matchesMapFilter(c, mapFilter, busyCabinetIds));
+  }, [validCabinets, mapFilter, busyCabinetIds]);
 
   const moduleChips = useMemo(
     () =>
       MODULE_CHIP_DEFS.map(def => ({
         ...def,
-        count: activeCabinets.filter(c => matchesMapFilter(c, def.filter, busyCabinetIds, alertCabinetIds)).length
+        count: activeCabinets.filter(c => matchesMapFilter(c, def.filter, busyCabinetIds)).length
       })),
-    [activeCabinets, busyCabinetIds, alertCabinetIds]
+    [activeCabinets, busyCabinetIds]
   );
 
   // Kabinlerin TAMAMINI çerçeveye sığdırır. Eski "ağırlık merkezi + sabit zoom", iki şehre dağılmış kabinlerde
@@ -207,11 +212,11 @@ export default function Home() {
 
   const handleMapFilter = (filter: MapFilter) => {
     setMapFilter(filter);
-    fitCabinets(validCabinets.filter(c => matchesMapFilter(c, filter, busyCabinetIds, alertCabinetIds)), true);
+    fitCabinets(validCabinets.filter(c => matchesMapFilter(c, filter, busyCabinetIds)), true);
   };
 
   const handleFilter = () => {
-    fitCabinets(selectedCabinetId === ALL_CABINETS ? validCabinets : validCabinets.filter(c => c.id === selectedCabinetId), true);
+    fitCabinets(filterCabinet ? [filterCabinet] : validCabinets, true);
     // Seçilen kabin bir durum filtresi yüzünden haritada gizli kalmasın diye filtre sıfırlanır.
     setMapFilter('all');
   };
@@ -271,21 +276,29 @@ export default function Home() {
                   <div className="absolute top-full left-0 mt-2 w-64 overflow-hidden rounded-lg border bg-popover/80 text-popover-foreground shadow-md backdrop-blur-sm">
                     <div className="space-y-2 p-3">
                       <p className="text-xs font-medium text-muted-foreground">Kabin</p>
-                      <Select value={selectedCabinetId} onValueChange={(value) => setSelectedCabinetId(value ?? ALL_CABINETS)}>
-                        <SelectTrigger className="w-full">
-                          <SelectValue>
-                            {selectedCabinetId === ALL_CABINETS ? 'Tüm kabinler' : (cabinetOptions.find((c) => c.id === selectedCabinetId)?.name ?? 'Tüm kabinler')}
-                          </SelectValue>
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value={ALL_CABINETS}>Tüm kabinler</SelectItem>
-                          {cabinetOptions.map((cabinet) => (
-                            <SelectItem key={cabinet.id} value={cabinet.id}>
-                              {cabinet.name}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
+                      {/* Boş kutu = tüm kabinler; seçimi temizle düğmesi oraya geri döndürür. Yazarken ilk eşleşme
+                          vurgulanır (`autoHighlight`): Enter onu seçer. */}
+                      <Combobox
+                        items={cabinetOptions}
+                        value={filterCabinet}
+                        onValueChange={cabinet => setSelectedCabinetId(cabinet?.id ?? null)}
+                        itemToStringLabel={cabinet => cabinet.name}
+                        isItemEqualToValue={(a, b) => a.id === b.id}
+                        filter={matchesCabinetQuery}
+                        autoHighlight
+                      >
+                        <ComboboxInput className="w-full" placeholder="Tüm kabinler — ara…" showClear={filterCabinet !== null} autoFocus />
+                        <ComboboxContent>
+                          <ComboboxEmpty>Kabin bulunamadı.</ComboboxEmpty>
+                          <ComboboxList className="scrollbar-thin">
+                            {(cabinet: LocatedCabinet) => (
+                              <ComboboxItem key={cabinet.id} value={cabinet}>
+                                {cabinet.name}
+                              </ComboboxItem>
+                            )}
+                          </ComboboxList>
+                        </ComboboxContent>
+                      </Combobox>
                     </div>
 
                     {/* Form alanlarından ayrışsın diye ayrı bir "footer" şeridi — arka planı biraz daha
@@ -301,7 +314,7 @@ export default function Home() {
 
               {/* Durum rozetleri: tıklanınca haritada yalnızca o duruma sahip aktif kabinler
                   gösterilir ve harita onların ortasına çekilir. "Tümü" filtreyi kaldırıp haritayı
-                  koordinatlı tüm kabinlerle (aktif/pasif fark etmeksizin) geri getirir; içindeki
+                  koordinatlı tüm aktif kabinlerle geri getirir (pasifler haritaya hiç gelmez); içindeki
                   sayı durum rozetlerinin toplamı (aktif kabin sayısı) ile aynıdır. Seçili filtre
                   `border-primary/40` ile hafifçe vurgulanır (tam opak `border-primary` gözü çok
                   yordu) ve `shadow-md` ile öne çıkar; kenarlık kalınlığı SEÇİLİ/SEÇİLİ-DEĞİL
@@ -340,7 +353,7 @@ export default function Home() {
                   </button>
                 ))}
 
-                {/* Modül rozetleri (İşlemde / Alarm): kabin durumundan bağımsız bir eksen, ince çizgiyle ayrılır. */}
+                {/* Modül rozetleri (İşlemde): kabin durumundan bağımsız bir eksen, ince çizgiyle ayrılır. */}
                 {moduleChips.length > 0 && <span className="mx-0.5 w-px shrink-0 self-stretch bg-border" aria-hidden="true" />}
                 {moduleChips.map((chip) => (
                   <button
@@ -358,7 +371,7 @@ export default function Home() {
               </div>
             </div>
 
-            <Map ref={setMap} center={DEFAULT_CENTER} zoom={DEFAULT_ZOOM}>
+            <Map ref={setMap} styles={BASEMAP_STYLES} center={DEFAULT_CENTER} zoom={DEFAULT_ZOOM}>
               <MapControls position="top-right" showZoom showCompass showLocate showFullscreen />
 
               {/* Kabinler tek bir kümelenen WebGL katmanında çizilir (kabin başına DOM işaretçisi yok). Aynı

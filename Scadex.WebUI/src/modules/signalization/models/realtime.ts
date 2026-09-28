@@ -1,6 +1,7 @@
 /**
  * Ayna: Scadex.Signalization/Hubs/ISignalizationHubClientContract.cs + Realtime/{OperatorSessionChangedMessage.cs,
- * SignalCabinetStateChangedMessage.cs, SignalDoorSwitchChangedMessage.cs} + Enums/SignalEnums.cs > SignalDoorKind
+ * SignalCabinetStateChangedMessage.cs, SignalDoorSwitchChangedMessage.cs, SignalCardPresentedMessage.cs} +
+ * Enums/SignalEnums.cs > SignalDoorKind
  *
  * `/hubs/signalization` üzerinden sunucudan gelen olayların gövdeleri. Hub, REST ile AYNI JSON ayarlarını kullanır (camelCase,
  * sayısal enum) — diğer DTO aynalarıyla birebir aynı kodlama.
@@ -24,7 +25,8 @@ export interface OperatorSessionChangedMessage {
 export const SignalizationHubEvents = {
   operatorSessionChanged: 'OperatorSessionChanged',
   signalCabinetStateChanged: 'SignalCabinetStateChanged',
-  signalDoorSwitchChanged: 'SignalDoorSwitchChanged'
+  signalDoorSwitchChanged: 'SignalDoorSwitchChanged',
+  signalCardPresented: 'SignalCardPresented'
 } as const;
 
 /** İstemcinin çağırdığı hub metotları. */
@@ -69,4 +71,16 @@ export interface SignalDoorSwitchChangedMessage {
   /** `null` = bilinmiyor (kanal değeri okunamadı). */
   isOpen: boolean | null;
   changedAtUtc: string;
+}
+
+/**
+ * Kabinin kart okuyucusuna kart okutuldu ve motor sonucu belirledi. Yalnızca o kabinin grubuna gelir.
+ *
+ * Bilerek İNCEDİR (kart no / kişi taşımaz): okuyucu efekti için sonuç yeter, liste `card-reads` ucundan yeniden okunur. Açık
+ * oturum yokken reddedilen kart da yayınlanır ama DB'ye yazılmadığı için listede görünmez.
+ */
+export interface SignalCardPresentedMessage {
+  cabinetId: string;
+  isAccepted: boolean;
+  occurredAtUtc: string;
 }

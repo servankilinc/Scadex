@@ -1,10 +1,11 @@
 /**
  * Kabin ekleme/düzenleme formunun tuttuğu şekil ve doğrulaması.
  *
- * Ekleme ve düzenleme AYNI form tipini kullanır, çünkü aradaki fark yalnızca iki
+ * Ekleme ve düzenleme AYNI form tipini kullanır, çünkü aradaki fark yalnızca birkaç
  * alanın görünürlüğü: `companyId` yalnızca eklemede yazılabilir (`CabinetUpdateDto`
- * taşımaz), `isActive` yalnızca düzenlemede. İki ayrı şema yapmak, alanların
- * %90'ını ve kurallarını iki kez yazmak demekti.
+ * taşımaz), `isActive` ve `isUnderMaintenance` yalnızca düzenlemede (yeni kabin
+ * bakımda doğmaz). İki ayrı şema yapmak, alanların %90'ını ve kurallarını iki kez
+ * yazmak demekti.
  *
  * Sunucuya gönderilen şekle dönüşüm `toCreateRequest` / `toUpdateRequest` ile
  * yapılır; fazla alanlar orada düşer.
@@ -36,7 +37,8 @@ export const cabinetFormSchema = z
     scadaBaseUrl: z.string(),
     scadaCommandTimeoutMs: z.number('Sayı giriniz').int('Tam sayı giriniz').nonnegative('Negatif olamaz'),
     scadaIsEnabled: z.boolean(),
-    isActive: z.boolean()
+    isActive: z.boolean(),
+    isUnderMaintenance: z.boolean()
   })
   .superRefine((value, ctx) => {
     // Sunucudaki `When(v => v.ScadaIsEnabled, ...)` bloğunun aynısı.
@@ -66,7 +68,8 @@ export const emptyCabinetForm: CabinetFormValues = {
   scadaBaseUrl: '',
   scadaCommandTimeoutMs: SCADA_MIN_TIMEOUT_MS,
   scadaIsEnabled: false,
-  isActive: true
+  isActive: true,
+  isUnderMaintenance: false
 };
 
 /**
@@ -113,7 +116,8 @@ export function toUpdateRequest(values: CabinetFormValues): CabinetUpdateRequest
     scadaBaseUrl: blankToNull(values.scadaBaseUrl),
     scadaCommandTimeoutMs: values.scadaCommandTimeoutMs,
     scadaIsEnabled: values.scadaIsEnabled,
-    isActive: values.isActive
+    isActive: values.isActive,
+    isUnderMaintenance: values.isUnderMaintenance
   };
 }
 
@@ -137,6 +141,7 @@ export function toCabinetForm(model: CabinetUpdateRequest, companyId: string): C
     scadaBaseUrl: nullToBlank(model.scadaBaseUrl),
     scadaCommandTimeoutMs: model.scadaCommandTimeoutMs,
     scadaIsEnabled: model.scadaIsEnabled,
-    isActive: model.isActive
+    isActive: model.isActive,
+    isUnderMaintenance: model.isUnderMaintenance
   };
 }

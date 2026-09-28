@@ -76,6 +76,13 @@ Bilinmesi gerekenler:
   (`.gitignore`; exe GitHub'ın 100 MiB sınırını aşıyor) — yeni klonda ve her sunucuda elle konur,
   yoksa çekimler "FFmpeg bulunamadı" ile düşer, MediaMTX başlamaz. Yayına `ffmpeg.exe`, `mediamtx.exe`
   ve `mediamtx.yml` kopyalanır (csproj).
+- **Harita zemini tamamen yereldir (2026-09-28): `Scadex.WebAPI/MapTiles/` git'te yoktur** — `basemap.pmtiles`
+  (Protomaps şeması, Türkiye, z0–13) + `fonts/Noto Sans {Regular,Medium,Italic}` + `sprites/v4/{light,dark}`
+  (`protomaps/basemaps-assets`) her sunucuya elle konur; yoksa uyarı loglanır ve harita zemini boş görünür.
+  WebAPI bunları `/basemap` altında `UseCors`'tan **sonra** servis eder (tarayıcı başka origin'den Range ile
+  okur; ilk `UseStaticFiles` CORS'tan önce olduğu için oraya taşımayın). Stil `src/lib/map-basemap.ts`'tedir;
+  şema Protomaps olduğu için VersaTiles/Carto/OpenMapTiles stilleri bu dosyayla çalışmaz. Konum seçicideki
+  adres araması (Nominatim) hâlâ internet ister.
 
 ## Mimari
 
@@ -237,7 +244,10 @@ Bunlar tek bir dosyaya bakarak görülemez; gerekçeleri PROJECT_OVERVIEW.md §5
   (izlenenleri katmayın: yoklamayla her turda Bilinmiyor ↔ Offline salınırlar),
   23 saat bilerek sabittir. Canlılık yalnızca Online/Offline/`null`'a karar verir,
   Warning/Critical/Maintenance korunur. Sinyalizasyon modülü kabin durumuna **bilerek**
-  yansımaz (alarm haritada ayrı ikon; `AppModule.alertCabinetsQuery`).
+  yansımaz (alarm haritada ayrı ikon; `AppModule.alertCabinetsQuery`). **Kabinde `Maintenance` yapışkan bir
+  operatör kararıdır (2026-09-28):** ayrı kolon yok, `Cabinet.DeviceStatusId` = Maintenance; kabin düzenleme ekranından
+  `ICabinetStatusService.SetMaintenanceAsync` ile yazılır. Hesaplama ve tarama bakımdaki kabine dokunmaz, hesaplama da
+  hiçbir zaman Maintenance üretmez (cihazın Maintenance'ı kabine taşınmaz) — yoksa kabin kendiliğinden bakıma düşüp kalırdı.
 - **MediaMTX yol temizliği üç şeyi asla silmez:** bizim üretmediğimiz adlar (yalnızca `cam_`
   önekliler adaydır — `mediamtx.yml`'deki **`all_others`** silinseydi geçit
   yapılandırmasız kalırdı), `record: true` olan yollar ve `readers > 0` olan yollar. Bu kuralları
@@ -283,6 +293,16 @@ shadcn + Tailwind 4, react-hook-form + zod, MapLibre, Recharts.
 
 **Bir C# DTO'sunu değiştirdiğinizde TS aynasını elle güncelleyin** — codegen de test de yok,
 kimse bunu sizin için yakalamaz.
+
+**Sanal kabin çizimi `src/assets/signalization/` altındaki Figma dışa aktarımlarıdır ve ekranın tek
+kaynağıdır (2026-09-28).** `cabinet-inside.svg` kasa + konumlardır: her cihaz kutusu (`<g id="…-Box">`)
+yalnızca dolgusuz bir `<rect>` çerçeve taşır. Cihazın görünümü ayrı dosyadadır, her durum ayrı dosya
+(`Led-Opened/Closed`, `Siren-Opened/Closed`, `Indoor-Opened/Closed`, `Card-Reader`). Dosyalar `<symbol>`
+olarak eklenir ve çerçeveye `<use>` ile çizilir (liste: `components/virtual-cabinet/artwork.ts`).
+**SVG'leri TSX'e çevirmeyin** — çevrilen kopya asset'ten ayrışır ve Figma'daki değişiklik ekrana
+yansımaz. Yeni cihaz = kasada çerçeveli kutu + görünüm dosyası + `artwork.ts`'e birer satır +
+`use-svg-device.ts` ile bağlayan küçük bir bileşen. Eksik kutu/çerçeve çökertmez, geliştirmede
+konsola uyarı düşer.
 
 ## Bugünün bilinen tutarsızlıkları
 

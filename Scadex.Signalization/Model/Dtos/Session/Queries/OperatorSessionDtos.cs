@@ -68,6 +68,37 @@ public class OperatorSessionEventDto : IDto
     public string? Detail { get; set; }
 }
 
+/// <summary>
+/// Kabinin kart okuyucusundaki tek okuma — "son okumalar" listesi. <c>CardPresented</c> ve <c>AccessDenied</c>
+/// olaylarindan turetilir; acik oturum yokken reddedilen kart olay olarak yazilmadigi icin burada gorunmez.
+/// </summary>
+public class SignalCardReadDto : IDto
+{
+    /// <summary> Olayin Id'si (<c>OperatorSessionEvent.Id</c>). </summary>
+    public long Id { get; set; }
+    public long SessionId { get; set; }
+    public DateTime OccurredAtUtc { get; set; }
+    public string? CardIdRaw { get; set; }
+
+    /// <summary> Kart kabul edildi mi (<c>CardPresented</c>); <c>false</c> ise reddedildi (<c>AccessDenied</c>), gerekce <see cref="Detail"/>'dadir. </summary>
+    public bool IsAccepted { get; set; }
+
+    /// <summary> Kartin sahibi; tanimsiz kartta <c>null</c>. </summary>
+    public Guid? UserId { get; set; }
+
+    /// <summary> Once oturumdaki enstantane, yoksa (reddedilen kullanici) cekirdekteki bugunku ad. </summary>
+    public string? UserFullName { get; set; }
+
+    /// <summary> Yalnizca kabul edilen okumada: operatorun oturuma katildigi kurum. </summary>
+    public string? AuthorityName { get; set; }
+
+    /// <summary> Yalnizca kabul edilen okumada: kartin actigi / kilitledigi ic kapi. </summary>
+    public string? InnerDoorName { get; set; }
+
+    /// <summary> Red gerekcesi (<c>SessionEventDetail</c> anahtari) ya da kabulde ortuk oturum notu. </summary>
+    public string? Detail { get; set; }
+}
+
 /// <summary> Ic kapinin oturumdaki ozeti — olaylardan turetilir. </summary>
 public class OperatorSessionDoorDto : IDto
 {

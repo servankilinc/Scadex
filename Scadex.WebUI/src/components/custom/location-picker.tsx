@@ -4,6 +4,7 @@ import { toast } from 'sonner';
 import { Map, MapControls, MapMarker, MarkerContent, MarkerPopup } from '@/components/ui/map';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { BASEMAP_STYLES } from '@/lib/map-basemap';
 
 export interface LatLng {
   lat: number;
@@ -122,7 +123,7 @@ export function LocationPicker({ value, onChange, fallbackCenter = DEFAULT_CENTE
       </div>
 
       <div className='relative h-64 w-full overflow-hidden rounded-md border'>
-        <Map viewport={viewport} onViewportChange={v => setViewport(prev => ({ ...prev, ...v }))}>
+        <Map styles={BASEMAP_STYLES} viewport={viewport} onViewportChange={v => setViewport(prev => ({ ...prev, ...v }))}>
           <MapControls position='top-right' showZoom showCompass showLocate showFullscreen />
 
           {value && (
