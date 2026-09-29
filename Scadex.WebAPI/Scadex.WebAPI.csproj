@@ -17,6 +17,7 @@
   </ItemGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\Modules\RemoteDesk\Scadex.RemoteDesk\Scadex.RemoteDesk.csproj" />
     <ProjectReference Include="..\Scadex.Business\Scadex.Business.csproj" />
     
 	<!-- MODULES -->
