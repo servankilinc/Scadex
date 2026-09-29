@@ -41,7 +41,7 @@ monitörünü canlı izler. Sonraki aşamada aynı ekrandan fare ve klavye komut
 | PC istemcisi | **WPF uygulaması** (`Scadex.RemoteDesk.Windows`), kullanıcı oturumunda, oturum açılınca otomatik başlar | Bağlantı durumu ekranda görünür; ekran yakalama ve `SendInput` doğrudan çalışır, servis + yardımcı süreç + named pipe gerekmez. (2026-09-29) |
 | Dil / çatı | **.NET 10** — modül `net10.0`, istemci `net10.0-windows` | Scadex `net10.0`. |
 | Ekran yakalama | **DXGI Desktop Duplication**, FFmpeg `ddagrab`, monitör başına `output_idx` | GPU tarafında, düşük CPU. `gdigrab` yalnızca teşhis. |
-| Kodlama | **H.264**, donanım kodlayıcı öncelikli, yedek `h264_mf` | Tarayıcı WebRTC'de her yerde çözer; libx264 GPL. |
+| Kodlama | **Donanımda H.264** (monitörün bağlı olduğu kartın NVENC / QSV / AMF'si önce), **yoksa yazılımda VP9** (libvpx); seçim gerçek denemeyle; çıkış `-fps_mode passthrough` | Dağıtılan hiçbir parçada GPL ya da açık patent yok; tarayıcı ikisini de çözer ([§ 7.4](#74-ffmpeg-hattı-istemci)). |
 | Medya taşıma | **İstemci → MediaMTX, RTSP/TCP publish** | MediaMTX zaten çalışıyor, `paths.all_others` zaten `source: publisher`. |
 | İzleme | **Mevcut WHEP oynatıcı** (`src/lib/camera/whep.ts`) | Kamera ile aynı kod. |
 | Kontrol düzlemi | **SignalR**, istemci dışarı bağlanır: `/hubs/remote-desk/pc` | NAT sorunu yok, PC port açmaz. |
@@ -250,28 +250,81 @@ kayıt yoktur → 401.
 
 ### 7.4 FFmpeg hattı (istemci)
 
-Yazılım kodlayıcılı referans komut (Faz 1'de doğrulanır):
+FFmpeg: BtbN **8.1 LGPL** build'i (`--enable-gpl` yok). Geliştirme ortamında istemci projesinin `tools\ffmpeg\`
+klasöründe elle tutulur (git'te yok), derlemede çıktıya kopyalanır. Ölçümler Faz 1 (§ 16.2) ve depo dışında
+tutulan medya laboratuvarından gelir.
+
+#### Kodlayıcı seçimi (karar 2026-09-29)
+
+**Donanım varsa üreticinin H.264 kodlayıcısı, yoksa yazılımda VP9.** Donanım kodlayıcılarında H.264 patenti
+sürücü/üreticiyle gelir; VP9 telifsizdir — dağıtılan hiçbir parçada GPL ya da açık patent sorusu kalmaz.
+Tarayıcı ikisini de WebRTC'de çözer; oynatıcı gelen kodeği bilmek zorunda değildir.
 
 ```text
-ffmpeg -hide_banner -nostats -loglevel warning
-  -f lavfi -i "ddagrab=output_idx=<monitör>:framerate=15:draw_mouse=1,hwdownload,format=bgra"
-  -vf "scale='min(1920,iw)':-2,format=yuv420p"
-  -c:v h264_mf -rate_control cbr -b:v 2M -g 30 -bf 0
-  -rtsp_transport tcp -f rtsp "rtsp://pc:<BILET>@merkez:8554/pc_<deviceId>_<monitör>"
+Kodlayıcı seçimi — monitör başına, İLK YAYINDA (boştayken CPU harcanmasın); sonuç bellekte tutulur
+│
+├─ 1. Monitörün bağlı olduğu ekran kartının H.264 kodlayıcısı     ─ sına ─ ✗ nedeni kaydet ─┐
+│      NVIDIA → NVENC · Intel → QSV (önce GPU'da, sonra hwdownload) · AMD → AMF              │
+├─ 2. Makinedeki diğer ekran kartlarının H.264 kodlayıcısı        ─ sına ─ ✗ ──────────────┤
+└─ 3. VP9 libvpx — yazılım, her işlemcide (15 fps, ≤ 1600 genişlik, geri kalma bekçisi)  ◄─┘
 ```
 
-Donanım kodlayıcılarda `ddagrab`'ın D3D11 kareleri doğrudan kodlayıcıya verilir (`hwdownload` kalkar,
-`h264_qsv` için `hwmap`); filtre zincirleri Faz 1'de her kodlayıcı için sabitlenir.
+- **Seçim üretici adına göre değil, gerçek denemeyle yapılır.** Her aday gerçek zinciriyle (ekran yakalama
+  dahil) 8 kare kodlatılır. Kart var ama sürücü eski (NVENC < 570), kart var ama kodeği sunmuyor (HD 620'de VP9
+  QSV) gibi durumlar ancak böyle anlaşılır; `-encoders` listesi donanımı olmayan makinede de NVENC/AMF gösterir.
+- **Monitörün bağlı olduğu kart önce gelir:** kare o kartta oluşur. Kodlayıcı aynı karttaysa kare GPU'dan
+  çıkmadan kodlanır (HD 620'de QSV: %12 → %2 CPU); farklı karttaysa kartlar arası kopya olur.
+- **Çıkarılanlar:** `h264_mf` (~340 ms, `hw_encoding` ile takılıyor), OpenH264 (patent sorusu), x264 (GPL).
+- NVENC ve AMF'nin gecikme/CPU değerleri henüz ölçülmedi (sahada kullanıcı test ediyor).
 
-- Kodlayıcı sırası: `h264_nvenc → h264_qsv → h264_amf → h264_mf`. Deneme **ilk yayında** yapılır (açılışta
-  değil — boştayken CPU harcanmasın) ve bellekte tutulur.
-- **`libx264` kullanılmaz** (GPL). İstemci LGPL FFmpeg build'i taşır, ≥ 6.1 (`ddagrab`).
-- Tarayıcı için zorunlu: **B-frame yok**, **4:2:0** (`yuv420p`/`nv12` — BGRA'dan 4:4:4'e kayarsa tarayıcı
-  oynatmaz), profil `main` (sorun çıkarsa `baseline`), GOP ≈ 2 sn.
-- Varsayılan profil **minimal**: en fazla 1920 genişlik, **15 fps**, ~2 Mbps. Değerler sunucudan komutla
-  gelir; ölçümle ayarlanır ([§ 16](#16-kaynak-ve-performans-ölçümü)).
-- **Faz 1'de doğrulanacak:** `ddagrab` `output_idx` sırasının istemcinin DXGI ile saydığı monitör sırasıyla
-  eşleşmesi; hibrit GPU'lu dizüstünde başka adaptöre bağlı monitörün davranışı.
+#### Ekran yakalama
+
+```text
+ffmpeg -init_hw_device d3d11va=cap:<adaptör> -filter_hw_device cap
+       -filter_complex "ddagrab=output_idx=<çıkış>:framerate=<fps>:draw_mouse=1,<kodlayıcıya göre zincir>"
+```
+
+Monitör = (**adaptör**, **çıkış**) çifti, istemci **DXGI**'dan okur. `-f lavfi -i ddagrab` biçimi yalnızca
+varsayılan adaptörün monitörlerini görür; ikinci karta bağlı monitör ancak `-init_hw_device` ile yakalanır.
+Bu biçimde de kodlayıcı yetişemeyince `ddagrab` kare atlar, geri kalma birikmez (VP9 30 fps → 23 fps,
+`speed` ≈ 0,99; 2026-09-29).
+
+#### Adaylar
+
+| Aday | Zincir (`ddagrab` sonrası) | Kodlayıcı ayarları |
+|---|---|---|
+| NVENC | — (D3D11 kare doğrudan) | `h264_nvenc -preset p1 -tune ull -zerolatency 1 -delay 0 -rc cbr -bf 0` |
+| QSV, GPU'da | `hwmap=derive_device=qsv,format=qsv` | `h264_qsv -profile:v main -preset veryfast -async_depth 1 -look_ahead 0 -bf 0` |
+| QSV, hwdownload | `hwdownload,format=bgra,scale…,format=nv12` | aynı |
+| AMF | — (D3D11 kare doğrudan) | `h264_amf -usage ultralowlatency -rc cbr -bf 0` |
+| VP9 yazılım | `hwdownload,format=bgra,scale…,format=yuv420p` | `libvpx-vp9 -deadline realtime -cpu-used 8 -row-mt 1 -tile-columns 2 -lag-in-frames 0 -error-resilient 1` + `-strict experimental` |
+
+Ortak çıkış: `-b:v/-maxrate/-bufsize <kbps> -g <2×fps> -fps_mode passthrough -rtsp_transport tcp -f rtsp <url>`.
+
+#### Kurallar — her biri ölçülmüş bir hataya karşılık gelir
+
+- **`-fps_mode passthrough` ZORUNLU.** RTSP çıkışında FFmpeg varsayılan olarak sabit kare hızı uygular:
+  kodlayıcı yetişemeyip `ddagrab` kare atlayınca boşlukları **kopya karelerle** doldurur, kopyalar da
+  kodlanır, geri kalma **sınırsız büyür** (ölçüm: 30 sn'de medya zamanı 8,4 sn, `dup=260`; tarayıcıda
+  dakikalarca eski görüntü). `passthrough` ile aynı yükte geri kalma ~2 sn'de sabit kalır.
+- **QSV'de `-async_depth 1` ZORUNLU.** Varsayılan 4 kare tampon 15 fps'de ~300 ms ekler (364 → 58 ms) ve
+  kareleri toplu gönderip tarayıcının jitter buffer'ını şişirir (izleyicide ~3 sn).
+- **VP9 / AV1 RTSP'ye `-strict experimental` ile yazılır** — FFmpeg'in RTP paketleyicileri deneysel işaretli.
+- **NVENC asgari sürücü ister:** FFmpeg, derlendiği `nv-codec-headers` sürümüne göre NVIDIA sürücüsü şart koşar;
+  seçilen 8.1 LGPL build'i **≥ 570.0** ister (NVENC API 13.0). Eski sürücüde "Driver does not support the required
+  nvenc API version" ile açılmaz (2026-09-29, sahadaki NVIDIA'lı bir PC'de görüldü). İstemci bunu ayrı bir neden
+  olarak bildirir ve sıradaki kodlayıcıya düşer. Sahada eski sürücü yaygınsa seçenek: daha eski başlıklarla
+  derlenmiş FFmpeg (12.1 → ≥ 531.61, 12.0 → ≥ 522.25, 11.1 → ≥ 471.41) — kendi build'imizi gerektirir.
+- **QSV'de GPU'da kalan zincir** (`hwmap`) HD 620'de çalıştı; `vpp_qsv` / `scale_d3d11=format=nv12` eklenince
+  doku oluşturulamıyor (`80070057`). Bu yüzden GPU'da kalan zincir ölçekleme yapmaz; ölçekleme gerekirse
+  `hwdownload`'lı zincire düşülür.
+- Tarayıcı için zorunlu: **B-frame yok**, **4:2:0** (`nv12`/`yuv420p`), GOP ≈ 2 sn.
+- **Varsayılan profil:** donanımda 30 fps / ≤ 1920 / 3 Mbps; VP9 yazılımda 15 fps / ≤ 1600 / 2 Mbps (1080p30'da
+  bu makinede yetişemedi, gecikme 3 sn'ye sıçradı). Değerler sunucudan komutla gelir.
+- **Ekran kilitliyken** `ddagrab` açılmaz (`Operation not permitted`), masaüstü değişince (UAC/kilit) çalışan
+  yayın `887a0026` (`DXGI_ERROR_ACCESS_LOST`) ile düşer. İstemci bunu "ekran kilitli" durumu olarak bildirir,
+  kilit açılınca (`SessionSwitch`) yayını sürdürür.
+- Build'de `hstack_qsv`/`xstack_qsv` var: "tüm monitörler tek görüntü" (Faz 10) GPU'da birleştirilebilir.
 
 ### 7.5 FFmpeg süreç yönetimi
 
@@ -282,6 +335,10 @@ Donanım kodlayıcılarda `ddagrab`'ın D3D11 kareleri doğrudan kodlayıcıya v
 - stderr satır satır loglanır, **adres maskelenir** (`rtsp://***@…`) — `CameraCaptureGateway` ile aynı
   kural. Sunucuya giden `failureReason` sabit metinlerden seçilir.
 - stderr'de `401` → yeniden deneme durur, `Failed` bildirilir (oturum kapanmış ya da bilet geçersiz).
+- **Geri kalma bekçisi:** istemci `-progress pipe:1` çıktısından `speed` ve `out_time`'ı okur. `speed`
+  10 sn boyunca 0,9'un altındaysa (kodlayıcı yetişemiyor) yayını bir alt profille (fps → çözünürlük)
+  yeniden başlatır ve sunucuya bildirir. `passthrough` sınırsız birikmeyi önler; bekçi, düşük fps'li
+  takılan görüntüyü önler.
 - Çözünürlük değişimi, kilit ekranı/UAC geçişi Desktop Duplication'ı düşürür, FFmpeg çıkar; yeniden
   deneme karşılar. Kilit ekranı süresince görüntü yoktur ([§ 9.7](#97-wpf-seçiminin-bedeli)).
 - Uygulama kapanırken ya da çökerken **sahipsiz FFmpeg kalmaz**: süreçler `KILL_ON_JOB_CLOSE`'lu bir
@@ -402,6 +459,11 @@ FFmpeg başladı/çıktı (çıkış kodu), yeniden deneme. **Bilet asla loglanm
 
 - **Inno Setup:** `Program Files\Scadex\RemoteDesk\` + `tools\ffmpeg\` → merkez adresi sorulur →
   `appsettings.json` → oturum açma görevi → uygulama başlatılır.
+- **Saha dağıtımı (2026-09-29):** paket ayrı bir betikle değil standart komutla alınır ve proje sahibi elle dağıtır:
+  `dotnet publish Modules/RemoteDesk/Scadex.RemoteDesk.Windows -c Release -r win-x64 --self-contained true -o <klasör>`
+  (.NET kurulumu gerekmez; LGPL FFmpeg `tools\ffmpeg\` altında gelir — geliştirme ortamında yoksa paket FFmpeg'siz çıkar ve
+  uygulama "FFmpeg bulunamadı" uyarısı verir). Ekranda her monitör için kodlayıcı sınaması, seçilen kodlayıcı/zincir/
+  profil ve canlı fps/hız/CPU görünür; "Bu adayla yayınla" ile adaylar elle karşılaştırılır.
 - Binary'ler kod imzalı olmalı (uzaktan erişim yazılımları AV'lerce sık işaretlenir).
 - Otomatik güncelleme MVP dışı; geldiğinde imzalı paket + imza doğrulaması.
 
@@ -484,6 +546,9 @@ C# DTO değişince TS aynası elle güncellenir.
 - **PC ekranı:** monitör seçici (her monitör: numara, çözünürlük, birincil işareti) + oynatıcı. Mevcut
   `src/lib/camera/whep.ts` + `stream-session.ts` yeniden kullanılır; yalnızca bilet kaynağı ve kiralama
   yenileme hook'u farklıdır. Monitör değiştirmek eski kiralamayı bırakıp yenisini açar.
+- **PC yayınında alıcıya `receiver.jitterBufferTarget = 0`** verilir (Chrome): Faz 1'de jitter buffer'ı
+  106 ms'den 55 ms'ye indirdi. Bu, `whep.ts`'e isteğe bağlı bir seçenek olarak eklenir; **kamera akışının
+  varsayılanı değişmez** (kamera ağında titreme daha fazla, tampon orada işe yarıyor).
 - Sorgu anahtarları `['remoteDesk', …]`; sunucu damgaları için `toUtcDate` / `formatUtcDateTime`.
 
 ---
@@ -615,10 +680,10 @@ Her faz bir öncekinin başarı kriteri sağlanmadan başlamaz.
 | Faz | İş | Başarı kriteri |
 |---|---|---|
 | **0** | Proje iskeleti: Contracts bağımlılıksız, modül csproj'u Signalization kalıbında, WPF'te `Microsoft.Extensions.Hosting` + içerik kökü + kapanış yolu + namespace düzeni | `dotnet build Scadex.slnx` temiz (`NU1903` hariç); WPF açılıp temiz kapanıyor |
-| **1** | **Medya hattı kanıtı** — kod yazmadan, elle FFmpeg ile iki monitörden `pc_test_0/1`'e publish (geçici auth'suz yerel yol) → WHEP ile tarayıcı. Kodlayıcı başına filtre zinciri; `output_idx` ↔ DXGI sırası. | Görüntü tarayıcıda, gecikme < 500 ms; `h264_mf` + en az bir donanım kodlayıcı; iki monitör ayrı ayrı |
+| **1** ✅ | **Medya hattı kanıtı** (2026-09-29 tamamlandı — § 16.2) — kod yazmadan, elle FFmpeg ile iki monitörden `pc_test_0/1`'e publish (geçici auth'suz yerel yol) → WHEP ile tarayıcı. Kodlayıcı başına filtre zinciri; `output_idx` ↔ DXGI sırası. | İki monitör tarayıcıda; uçtan uca ≈ 130–200 ms (QSV); yazılım yedeği `libopenh264` ~52 ms zincir |
 | **2** | Çekirdek: `DeviceType.Pc` + seed + migration, `IMediaPathAuthorizer` + controller. Modül iskeleti: kayıt, `RemoteDeskDbContext`, şema, migration. Contracts projesi. | Modül kapalıyken uçlar 404 / hub negotiate 404; açıkken tablolar oluşur; **kamera izleme bozulmadı**; `cam_*` publish 401 |
 | **3** | `PcHub` + `Hello`/MAC eşleşmesi + bellek kaydı + canlılık. WPF: tek örnek, tepsi, bağlantı ekranı, `appsettings.json`, yeniden bağlanma (henüz yayın yok). | WPF "Bağlı — kabin/cihaz" gösteriyor; tanımsız MAC'te MAC listesi görünüyor; ağ kesilip gelince bağlanıyor; boşta CPU ≈ 0 |
-| **4** | WPF yayın: monitör listesi, FFmpeg yöneticisi, kodlayıcı denemesi, `Start/StopScreenStream`, idempotency, Job Object. | Sunucudan elle tetiklenen komutla seçilen monitör MediaMTX'e yayınlanıyor; uygulama öldürülünce FFmpeg kalmıyor |
+| **4** ◐ | WPF yayın: monitör listesi, FFmpeg yöneticisi, kodlayıcı denemesi, `Start/StopScreenStream`, idempotency, Job Object. **2026-09-29: merkezden önce yapıldı** — DXGI monitör/ekran kartı okuma, kodlayıcı sınaması ve seçimi (§ 7.4), monitör başına test yayını (yalnızca kodla / RTSP), geri kalma bekçisi, kilit ekranında bekleme, Job Object ve saha ekranı hazır; `StartScreenStream` komutu Faz 3 (PcHub) ile bağlanacak. | Sunucudan elle tetiklenen komutla seçilen monitör MediaMTX'e yayınlanıyor; uygulama öldürülünce FFmpeg kalmıyor |
 | **5** | İzleme akışı: `view` ucu, hazır-bekleme, biletler, kiralama, otomatik durdurma, `ScreenSession`/`ScreenViewLog`. | Tarayıcı kapanınca ≤ 60 sn'de FFmpeg duruyor; iki izleyici aynı yayını; iki izleyici farklı monitörleri |
 | **6** | Frontend: PC listesi, PC ekranı (monitör seçici + oynatıcı), `VITE_MODULES`. | `npm run lint` + `npm run build` yeşil; uçtan uca izleme |
 | **7** | Kurulum paketi + oturum açma görevi + kaynak ölçümü ([§ 16](#16-kaynak-ve-performans-ölçümü)). `CLAUDE.md` güncellemesi. | Temiz PC'ye kurulup oturum açılınca kendiliğinden bağlanıyor; hedef değerler tutuyor |
@@ -654,14 +719,43 @@ monitörde tıklama.
 
 ## 16. Kaynak ve performans ölçümü
 
-| Durum | Hedef (başlangıç) |
+### 16.1 Hedefler
+
+| Durum | Hedef |
 |---|---|
 | Boşta (bağlı, izlenmiyor) | CPU ≈ %0, bellek < 100 MB, ağ yalnızca keep-alive |
-| Bir monitör izleniyor, donanım kodlayıcı | CPU < %5, ~2 Mbps |
-| Bir monitör izleniyor, `h264_mf` | Ölçülür; fazlaysa varsayılan fps/çözünürlük düşürülür |
-| Uçtan uca gecikme | < 500 ms (LAN'da 150–300 ms beklenir) |
+| Bir monitör izleniyor, donanım kodlayıcı | CPU < %15 (2 çekirdek/4 iş parçacığı), ~3 Mbps — `hwdownload`'sız GPU zinciri açılan donanımda daha düşük |
+| Bir monitör izleniyor, yazılım (OpenH264) | `speed` ≥ 0,9 sürekli (geri kalma bekçisi, § 7.5) |
+| Uçtan uca gecikme (tarayıcı dahil) | < 300 ms |
 
-Gecikme ölçümü: PC'de milisaniye gösteren saat; PC ekranı ile tarayıcı görüntüsü aynı karede fotoğraflanır.
+### 16.2 Faz 1 ölçümleri (2026-09-29)
+
+Makine: Intel i7-7500U (2 çekirdek/4 iş parçacığı), Intel HD 620, 2 × 1920×1080; yayıncı ve izleyici aynı
+makinede; Chrome.
+
+**Zincir gecikmesi** — monitör 1'de 1,5 sn'de bir siyah/beyaz değişen 120×120 kare; değişimin RTSP okuyucuya
+varış zamanı (duvar saati), 10 ölçüm ortalaması. Tarayıcı hariç.
+
+| Varyant | Ort. | Aralık | CPU |
+|---|---|---|---|
+| QSV 15 fps, varsayılan `async_depth` | 364 ms | 340–394 | %14,1 |
+| **QSV 15 fps, `async_depth 1`** | **58 ms** | 46–67 | %12,2 |
+| **QSV 30 fps, `async_depth 1`** | **57 ms** | 45–70 | %17,4 |
+| aynı + MediaMTX WHEP çıkışı (WebRTC ayağı dahil) | 66 ms | 47–222 | — |
+| `h264_mf` varsayılan | 346 ms | 266–474 | %14,6 |
+| `h264_mf` `display_remoting` (yazılım) | 341 ms | 280–385 | %15,6 |
+| `h264_mf` `hw_encoding 1` | çıktı yok (takılıyor) | — | — |
+| **`libopenh264` 15 fps** | **52 ms** | 41–68 | %10,4 |
+
+**Tarayıcı** (test sayfası, Chrome `getStats`, QSV 30 fps): jitter buffer 106 ms/kare, `jitterBufferTarget = 0`
+ile 55 ms; çözme 4–9 ms/kare; düşen kare yok; PC ekranındaki sayaç ile izlenen görüntü aynı saniyede
+(uçtan uca ≈ 130–200 ms).
+
+**Geri kalma** — kodlayıcı kasıtlı yavaşlatıldı (OpenH264, 4K'ya büyütülmüş), 30 sn: varsayılan CFR'de
+medya zamanı 8,4 sn / `dup=260` (sınırsız büyüyor); `-fps_mode passthrough`'ta 28,2 sn, `dup=0` (sabit ~2 sn).
+
+Ölçüm düzeneği (yanıp sönen kare + RTSP okuyucu + WHEP test sayfası) depoya alınmadı; Faz 4'te istemcinin
+kendi test komutu olarak yeniden yazılabilir.
 
 ---
 
@@ -677,6 +771,8 @@ Gecikme ölçümü: PC'de milisaniye gösteren saat; PC ekranı ile tarayıcı g
 3. **Yetki.** Öneri: MVP'de izleme her giriş yapmış kullanıcıya açık + `ScreenViewLog`; Faz 8'den önce en az
    bir "uzaktan kontrol" rolü zorunlu.
 4. **PC şablonu.** Öneri: sistem şablonu seed'i (her kurulumda hazır); alternatif: admin şablon ekranından.
+5. ~~**Yazılım yedeğinin lisansı.**~~ **Kapandı (2026-09-29):** yazılım yedeği OpenH264 yerine VP9 (libvpx,
+   telifsiz). H.264 yalnızca donanım kodlayıcılarında kullanılır; patenti sürücü/üreticiyle gelir.
 
 ---
 
@@ -688,7 +784,7 @@ Gecikme ölçümü: PC'de milisaniye gösteren saat; PC ekranı ile tarayıcı g
 | 2026-09-28 | .NET 10 (Scadex `net10.0`); kamerada publish olmadığı tespit edildi; `pc_*` için `IMediaPathAuthorizer`. |
 | 2026-09-28 | Yayın bileti oturum boyu geçerli (FFmpeg yeniden bağlanınca MediaMTX tekrar sorar); okuma/yayın biletleri ayrı. |
 | 2026-09-28 | Stop = kiralama bırakma; son izleyici gidince durur. Başlatmada yol hazır olana kadar sunucu bekler. |
-| 2026-09-28 | `libx264` yok (GPL) → `h264_mf` yedek; 4:2:0 ve B-frame yok zorunlu; klavyede `code` → scan code. |
+| 2026-09-28 | `libx264` yok (GPL) → `h264_mf` yedek (2026-09-29 Faz 1 ile değişti, aşağıda); 4:2:0 ve B-frame yok zorunlu; klavyede `code` → scan code. |
 | 2026-09-29 | Kimlik `Device.MacAddress`; ajan tablosu / `AgentId` / "ajan ekle" ekranı yok; modül şemasında cihaz kopyası yok. |
 | 2026-09-29 | Kimlik doğrulama yalnızca MAC (kabul edilen risk, § 5.3); ayrı JWT şeması ve token ucu yok. |
 | 2026-09-29 | PC istemcisi WPF (`Scadex.RemoteDesk.Windows`), servis/yardımcı/named pipe yok; minimal kaynak; "Agent" adı kullanılmaz. |
@@ -696,6 +792,8 @@ Gecikme ölçümü: PC'de milisaniye gösteren saat; PC ekranı ile tarayıcı g
 | 2026-09-29 | Kontratlar `Scadex.RemoteDesk.Contracts`; projeler `Modules/RemoteDesk/` altında; doküman depo kökünde. |
 | 2026-09-29 | WPF istemcisi projenin kendi MVVM altyapısını (`Helpers/`) ve Generic Host DI'ını kullanır; CommunityToolkit.Mvvm yok. |
 | 2026-09-29 | Uygulayıcı Claude Code (bu depo). |
+| 2026-09-29 | **Kodlayıcı seçimi:** donanımda H.264 (monitörün kartı önce: NVENC / QSV / AMF), yoksa yazılımda VP9; her aday gerçek denemeyle sınanır. OpenH264, `h264_mf`, x264 çıkarıldı. Yakalama `-init_hw_device d3d11va=cap:<adaptör>` + `-filter_complex ddagrab`. |
+| 2026-09-29 | Faz 1: FFmpeg 8.1 LGPL; `h264_mf` bırakıldı → yazılım yedeği `libopenh264`; QSV `async_depth 1`; çıkış `-fps_mode passthrough` zorunlu; geri kalma bekçisi; tarayıcıda `jitterBufferTarget = 0` (yalnızca PC yayını). Ölçümler § 16.2. |
 
 ---
 
@@ -706,7 +804,7 @@ Gecikme ölçümü: PC'de milisaniye gösteren saat; PC ekranı ile tarayıcı g
 3. Video ve kontrol kanalları ayrıdır.
 4. Komutlar `sessionId` ile idempotenttir; monitör başına tek yayın; bağlantılar yeniden bağlanır.
 5. Bilet loglanmaz; FFmpeg stderr maskelenir; sunucuya yalnızca sabit hata metinleri gider.
-6. H.264, 4:2:0, B-frame yok; RTSP TCP.
+6. H.264, 4:2:0, B-frame yok; RTSP TCP; çıkışta `-fps_mode passthrough`, QSV'de `-async_depth 1` (§ 7.4).
 7. Mevcut kamera akışı (`cam_*`, `CameraService`, `MediaPathCleanupWorker`, `LiveRtspUrl`) değişmez.
 8. Önce medya hattı kanıtlanır (Faz 1), sonra kod yazılır.
 9. Boşta istemci iş yapmaz: zamanlayıcı, yoklama, gizli pencerede UI güncellemesi yok.

@@ -6,6 +6,8 @@
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <UseWPF>true</UseWPF>
+    <!-- LibraryImport (Job Object P/Invoke) üretilen kodda unsafe kullanır. -->
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
   </PropertyGroup>
 
   <ItemGroup>
@@ -26,7 +28,14 @@
 	
   <ItemGroup>
     <PackageReference Include="Microsoft.Extensions.Hosting" Version="10.0.11" />
+    <PackageReference Include="Vortice.DXGI" Version="3.8.3" />
   </ItemGroup>
+
+  <!-- LGPL build tools\ffmpeg altına elle konur veya varsa publish'e kopyalanır; uygulama sabit yerde arar: <uygulama>\tools\ffmpeg\ffmpeg.exe (FfmpegLocator). -->
+  <ItemGroup>
+    <None Update="tools\ffmpeg\ffmpeg.exe" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
 
   <ItemGroup>
     <ProjectReference Include="..\Scadex.RemoteDesk.Contracts\Scadex.RemoteDesk.Contracts.csproj" />

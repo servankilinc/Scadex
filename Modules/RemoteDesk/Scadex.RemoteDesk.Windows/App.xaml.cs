@@ -1,6 +1,11 @@
 ﻿using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+using Scadex.RemoteDesk.Windows.Services;
+using Scadex.RemoteDesk.Windows.Services.Encoding;
+using Scadex.RemoteDesk.Windows.Services.Ffmpeg;
+using Scadex.RemoteDesk.Windows.Services.Monitors;
+using Scadex.RemoteDesk.Windows.Services.Streaming;
 using Scadex.RemoteDesk.Windows.ViewModels;
 using Scadex.RemoteDesk.Windows.Views;
 using System.Windows;
@@ -22,6 +27,15 @@ public partial class App : Application
             .UseContentRoot(AppContext.BaseDirectory)
             .ConfigureServices((hostContext, services) =>
             {
+                services.Configure<RemoteDeskClientOptions>(hostContext.Configuration.GetSection(RemoteDeskClientOptions.Section));
+
+                // Services
+                services.AddSingleton<ChildProcessJob>();   // tek Job Object: uygulama ölünce tüm FFmpeg'ler ölür
+                services.AddSingleton<IFfmpegLocator, FfmpegLocator>();
+                services.AddSingleton<IMonitorService, MonitorService>();
+                services.AddSingleton<IEncoderProbeService, EncoderProbeService>();
+                services.AddSingleton<IScreenStreamService, ScreenStreamService>();
+
                 // ViewModels
                 services.AddSingleton<HomeVM>();
                 services.AddSingleton<MainWindowVM>();
@@ -53,7 +67,12 @@ public partial class App : Application
         {
             try
             {
-                Task.Run(() => AppHost.StopAsync(CancellationToken.None)).Wait(ShutdownTimeout);
+                // Yayınlar önce nazikçe durur (FFmpeg'e 'q'); yetişmezse Job Object süreç kapanınca yine öldürür.
+                Task.Run(async () =>
+                {
+                    await AppHost.Services.GetRequiredService<IScreenStreamService>().StopAllAsync();
+                    await AppHost.StopAsync(CancellationToken.None);
+                }).Wait(ShutdownTimeout);
             }
             catch (AggregateException ex)
             {

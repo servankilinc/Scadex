@@ -1,17 +1,149 @@
 ﻿<UserControl x:Class="Scadex.RemoteDesk.Windows.Views.Home"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006" 
-             xmlns:d="http://schemas.microsoft.com/expression/blend/2008" 
-             xmlns:local="clr-namespace:Scadex.RemoteDesk.Windows.Views"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:vm="clr-namespace:Scadex.RemoteDesk.Windows.ViewModels"
-             mc:Ignorable="d" 
-             d:DesignHeight="450" d:DesignWidth="800">
-    <!--<UserControl.DataContext>
-        <vm:HomeVM/>
-    </UserControl.DataContext>-->
-    <Grid>
-        <TextBox Text="{Binding Title}" HorizontalAlignment="Left" Margin="308,56,0,0" TextWrapping="Wrap" VerticalAlignment="Top" Width="120"/>
-        <Button Command="{Binding TitleChangeCommand}" Content="Button" HorizontalAlignment="Left" Margin="352,310,0,0" VerticalAlignment="Top"/>
-    </Grid>
+             mc:Ignorable="d" d:DataContext="{d:DesignInstance vm:HomeVM}"
+             d:DesignHeight="700" d:DesignWidth="960"
+             Background="#F4F6F9" FontFamily="Segoe UI" FontSize="13" Foreground="#1F2933">
+    <UserControl.Resources>
+        <BooleanToVisibilityConverter x:Key="BoolToVisibility" />
+
+        <Style x:Key="Card" TargetType="Border">
+            <Setter Property="Background" Value="White" />
+            <Setter Property="BorderBrush" Value="#DDE2E8" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="CornerRadius" Value="6" />
+            <Setter Property="Padding" Value="14,12" />
+            <Setter Property="Margin" Value="0,0,0,12" />
+        </Style>
+        <Style x:Key="Label" TargetType="TextBlock">
+            <Setter Property="Foreground" Value="#6B7580" />
+            <Setter Property="Margin" Value="0,3,12,3" />
+            <Setter Property="VerticalAlignment" Value="Top" />
+        </Style>
+        <Style x:Key="Value" TargetType="TextBlock">
+            <Setter Property="Margin" Value="0,3,0,3" />
+            <Setter Property="TextWrapping" Value="Wrap" />
+        </Style>
+        <Style TargetType="Button">
+            <Setter Property="Padding" Value="12,5" />
+            <Setter Property="Margin" Value="0,0,8,0" />
+        </Style>
+    </UserControl.Resources>
+
+    <ScrollViewer VerticalScrollBarVisibility="Auto">
+        <StackPanel Margin="16">
+
+            <!-- Başlık: FFmpeg ve donanım -->
+            <Border Style="{StaticResource Card}">
+                <StackPanel>
+                    <DockPanel>
+                        <Button DockPanel.Dock="Right" Content="Monitörleri yenile" Command="{Binding RefreshCommand}" Margin="0" />
+                        <TextBlock Text="Scadex RemoteDesk — saha kontrolü" FontSize="17" FontWeight="SemiBold" />
+                    </DockPanel>
+                    <TextBlock Text="{Binding MachineText}" Style="{StaticResource Value}" Margin="0,6,0,0" />
+                    <TextBlock Text="{Binding FfmpegText}" Style="{StaticResource Value}" Foreground="#6B7580" />
+                    <TextBlock Text="{Binding FfmpegWarning}" Style="{StaticResource Value}" Foreground="#C78A10" FontWeight="SemiBold"
+                               Visibility="{Binding HasFfmpegWarning, Converter={StaticResource BoolToVisibility}}" />
+                </StackPanel>
+            </Border>
+
+            <!-- Test yayını hedefi -->
+            <Border Style="{StaticResource Card}">
+                <StackPanel>
+                    <TextBlock Text="Test yayını nereye?" FontWeight="SemiBold" Margin="0,0,0,6" />
+                    <RadioButton Content="Yalnızca kodla (ağa gönderme) — kodlayıcı seçimini ve yükü görmek için yeterli"
+                                 IsChecked="{Binding EncodeOnly}" Margin="0,2" />
+                    <DockPanel Margin="0,2">
+                        <RadioButton Content="RTSP'ye yayınla:" IsChecked="{Binding ToRtsp}" VerticalAlignment="Center" Margin="0,0,8,0" />
+                        <TextBox Text="{Binding RtspUrl, UpdateSourceTrigger=PropertyChanged}" IsEnabled="{Binding ToRtsp}" Padding="4,2" />
+                    </DockPanel>
+                    <TextBlock Style="{StaticResource Label}" TextWrapping="Wrap" Margin="0,6,0,0"
+                               Text="{}{monitor} monitör numarasıyla değişir. Görüntüyü tarayıcıda izlemek için bu PC'den erişilebilen bir MediaMTX gerekir. Hedef, yayın başlarken okunur." />
+                </StackPanel>
+            </Border>
+
+            <!-- Monitör kartları -->
+            <ItemsControl ItemsSource="{Binding Monitors}">
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate DataType="{x:Type vm:MonitorVM}">
+                        <Border Style="{StaticResource Card}">
+                            <StackPanel>
+                                <DockPanel>
+                                    <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
+                                        <Button Content="Kodlayıcıları sına" Command="{Binding ProbeCommand}" />
+                                        <Button Content="Test yayını başlat" Command="{Binding StartCommand}" />
+                                        <Button Content="Durdur" Command="{Binding StopCommand}" Margin="0" />
+                                    </StackPanel>
+                                    <StackPanel>
+                                        <TextBlock Text="{Binding Title}" FontSize="15" FontWeight="SemiBold" />
+                                        <TextBlock Text="{Binding Geometry}" Foreground="#6B7580" />
+                                        <TextBlock Text="{Binding Gpu}" Foreground="#6B7580" TextWrapping="Wrap" />
+                                    </StackPanel>
+                                </DockPanel>
+
+                                <!-- Sınama tablosu -->
+                                <TextBlock Text="Kodlayıcı sınaması (öncelik sırasıyla)" FontWeight="SemiBold" Margin="0,12,0,4" />
+                                <TextBlock Text="{Binding ProbeSummary}" Style="{StaticResource Value}" />
+                                <ItemsControl ItemsSource="{Binding ProbeRows}" Margin="0,4,0,0">
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate DataType="{x:Type vm:ProbeRowVM}">
+                                            <Grid Margin="0,1">
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="22" />
+                                                    <ColumnDefinition Width="210" />
+                                                    <ColumnDefinition Width="220" />
+                                                    <ColumnDefinition Width="*" />
+                                                    <ColumnDefinition Width="Auto" />
+                                                </Grid.ColumnDefinitions>
+                                                <TextBlock Text="{Binding Symbol}" Foreground="{Binding SymbolBrush}" FontWeight="Bold" />
+                                                <TextBlock Grid.Column="1" Text="{Binding Encoder}" />
+                                                <TextBlock Grid.Column="2" Text="{Binding Chain}" Foreground="#6B7580" />
+                                                <TextBlock Grid.Column="3" Text="{Binding Detail}" TextWrapping="Wrap" />
+                                                <Border Grid.Column="3" HorizontalAlignment="Right" VerticalAlignment="Top" Background="#E3F1E8"
+                                                        CornerRadius="3" Padding="6,0"
+                                                        Visibility="{Binding IsSelected, Converter={StaticResource BoolToVisibility}}">
+                                                    <TextBlock Text="SEÇİLDİ" Foreground="#2E9E5B" FontSize="11" FontWeight="Bold" />
+                                                </Border>
+                                                <Button Grid.Column="4" Content="Bu adayla yayınla" Command="{Binding TryCommand}" Padding="8,1" Margin="10,0,0,2"
+                                                        FontSize="12" Visibility="{Binding CanTry, Converter={StaticResource BoolToVisibility}}"
+                                                        ToolTip="Otomatik seçimi değiştirmeden test yayınını bu kodlayıcıyla yeniden başlatır (sahada karşılaştırma için)." />
+                                            </Grid>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+
+                                <!-- Yayın durumu -->
+                                <TextBlock Text="Test yayını" FontWeight="SemiBold" Margin="0,12,0,4" />
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition Width="*" />
+                                    </Grid.ColumnDefinitions>
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="Auto" />
+                                        <RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="Auto" />
+                                    </Grid.RowDefinitions>
+                                    <TextBlock Grid.Row="0" Text="Durum" Style="{StaticResource Label}" />
+                                    <TextBlock Grid.Row="0" Grid.Column="1" Text="{Binding StateText}" Foreground="{Binding StateBrush}" FontWeight="SemiBold" Style="{StaticResource Value}" />
+                                    <TextBlock Grid.Row="1" Text="Kodlayıcı" Style="{StaticResource Label}" />
+                                    <TextBlock Grid.Row="1" Grid.Column="1" Text="{Binding EncoderText}" Style="{StaticResource Value}" />
+                                    <TextBlock Grid.Row="2" Text="Profil" Style="{StaticResource Label}" />
+                                    <TextBlock Grid.Row="2" Grid.Column="1" Text="{Binding ProfileText}" Style="{StaticResource Value}" />
+                                    <TextBlock Grid.Row="3" Text="Canlı" Style="{StaticResource Label}" />
+                                    <TextBlock Grid.Row="3" Grid.Column="1" Text="{Binding LiveText}" Foreground="{Binding LiveBrush}" Style="{StaticResource Value}" />
+                                    <TextBlock Grid.Row="4" Text="Hedef" Style="{StaticResource Label}" />
+                                    <TextBlock Grid.Row="4" Grid.Column="1" Text="{Binding TargetText}" Style="{StaticResource Value}" />
+                                    <TextBlock Grid.Row="5" Text="Not" Style="{StaticResource Label}" />
+                                    <TextBlock Grid.Row="5" Grid.Column="1" Text="{Binding MessageText}" Foreground="#C78A10" Style="{StaticResource Value}" />
+                                </Grid>
+                            </StackPanel>
+                        </Border>
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
+        </StackPanel>
+    </ScrollViewer>
 </UserControl>
