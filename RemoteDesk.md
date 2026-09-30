@@ -423,9 +423,10 @@ Created → CommandSent → Streaming → Stopping → Stopped
 Tek bir WPF süreci, **oturum açmış kullanıcının** oturumunda çalışır. Servis, yardımcı süreç ve named pipe
 **yoktur**.
 
-- **Otomatik başlatma:** kurulum, her kullanıcı için "oturum açılınca" tetiklenen bir Görev Zamanlayıcı
-  görevi oluşturur. (Run anahtarı yerine görev, çünkü Faz 8'de UIPI için "en yüksek ayrıcalıkla çalıştır"
-  seçeneği UAC sorusu çıkarmadan açılabilir.)
+- **Otomatik başlatma (karar 2026-09-30):** kurulum paketi yok; proje sahibi uygulamayı Windows başlangıç
+  uygulamalarına elle ekler — kısayolun hedefi `Scadex.RemoteDesk.Windows.exe --tray` (pencere açılmadan System Tray'de
+  başlar). Çalışma klasörü önemsizdir (§ 9.4). Faz 8'de UIPI için "en yüksek ayrıcalıkla çalıştır" gerekirse
+  başlangıç kısayolu yetmez, Görev Zamanlayıcı görevine geçilir (§ 12.6).
 - **Tek örnek:** oturum başına `Local\Scadex.RemoteDesk.Windows` mutex'i; ikinci örnek mevcut pencereyi
   öne getirip çıkar.
 - **Pencere kapatılınca uygulama kapanmaz, System Trayye iner.** Çıkış yalnızca System Tray menüsünden.
@@ -454,13 +455,13 @@ System Tray menüsü: Göster · Yeniden bağlan · Günlük klasörünü aç ·
 - Monitör listesi yalnızca açılışta ve `SystemEvents.DisplaySettingsChanged`'de okunur; MAC listesi yalnızca
   bağlanırken.
 - Kodlayıcı denemesi ilk yayında (§ 7.4); FFmpeg yalnızca izlenen monitör için, `BelowNormal` öncelikte.
-- Workstation GC, `ReadyToRun` yayın (hızlı açılış). Hedef: boşta **< 100 MB** bellek, **≈ %0 CPU**
-  ([§ 16](#16-kaynak-ve-performans-ölçümü)'da ölçülür).
+- Workstation GC. Hedef: boşta **< 100 MB** bellek, **≈ %0 CPU** — Faz 7'de tuttu: %0,13 CPU, private 29 MB
+  ([§ 16.3](#163-faz-7-ölçümleri-2026-09-30)).
 
 ### 9.4 Yapılandırma
 
-Uygulama klasöründeki `appsettings.json` (`Program Files` altında — kurulum yazar, kullanıcılar için salt
-okunur). Generic Host'un içerik kökü **`AppContext.BaseDirectory`**'dir; çalışma klasörüne güvenilmez
+Uygulama klasöründeki `appsettings.json` (publish klasörüyle gelir; dağıtırken `CentralApiUrl` sahanın merkez
+adresine elle yazılır). Generic Host'un içerik kökü **`AppContext.BaseDirectory`**'dir; çalışma klasörüne güvenilmez
 (oturum açılışında başlatılan süreçte `System32` olur).
 
 ```json
@@ -472,18 +473,22 @@ yayın adresi sunucudan gelir. FFmpeg yolu uygulama klasörüne göreli sabittir
 
 ### 9.5 Loglama
 
-Serilog, `%LocalAppData%\Scadex\RemoteDesk\logs` (kullanıcı başına; günlük dönen dosya, 7 gün, boyut
-sınırlı), seviye Information. Olaylar: açılış, bağlandı/koptu, `Hello` sonucu, komut alındı/reddedildi,
-FFmpeg başladı/çıktı (çıkış kodu), yeniden deneme. **Bilet asla loglanmaz**; FFmpeg adresi maskelenir.
+Serilog (Faz 7, `Services/Shell/ClientLog.cs`): `%LocalAppData%\Scadex\RemoteDesk\logs\client-YYYYMMDD.log` (kullanıcı
+başına — uygulama klasörü yazılabilir olmayabilir; günlük döner, 14 dosya, dosya başına 10 MB), seviye Information,
+`Microsoft`/`System` Warning. System Tray menüsünde "Günlük klasörünü aç". Olaylar: açılış (sürüm, System Tray/pencere),
+merkeze bağlandı/kapandı/kabul etmedi, merkez yayın istedi/durdurdu, encoder sınama sonuçları, yayın başladı (encoder, profil,
+maskeli adres), profil düşürme, FFmpeg çıktısı (çıkış kodu), tercih değişimi, System Tray'den çıkış; işlenmeyen hatalar
+`Critical` (davranış değişmez, uygulama yine kapanır). **Bilet asla loglanmaz**; FFmpeg adresi `rtsp://***@` ile maskelenir
+(Faz 7'de günlükte bilet araması 0 sonuç).
 
 ### 9.6 Kurulum
 
-- **Inno Setup:** `Program Files\Scadex\RemoteDesk\` + `tools\ffmpeg\` → merkez adresi sorulur →
-  `appsettings.json` → oturum açma görevi → uygulama başlatılır.
-- **Saha dağıtımı (2026-09-29):** paket ayrı bir betikle değil standart komutla alınır ve proje sahibi elle dağıtır:
+- **Kurulum paketi yok (karar 2026-09-30):** Inno Setup/MSI yazılmadı. Proje sahibi klasöre publish alıp elle dağıtır:
   `dotnet publish Modules/RemoteDesk/Scadex.RemoteDesk.Windows -c Release -r win-x64 --self-contained true -o <klasör>`
-  (.NET kurulumu gerekmez; LGPL FFmpeg `tools\ffmpeg\` altında gelir — geliştirme ortamında yoksa paket FFmpeg'siz çıkar ve
-  uygulama "FFmpeg bulunamadı" uyarısı verir). Ekranda "Encoder" kutucuğu (sınama, seçilen encoder, "Tercih et" —
+  (≈ 300 MB: .NET gömülü, kurulum gerekmez + 134 MB FFmpeg). Klasörde `tools\ffmpeg\ffmpeg.exe` ve LGPL `LICENSE.txt` gelir;
+  **ikisinden biri geliştirme ortamında yoksa publish hata verip durur** (`RequireFfmpegForPublish`, csproj) — FFmpeg'siz
+  istemci sahaya gitmesin. `*.pubxml` depoda yok sayıldığı için publish profili yok; komut budur. Sahada: klasörü kopyala →
+  `appsettings.json > CentralApiUrl` → başlangıç uygulamalarına `--tray` ile ekle (§ 9.1). Ekranda "Encoder" kutucuğu (sınama, seçilen encoder, "Tercih et" —
   § 7.4) ve her monitörün kartında merkez yayınının salt okunur durumu (encoder/zincir/profil, canlı fps/hız/CPU) görünür.
   Sahadaki test yayını 2026-09-30'da kaldırıldı: yayın yalnızca merkezin isteğiyle başlar ve durur.
 - Binary'ler kod imzalı olmalı (uzaktan erişim yazılımları AV'lerce sık işaretlenir).
@@ -677,7 +682,6 @@ Modules/RemoteDesk/
     Services/                      Connection (PcHub istemcisi), Monitors, Streaming (FFmpeg + Job Object),
                                    Network (MAC), Tray, (Faz 8) Input
     tools/ffmpeg/                  LGPL build, git'te değil (Scadex'teki MediaTools gibi)
-    installer/                     Inno Setup betiği
 RemoteDesk.md                      bu doküman (depo kökü)
 ```
 
@@ -714,8 +718,8 @@ Her faz bir öncekinin başarı kriteri sağlanmadan başlamaz.
 | **3** ✅ | `PcHub` + `Hello`/MAC eşleşmesi + bellek kaydı + canlılık. WPF: tek örnek, System Tray, bağlantı ekranı, `appsettings.json`, yeniden bağlanma (henüz yayın yok). **2026-09-29:** canlılık yalnızca bellekte (`PcConnectionRegistry`), `Device` durumuna yazılmaz (§ 17 #1 önerisi). Yapılmadı: hızlı kullanıcı değiştirme (`SessionSwitch`), System Trayde "günlük klasörü" (Serilog henüz yok), "izleniyor" ikonu (Faz 5). | Sınandı (bu makine): tanımsız PC'de iki fiziksel kartın MAC'i gösterildi; diyagrama farklı biçimde (`50-8d-…`, küçük harf) yazılan MAC eşleşti → "Bağlı — kabin / cihaz", `pcs` `isConnected: true`, 2 monitör; modül kapalıyken negotiate 404 ve istemcide "modül kapalı"; merkez yeniden başlayınca kendiliğinden bağlandı; ikinci örnek mevcut pencereyi öne getirip çıktı; pencereyi kapatmak System Trayye indirdi; gizliyken boşta 30 sn'de 47 ms CPU (≈%0,16), private bellek 60 MB (working set 144 MB). Sınanmadı: `Ambiguous`, `AlreadyConnected`, System Tray "Çıkış" |
 | **4** ✅ | WPF yayın: monitör listesi, FFmpeg yöneticisi, kodlayıcı denemesi, `Start/StopScreenStream`, idempotency, Job Object. **2026-09-30:** merkez komutları bağlandı — aynı oturum tekrar gelirse yok sayılır, aynı monitöre yeni oturum (ya da sahadaki test yayını) varsa önce o durur; yayın durumu merkeze yalnızca değişince bildirilir; bilet reddedilirse (401) yeniden denemeden biter; merkez bağlantısı kopunca merkezin yayınları durur. PC'de "izleniyor" göstergesi: pencerede kırmızı şerit + tepside kırmızı noktalı ikon. | Sınandı: sunucunun komutuyla monitör MediaMTX'e yayınlandı (1080p, Intel QSV); istemci zorla öldürülünce FFmpeg kalmadı (Job Object); API öldürülünce istemci FFmpeg'ini 1,1 sn'de durdurdu |
 | **5** ✅ | İzleme akışı: `view` ucu, hazır-bekleme, biletler, kiralama, otomatik durdurma, `ScreenSession`/`ScreenViewLog`. **2026-09-30:** `ScreenStreamCoordinator` (bellekte, tek kilit), `ScreenStreamWorker` (açılışta yetim oturumları kapatır, 5 sn'de bir süpürür), `GET pcs/{id}` (monitörler + yayın durumu + izleyici sayısı). Çekirdeğe `IMediaGateway.GetRuntimePathAsync` / `KickPublisherAsync`. | Sınandı: izleme 1,3–2,8 sn'de hazır (ilkinde kodlayıcı sınaması dahil); aynı monitöre ikinci izleyici 15 ms'de aynı yayına katıldı, farklı monitör ayrı yayın; yenilenmeyen kiralama 47 sn'de düştü; bırakınca 14 sn'de durdu; **tarayıcı öldürülünce 51 sn'de durdu**; okuyucusuz kiralama 60 sn'de durduruldu; gerçek WebRTC izleyicisi 75 sn boyunca kesilmedi; kick ucu (`v3/rtspsessions/kick`) doğrulandı; API yeniden başlayınca yetim oturum `Failed/ServerRestart`; istemci koparsa `Failed/ClientDisconnected`. Sınanmadı: istemcinin durdurmaya UYMADIĞI durum (kick bu yol için yazıldı) |
-| **6** ◐ | Frontend: PC listesi, PC ekranı (monitör seçici + oynatıcı), `VITE_MODULES`. **2026-09-30:** `src/modules/remotedesk/` (liste, PC ekranı, `pc-stream-session.ts` — kiralama yenileme/bırakma, kopunca yeni kiralamayla yeniden başlama), `whep.ts`'e `lowLatency` seçeneği (yalnızca PC). `.env.development` → `signalization,remotedesk`; `.env.production` DEĞİŞMEDİ. | `npm run lint` + `npm run build` yeşil. Aynı akış (giriş → izleme → WHEP → kiralama) başlıksız Chrome'da test sayfasıyla sınandı: 1920×1080, 28–30 fps, jitter tamponu 39–52 ms. **React ekranları henüz tarayıcıda elle gezilmedi** |
-| **7** | Kurulum paketi + oturum açma görevi + kaynak ölçümü ([§ 16](#16-kaynak-ve-performans-ölçümü)). `CLAUDE.md` güncellemesi. | Temiz PC'ye kurulup oturum açılınca kendiliğinden bağlanıyor; hedef değerler tutuyor |
+| **6** ✅ | Frontend: PC listesi, PC ekranı (monitör seçici + oynatıcı), `VITE_MODULES`. **2026-09-30:** `src/modules/remotedesk/` (liste, PC ekranı, `pc-stream-session.ts` — kiralama yenileme/bırakma, kopunca yeni kiralamayla yeniden başlama), `whep.ts`'e `lowLatency` seçeneği (yalnızca PC). `.env.development` → `signalization,remotedesk`; `.env.production` DEĞİŞMEDİ. İzleme `RemotePcView` iznine bağlı: menü maddesi ve rota izinsiz kullanıcıda gizli. | `npm run lint` + `npm run build` yeşil. Aynı akış (giriş → izleme → WHEP → kiralama) başlıksız Chrome'da test sayfasıyla sınandı: 1920×1080, 28–30 fps, jitter tamponu 39–52 ms. **React ekranları (2026-09-30), başlıksız Chrome + DevTools protokolüyle:** giriş → menü → PC listesi (bağlı, 2 monitör) → PC ekranı 4,3 sn'de 1920×1080 görüntü, monitör kartı "Yayında · 1 izleyici" → 2. monitöre geçiş 3,7 sn → listeye dönünce iki yayın da durdu, FFmpeg kalmadı; konsolda hata yok. Sınanmadı: bağlı olmayan PC ekranı, "Tekrar dene" |
+| **7** ✅ | ~~Kurulum paketi + oturum açma görevi~~ → **2026-09-30 (kullanıcı kararı):** kurulum paketi yok, klasöre publish + elle dağıtım; başlangıç uygulamalarına `--tray` ile elle eklenir (§ 9.1, § 9.6). Yapılan: istemciye Serilog (§ 9.5, System Tray'de "Günlük klasörünü aç"), publish'e LGPL `LICENSE.txt`, FFmpeg yoksa publish'i durduran kontrol, kaynak ölçümü ([§ 16.3](#163-faz-7-ölçümleri-2026-09-30)). `CLAUDE.md` güncellendi. | Sınandı: self-contained publish (≈ 300 MB) scratchpad'e alındı, çalışma klasörü `System32` iken `--tray` ile açılıp merkeze bağlandı; günlükte açılış → bağlantı → yayın isteği → sınama → yayın (maskeli adres) → durdurma satırları, bilet yok; boşta ve yayında hedefler tuttu. Sınanmadı: temiz (geliştirme araçsız) PC, başlangıç kısayoluyla oturum açılışı, System Tray "Çıkış" satırı |
 | **8** | Fare ([§ 12](#12-uzaktan-kontrol-faz-8--mvpde-yazılmaz-sözleşmesi-şimdiden-sabit)) + viewer hub + `RemoteControlSession` + yetki kararı | |
 | **9** | Klavye (scan code, değiştirici tuşlar, takılı tuş emniyeti) | |
 | **10** | Tüm monitörler tek görüntü, pano | |
@@ -786,6 +790,21 @@ medya zamanı 8,4 sn / `dup=260` (sınırsız büyüyor); `-fps_mode passthrough
 Ölçüm düzeneği (yanıp sönen kare + RTSP okuyucu + WHEP test sayfası) depoya alınmadı; Faz 4'te istemcinin
 kendi test komutu olarak yeniden yazılabilir.
 
+### 16.3 Faz 7 ölçümleri (2026-09-30)
+
+Aynı makine; publish edilmiş (Release, self-contained) istemci `--tray` ile, pencere hiç açılmadan. Süreç başına
+`TotalProcessorTime` farkı / 30 sn / 4 mantıksal çekirdek. Yayında: monitör 0, Intel QSV kopyasız zincir, 30 fps · ≤1920 px ·
+3000 kbps; ekran büyük ölçüde durağan (IDE açık, hareket az) — hareketli içerikte FFmpeg payı artar; Faz 1'deki %12–17
+(1,5 sn'de bir değişen test karesiyle ölçüldü) üst sınır için daha iyi bir tahmindir.
+
+| Durum | Süreç | CPU (makine) | Private / working set |
+|---|---|---|---|
+| Boşta (bağlı, izlenmiyor) | istemci | %0,13 (156 ms / 30 sn) | 29 MB / 91 MB |
+| Yayında | istemci | %0,64 | 32 MB / 98 MB |
+| Yayında | FFmpeg | %2,88 | 115 MB / 107 MB |
+
+İzleme bırakılınca yayın durdu, FFmpeg kalmadı. Hedefler (§ 16.1: boşta ≈ %0 ve < 100 MB, yayında < %15) tuttu.
+
 ---
 
 ## 17. Açık kararlar
@@ -828,6 +847,7 @@ kendi test komutu olarak yeniden yazılabilir.
 | 2026-09-29 | Faz 3: `PcHub` anonim; `Hello` normalize MAC ile aktif Pc cihazlarını eşler, tek eşleşme kabul, cihaz başına ilk bağlanan kazanır; bağlantı kaydı bellekte. İstemci SignalR'ın otomatik yeniden bağlanmasını kullanmaz (her bağlantı `Hello` ile yeniden eşlenmeli); geri çekilme 1/2/5/10/30 sn, reddedilince 60 sn. Pencere kapatmak System Trayye indirir; `--tray` argümanı pencereyi açmadan başlatır (oturum açma görevi için). |
 | 2026-09-30 | **İstemcide test yayını kaldırıldı** ("Test yayını başlat", "Durdur", "yalnızca kodla" hedefi, `TestPublishUrl`): yayın yalnızca merkezin komutuyla. Sınama ve tercih monitör kartlarından ayrı bir "Encoder" kutucuğunda (tüm monitörler birlikte sınanır); monitör kartlarında yayın durumu salt okunur kalır. Arayüzde "kodlayıcı" yerine "encoder". |
 | 2026-09-30 | **Kodlayıcı tercihi PC başına ve bellekte** (kullanıcı kararı): "Tercih et" rozetini ve tüm yayınları (merkez dahil) değiştirir, çalışmadığı monitörde otomatik seçim; tercih değişince yayın merkez oturumu kapanmadan yeniden başlar. Eski "Bu adayla yayınla" kaldırıldı: merkez yayınını durdurup test yayını açıyordu. Aynı işte yakalanan hata: `StreamSession.StopAsync` önce iptal ettiği için FFmpeg sahipsiz kalabiliyordu → önce nazik durdurma, sonra iptal. |
+| 2026-09-30 | **Faz 7 daraldı** (kullanıcı kararı): kurulum paketi (Inno Setup/MSI) ve Görev Zamanlayıcı görevi yazılmadı — istemci klasöre publish alınıp elle dağıtılır, başlangıç uygulamalarına `--tray` ile eklenir. İstemci günlüğü kullanıcı başına `%LocalAppData%` altında; FFmpeg'siz publish hata verir. |
 | 2026-09-30 | **§ 17 kapandı** (kullanıcı kararları): PC bağlantısı kabin durumuna yansımaz; izlendiğine dair onay alınmaz (gösterge + denetim kaydı yeter); izleme yeni `RemotePcView` iznine bağlı — projede **zorlanan ilk izin**, modül uçlarında policy (yoksa 403), frontend'de menü maddesi ve rota da izne bağlı. |
 | 2026-09-30 | Faz 4–5: yayın ve izleyiciler bellekte (`ScreenStreamCoordinator`), DB yalnızca denetim. Hazır bekleme 30 sn; bekleyen izleme isteği süpürmede izleyici sayılır (ilk yayın beklerken durdurulmasın). Durdurmada bilet hemen silinir, uymayan yayıncı 10 sn sonra atılır (kick). PC'de "izleniyor" göstergesi zorunlu (pencere şeridi + tepsi ikonu). |
 | 2026-09-29 | Faz 1: FFmpeg 8.1 LGPL; `h264_mf` bırakıldı → yazılım yedeği `libopenh264`; QSV `async_depth 1`; çıkış `-fps_mode passthrough` zorunlu; geri kalma bekçisi; tarayıcıda `jitterBufferTarget = 0` (yalnızca PC yayını). Ölçümler § 16.2. |

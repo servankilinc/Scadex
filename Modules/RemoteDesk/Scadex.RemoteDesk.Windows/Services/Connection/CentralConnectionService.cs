@@ -152,7 +152,11 @@ public sealed class CentralConnectionService : BackgroundService, ICentralConnec
 
         // Merkez komutları (IPcHubClient). Yalnızca Hello kabul edildikten sonra gelir.
         hub.On<StartScreenStreamCommand>(nameof(IPcHubClient.StartScreenStream), OnStartScreenStreamAsync);
-        hub.On<StopScreenStreamCommand>(nameof(IPcHubClient.StopScreenStream), command => _streams.StopSessionAsync(command.SessionId));
+        hub.On<StopScreenStreamCommand>(nameof(IPcHubClient.StopScreenStream), command =>
+        {
+            _logger.LogInformation("Merkez yayını durdurdu: oturum {SessionId}", command.SessionId);
+            return _streams.StopSessionAsync(command.SessionId);
+        });
 
         try
         {

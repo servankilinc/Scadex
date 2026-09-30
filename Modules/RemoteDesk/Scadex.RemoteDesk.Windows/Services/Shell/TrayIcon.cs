@@ -18,6 +18,7 @@ public sealed partial class TrayIcon : IDisposable
         var menu = new System.Windows.Forms.ContextMenuStrip();
         menu.Items.Add("Göster", null, (_, _) => show());
         menu.Items.Add("Yeniden bağlan", null, (_, _) => reconnect());
+        menu.Items.Add("Günlük klasörünü aç", null, (_, _) => ClientLog.OpenFolder());
         menu.Items.Add(new System.Windows.Forms.ToolStripSeparator());
         menu.Items.Add("Çıkış", null, (_, _) => exit());
 

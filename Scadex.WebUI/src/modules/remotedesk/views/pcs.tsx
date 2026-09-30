@@ -125,7 +125,7 @@ function PcRow({ pc }: { pc: PcListItemDto }) {
         )}
       </td>
       <td className='text-right'>
-        <Button size='sm' variant={pc.isConnected ? 'default' : 'outline'} render={<Link to={`/remote-desk/pcs/${pc.deviceId}`} />}>
+        <Button size='sm' variant={pc.isConnected ? 'default' : 'outline'} nativeButton={false} render={<Link to={`/remote-desk/pcs/${pc.deviceId}`} />}>
           {pc.isConnected ? 'İzle' : 'Detay'}
         </Button>
       </td>

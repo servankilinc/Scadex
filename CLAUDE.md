@@ -157,6 +157,9 @@ durur. Ayrıntı: PROJECT_OVERVIEW.md § 10.
   bilerek yoktur (gösterge + `ScreenViewLog`). **Modülün HTTP uçları `RemotePcView` iznini ister** (projede zorlanan ilk izin,
   aşağıdaki "yetki zorlaması yok" kuralının tek istisnası): policy modülün kaydında (`RemoteDeskModule.ViewPolicy`), izin kodu
   `Permission.RemotePcView` adıyla aynı — enum'u yeniden adlandırmayın. `PcHub` anonim kalır.
+  **Windows istemcisinin kurulum paketi bilerek yoktur (2026-09-30):** `dotnet publish ... -c Release -r win-x64 --self-contained true -o <klasör>`
+  ile klasöre alınıp elle dağıtılır, başlangıç uygulamalarına `--tray` ile eklenir (RemoteDesk.md § 9.6). `tools\ffmpeg\` (LGPL exe +
+  `LICENSE.txt`) git'te yoktur; eksikse publish bilerek hata verir. İstemci günlüğü `%LocalAppData%\Scadex\RemoteDesk\logs`'tadır.
 
 - **Çekirdek modülü bilmez.** Tek temas noktası `IScadaEventObserver` (Business/Utils/ScadaEvents):
   ingest (değer gerçekten değişince), **başarılı çıkış komutu** (kanal değeri değişince, `Direction =

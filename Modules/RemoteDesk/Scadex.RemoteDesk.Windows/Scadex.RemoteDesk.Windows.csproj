@@ -37,13 +37,23 @@
   <ItemGroup>
     <PackageReference Include="Microsoft.AspNetCore.SignalR.Client" Version="10.0.11" />
     <PackageReference Include="Microsoft.Extensions.Hosting" Version="10.0.11" />
+    <PackageReference Include="Serilog.Extensions.Hosting" Version="10.0.0" />
+    <PackageReference Include="Serilog.Sinks.File" Version="7.0.0" />
     <PackageReference Include="Vortice.DXGI" Version="3.8.3" />
   </ItemGroup>
 
   <!-- LGPL build tools\ffmpeg altına elle konur veya varsa publish'e kopyalanır; uygulama sabit yerde arar: <uygulama>\tools\ffmpeg\ffmpeg.exe (FfmpegLocator). -->
   <ItemGroup>
     <None Update="tools\ffmpeg\ffmpeg.exe" CopyToOutputDirectory="PreserveNewest" />
+    <!-- Lisans exe ile birlikte dağıtılmak zorunda. -->
+    <None Update="tools\ffmpeg\LICENSE.txt" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
+
+  <!-- tools\ffmpeg git'te yok; eksikse publish klasörü yayın yapamayan bir istemci olurdu — sahaya gitmeden dursun. -->
+  <Target Name="RequireFfmpegForPublish" BeforeTargets="PrepareForPublish">
+    <Error Condition="!Exists('tools\ffmpeg\ffmpeg.exe') Or !Exists('tools\ffmpeg\LICENSE.txt')"
+           Text="tools\ffmpeg\ffmpeg.exe ya da LICENSE.txt eksik. LGPL FFmpeg build'ini (sunucudaki MediaTools\ffmpeg ile aynı) bu klasöre koyun; GPL build koymayın." />
+  </Target>
 
 
   <ItemGroup>

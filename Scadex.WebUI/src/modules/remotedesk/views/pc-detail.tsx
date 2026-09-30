@@ -1,10 +1,12 @@
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Link, useParams } from 'react-router';
+import { useQueryClient } from '@tanstack/react-query';
 import { ArrowLeftIcon, EyeIcon, LoaderIcon, MonitorIcon, MonitorOffIcon, VideoOffIcon } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { cn, formatUtcDateTime } from '@/lib/utils';
+import { remoteDeskKeys } from '../api/query-keys';
 import { usePc } from '../hooks/use-pcs';
 import { usePcStream } from '../hooks/use-pc-stream';
 import { ScreenStreamStateLabels, type PcDetailDto, type PcMonitorDto } from '../models/pc';
@@ -55,7 +57,7 @@ function PcHeader({ pc }: { pc: PcDetailDto }) {
   return (
     <div className='flex flex-wrap items-start justify-between gap-3'>
       <div className='flex items-start gap-3'>
-        <Button size='icon-sm' variant='ghost' render={<Link to='/remote-desk/pcs' title='PC listesine dön' />}>
+        <Button size='icon-sm' variant='ghost' nativeButton={false} render={<Link to='/remote-desk/pcs' title='PC listesine dön' />}>
           <ArrowLeftIcon />
         </Button>
         <div>
@@ -117,6 +119,12 @@ function MonitorPicker({ monitors, selected, onSelect }: { monitors: PcMonitorDt
 function PcPlayer({ deviceId, monitorIndex }: { deviceId: string; monitorIndex: number }) {
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const stream = usePcStream(videoRef, deviceId, monitorIndex);
+  const queryClient = useQueryClient();
+
+  // Görüntü gelince monitör kartındaki yayın durumu/izleyici sayısı 10 sn'lik yoklamayı beklemesin.
+  useEffect(() => {
+    if (stream.state === 'connected') void queryClient.invalidateQueries({ queryKey: remoteDeskKeys.pc(deviceId) });
+  }, [stream.state, deviceId, queryClient]);
 
   return (
     <div className='flex flex-col gap-2'>

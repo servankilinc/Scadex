@@ -11,6 +11,7 @@ using Scadex.RemoteDesk.Windows.Services.Shell;
 using Scadex.RemoteDesk.Windows.Services.Streaming;
 using Scadex.RemoteDesk.Windows.ViewModels;
 using Scadex.RemoteDesk.Windows.Views;
+using Serilog;
 using System.ComponentModel;
 using System.Windows;
 
@@ -42,6 +43,7 @@ public partial class App : Application
             // İçerik kökü exe'nin klasörüdür, çalışma klasörü değil: oturum açılışında Görev Zamanlayıcı ile
             // başlatılan süreçte çalışma klasörü System32 olur ve appsettings.json bulunamazdı.
             .UseContentRoot(AppContext.BaseDirectory)
+            .UseSerilog((_, config) => ClientLog.Configure(config))
             .ConfigureServices((hostContext, services) =>
             {
                 services.Configure<RemoteDeskClientOptions>(hostContext.Configuration.GetSection(RemoteDeskClientOptions.Section));
@@ -88,6 +90,15 @@ public partial class App : Application
         _showSignal = new EventWaitHandle(false, EventResetMode.AutoReset, ShowSignalName);
         _showWait = ThreadPool.RegisterWaitForSingleObject(_showSignal, (_, _) => Dispatcher.BeginInvoke(ShowMainWindow), null, Timeout.Infinite, false);
 
+        var log = AppHost.Services.GetRequiredService<ILogger<App>>();
+        log.LogInformation("İstemci başladı: sürüm {Version}, {Mode}, günlük {Folder}",
+            typeof(App).Assembly.GetName().Version, e.Args.Contains(TrayArgument, StringComparer.OrdinalIgnoreCase) ? "System Tray'de" : "pencereli", ClientLog.Folder);
+
+        // Beklenmeyen hatalar yalnızca günlüğe yazılır; davranış değişmez (işlenmeyen hata yine uygulamayı kapatır).
+        DispatcherUnhandledException += (_, args) => log.LogCritical(args.Exception, "Arayüzde işlenmeyen hata");
+        AppDomain.CurrentDomain.UnhandledException += (_, args) => log.LogCritical(args.ExceptionObject as Exception, "İşlenmeyen hata, uygulama kapanıyor");
+        TaskScheduler.UnobservedTaskException += (_, args) => log.LogError(args.Exception, "Gözlenmeyen görev hatası");
+
         await AppHost.StartAsync();
 
         var mainWindow = AppHost.Services.GetRequiredService<MainWindow>();
@@ -130,6 +141,7 @@ public partial class App : Application
     /// <summary> Tek çıkış yolu: System Tray menüsü. Host ve yayınlar <see cref="OnExit"/>'te durdurulur. </summary>
     private void ExitApplication()
     {
+        AppHost?.Services.GetService<ILogger<App>>()?.LogInformation("Kullanıcı System Tray'den çıktı");
         _exiting = true;
         Shutdown();
     }
