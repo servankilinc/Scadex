@@ -152,6 +152,11 @@ durur. Ayrıntı: PROJECT_OVERVIEW.md § 10.
   `IMediaGateway.GetRuntimePathAsync` / `KickPublisherAsync` yalnızca yapılandırmada OLMAYAN, yayıncıyla yaşayan `pc_` yolları
   içindir (yol hazır mı, uymayan yayıncıyı at). `pc_` yolları `MediaPathCleanupWorker`'a görünmez ve görünmemeli: temizlenecek
   yapılandırma yoktur, yayıncıyı/oturumu modülün kiralama mekanizması durdurur.
+  **PC istemcisinin bağlı olup olmadığı kabin durumuna bilerek yansımaz (2026-09-30):** yalnızca bellekte (`PcConnectionRegistry`);
+  `ICabinetStatusService`'e kanıt olarak vermeyin — uygulama kapanınca kabin `Warning`'e düşerdi. İzlendiğine dair onay da
+  bilerek yoktur (gösterge + `ScreenViewLog`). **Modülün HTTP uçları `RemotePcView` iznini ister** (projede zorlanan ilk izin,
+  aşağıdaki "yetki zorlaması yok" kuralının tek istisnası): policy modülün kaydında (`RemoteDeskModule.ViewPolicy`), izin kodu
+  `Permission.RemotePcView` adıyla aynı — enum'u yeniden adlandırmayın. `PcHub` anonim kalır.
 
 - **Çekirdek modülü bilmez.** Tek temas noktası `IScadaEventObserver` (Business/Utils/ScadaEvents):
   ingest (değer gerçekten değişince), **başarılı çıkış komutu** (kanal değeri değişince, `Direction =
@@ -391,7 +396,8 @@ Bir şeyin çalıştığını varsaymadan önce doğrulayın:
 ## Sormadan "düzeltmeyin"
 
 PROJECT_OVERVIEW.md §7'deki **bilinçli boşluklar** unutulmuş değil, sıraya alınmıştır. Talep
-edilmeden bunlara girmeyin: yetki zorlaması yok (`permission` claim'i üretilir ama okunmaz),
+edilmeden bunlara girmeyin: yetki zorlaması yok (`permission` claim'i üretilir ama okunmaz; tek istisna RemoteDesk'in
+`RemotePcView` policy'si, 2026-09-30),
 kiracı izolasyonu yok, SCADA komutlarında retry/kuyruk yok (tekrarlanan röle darbesi başarısız
 komuttan kötüdür), kamera parolası düz metin saklanır, saklama/temizlik işleri yok,
 `ChannelEvent` bir değişim günlüğüdür — zaman serisi değildir.

@@ -6,9 +6,12 @@ using Scadex.Core.Utils.ResultPattern;
 
 namespace Scadex.RemoteDesk.Controllers.Base;
 
-/// <summary> TODO: Modül enpointlerine rate limitting açılacak </summary>
+/// <summary>
+/// TODO: Modül enpointlerine rate limitting açılacak
+/// <para/>Tüm uçlar <c>RemotePcView</c> iznini ister (yoksa 403). PC istemcisi bu controller'ları değil <c>PcHub</c>'ı kullanır (anonim).
+/// </summary>
 [ApiController]
-[Authorize]
+[Authorize(Policy = RemoteDeskModule.ViewPolicy)]
 [Route("api/RemoteDesk")]
 public abstract class RemoteDeskControllerBase : ControllerBase
 {

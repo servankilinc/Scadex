@@ -41,7 +41,7 @@ import {
   DropdownMenuTrigger
 } from '@/components/ui/dropdown-menu';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
-import { useCurrentUser } from '@/lib/auth-session';
+import { useCurrentUser, usePermission } from '@/lib/auth-session';
 import { logout } from '@/api/auth';
 import { useAppDispatch, useAppSelector } from '@/hooks';
 import { setTheme, type Theme } from '@/store/reducers/themeSlice';
@@ -114,12 +114,17 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
 
 function NavGroup({ label, items }: { label: string; items: NavItem[] }) {
   const { pathname } = useLocation();
+  const can = usePermission();
+  const visible = items.filter(item => !item.permission || can(item.permission));
+
+  // İzin yüzünden tüm maddeleri düşen grup başlığıyla birlikte gizlenir.
+  if (visible.length === 0) return null;
 
   return (
     <SidebarGroup>
       <SidebarGroupLabel>{label}</SidebarGroupLabel>
       <SidebarMenu>
-        {items.map(item => (
+        {visible.map(item => (
           <SidebarMenuItem key={item.url}>
             <SidebarMenuButton
               tooltip={item.title}

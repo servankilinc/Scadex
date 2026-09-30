@@ -286,6 +286,9 @@ public static class EntityEnums
         ManageWorkflow = 8,
 
         /// <summary> Geçiş kartı tanımlama, yetkilendirme ve iptal etme </summary>
-        ManageAccessCards = 9
+        ManageAccessCards = 9,
+        
+        /// <summary> PC ekranlarını canlı izleyebilir (RemoteDesk modülü). </summary>
+        RemotePcView = 10
     }
 }

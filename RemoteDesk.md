@@ -543,12 +543,15 @@ değişikliği yoktur.
 
 ### 10.4 Canlılık
 
-İstemcinin bağlanması/kopması PC cihazının canlılık **kanıtıdır** ve yalnızca `ICabinetStatusService`
-üzerinden verilir (CLAUDE.md: `Device.DeviceStatusId`/`LastSeen`'e başka yerden yazılmaz; gerekirse
-servise bu kanıt için metot eklenir). Mevcut kural gereği kontrol modülü dışındaki cihazın `Offline`'ı
-kabine `Warning` olarak yansır — bkz. [§ 17](#17-açık-kararlar).
+**Karar (2026-09-30): istemci bağlantısı kabin durumuna YANSIMAZ.** Bağlı olup olmadığı yalnızca bellekte
+(`PcConnectionRegistry`) tutulur ve PC ekranlarında gösterilir; `Device.DeviceStatusId` / `LastSeen`'e yazılmaz,
+`ICabinetStatusService`'e kanıt olarak verilmez. Gerekçe: kullanıcı uygulamayı kapatınca ya da PC kapalıyken kabin
+`Warning`'e düşerdi (Signalization'ın alarmı gibi bilerek ayrı). PC cihazında çekirdeğin TCP yoklaması açılırsa
+(`IsMonitoringEnabled`) o çekirdek kuralıyla ayrıca işler — bu modülün kararı değildir.
 
 ### 10.5 Uç noktalar (kullanıcı JWT'si)
+
+Hepsi `RemotePcView` iznini ister; izin yoksa 403 ([§ 11](#11-güvenlik-özeti)).
 
 | Uç | İş |
 |---|---|
@@ -587,8 +590,11 @@ C# DTO değişince TS aynası elle güncellenir.
 | Bilet sızıntısı | Loglarda maske; ağ LAN/VPN varsayımı |
 | İzlemenin fark edilmemesi | `ScreenViewLog`; PC'de System Tray ve pencere göstergesi |
 
-> **Yetki:** Çekirdekte yetki zorlaması bilinçli olarak yok (CLAUDE.md). Ekran izleme ve özellikle uzaktan
-> kontrol bu boşluğun en ağır sonuçlandığı yerdir; Faz 8 öncesi karar gerekir ([§ 17](#17-açık-kararlar)).
+> **Yetki (2026-09-30):** Modülün tüm HTTP uçları `RemotePcView` iznini ister (`Permission.RemotePcView = 10`,
+> seed'de Admin rolüne verilir); yoksa 403. Policy modülün kaydında tanımlanır (`RemoteDeskModule.ViewPolicy`), claim
+> girişte token'a yazıldığı için rol izni değişince kullanıcı yeniden giriş yapmalıdır. Okuma bileti yalnızca `view`
+> ucundan çıktığı için WHEP de dolaylı olarak bu izne bağlıdır. `PcHub` (PC istemcisi) anonim kalır. Uzaktan kontrol
+> (Faz 8) için ayrı bir izin açılacak; bu izin kontrolü kapsamaz.
 
 ---
 
@@ -786,13 +792,12 @@ kendi test komutu olarak yeniden yazılabilir.
 
 Önerilen seçenek ilk sıradadır:
 
-1. **PC bağlı değilken kabin `Warning`'e düşsün mü?** *(Faz 3'te öneri uygulandı — bağlantı yalnızca bellekte, `Device.DeviceStatusId`'e yazılmıyor; onay bekliyor.)* Öneri: hayır — kullanıcı uygulamayı kapatınca ya da PC
-   kapalıyken kabin uyarıya geçerdi; Signalization gibi **bilerek** kabin durumuna yansımasın ve bu
-   CLAUDE.md'ye yazılsın. (Evet denirse [§ 10.4](#104-canlılık) aynen uygulanır.)
-2. **İzlendiğine dair onay.** Öneri: onay yok, yalnızca görünür gösterge (System Tray + pencere) — saha PC'lerinin
-   başında çoğu zaman kimse yoktur. Çalışan izleme (KVKK) gerekiyorsa kurulum başına "onay iste" ayarı.
-3. **Yetki.** Öneri: MVP'de izleme her giriş yapmış kullanıcıya açık + `ScreenViewLog`; Faz 8'den önce en az
-   bir "uzaktan kontrol" rolü zorunlu.
+1. ~~**PC bağlı değilken kabin `Warning`'e düşsün mü?**~~ **Kapandı (2026-09-30): hayır.** Bağlantı yalnızca bellekte;
+   kabin durumuna bilerek yansımaz ([§ 10.4](#104-canlılık), CLAUDE.md).
+2. ~~**İzlendiğine dair onay.**~~ **Kapandı (2026-09-30): onay alınmaz.** Yalnızca görünür gösterge (pencere şeridi +
+   System Tray ikonu) ve `ScreenViewLog` denetim kaydı.
+3. ~~**Yetki.**~~ **Kapandı (2026-09-30):** izleme `RemotePcView` iznine bağlı ([§ 11](#11-güvenlik-özeti)). Uzaktan kontrol
+   (Faz 8) için ayrı izin gerekecek.
 4. ~~**PC şablonu.**~~ **Kapandı (2026-09-29):** yeni tip `DeviceType.Pc`; mevcut "Bilgisayar" sistem şablonu bu tipe
    taşındı (Peripheral kullanılmaz). Admin ekranından başka PC şablonları da açılabilir.
 5. ~~**Yazılım yedeğinin lisansı.**~~ **Kapandı (2026-09-29):** yazılım yedeği OpenH264 yerine VP9 (libvpx,
@@ -823,6 +828,7 @@ kendi test komutu olarak yeniden yazılabilir.
 | 2026-09-29 | Faz 3: `PcHub` anonim; `Hello` normalize MAC ile aktif Pc cihazlarını eşler, tek eşleşme kabul, cihaz başına ilk bağlanan kazanır; bağlantı kaydı bellekte. İstemci SignalR'ın otomatik yeniden bağlanmasını kullanmaz (her bağlantı `Hello` ile yeniden eşlenmeli); geri çekilme 1/2/5/10/30 sn, reddedilince 60 sn. Pencere kapatmak System Trayye indirir; `--tray` argümanı pencereyi açmadan başlatır (oturum açma görevi için). |
 | 2026-09-30 | **İstemcide test yayını kaldırıldı** ("Test yayını başlat", "Durdur", "yalnızca kodla" hedefi, `TestPublishUrl`): yayın yalnızca merkezin komutuyla. Sınama ve tercih monitör kartlarından ayrı bir "Encoder" kutucuğunda (tüm monitörler birlikte sınanır); monitör kartlarında yayın durumu salt okunur kalır. Arayüzde "kodlayıcı" yerine "encoder". |
 | 2026-09-30 | **Kodlayıcı tercihi PC başına ve bellekte** (kullanıcı kararı): "Tercih et" rozetini ve tüm yayınları (merkez dahil) değiştirir, çalışmadığı monitörde otomatik seçim; tercih değişince yayın merkez oturumu kapanmadan yeniden başlar. Eski "Bu adayla yayınla" kaldırıldı: merkez yayınını durdurup test yayını açıyordu. Aynı işte yakalanan hata: `StreamSession.StopAsync` önce iptal ettiği için FFmpeg sahipsiz kalabiliyordu → önce nazik durdurma, sonra iptal. |
+| 2026-09-30 | **§ 17 kapandı** (kullanıcı kararları): PC bağlantısı kabin durumuna yansımaz; izlendiğine dair onay alınmaz (gösterge + denetim kaydı yeter); izleme yeni `RemotePcView` iznine bağlı — projede **zorlanan ilk izin**, modül uçlarında policy (yoksa 403), frontend'de menü maddesi ve rota da izne bağlı. |
 | 2026-09-30 | Faz 4–5: yayın ve izleyiciler bellekte (`ScreenStreamCoordinator`), DB yalnızca denetim. Hazır bekleme 30 sn; bekleyen izleme isteği süpürmede izleyici sayılır (ilk yayın beklerken durdurulmasın). Durdurmada bilet hemen silinir, uymayan yayıncı 10 sn sonra atılır (kick). PC'de "izleniyor" göstergesi zorunlu (pencere şeridi + tepsi ikonu). |
 | 2026-09-29 | Faz 1: FFmpeg 8.1 LGPL; `h264_mf` bırakıldı → yazılım yedeği `libopenh264`; QSV `async_depth 1`; çıkış `-fps_mode passthrough` zorunlu; geri kalma bekçisi; tarayıcıda `jitterBufferTarget = 0` (yalnızca PC yayını). Ölçümler § 16.2. |
 

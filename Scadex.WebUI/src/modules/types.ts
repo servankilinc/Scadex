@@ -8,6 +8,8 @@ export interface ModuleNavItem {
   title: string;
   url: string;
   icon: LucideIcon;
+  /** Verilirse madde yalnızca bu izin koduna (`Permission.Code`) sahip kullanıcıya gösterilir. Rotayı ayrıca korumak modülün işidir. */
+  permission?: string;
 }
 
 /** Ana sayfa haritasındaki kabin detay paneline modülün eklediği bölümün aldığı tek bilgi. */

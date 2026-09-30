@@ -168,7 +168,7 @@ için query filter **vardır**.
 her derlemede yeni migration istemesine yol açar):
 
 - `System` şirketi, `Owner` / `Admin` / `Manager` / `User` rolleri
-- 5 `DeviceStatus` (renk + ikon ile), 12 `DeviceType`, 10 `Permission`
+- 5 `DeviceStatus` (renk + ikon ile), 13 `DeviceType`, 11 `Permission` (`Pc` ve `RemotePcView` RemoteDesk için, 2026-09-29/30)
 - Admin'e tüm izinler
 - **Admin kullanıcısı: `admin` / `Admin!2345` — ilk girişten sonra değiştirin.**
 - 19 sistem şablonu + 190 pin — palet boş açılmasın diye. Kaynak `Docs/Example_Scada_Diagram.pdf`'teki
@@ -192,7 +192,8 @@ her derlemede yeni migration istemesine yol açar):
 - Identity + JWT. Access token 24 saat, refresh token 7 gün (`TokenSettings`).
 - `Logout` ve `RevokeAll` kullanıcı kimliğini **gövdeden değil, token'dan** okur.
 - Login yanıtı ve token, kullanıcının rollerinden hesaplanan `permission` claim'lerini taşır.
-- **Ama hiçbir uç bu claim'i okumaz** — bkz. § 6.
+- **Ama çekirdekte hiçbir uç bu claim'i okumaz** — bkz. § 6. Tek istisna RemoteDesk modülüdür: uçları
+  `RemotePcView` iznini ister (policy, yoksa 403; 2026-09-30).
 
 `TokenSettings:SecurityKey` yoksa uygulama açılışta istisna atar (dev anahtarı
 `appsettings.json` içinde duruyor).
@@ -756,7 +757,8 @@ değil, bilinçli bir karardır; `dotnet build` çıktısındaki 5 uyarı bu yü
 ### Bilinçli boşluklar (unutulmadı, sıraya alındı)
 
 - **Yetki zorlanmıyor.** `permission` claim'i üretilip token'a konuyor, ama hiçbir
-  `[Authorize(Policy = …)]` ya da handler onu okumuyor. `ControlOutput` dahil.
+  `[Authorize(Policy = …)]` ya da handler onu okumuyor. `ControlOutput` dahil. (İstisna: RemoteDesk modülünün
+  `RemotePcView` policy'si — modül kendi kaydında tanımlar; çekirdeğe policy altyapısı gelirken örnek alınabilir.)
   **Eklenirken dikkat (2026-09-11):** denetim **controller/policy katmanında** yapılmalı,
   `DeviceCommandService.SendAsync` içinde değil. Sinyalizasyon motoru (§ 10) kilit ve siren
   komutlarını HTTP kullanıcısı olmadan bu servisten gönderir; servis içi bir izin kontrolü onu
