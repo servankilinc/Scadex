@@ -22,6 +22,18 @@ public interface IMediaGateway
     /// <summary> Path listesini sağlar </summary>
     Task<Result<IReadOnlyList<MediaPathInfo>>> ListPathsAsync(CancellationToken cancellationToken = default);
 
+    /// <summary>
+    /// Pathin ÇALIŞMA ZAMANI durumu (<c>v3/paths/get</c>); yapılandırmaya bakmaz. Yayıncısı gelmemiş/gitmiş yol için <c>Data = null</c>.
+    /// Yapılandırmada olmayan, yayıncıyla yaşayan yollar (RemoteDesk <c>pc_</c>) içindir.
+    /// </summary>
+    Task<Result<MediaRuntimePath?>> GetRuntimePathAsync(string pathName, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Pathin yayıncısını (RTSP/RTSPS oturumu) zorla kapatır. Yayıncı yoksa başarılıdır. Yeniden yayını engellemek çağıranın işidir
+    /// (ör. token önce silmek) — aksi hâlde yayıncı hemen geri bağlanır.
+    /// </summary>
+    Task<Result> KickPublisherAsync(string pathName, CancellationToken cancellationToken = default);
+
     #region Static Path Name Generators
     private const string LivePathPrefix = "cam_";
 

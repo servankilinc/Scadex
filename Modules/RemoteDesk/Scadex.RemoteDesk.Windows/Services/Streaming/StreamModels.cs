@@ -16,29 +16,25 @@ public enum StreamState
     Failed = 6,
 }
 
-public enum StreamTargetKind
+/// <summary>
+/// Merkezin <c>StartScreenStream</c> komutundan gelen yayın hedefi. Yayın yalnızca merkezin isteğiyle başlar; sahadaki test yayını
+/// 2026-09-30'da kaldırıldı.
+/// </summary>
+/// <param name="RtspUrl">Bilet parola alanında (<c>rtsp://pc:{bilet}@merkez:8554/pc_…</c>) — yalnızca maskeli gösterilir.</param>
+/// <param name="SessionId">Merkezin yayın oturumu; komutların idempotency anahtarı.</param>
+/// <param name="Profile">Merkezin verdiği profil; <c>null</c> = seçilen encoder'ın varsayılanı.</param>
+public sealed record StreamTarget(string RtspUrl, Guid SessionId, VideoProfile? Profile = null)
 {
-    /// <summary> Yalnızca kodla ve at: sunucu gerekmez. Sahada kodlayıcı seçimini ve yükü görmek için. </summary>
-    EncodeOnly = 1,
-    /// <summary> Verilen RTSP adresine yayınla (erişilebilen bir MediaMTX). </summary>
-    Rtsp = 2,
-}
-
-/// <summary> <c>{monitor}</c> yer tutucusu monitör sırasıyla değiştirilir. </summary>
-public sealed record StreamTarget(StreamTargetKind Kind, string? RtspUrl = null)
-{
-    public string Describe(int monitorIndex) => Kind == StreamTargetKind.EncodeOnly
-        ? "Yalnızca kodlama (ağa gönderilmiyor)"
-        : FailureExplainer.Mask(ResolveUrl(monitorIndex));
-
-    public string ResolveUrl(int monitorIndex) => (RtspUrl ?? "").Replace("{monitor}", monitorIndex.ToString());
+    public string Describe() => "Merkez — " + FailureExplainer.Mask(RtspUrl);
 }
 
 /// <summary> Arayüzün gösterdiği anlık durum. Servis her değişimde yenisini yayınlar (değişmez kayıt). </summary>
 public sealed record StreamStatus(int MonitorIndex, StreamState State)
 {
+    /// <summary> Merkezin yayın oturumu; monitörde yayın yokken (Idle) <c>null</c> olabilir. </summary>
+    public Guid? SessionId { get; init; }
     public EncoderCandidate? Encoder { get; init; }
-    /// <summary> Kodlayıcı otomatik seçilmedi, sahada elle denendi. </summary>
+    /// <summary> Kodlayıcı otomatik seçilmedi: PC tercihinden geldi (bellekte, uygulama kapanınca otomatiğe döner). </summary>
     public bool IsForced { get; init; }
     public VideoProfile? Profile { get; init; }
     public string? Target { get; init; }

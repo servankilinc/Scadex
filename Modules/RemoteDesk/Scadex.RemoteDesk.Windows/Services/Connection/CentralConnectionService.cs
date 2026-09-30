@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.Net;
 using System.Net.Http;
 using System.Reflection;
@@ -12,6 +13,7 @@ using Scadex.RemoteDesk.Contracts.Hub;
 using Scadex.RemoteDesk.Contracts.Media;
 using Scadex.RemoteDesk.Windows.Services.Monitors;
 using Scadex.RemoteDesk.Windows.Services.Network;
+using Scadex.RemoteDesk.Windows.Services.Streaming;
 
 namespace Scadex.RemoteDesk.Windows.Services.Connection;
 
@@ -41,15 +43,21 @@ public sealed class CentralConnectionService : BackgroundService, ICentralConnec
     private readonly RemoteDeskClientOptions _options;
     private readonly INetworkAdapterService _adapters;
     private readonly IMonitorService _monitors;
+    private readonly IScreenStreamService _streams;
     private readonly ILogger<CentralConnectionService> _logger;
+
+    /// <summary> Oturum başına son bildirilen durum — merkeze yalnızca DURUM DEĞİŞİNCE gider (ilerleme satırları her saniye gelir). </summary>
+    private readonly ConcurrentDictionary<Guid, ScreenStreamState> _reported = new();
 
     private readonly Lock _gate = new();
     private CancellationTokenSource _wake = new();
     private HubConnection? _accepted;
 
     public CentralConnectionService(IOptions<RemoteDeskClientOptions> options, INetworkAdapterService adapters, IMonitorService monitors,
-        ILogger<CentralConnectionService> logger)
+        IScreenStreamService streams, ILogger<CentralConnectionService> logger)
     {
+        _streams = streams;
+        _streams.StatusChanged += OnStreamStatus;
         _options = options.Value;
         _adapters = adapters;
         _monitors = monitors;
@@ -142,6 +150,10 @@ public sealed class CentralConnectionService : BackgroundService, ICentralConnec
         var closed = new TaskCompletionSource<Exception?>(TaskCreationOptions.RunContinuationsAsynchronously);
         hub.Closed += ex => { closed.TrySetResult(ex); return Task.CompletedTask; };
 
+        // Merkez komutları (IPcHubClient). Yalnızca Hello kabul edildikten sonra gelir.
+        hub.On<StartScreenStreamCommand>(nameof(IPcHubClient.StartScreenStream), OnStartScreenStreamAsync);
+        hub.On<StopScreenStreamCommand>(nameof(IPcHubClient.StopScreenStream), command => _streams.StopSessionAsync(command.SessionId));
+
         try
         {
             Publish(new ConnectionStatus(ConnectionState.Connecting, CentralUrl, failures == 0 ? "Bağlanıyor…" : $"Bağlanıyor… ({failures + 1}. deneme)"));
@@ -186,6 +198,10 @@ public sealed class CentralConnectionService : BackgroundService, ICentralConnec
 
             lock (_gate) _accepted = null;
             _logger.LogInformation("Merkez bağlantısı kapandı: {Reason}", reason?.Message ?? "yeniden bağlanılıyor");
+
+            // Bağlantı koptu: merkezin başlattığı yayınlar durur (merkez de onları bitmiş sayar; biletleri silinir). § 6.3
+            await _streams.StopAllAsync();
+            _reported.Clear();
             Publish(new ConnectionStatus(ConnectionState.Disconnected, CentralUrl,
                 reason is null ? "Yeniden bağlanılıyor…" : $"Bağlantı koptu: {Explain(reason)}"));
             return RunOutcome.WasConnected;
@@ -222,6 +238,65 @@ public sealed class CentralConnectionService : BackgroundService, ICentralConnec
         TimeoutException => "Merkez yanıt vermedi (zaman aşımı)",
         _ => ex.Message
     };
+
+    private async Task OnStartScreenStreamAsync(StartScreenStreamCommand command)
+    {
+        _logger.LogInformation("Merkez yayın istedi: monitör {Monitor}, oturum {SessionId}", command.MonitorIndex, command.SessionId);
+
+        var monitor = ReadMonitors().FirstOrDefault(m => m.Index == command.MonitorIndex);
+        if (monitor is null)
+        {
+            await ReportAsync(new StreamStateReport(command.SessionId, command.MonitorIndex, ScreenStreamState.Failed, null, "PC'de bu numarada monitör yok."));
+            return;
+        }
+
+        await _streams.StartCentralAsync(monitor, new StreamTarget(command.PublishUrl, command.SessionId, command.Profile));
+    }
+
+    /// <summary> Yayın servisinin durumu → merkez. Oturumsuz durum (monitörde yayın yok) bildirilmez; aynı durum iki kez gönderilmez. </summary>
+    private void OnStreamStatus(StreamStatus status)
+    {
+        if (status.SessionId is not { } sessionId)
+            return;
+
+        ScreenStreamState state = status.State switch
+        {
+            StreamState.Idle => ScreenStreamState.Stopped,
+            StreamState.Probing or StreamState.Starting => ScreenStreamState.Starting,
+            StreamState.Streaming => ScreenStreamState.Streaming,
+            StreamState.ScreenLocked => ScreenStreamState.ScreenLocked,
+            StreamState.Retrying => ScreenStreamState.Retrying,
+            _ => ScreenStreamState.Failed,
+        };
+
+        if (state is ScreenStreamState.Stopped or ScreenStreamState.Failed)
+        {
+            // Bitiş bir kez gider. Hiç bildirilmemiş oturumun "durdu"su gönderilmez; "başarısız" her zaman gider.
+            bool wasReported = _reported.TryRemove(sessionId, out _);
+            if (!wasReported && state == ScreenStreamState.Stopped)
+                return;
+        }
+        else
+        {
+            if (_reported.TryGetValue(sessionId, out var last) && last == state)
+                return;
+            _reported[sessionId] = state;
+        }
+
+        // Mesajlar FailureExplainer'dan gelir: sabit metin, adres/bilet maskeli.
+        string? reason = state is ScreenStreamState.Failed or ScreenStreamState.Retrying or ScreenStreamState.ScreenLocked ? status.Message : null;
+        _ = ReportAsync(new StreamStateReport(sessionId, status.MonitorIndex, state, status.Encoder?.DisplayName, reason));
+    }
+
+    private async Task ReportAsync(StreamStateReport report)
+    {
+        HubConnection? hub;
+        lock (_gate) hub = _accepted;
+        if (hub is null) return;
+
+        try { await hub.InvokeAsync(PcHubContract.ReportStreamState, report); }
+        catch (Exception ex) { _logger.LogWarning(ex, "Yayın durumu merkeze bildirilemedi"); }
+    }
 
     private MonitorInfo[] ReadMonitors()
     {

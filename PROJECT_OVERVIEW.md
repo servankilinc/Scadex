@@ -294,8 +294,11 @@ politikası ile.
   bizim ürettiğimiz kabin `Guid`'ini bilemez; bildiğimiz ortak değer kartın MAC adresidir.
   Sunucu, gelen adresle **birebir eşleşen** (`Device.MacAddress == macAddress`), aktif ve
   şablonu `DeviceType.ControlModule` olan cihazı arar ve o cihazın `CabinetId`'sini kullanır.
-  Karşılığı yoksa **404** döner. Karşılaştırma ham string karşılaştırmasıdır: adres veritabanına
-  **nasıl kaydedildiyse SCADA da öyle göndermek zorundadır** (normalizasyon/ayraç toleransı yok).
+  Karşılığı yoksa **404** döner. **MAC tek tip saklanır (2026-09-30):** `AA:BB:CC:DD:EE:FF` (büyük harf, `:`).
+  Hem diyagramdan kaydedilen adres hem SCADA'nın gönderdiği adres girişte bu biçime çevrilir
+  (`Scadex.Core/Utils/MacAddressFormat`, DTO setter'ları), karşılaştırma düz eşitliktir: SCADA `50-8d-5c-…`,
+  `50:8D:5C:…` ya da `508D5C…` gönderebilir. Önceden ayraç toleransı yoktu; aynı kart iki yazımla iki cihaza da
+  girebiliyordu. Mevcut kayıtlar `NormalizeDeviceMacAddress` migration'ıyla çevrildi.
 - **İstek başına tek okuma** taşınır (toplu gönderim yoktur).
 - Adres bir **çifttir**: `type` + `channelNumber`. `ScadaPinAddress.TryParseType` yalnızca iki
   başlık tanır — `"I"` dijital giriş (`PinDirection.Input`), `"A"` analog giriş

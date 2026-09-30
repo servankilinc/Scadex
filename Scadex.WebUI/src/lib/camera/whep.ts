@@ -16,6 +16,15 @@
 /** ICE toplama tavanı. Aşılırsa eldeki adaylarla devam edilir. */
 const ICE_GATHERING_TIMEOUT_MS = 3000;
 
+export interface WhepOptions {
+  /**
+   * Alıcı tamponunu en aza indirir (`receiver.jitterBufferTarget = 0`, Chromium). Yalnızca PC ekran yayını
+   * (RemoteDesk) açar: yerel ağda ölçümde jitter buffer 106 ms → 55 ms indi. Kamera akışında KAPALI kalır —
+   * kamera ağında titreme daha fazla, tampon orada görüntüyü akıcı tutuyor.
+   */
+  lowLatency?: boolean;
+}
+
 export interface WhepSession {
   /** Bağlantıyı kapatır ve geçitteki oturumu serbest bırakır. */
   close(): void;
@@ -25,7 +34,8 @@ export async function whepConnect(
   whepUrl: string,
   ticket: string,
   videoEl: HTMLVideoElement,
-  onStateChange?: (state: RTCPeerConnectionState) => void
+  onStateChange?: (state: RTCPeerConnectionState) => void,
+  options: WhepOptions = {}
 ): Promise<WhepSession> {
   // `iceServers` BOŞ: kamera da medya geçidi de aynı yerel ağda. STUN/TURN
   // eklemek, hiçbir zaman kullanılmayacak adaylar için el sıkışmayı geciktirirdi.
@@ -38,6 +48,10 @@ export async function whepConnect(
   pc.addTransceiver('audio', { direction: 'recvonly' });
 
   pc.ontrack = event => {
+    // Destek yoksa (Firefox/Safari) özellik yoktur; atama sessizce etkisiz kalsın diye varlığı sorulur.
+    if (options.lowLatency && "jitterBufferTarget" in event.receiver) {
+      (event.receiver as RTCRtpReceiver & { jitterBufferTarget: number | null }).jitterBufferTarget = 0;
+    }
     // `streams` boş gelebilir (SDP'de a=msid yoksa). Kontrolsüz atamak
     // `srcObject`'e undefined yazmak olurdu.
     videoEl.srcObject = event.streams[0] ?? null;

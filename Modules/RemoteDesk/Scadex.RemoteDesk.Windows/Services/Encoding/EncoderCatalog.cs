@@ -77,6 +77,10 @@ public static class EncoderCatalog
             "-lag-in-frames", "0", "-error-resilient", "1", "-auto-alt-ref", "0"],
     };
 
+    /// <summary> Türüne göre aday (PC tercihinin arayüzde gösterimi için). </summary>
+    public static EncoderCandidate Find(EncoderKind kind) =>
+        new[] { Nvenc, QsvGpu, QsvDownload, Amf, Vp9Software }.First(c => c.Kind == kind);
+
 
     /// <summary> Bir üreticinin donanım adayları, kendi içinde tercih sırasıyla (QSV: önce kopyasız). </summary>
     public static IReadOnlyList<EncoderCandidate> ForVendor(GpuVendor vendor) => vendor switch

@@ -149,6 +149,9 @@ durur. Ayrıntı: PROJECT_OVERVIEW.md § 10.
   kararları depo kökündeki [RemoteDesk.md](RemoteDesk.md)'dedir. Çekirdekteki izleri: `DeviceType.Pc` (sistem şablonu
   "Bilgisayar", Id'si eski Peripheral kimliğinde kalır) ve MediaMTX auth kancasındaki `IMediaPathAuthorizer` —
   `cam_` yolları ona **hiç sorulmaz**, modül `pc_` yollarını üstlenir, kimsenin üstlenmediği yol 401'dir.
+  `IMediaGateway.GetRuntimePathAsync` / `KickPublisherAsync` yalnızca yapılandırmada OLMAYAN, yayıncıyla yaşayan `pc_` yolları
+  içindir (yol hazır mı, uymayan yayıncıyı at). `pc_` yolları `MediaPathCleanupWorker`'a görünmez ve görünmemeli: temizlenecek
+  yapılandırma yoktur, yayıncıyı/oturumu modülün kiralama mekanizması durdurur.
 
 - **Çekirdek modülü bilmez.** Tek temas noktası `IScadaEventObserver` (Business/Utils/ScadaEvents):
   ingest (değer gerçekten değişince), **başarılı çıkış komutu** (kanal değeri değişince, `Direction =
@@ -360,9 +363,13 @@ Bir şeyin çalıştığını varsaymadan önce doğrulayın:
   `{ macAddress, type: "I"|"A", channelNumber, value, timestampUtc }` (`ScadaIngestRequest`).
   Sahadaki SCADA bizim ürettiğimiz Guid'i bilemez; sunucu gelen adresle **birebir eşleşen**,
   aktif ve şablonu `DeviceType.ControlModule` olan cihazın `CabinetId`'sini kullanır
-  (`ChannelEventService.IngestAsync` adım 3), karşılığı yoksa 404 döner. Karşılaştırma **ham
-  string** karşılaştırmasıdır — ayraç/harf normalizasyonu bilerek yoktur, adres veritabanındaki
-  yazımıyla gönderilmelidir. `ScadaPinAddress.CheckAndParseIngestPin` yalnızca `"I"` ve `"A"`
+  (`ChannelEventService.IngestAsync` adım 3), karşılığı yoksa 404 döner. **MAC tek tip saklanır ve
+  gelirken tek tipe çevrilir (2026-09-30):** `AA:BB:CC:DD:EE:FF` (büyük harf, `:`), kural
+  `Scadex.Core/Utils/MacAddressFormat.cs`. Çeviri giriş DTO'larının setter'ındadır (`DeviceDraft`,
+  `ScadaIngestRequest`, `ScadaCardReadRequest`), bu yüzden karşılaştırma yine düz string eşitliğidir ve
+  SCADA `50-8d-…` de gönderse eşleşir. Hex şartı **bilinçli yok** (12 harf/rakam): test kabinlerindeki
+  `CL:AU:…` adresleri geçerli kalmalı. Yeni bir MAC girişi eklerseniz aynı setter kalıbını kullanın; `AutoMapper`
+  bu alanı yazmaz (Device'ın tek yazım yolu diyagram deltası). `ScadaPinAddress.CheckAndParseIngestPin` yalnızca `"I"` ve `"A"`
   kabul eder; `IN<n>`/`OUT<n>` metni yalnızca **giden** komut gövdesinde (`Format`) kullanılır.
 - **Kart okuma ayrı bir uçtur: `POST /api/Scada/card` → `{ macAddress, cardId, timestampUtc }`
   (2026-09-11).** Kart numarası ölçüm değildir: `IoChannel`'a yazılmaz, `ChannelEvent` üretmez;

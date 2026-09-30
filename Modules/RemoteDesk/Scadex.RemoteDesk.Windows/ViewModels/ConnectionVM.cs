@@ -5,10 +5,14 @@ using System.Windows.Media;
 using Scadex.RemoteDesk.Windows.Helpers;
 using Scadex.RemoteDesk.Windows.Services.Connection;
 using Scadex.RemoteDesk.Windows.Services.Network;
+using Scadex.RemoteDesk.Windows.Services.Streaming;
 
 namespace Scadex.RemoteDesk.Windows.ViewModels;
 
-/// <summary> Ana ekrandaki merkez bağlantısı kartı: durum, eşlenen kabin/cihaz ve bu PC'nin gönderdiği MAC'ler. </summary>
+/// <summary>
+/// Ana ekrandaki merkez bağlantısı kartı: durum, eşlenen kabin/cihaz ve bu PC'nin gönderdiği MAC'ler. Merkez bu PC'nin ekranını
+/// izlerken belirgin "izleniyor" uyarısı da buradadır (tepsi ikonu da buna bakar) — izleme fark edilmeden yapılmaz (§ 9.2).
+/// </summary>
 public class ConnectionVM : BaseViewModel
 {
     private static readonly Brush Green = Frozen("#1E8E3E"), Amber = Frozen("#C78A10"), Red = Frozen("#C5221F"), Gray = Frozen("#6B7580");
@@ -16,8 +20,13 @@ public class ConnectionVM : BaseViewModel
     private readonly ICentralConnection _connection;
     private readonly INetworkAdapterService _adapters;
 
-    public ConnectionVM(ICentralConnection connection, INetworkAdapterService adapters)
+    /// <summary> Merkezin yayın yaptığı monitörler (yalnızca UI iş parçacığında değişir). </summary>
+    private readonly SortedSet<int> _watched = [];
+    private string _connectionShort = "";
+
+    public ConnectionVM(ICentralConnection connection, INetworkAdapterService adapters, IScreenStreamService streams)
     {
+        streams.StatusChanged += status => Application.Current?.Dispatcher.BeginInvoke(() => ApplyStream(status));
         _connection = connection;
         _adapters = adapters;
 
@@ -53,14 +62,30 @@ public class ConnectionVM : BaseViewModel
     public bool HasMatched => MatchedText.Length > 0;
 
     /// <summary> System Tray ipucu için kısa özet. </summary>
-    public string ShortText { get; private set; } = "";
+    public string ShortText => IsWatching ? "İZLENİYOR — " + _connectionShort : _connectionShort;
+
+    public bool IsWatching => _watched.Count > 0;
+    public string WatchingText => IsWatching
+        ? "Bu PC'nin ekranı merkezden izleniyor — " + string.Join(", ", _watched.Select(i => $"Monitör {i}"))
+        : "";
+
+    private void ApplyStream(StreamStatus status)
+    {
+        bool active = status.SessionId is not null && status.State is not (StreamState.Idle or StreamState.Failed);
+        bool changed = active ? _watched.Add(status.MonitorIndex) : _watched.Remove(status.MonitorIndex);
+        if (!changed) return;
+
+        OnPropertyChanged(nameof(IsWatching));
+        OnPropertyChanged(nameof(WatchingText));
+        OnPropertyChanged(nameof(ShortText));
+    }
 
     private void Apply(ConnectionStatus status)
     {
         CentralUrl = status.CentralUrl.Length > 0 ? status.CentralUrl : "(tanımlı değil)";
         Detail = status.Detail;
 
-        (Title, StateBrush, ShortText) = status.State switch
+        (Title, StateBrush, _connectionShort) = status.State switch
         {
             ConnectionState.Connected => ($"Bağlı — {status.CabinetName} / {status.DeviceName}", Green, $"Bağlı: {status.DeviceName}"),
             ConnectionState.Connecting => ("Bağlanıyor…", Amber, "Bağlanıyor"),

@@ -188,6 +188,77 @@ public class MediaMtxGateway : IMediaGateway
     }
 
 
+    /// <inheritdoc/>
+    public async Task<Result<MediaRuntimePath?>> GetRuntimePathAsync(string pathName, CancellationToken cancellationToken = default)
+    {
+        var httpClient = CreateConfiguredClient();
+
+        try
+        {
+            using var response = await httpClient.GetAsync($"v3/paths/get/{pathName}", cancellationToken);
+
+            // 404 = yol şu an yok (yayıncı gelmemiş ya da gitmiş) — hata değil.
+            if (response.StatusCode == HttpStatusCode.NotFound)
+                return Result<MediaRuntimePath?>.Success(null);
+            if (!response.IsSuccessStatusCode)
+                return Result<MediaRuntimePath?>.Failure(description: $"Medya geçidi yolu okunamadı: {await ReadErrorAsync(response, cancellationToken)}");
+
+            var body = await response.Content.ReadFromJsonAsync<JsonElement>(cancellationToken);
+
+            bool ready = body.TryGetProperty("ready", out var readyElement) && readyElement.ValueKind == JsonValueKind.True;
+            int readers = body.TryGetProperty("readers", out var readersElement) && readersElement.ValueKind == JsonValueKind.Array ? readersElement.GetArrayLength() : 0;
+            string? sourceType = null, sourceId = null;
+            if (body.TryGetProperty("source", out var source) && source.ValueKind == JsonValueKind.Object)
+            {
+                sourceType = source.TryGetProperty("type", out var type) ? type.GetString() : null;
+                sourceId = source.TryGetProperty("id", out var id) ? id.GetString() : null;
+            }
+
+            return Result<MediaRuntimePath?>.Success(new MediaRuntimePath(pathName, ready, readers, sourceType, sourceId));
+        }
+        catch (Exception exception) when (exception is not OperationCanceledException || !cancellationToken.IsCancellationRequested)
+        {
+            _logger.LogWarning(exception, "Medya gecidi yolu okunamadi: {PathName}", pathName);
+            return Result<MediaRuntimePath?>.Failure(description: "Medya geçidine ulaşılamıyor.");
+        }
+    }
+
+    /// <inheritdoc/>
+    public async Task<Result> KickPublisherAsync(string pathName, CancellationToken cancellationToken = default)
+    {
+        var pathResult = await GetRuntimePathAsync(pathName, cancellationToken);
+        if (!pathResult.IsSuccess)
+            return Result.Failure(description: pathResult.Error.Description);
+        if (pathResult.Data is not { SourceId: { } sourceId } path)
+            return Result.Success();
+
+        // Yayıncı türüne göre kick ucu; Scadex'in yayıncıları yalnızca RTSP (RTSPS açılırsa ikincisi).
+        string? route = path.SourceType switch
+        {
+            "rtspSession" => "v3/rtspsessions/kick/",
+            "rtspsSession" => "v3/rtspssessions/kick/",
+            _ => null
+        };
+        if (route is null)
+            return Result.Failure(description: $"Bu yayıncı türü atılamıyor: {path.SourceType}");
+
+        var httpClient = CreateConfiguredClient();
+        try
+        {
+            using var response = await httpClient.PostAsync(route + sourceId, null, cancellationToken);
+            if (response.IsSuccessStatusCode || response.StatusCode == HttpStatusCode.NotFound)
+                return Result.Success();
+
+            return Result.Failure(description: $"Yayıncı atılamadı: {await ReadErrorAsync(response, cancellationToken)}");
+        }
+        catch (Exception exception) when (exception is not OperationCanceledException || !cancellationToken.IsCancellationRequested)
+        {
+            _logger.LogWarning(exception, "Medya gecidi yayincisi atilamadi: {PathName}", pathName);
+            return Result.Failure(description: "Medya geçidine ulaşılamıyor.");
+        }
+    }
+
+
     #region Helpers
     /// <summary>
     /// Control API'nin sayfali liste uclarini bastan sona okur.

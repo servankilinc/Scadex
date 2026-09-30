@@ -5,6 +5,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Scadex.Business.Utils.MediaGateway;
+using Scadex.RemoteDesk.BackgroundServices;
 using Scadex.RemoteDesk.Contracts.Hub;
 using Scadex.RemoteDesk.DataAccess;
 using Scadex.RemoteDesk.Hubs;
@@ -12,6 +13,7 @@ using Scadex.RemoteDesk.Media;
 using Scadex.RemoteDesk.Realtime;
 using Scadex.RemoteDesk.Services.Abstract;
 using Scadex.RemoteDesk.Services.Concrete;
+using Scadex.RemoteDesk.Streaming;
 
 namespace Scadex.RemoteDesk;
 
@@ -85,8 +87,16 @@ public static class ServiceRegistration
         services.AddScoped<IMediaPathAuthorizer, PcMediaPathAuthorizer>();
         #endregion
 
+        #region YAYIN VE IZLEME
+        // Yayınlar + izleyici kiralamaları bellekte (singleton); DB yalnızca denetim kaydı.
+        services.AddSingleton<ScreenSessionStore>();
+        services.AddSingleton<ScreenStreamCoordinator>();
+        services.AddHostedService<ScreenStreamWorker>();
+        #endregion
+
         #region SERVISLER
         services.AddScoped<IPcDirectoryService, PcDirectoryService>();
+        services.AddScoped<IScreenViewService, ScreenViewService>();
         #endregion
 
         return services;

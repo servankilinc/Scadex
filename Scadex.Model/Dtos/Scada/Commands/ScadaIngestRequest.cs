@@ -1,4 +1,5 @@
 using Scadex.Core.Model;
+using Scadex.Core.Utils;
 using Scadex.Model.Enums;
 using FluentValidation;
 
@@ -7,7 +8,10 @@ namespace Scadex.Model.Dtos.Scada.Commands;
 /// <summary> SCADA'nın HTTP uzerinden Bize push ettiği telemetri bilgisi. </summary>
 public class ScadaIngestRequest : IDto
 {
-    public string MacAddress { get; set; } = null!;
+    private string _macAddress = null!;
+
+    /// <summary> Gelirken tek tipe çevrilir (<c>AA:BB:CC:DD:EE:FF</c>, <see cref="MacAddressFormat"/>): SCADA hangi ayraçla gönderirse göndersin eşleşir. </summary>
+    public string MacAddress { get => _macAddress; set => _macAddress = MacAddressFormat.NormalizeOrKeep(value)!; }
 
     /// <summary> <c>"I"</c> dijital giris, <c>"A"</c> analog giris. </summary>
     public string Type { get; set; } = null!;

@@ -121,10 +121,12 @@ Bu kural yalnızca **PC'deki istemci** içindir (PC başına tek istemci bağlan
 aynı ya da farklı monitörlerini istenen sayıda operatör aynı anda izler ([§ 8](#8-yayın-oturumu-ve-izleyiciler); kullanıcı kararı 2026-09-30).
 
 - **MAC karşılaştırması normalize edilir** (yalnızca onaltılık haneler, büyük harf: `AA:BB-cc…` →
-  `AABBCC…`). Bu, SCADA ingest'teki "ham string, normalizasyon yok" kuralından **bilinçli olarak farklıdır**:
-  Windows istemcisi teknisyenin adresi diyagrama hangi ayraçla yazdığını bilemez. Karşılaştırma, modülün
-  `IUnitOfWork` projeksiyonuyla okuduğu PC cihazları üzerinde bellekte yapılır (PC sayısı küçüktür).
-  Çekirdekteki `IX_Device_MacAddress` farklı yazımları yakalamaz; o durumu `Ambiguous` yakalar.
+  `AABBCC…`). 2026-09-30'dan beri çekirdek de `Device.MacAddress`'i tek tip saklıyor (`AA:BB:CC:DD:EE:FF`,
+  `Scadex.Core/Utils/MacAddressFormat`), yani diyagramdaki yazım zaten tek biçimde. İstemcinin gönderdiği adresler
+  yine `Contracts/Hub/MacAddress.Normalize` ile karşılaştırılır; Contracts bağımlılıksız kalsın diye kural orada ayrıca
+  yazılıdır. Karşılaştırma, modülün `IUnitOfWork` projeksiyonuyla okuduğu PC cihazları üzerinde bellekte yapılır
+  (PC sayısı küçüktür). `IX_Device_MacAddress` artık farklı ayraçla yazılmış aynı adresi de yakalar; `Ambiguous`
+  yalnızca bir PC'nin iki kartı iki ayrı cihaza yazıldığında görülür.
 - Diyagramda cihaz silinip yeniden çizilirse yeni `DeviceId` bir sonraki `Hello`'da kendiliğinden bulunur;
   istemcide hiçbir şey değişmez.
 - İstemci MAC listesi: `NetworkInterfaceType` Ethernet / Wireless80211 / GigabitEthernet; sanal
@@ -184,7 +186,7 @@ Kodda: `Contracts/Hub/PcHubContract.cs` (hub yolu, metot adları, `IPcHubClient`
 |---|---|
 | `Hello` | `{ macAddresses[], clientVersion, osVersion, machineName, userName, monitors[] }` → `{ status, deviceId?, deviceName?, cabinetName?, matchedMacAddresses[] }` (`status`: Accepted 1, UnknownDevice 2, Ambiguous 3, AlreadyConnected 4, NetworkNotAllowed 5) |
 | `ReportMonitors` | `{ monitors[] }` — ekran eklenince/çıkınca/çözünürlük değişince |
-| `ReportStreamState` | `{ sessionId, monitorIndex, state, encoder?, failureReason? }` — Faz 5 |
+| `ReportStreamState` | `{ sessionId, monitorIndex, state, encoder?, failureReason? }` — yalnızca durum değişince; PC'de elle durdurulan yayın (`Stopped`) merkezde de biter (`StoppedOnPc`) |
 
 `monitors[]` öğesi: `MonitorInfo` — `{ index, adapterIndex, outputIndex, deviceName, left, top, width, height, isPrimary,
 gpuVendor, gpuName }`, piksel cinsinden (fiziksel). Yakalama `(adapterIndex, outputIndex)` çiftiyle yapılır (§ 7.4).
@@ -285,6 +287,12 @@ Kodlayıcı seçimi — monitör başına, İLK YAYINDA (boştayken CPU harcanma
   çıkmadan kodlanır (HD 620'de QSV: %12 → %2 CPU); farklı karttaysa kartlar arası kopya olur.
 - **Çıkarılanlar:** `h264_mf` (~340 ms, `hw_encoding` ile takılıyor), OpenH264 (patent sorusu), x264 (GPL).
 - NVENC ve AMF'nin gecikme/CPU değerleri henüz ölçülmedi (sahada kullanıcı test ediyor).
+- **PC tercihi (2026-09-30):** istemcinin "Encoder" kutucuğunda (monitörlerden ayrı; sınama tüm monitörler için yapılır, liste
+  birleşiktir) "Tercih et" ile bir aday (ör. VP9) seçilir. Tercih **PC başınadır** ve
+  **bellekte** durur: uygulama kapanınca otomatik seçime döner, dosyaya yazılmaz. Bu PC'deki tüm yayınlar
+  onu kullanır. Tercih edilen aday bir monitörde çalışmıyorsa o monitör otomatik seçime düşer, özette bu yazar. Tercih
+  değişince çalışan yayınlar aynı hedefle yeniden başlar; arada merkeze "durdu" gönderilmez, oturum sürer. "Otomatik
+  seçime dön" tercihi kaldırır.
 
 #### Ekran yakalama
 
@@ -376,7 +384,7 @@ Sunucu:
   1. Cihaz aktif mi, DeviceType.Pc mi, istemcisi bağlı mı, monitör var mı   değilse ProblemDetails
   2. (deviceId, index) için yayın yoksa: ScreenSession oluştur, yayın bileti üret,
      PcHub → StartScreenStream
-  3. Yol hazır olana kadar bekle (en fazla ~15 sn): IMediaGateway ile MediaMTX'te yol "ready"
+  3. Yol hazır olana kadar bekle (en fazla ~30 sn — ilk yayında istemci kodlayıcıları sınar): IMediaGateway ile MediaMTX'te yol "ready"
      istemci Failed bildirirse → sabit mesajlı hata
   4. ViewerLease + ScreenViewLog satırı + okuma bileti
   → 200 { viewId, whepUrl, token, expirationUtc, leaseRenewSec }
@@ -475,8 +483,9 @@ FFmpeg başladı/çıktı (çıkış kodu), yeniden deneme. **Bilet asla loglanm
 - **Saha dağıtımı (2026-09-29):** paket ayrı bir betikle değil standart komutla alınır ve proje sahibi elle dağıtır:
   `dotnet publish Modules/RemoteDesk/Scadex.RemoteDesk.Windows -c Release -r win-x64 --self-contained true -o <klasör>`
   (.NET kurulumu gerekmez; LGPL FFmpeg `tools\ffmpeg\` altında gelir — geliştirme ortamında yoksa paket FFmpeg'siz çıkar ve
-  uygulama "FFmpeg bulunamadı" uyarısı verir). Ekranda her monitör için kodlayıcı sınaması, seçilen kodlayıcı/zincir/
-  profil ve canlı fps/hız/CPU görünür; "Bu adayla yayınla" ile adaylar elle karşılaştırılır.
+  uygulama "FFmpeg bulunamadı" uyarısı verir). Ekranda "Encoder" kutucuğu (sınama, seçilen encoder, "Tercih et" —
+  § 7.4) ve her monitörün kartında merkez yayınının salt okunur durumu (encoder/zincir/profil, canlı fps/hız/CPU) görünür.
+  Sahadaki test yayını 2026-09-30'da kaldırıldı: yayın yalnızca merkezin isteğiyle başlar ve durur.
 - Binary'ler kod imzalı olmalı (uzaktan erişim yazılımları AV'lerce sık işaretlenir).
 - Otomatik güncelleme MVP dışı; geldiğinde imzalı paket + imza doğrulaması.
 
@@ -697,9 +706,9 @@ Her faz bir öncekinin başarı kriteri sağlanmadan başlamaz.
 | **1** ✅ | **Medya hattı kanıtı** (2026-09-29 tamamlandı — § 16.2) — kod yazmadan, elle FFmpeg ile iki monitörden `pc_test_0/1`'e publish (geçici auth'suz yerel yol) → WHEP ile tarayıcı. Kodlayıcı başına filtre zinciri; `output_idx` ↔ DXGI sırası. | İki monitör tarayıcıda; uçtan uca ≈ 130–200 ms (QSV); yazılım yedeği `libopenh264` ~52 ms zincir |
 | **2** ✅ | Çekirdek: `DeviceType.Pc` + seed + migration, `IMediaPathAuthorizer` + controller. Modül iskeleti: kayıt, `RemoteDeskDbContext`, şema, migration. Contracts projesi. **2026-09-29:** + bilet deposu (`ScreenTicketStore`), `pc_*` yetkilendiricisi (`AllowedNetworks` dahil), `GET /api/RemoteDesk/pcs`. | Modül kapalıyken `pcs` 404 ve OpenAPI'de yok (JWT'li istekle sınandı); açıkken `remotedesk` şeması + iki tablo oluştu, `pcs` 200; gerçek kamera biletiyle `cam_` okuma 200, aynı biletle `cam_` publish ve `pc_` okuma 401; biletsiz/yanlış biletli `pc_` publish 401. Hub negotiate kriteri Faz 3'e kaldı (hub henüz yok) |
 | **3** ✅ | `PcHub` + `Hello`/MAC eşleşmesi + bellek kaydı + canlılık. WPF: tek örnek, System Tray, bağlantı ekranı, `appsettings.json`, yeniden bağlanma (henüz yayın yok). **2026-09-29:** canlılık yalnızca bellekte (`PcConnectionRegistry`), `Device` durumuna yazılmaz (§ 17 #1 önerisi). Yapılmadı: hızlı kullanıcı değiştirme (`SessionSwitch`), System Trayde "günlük klasörü" (Serilog henüz yok), "izleniyor" ikonu (Faz 5). | Sınandı (bu makine): tanımsız PC'de iki fiziksel kartın MAC'i gösterildi; diyagrama farklı biçimde (`50-8d-…`, küçük harf) yazılan MAC eşleşti → "Bağlı — kabin / cihaz", `pcs` `isConnected: true`, 2 monitör; modül kapalıyken negotiate 404 ve istemcide "modül kapalı"; merkez yeniden başlayınca kendiliğinden bağlandı; ikinci örnek mevcut pencereyi öne getirip çıktı; pencereyi kapatmak System Trayye indirdi; gizliyken boşta 30 sn'de 47 ms CPU (≈%0,16), private bellek 60 MB (working set 144 MB). Sınanmadı: `Ambiguous`, `AlreadyConnected`, System Tray "Çıkış" |
-| **4** ◐ | WPF yayın: monitör listesi, FFmpeg yöneticisi, kodlayıcı denemesi, `Start/StopScreenStream`, idempotency, Job Object. **2026-09-29: merkezden önce yapıldı** — DXGI monitör/ekran kartı okuma, kodlayıcı sınaması ve seçimi (§ 7.4), monitör başına test yayını (yalnızca kodla / RTSP), geri kalma bekçisi, kilit ekranında bekleme, Job Object ve saha ekranı hazır; `StartScreenStream` komutu Faz 3 (PcHub) ile bağlanacak. | Sunucudan elle tetiklenen komutla seçilen monitör MediaMTX'e yayınlanıyor; uygulama öldürülünce FFmpeg kalmıyor |
-| **5** | İzleme akışı: `view` ucu, hazır-bekleme, biletler, kiralama, otomatik durdurma, `ScreenSession`/`ScreenViewLog`. | Tarayıcı kapanınca ≤ 60 sn'de FFmpeg duruyor; iki izleyici aynı yayını; iki izleyici farklı monitörleri |
-| **6** | Frontend: PC listesi, PC ekranı (monitör seçici + oynatıcı), `VITE_MODULES`. | `npm run lint` + `npm run build` yeşil; uçtan uca izleme |
+| **4** ✅ | WPF yayın: monitör listesi, FFmpeg yöneticisi, kodlayıcı denemesi, `Start/StopScreenStream`, idempotency, Job Object. **2026-09-30:** merkez komutları bağlandı — aynı oturum tekrar gelirse yok sayılır, aynı monitöre yeni oturum (ya da sahadaki test yayını) varsa önce o durur; yayın durumu merkeze yalnızca değişince bildirilir; bilet reddedilirse (401) yeniden denemeden biter; merkez bağlantısı kopunca merkezin yayınları durur. PC'de "izleniyor" göstergesi: pencerede kırmızı şerit + tepside kırmızı noktalı ikon. | Sınandı: sunucunun komutuyla monitör MediaMTX'e yayınlandı (1080p, Intel QSV); istemci zorla öldürülünce FFmpeg kalmadı (Job Object); API öldürülünce istemci FFmpeg'ini 1,1 sn'de durdurdu |
+| **5** ✅ | İzleme akışı: `view` ucu, hazır-bekleme, biletler, kiralama, otomatik durdurma, `ScreenSession`/`ScreenViewLog`. **2026-09-30:** `ScreenStreamCoordinator` (bellekte, tek kilit), `ScreenStreamWorker` (açılışta yetim oturumları kapatır, 5 sn'de bir süpürür), `GET pcs/{id}` (monitörler + yayın durumu + izleyici sayısı). Çekirdeğe `IMediaGateway.GetRuntimePathAsync` / `KickPublisherAsync`. | Sınandı: izleme 1,3–2,8 sn'de hazır (ilkinde kodlayıcı sınaması dahil); aynı monitöre ikinci izleyici 15 ms'de aynı yayına katıldı, farklı monitör ayrı yayın; yenilenmeyen kiralama 47 sn'de düştü; bırakınca 14 sn'de durdu; **tarayıcı öldürülünce 51 sn'de durdu**; okuyucusuz kiralama 60 sn'de durduruldu; gerçek WebRTC izleyicisi 75 sn boyunca kesilmedi; kick ucu (`v3/rtspsessions/kick`) doğrulandı; API yeniden başlayınca yetim oturum `Failed/ServerRestart`; istemci koparsa `Failed/ClientDisconnected`. Sınanmadı: istemcinin durdurmaya UYMADIĞI durum (kick bu yol için yazıldı) |
+| **6** ◐ | Frontend: PC listesi, PC ekranı (monitör seçici + oynatıcı), `VITE_MODULES`. **2026-09-30:** `src/modules/remotedesk/` (liste, PC ekranı, `pc-stream-session.ts` — kiralama yenileme/bırakma, kopunca yeni kiralamayla yeniden başlama), `whep.ts`'e `lowLatency` seçeneği (yalnızca PC). `.env.development` → `signalization,remotedesk`; `.env.production` DEĞİŞMEDİ. | `npm run lint` + `npm run build` yeşil. Aynı akış (giriş → izleme → WHEP → kiralama) başlıksız Chrome'da test sayfasıyla sınandı: 1920×1080, 28–30 fps, jitter tamponu 39–52 ms. **React ekranları henüz tarayıcıda elle gezilmedi** |
 | **7** | Kurulum paketi + oturum açma görevi + kaynak ölçümü ([§ 16](#16-kaynak-ve-performans-ölçümü)). `CLAUDE.md` güncellemesi. | Temiz PC'ye kurulup oturum açılınca kendiliğinden bağlanıyor; hedef değerler tutuyor |
 | **8** | Fare ([§ 12](#12-uzaktan-kontrol-faz-8--mvpde-yazılmaz-sözleşmesi-şimdiden-sabit)) + viewer hub + `RemoteControlSession` + yetki kararı | |
 | **9** | Klavye (scan code, değiştirici tuşlar, takılı tuş emniyeti) | |
@@ -812,6 +821,9 @@ kendi test komutu olarak yeniden yazılabilir.
 | 2026-09-29 | **PC kendi tipidir (`DeviceType.Pc = 13`), Peripheral değil** (kullanıcı kararı). "Bilgisayar" sistem şablonu Pc'ye taşındı, Id'si korunur. |
 | 2026-09-29 | Faz 2: `IMediaPathAuthorizer` — `cam_` yolu modüle hiç sorulmaz; modül `pc_`'yi üstlenir (`read` → okuma bileti, `publish` → `AllowedNetworks` + yayın bileti). Açık oturum tekilliği DB'de filtreli unique index (`[Status] IN (1,2,3,4)`; SQL Server filtreli index'te `NOT IN` yok). Modül uçları `api/RemoteDesk/...`. |
 | 2026-09-29 | Faz 3: `PcHub` anonim; `Hello` normalize MAC ile aktif Pc cihazlarını eşler, tek eşleşme kabul, cihaz başına ilk bağlanan kazanır; bağlantı kaydı bellekte. İstemci SignalR'ın otomatik yeniden bağlanmasını kullanmaz (her bağlantı `Hello` ile yeniden eşlenmeli); geri çekilme 1/2/5/10/30 sn, reddedilince 60 sn. Pencere kapatmak System Trayye indirir; `--tray` argümanı pencereyi açmadan başlatır (oturum açma görevi için). |
+| 2026-09-30 | **İstemcide test yayını kaldırıldı** ("Test yayını başlat", "Durdur", "yalnızca kodla" hedefi, `TestPublishUrl`): yayın yalnızca merkezin komutuyla. Sınama ve tercih monitör kartlarından ayrı bir "Encoder" kutucuğunda (tüm monitörler birlikte sınanır); monitör kartlarında yayın durumu salt okunur kalır. Arayüzde "kodlayıcı" yerine "encoder". |
+| 2026-09-30 | **Kodlayıcı tercihi PC başına ve bellekte** (kullanıcı kararı): "Tercih et" rozetini ve tüm yayınları (merkez dahil) değiştirir, çalışmadığı monitörde otomatik seçim; tercih değişince yayın merkez oturumu kapanmadan yeniden başlar. Eski "Bu adayla yayınla" kaldırıldı: merkez yayınını durdurup test yayını açıyordu. Aynı işte yakalanan hata: `StreamSession.StopAsync` önce iptal ettiği için FFmpeg sahipsiz kalabiliyordu → önce nazik durdurma, sonra iptal. |
+| 2026-09-30 | Faz 4–5: yayın ve izleyiciler bellekte (`ScreenStreamCoordinator`), DB yalnızca denetim. Hazır bekleme 30 sn; bekleyen izleme isteği süpürmede izleyici sayılır (ilk yayın beklerken durdurulmasın). Durdurmada bilet hemen silinir, uymayan yayıncı 10 sn sonra atılır (kick). PC'de "izleniyor" göstergesi zorunlu (pencere şeridi + tepsi ikonu). |
 | 2026-09-29 | Faz 1: FFmpeg 8.1 LGPL; `h264_mf` bırakıldı → yazılım yedeği `libopenh264`; QSV `async_depth 1`; çıkış `-fps_mode passthrough` zorunlu; geri kalma bekçisi; tarayıcıda `jitterBufferTarget = 0` (yalnızca PC yayını). Ölçümler § 16.2. |
 
 ---

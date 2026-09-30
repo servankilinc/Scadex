@@ -7,6 +7,7 @@ using Scadex.RemoteDesk.Contracts.Hub;
 using Scadex.RemoteDesk.Contracts.Media;
 using Scadex.RemoteDesk.Media;
 using Scadex.RemoteDesk.Realtime;
+using Scadex.RemoteDesk.Streaming;
 using static Scadex.Model.Enums.EntityEnums;
 
 namespace Scadex.RemoteDesk.Hubs;
@@ -26,10 +27,12 @@ public class PcHub : Hub<IPcHubClient>
     private readonly IUnitOfWork _unitOfWork;
     private readonly PcConnectionRegistry _registry;
     private readonly RemoteDeskNetworkPolicy _networkPolicy;
+    private readonly ScreenStreamCoordinator _streams;
     private readonly ILogger<PcHub> _logger;
 
-    public PcHub(IUnitOfWork unitOfWork, PcConnectionRegistry registry, RemoteDeskNetworkPolicy networkPolicy, ILogger<PcHub> logger)
+    public PcHub(IUnitOfWork unitOfWork, PcConnectionRegistry registry, RemoteDeskNetworkPolicy networkPolicy, ScreenStreamCoordinator streams, ILogger<PcHub> logger)
     {
+        _streams = streams;
         _unitOfWork = unitOfWork;
         _registry = registry;
         _networkPolicy = networkPolicy;
@@ -99,12 +102,21 @@ public class PcHub : Hub<IPcHubClient>
         return Task.CompletedTask;
     }
 
-    public override Task OnDisconnectedAsync(Exception? exception)
-    {
-        if (Context.Items.TryGetValue(DeviceIdItem, out var value) && value is Guid deviceId && _registry.Remove(deviceId, Context.ConnectionId))
-            _logger.LogInformation("RemoteDesk: {DeviceId} bağlantısı koptu ({Reason})", deviceId, exception?.Message ?? "istemci kapattı");
+    /// <summary> Yayın durumu (başladı, yeniden deniyor, ekran kilitli, başarısız…). Yalnızca durum değişince gelir. </summary>
+    public Task ReportStreamState(StreamStateReport report) =>
+        _streams.OnStreamStateAsync(RequireDeviceId(), Context.ConnectionId, report);
 
-        return base.OnDisconnectedAsync(exception);
+    public override async Task OnDisconnectedAsync(Exception? exception)
+    {
+        if (Context.Items.TryGetValue(DeviceIdItem, out var value) && value is Guid deviceId)
+        {
+            // Önce yayınlar (bu bağlantıya ait olanlar), sonra kayıt: kayıt başka bağlantıya geçtiyse Remove false döner.
+            await _streams.OnClientDisconnectedAsync(deviceId, Context.ConnectionId);
+            if (_registry.Remove(deviceId, Context.ConnectionId))
+                _logger.LogInformation("RemoteDesk: {DeviceId} bağlantısı koptu ({Reason})", deviceId, exception?.Message ?? "istemci kapattı");
+        }
+
+        await base.OnDisconnectedAsync(exception);
     }
 
     private Guid RequireDeviceId() =>

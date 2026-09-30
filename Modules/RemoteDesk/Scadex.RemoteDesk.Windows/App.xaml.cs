@@ -61,6 +61,7 @@ public partial class App : Application
 
                 // ViewModels
                 services.AddSingleton<ConnectionVM>();
+                services.AddSingleton<EncoderPanelVM>();
                 services.AddSingleton<HomeVM>();
                 services.AddSingleton<MainWindowVM>();
 
@@ -101,6 +102,7 @@ public partial class App : Application
         connection.PropertyChanged += (_, args) =>
         {
             if (args.PropertyName == nameof(ConnectionVM.ShortText)) _tray.SetStatus(connection.ShortText);
+            else if (args.PropertyName == nameof(ConnectionVM.IsWatching)) _tray.SetWatching(connection.IsWatching);
         };
 
         if (!e.Args.Contains(TrayArgument, StringComparer.OrdinalIgnoreCase))

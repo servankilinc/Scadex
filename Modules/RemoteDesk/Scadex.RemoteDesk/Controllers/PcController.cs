@@ -17,4 +17,11 @@ public class PcController : RemoteDeskControllerBase
         var result = await _service.GetAllAsync(cancellationToken);
         return ToAction(result);
     }
+
+    [HttpGet("pcs/{deviceId:guid}")]
+    public async Task<IActionResult> Get(Guid deviceId, CancellationToken cancellationToken)
+    {
+        var result = await _service.GetAsync(deviceId, cancellationToken);
+        return ToAction(result);
+    }
 }

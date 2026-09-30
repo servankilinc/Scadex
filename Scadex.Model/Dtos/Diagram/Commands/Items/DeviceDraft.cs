@@ -1,5 +1,6 @@
 using FluentValidation;
 using Scadex.Core.Model;
+using Scadex.Core.Utils;
 using Scadex.Model.Dtos.Diagram.Commands.Abstract;
 using Scadex.Model.Enums;
 
@@ -22,7 +23,10 @@ public class DeviceDraft : IDto, IIdentifiableDraft
     public bool IsLocked { get; set; }
     public bool IsVisible { get; set; } = true;
 
-    public string? MacAddress { get; set; }
+    private string? _macAddress;
+
+    /// <summary> Gelirken tek tipe çevrilir (<c>AA:BB:CC:DD:EE:FF</c>, <see cref="MacAddressFormat"/>) </summary>
+    public string? MacAddress { get => _macAddress; set => _macAddress = MacAddressFormat.NormalizeOrKeep(value); }
 
     public string? IpAddress { get; set; }
 
@@ -45,7 +49,10 @@ public class DeviceDraftValidator : AbstractValidator<DeviceDraft>
         RuleFor(v => v.ComponentTemplateId).NotEqual(Guid.Empty).WithMessage("Sablon secilmeli");
         RuleFor(v => v.Name).NotEmpty().WithMessage("Cihaz adi zorunlu");
         RuleFor(v => v.Name).MaximumLength(128).WithMessage("Cihaz adi en fazla 128 karakter olabilir");
-        RuleFor(v => v.MacAddress).MaximumLength(17).WithMessage("MAC adresi en fazla 17 karakter olabilir");
+        RuleFor(v => v.MacAddress)
+            .Must(mac => MacAddressFormat.TryNormalize(mac) is not null)
+            .When(v => v.MacAddress is not null)
+            .WithMessage("MAC adresi 12 harf/rakam olmalı, ör. AA:BB:CC:DD:EE:FF (ayraç ':' ya da '-' olabilir)");
         RuleFor(v => v.IpAddress).MaximumLength(45).WithMessage("IP adresi en fazla 45 karakter olabilir");
 
         RuleFor(v => v.MonitoringPort!.Value).InclusiveBetween(1, 65535).When(v => v.MonitoringPort.HasValue).WithMessage("İzleme portu 1-65535 arasında olmalı");

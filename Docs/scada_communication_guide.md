@@ -134,7 +134,7 @@ SCADA bu çerçeveleri ayrıştırıp **her çerçeve için bir HTTP isteği** a
 | `'A' 1 235` | `{ "macAddress": "AA:BB:CC:DD:EE:FF", "type": "A", "channelNumber": 1, "value": "235" }` |
 | `'O' 5 0` | Gönderilmez — gövdede ifade edilemez |
 
-`macAddress` çerçevede yoktur; **kontrol kartının kendi MAC adresidir** (bir kabin = bir kontrol kartı = bir soket). CabinetOS bu adresle eşleşen `DeviceType.ControlModule` cihazını bulup kabini oradan çözer — saha CabinetOS'un ürettiği kabin `Guid`'ini bilemez, ama MAC adresi iki tarafta da bilinen ortak değerdir. Eşleşme **birebir string karşılaştırmasıdır**: adres CabinetOS'ta nasıl kayıtlıysa (`Device.MacAddress`) çerçeveye de öyle yazılmalıdır; ayraç (`:` / `-`) ya da harf farkı eşleşmeyi bozar ve istek **404** döner. Değer string olarak taşınır. Tam sözleşme, kısıtlar ve hata kodları: **`docs/api-contract/07-scada-ingest.md`**.
+`macAddress` çerçevede yoktur; **kontrol kartının kendi MAC adresidir** (bir kabin = bir kontrol kartı = bir soket). CabinetOS bu adresle eşleşen `DeviceType.ControlModule` cihazını bulup kabini oradan çözer — saha CabinetOS'un ürettiği kabin `Guid`'ini bilemez, ama MAC adresi iki tarafta da bilinen ortak değerdir. Adres **ayraç ve harf farkından bağımsız** eşleşir (2026-09-30): sunucu hem kayıtlı adresi hem gelen adresi `AA:BB:CC:DD:EE:FF` biçimine çevirir, yani `aa-bb-cc-dd-ee-ff`, `AA:BB:CC:DD:EE:FF` ve `AABBCCDDEEFF` aynıdır. Eşleşen kontrol modülü yoksa istek **404** döner. Değer string olarak taşınır. Tam sözleşme, kısıtlar ve hata kodları: **`docs/api-contract/07-scada-ingest.md`**.
 
 ---
 

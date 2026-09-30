@@ -9,14 +9,39 @@ namespace Scadex.RemoteDesk.Windows.Services.Encoding;
 /// <summary> Bir adayın bu makinede, bu monitörde sınama sonucu. </summary>
 public sealed record ProbeResult(EncoderCandidate Candidate, bool Ok, string? Reason, TimeSpan Duration);
 
-/// <summary> Bir monitörün sınaması: adaylar öncelik sırasıyla ve seçilen (ilk başarılı) aday. </summary>
-public sealed record MonitorProbe(MonitorInfo Monitor, IReadOnlyList<ProbeResult> Results, DateTime ProbedAt)
+/// <summary>
+/// Bir monitörün sınaması: adaylar öncelik sırasıyla. Seçilen = PC tercihi (<paramref name="Preferred"/>) bu monitörde çalışıyorsa o,
+/// değilse ilk başarılı aday (otomatik seçim).
+/// </summary>
+public sealed record MonitorProbe(MonitorInfo Monitor, IReadOnlyList<ProbeResult> Results, DateTime ProbedAt, EncoderKind? Preferred = null)
 {
-    public ProbeResult? Selected => Results.FirstOrDefault(r => r.Ok);
+    public ProbeResult? Selected =>
+        (Preferred is { } kind ? Results.FirstOrDefault(r => r.Ok && r.Candidate.Kind == kind) : null)
+        ?? Results.FirstOrDefault(r => r.Ok);
+
+    /// <summary> Seçim PC tercihinden geldi (otomatik değil). </summary>
+    public bool IsPreferenceApplied => Preferred is { } kind && Selected?.Candidate.Kind == kind;
+
+    /// <summary> Tercih var ama bu monitörde çalışmadı (ya da hiç sınanmadı) — otomatik seçime düşüldü. </summary>
+    public bool PreferenceUnavailable => Preferred is not null && !IsPreferenceApplied;
 }
 
 public interface IEncoderProbeService
 {
+    /// <summary>
+    /// PC başına kodlayıcı tercihi — BELLEKTE, uygulama kapanınca otomatiğe döner (kullanıcı kararı 2026-09-30). <c>null</c> = otomatik.
+    /// Tercih edilen aday bir monitörde çalışmıyorsa o monitör otomatik seçimi kullanır.
+    /// </summary>
+    EncoderKind? Preferred { get; }
+
+    void SetPreferred(EncoderKind? kind);
+
+    /// <summary> Tercih değişti — iş parçacığı havuzundan ya da çağıranın iş parçacığından gelir. </summary>
+    event Action? PreferenceChanged;
+
+    /// <summary> Bir monitörün sınaması bitti (elle ya da ilk yayında) — iş parçacığı havuzundan gelir. </summary>
+    event Action? Probed;
+
     /// <summary> Monitörün son sınaması (yoksa null). </summary>
     MonitorProbe? GetCached(int monitorIndex);
 
@@ -38,10 +63,28 @@ public sealed class EncoderProbeService(IFfmpegLocator ffmpeg, IMonitorService m
     private static readonly TimeSpan ProbeTimeout = TimeSpan.FromSeconds(20);
     private readonly Dictionary<int, MonitorProbe> _cache = [];
     private readonly SemaphoreSlim _gate = new(1, 1);   // sınamalar aynı anda koşmaz: ekran kartını paylaşırlar
+    private EncoderKind? _preferred;
 
+    public EncoderKind? Preferred { get { lock (_cache) return _preferred; } }
+
+    public event Action? PreferenceChanged;
+    public event Action? Probed;
+
+    public void SetPreferred(EncoderKind? kind)
+    {
+        lock (_cache)
+        {
+            if (_preferred == kind) return;
+            _preferred = kind;
+        }
+        logger.LogInformation("Kodlayıcı tercihi: {Preferred}", kind?.ToString() ?? "otomatik");
+        PreferenceChanged?.Invoke();
+    }
+
+    /// <summary> Önbellekteki sınama o anki tercihle döner: tercih değişince önbelleği güncellemek gerekmez. </summary>
     public MonitorProbe? GetCached(int monitorIndex)
     {
-        lock (_cache) return _cache.GetValueOrDefault(monitorIndex);
+        lock (_cache) return _cache.GetValueOrDefault(monitorIndex) is { } probe ? probe with { Preferred = _preferred } : null;
     }
 
     public async Task<MonitorProbe> ProbeAsync(MonitorInfo monitor, CancellationToken cancellationToken)
@@ -64,8 +107,14 @@ public sealed class EncoderProbeService(IFfmpegLocator ffmpeg, IMonitorService m
             }
 
             var probe = new MonitorProbe(monitor, results, DateTime.Now);
-            lock (_cache) _cache[monitor.Index] = probe;
-            return probe;
+            MonitorProbe current;
+            lock (_cache)
+            {
+                _cache[monitor.Index] = probe;
+                current = probe with { Preferred = _preferred };
+            }
+            Probed?.Invoke();
+            return current;
         }
         finally
         {

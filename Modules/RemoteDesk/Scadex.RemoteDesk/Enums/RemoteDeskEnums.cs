@@ -30,6 +30,8 @@ public static class RemoteDeskEnums
         /// <summary> İstemci yayını başlatamadı / sürdüremedi. </summary>
         ClientFailed = 4,
         /// <summary> Sunucu kapanırken ya da yeniden başlarken açık kalan oturum. </summary>
-        ServerRestart = 5
+        ServerRestart = 5,
+        /// <summary> PC'de durduruldu (saha ekranındaki "Durdur" ya da istemci kapatıldı). </summary>
+        StoppedOnPc = 6
     }
 }

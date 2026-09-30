@@ -13,6 +13,11 @@ public static partial class FailureExplainer
 
     public static bool IsScreenLocked(string stderr) => ScreenLockedRegex().IsMatch(stderr);
 
+    /// <summary> MediaMTX yayını reddetti: bilet geçersiz ya da süresi dolmuş (merkez oturumu kapatmış). Yeniden denenmez. </summary>
+    public const string Unauthorized = "Merkez yayını reddetti: yayın bileti geçersiz (oturum kapanmış olabilir)";
+
+    public static bool IsUnauthorized(string stderr) => stderr.Contains("401 Unauthorized", StringComparison.OrdinalIgnoreCase);
+
     public static string Explain(string stderr)
     {
         // Sıra önemli, ilk eşleşen kazanır. Kilit kontrolü "Operation not permitted"i yalnızca GİRDİ açılırken
@@ -30,12 +35,12 @@ public static partial class FailureExplainer
         if (Contains(stderr, "nvcuda.dll", "No capable devices found", "nvEncodeAPI")) return "NVIDIA ekran kartı / sürücüsü yok";
         if (Contains(stderr, "amfrt64.dll")) return "AMD ekran kartı / sürücüsü yok";
         if (Contains(stderr, "runtime doesn't support", "is unsupported", "not supported by the QSV runtime"))
-            return "Intel sürücüsü bu kodlayıcıyı sunmuyor (daha yeni Intel nesli gerekir)";
+            return "Intel sürücüsü bu encoder'ı sunmuyor (daha yeni Intel nesli gerekir)";
         if (Contains(stderr, "Could not create the texture", "frame pool", "child frames context"))
             return "Sürücü GPU belleğinde kare havuzu açamadı (bu zincir desteklenmiyor)";
         if (Contains(stderr, "Impossible to convert between the formats"))
-            return "Kare biçimi dönüştürülemiyor (zincir bu kodlayıcıya uymuyor)";
-        if (Contains(stderr, "Unknown encoder")) return "Bu FFmpeg build'inde kodlayıcı yok";
+            return "Kare biçimi dönüştürülemiyor (zincir bu encoder'a uymuyor)";
+        if (Contains(stderr, "Unknown encoder")) return "Bu FFmpeg build'inde bu encoder yok";
         if (Contains(stderr, "Connection refused", "Server returned", "Connection timed out"))
             return "Yayın adresine bağlanılamadı (MediaMTX çalışıyor mu, adres doğru mu?)";
 
