@@ -14,7 +14,7 @@ namespace Scadex.RemoteDesk.Windows.ViewModels;
 
 /// <summary>
 /// Ana ekran — sahada kontrol: bu PC'nin monitörleri, hangi kodlayıcının neden seçildiği ve test yayınının hangi
-/// profille aktığı. Merkez bağlantısı (PcHub) gelince bağlantı durumu da buraya eklenir (RemoteDesk.md § 9.2).
+/// profille aktığı; en üstte merkez bağlantısı <see cref="ConnectionVM"/>.
 /// </summary>
 public class HomeVM : BaseViewModel
 {
@@ -23,8 +23,9 @@ public class HomeVM : BaseViewModel
     private readonly IScreenStreamService _streams;
 
     public HomeVM(IMonitorService monitors, IEncoderProbeService probes, IScreenStreamService streams, IFfmpegLocator ffmpeg,
-        IOptions<RemoteDeskClientOptions> options)
+        IOptions<RemoteDeskClientOptions> options, ConnectionVM connection)
     {
+        Connection = connection;
         _monitors = monitors;
         _probes = probes;
         _streams = streams;
@@ -46,6 +47,8 @@ public class HomeVM : BaseViewModel
 
         LoadMonitors();
     }
+
+    public ConnectionVM Connection { get; }
 
     public string FfmpegText { get; }
     public string FfmpegWarning { get; }

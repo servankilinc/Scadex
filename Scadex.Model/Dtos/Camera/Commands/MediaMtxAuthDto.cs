@@ -16,10 +16,10 @@ public class MediaMtxAuthDto : IDto
     /// <summary>Istemcinin IP'si.</summary>
     public string? Ip { get; set; }
 
-    /// <summary> Istenen eylem: <c>read</c>, <c>publish</c>, <c>playback</c>, <c>api</c>, <c>metrics</c>, <c>pprof</c>. <b>Yalnizca <c>read</c> kabul edilir.</b> </summary>
+    /// <summary> Istenen eylem: <c>read</c>, <c>publish</c>, <c>playback</c>, <c>api</c>, <c>metrics</c>, <c>pprof</c>. <b>Kamera yolunda (<c>cam_</c>) yalnizca <c>read</c> kabul edilir</b>; remotedesk modul yollarinda (<c>pc_</c>) <c>publish</c> da olabilir — karari <c>IMediaPathAuthorizer</c> verir. </summary>
     public string? Action { get; set; }
 
-    /// <summary> Erisilmek istenen yol adi (orn. <c>cam_{guid}_sub</c>). Token'ın bağlı oldugu yolla BIREBIR eslesmeli. </summary>
+    /// <summary> Erisilmek istenen yol adi (orn. <c>cam_{guid}_sub</c>, <c>pc_{guid}_0</c>). Token'ın bağlı oldugu yolla BIREBIR eslesmeli. </summary>
     public string? Path { get; set; }
 
     /// <summary>Protokol (<c>webrtc</c>, <c>rtsp</c> ...).</summary>

@@ -1,6 +1,6 @@
 namespace Scadex.RemoteDesk.Windows.Services;
 
-/// <summary> <c>appsettings.json </summary>
+/// <summary> appsettings.json </summary>
 public sealed class RemoteDeskClientOptions
 {
     public const string Section = "RemoteDesk";

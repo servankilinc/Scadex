@@ -31,13 +31,17 @@ dotnet build Scadex.slnx
 dotnet run --project Scadex.WebAPI          # http://localhost:5208 + https://localhost:7167
                                             # OpenAPI: /openapi/v1.json — Scalar UI: /scalar
 
-# İki DbContext var: --context ZORUNLU (vermezseniz "More than one DbContext was found")
+# Üç DbContext var: --context ZORUNLU (vermezseniz "More than one DbContext was found")
 dotnet ef migrations add <Ad> --project Scadex.DataAccess --startup-project Scadex.WebAPI --context AppDbContext
 dotnet ef database update     --project Scadex.DataAccess --startup-project Scadex.WebAPI --context AppDbContext
 
 # Sinyalizasyon modülü (signalization şeması, kendi migration geçmişi)
 dotnet ef migrations add <Ad> --project Scadex.Signalization --startup-project Scadex.WebAPI --context SignalizationDbContext --output-dir Data/Migrations
 dotnet ef database update     --project Scadex.Signalization --startup-project Scadex.WebAPI --context SignalizationDbContext
+
+# RemoteDesk modülü (remotedesk şeması, kendi migration geçmişi — RemoteDesk.md)
+dotnet ef migrations add <Ad> --project Modules/RemoteDesk/Scadex.RemoteDesk --startup-project Scadex.WebAPI --context RemoteDeskDbContext --output-dir Data/Migrations
+dotnet ef database update     --project Modules/RemoteDesk/Scadex.RemoteDesk --startup-project Scadex.WebAPI --context RemoteDeskDbContext
 
 dotnet user-secrets set "TokenSettings:SecurityKey" "<64+ karakter>" --project Scadex.WebAPI
 ```
@@ -52,8 +56,9 @@ npm run lint
 
 Bilinmesi gerekenler:
 
-- **`Scadex.WebUI` çözüme dahil değildir.** `Scadex.slnx` yalnızca 6 .NET projesini taşır
-  (5 çekirdek katman + `Scadex.Signalization` modülü); frontend ayrı çalıştırılır.
+- **`Scadex.WebUI` çözüme dahil değildir.** `Scadex.slnx` 9 .NET projesini taşır (5 çekirdek katman +
+  `Scadex.Signalization` + `Modules/RemoteDesk/` altındaki üç proje); frontend ayrı çalıştırılır. Çözümde WPF
+  istemcisi (`Scadex.RemoteDesk.Windows`, `net10.0-windows`) olduğu için `dotnet build Scadex.slnx` yalnızca Windows'ta derlenir.
 - **Test paketi yoktur.** Otomatik kontrol yalnızca `dotnet build` ve frontend tarafında
   `npm run lint` + `npm run build`. Davranış, uygulamayı çalıştırarak doğrulanır — bir
   değişikliğin çalıştığını iddia etmeden önce gerçekten çalıştırın. (`npm run lint` ve
@@ -75,7 +80,9 @@ Bilinmesi gerekenler:
   `ContentRootPath` altından). **`MediaTools/` git'te yoktur** — FFmpeg, MediaMTX ve `mediamtx.yml` dahil
   (`.gitignore`; exe GitHub'ın 100 MiB sınırını aşıyor) — yeni klonda ve her sunucuda elle konur,
   yoksa çekimler "FFmpeg bulunamadı" ile düşer, MediaMTX başlamaz. Yayına `ffmpeg.exe`, `mediamtx.exe`
-  ve `mediamtx.yml` kopyalanır (csproj).
+  ve `mediamtx.yml` kopyalanır (csproj). **Build LGPL olmalı (2026-09-29):** sunucu ve RemoteDesk istemcisi aynı
+  exe'yi kullanır (BtbN 8.1 LGPL, yanında `LICENSE.txt`); çekirdek yalnızca RTSP okuma, `mjpeg` ve `-c copy`
+  kullanır, GPL (x264/x265) gerektirmez. GPL build koymayın — müşteriye dağıtımda kaynak sunma yükümlülüğü doğar.
 - **Harita zemini tamamen yereldir (2026-09-28): `Scadex.WebAPI/MapTiles/` git'te yoktur** — `basemap.pmtiles`
   (Protomaps şeması, Türkiye, z0–13) + `fonts/Noto Sans {Regular,Medium,Italic}` + `sprites/v4/{light,dark}`
   (`protomaps/basemaps-assets`) her sunucuya elle konur; yoksa uyarı loglanır ve harita zemini boş görünür.
@@ -135,6 +142,13 @@ durur. Ayrıntı: PROJECT_OVERVIEW.md § 10.
 - `dotnet ef` tasarım zamanında `Development` ortamını kullanır; modül orada açık olduğu için
   `--context SignalizationDbContext` komutları çalışır. Modülü Development'ta kapatırsanız EF
   context'i bulamaz.
+- **Modül açık ama controller'ları 404 / OpenAPI'de yoksa** WebAPI'nin
+  `obj/.../Scadex.WebAPI.MvcApplicationParts*` dosyaları eskidir: projeye ASP.NET Core referansı sonradan eklenince
+  artımlı derleme bu listeyi yenilemeyebilir (2026-09-29, RemoteDesk'te yaşandı). O iki dosyayı silip yeniden derleyin.
+- **İkinci modül: `Scadex.RemoteDesk` (PC ekran izleme, `Modules:RemoteDesk:Enabled`).** Şartnamesi, fazları ve
+  kararları depo kökündeki [RemoteDesk.md](RemoteDesk.md)'dedir. Çekirdekteki izleri: `DeviceType.Pc` (sistem şablonu
+  "Bilgisayar", Id'si eski Peripheral kimliğinde kalır) ve MediaMTX auth kancasındaki `IMediaPathAuthorizer` —
+  `cam_` yolları ona **hiç sorulmaz**, modül `pc_` yollarını üstlenir, kimsenin üstlenmediği yol 401'dir.
 
 - **Çekirdek modülü bilmez.** Tek temas noktası `IScadaEventObserver` (Business/Utils/ScadaEvents):
   ingest (değer gerçekten değişince), **başarılı çıkış komutu** (kanal değeri değişince, `Direction =

@@ -65,7 +65,7 @@ Reddedilen alternatifler (tekrar açılmasın diye):
 ```text
  Saha PC'si (Windows 10/11, kullanıcı oturumu)            Scadex merkez sunucusu
 ┌───────────────────────────────────────┐              ┌───────────────────────────────────────────────┐
-│ Scadex.RemoteDesk.Windows  (WPF, tepsi)│── WS/WSS ──▶│ /hubs/remote-desk/pc  (PcHub)                   │
+│ Scadex.RemoteDesk.Windows  (WPF, System Tray)│── WS/WSS ──▶│ /hubs/remote-desk/pc  (PcHub)                   │
 │  · MAC'leri + monitörleri bildirir      │◀── komut ────│   Hello(mac'ler) → Device(Pc) eşleşmesi          │
 │  · bağlantı / yayın durumunu gösterir   │              │   StartScreenStream / StopScreenStream           │
 │  · monitör başına FFmpeg (isteğe bağlı) │              │                                                  │
@@ -116,6 +116,9 @@ bununla birlikte anlamlıdır. PC'ler internetten bağlanacaksa bu doküman yeni
 | 0 cihaz | `UnknownDevice` döner, bağlantıyı kapatır | "Bu PC Scadex'te tanımlı değil" + kendi MAC'leri (teknisyen diyagrama girer); 60 sn'de bir yeniden dener |
 | >1 cihaz | `Ambiguous` (iki kart iki cihaza yazılmış) | Hata + ilgili MAC'ler |
 | Cihaz zaten bağlı | `AlreadyConnected` — **ilk bağlanan kazanır**, deneme loglanır | "Bu cihaz başka bir bağlantıda" ; geri çekilerek yeniden dener |
+
+Bu kural yalnızca **PC'deki istemci** içindir (PC başına tek istemci bağlantısı). **İzleyici sayısını sınırlamaz:** aynı PC'yi,
+aynı ya da farklı monitörlerini istenen sayıda operatör aynı anda izler ([§ 8](#8-yayın-oturumu-ve-izleyiciler); kullanıcı kararı 2026-09-30).
 
 - **MAC karşılaştırması normalize edilir** (yalnızca onaltılık haneler, büyük harf: `AA:BB-cc…` →
   `AABBCC…`). Bu, SCADA ingest'teki "ham string, normalizasyon yok" kuralından **bilinçli olarak farklıdır**:
@@ -172,22 +175,25 @@ kopunca: 1 → 2 → 5 → 10 → 30 sn (üst sınır 30 sn, sonsuz)
 
 ### 6.2 Sözleşme (`Scadex.RemoteDesk.Contracts`)
 
+Kodda: `Contracts/Hub/PcHubContract.cs` (hub yolu, metot adları, `IPcHubClient`, kayıtlar) ve `Contracts/Hub/MacAddress.cs`
+(normalizasyon — iki taraf aynı kodu kullanır). Aşağıdaki tablo özettir; alan adları koddakidir.
+
 İstemci → sunucu:
 
 | Metot | Gövde → Dönüş |
 |---|---|
-| `Hello` | `{ macAddresses[], clientVersion, osVersion, machineName, userName, monitors[] }` → `{ status, deviceId?, deviceName?, cabinetName? }` |
+| `Hello` | `{ macAddresses[], clientVersion, osVersion, machineName, userName, monitors[] }` → `{ status, deviceId?, deviceName?, cabinetName?, matchedMacAddresses[] }` (`status`: Accepted 1, UnknownDevice 2, Ambiguous 3, AlreadyConnected 4, NetworkNotAllowed 5) |
 | `ReportMonitors` | `{ monitors[] }` — ekran eklenince/çıkınca/çözünürlük değişince |
-| `ReportStreamState` | `{ sessionId, monitorIndex, state, failureReason? }` |
+| `ReportStreamState` | `{ sessionId, monitorIndex, state, encoder?, failureReason? }` — Faz 5 |
 
-`monitors[]` öğesi: `{ index, deviceName, width, height, left, top, isPrimary }` — piksel cinsinden
-(fiziksel), `index` = `ddagrab` `output_idx`.
+`monitors[]` öğesi: `MonitorInfo` — `{ index, adapterIndex, outputIndex, deviceName, left, top, width, height, isPrimary,
+gpuVendor, gpuName }`, piksel cinsinden (fiziksel). Yakalama `(adapterIndex, outputIndex)` çiftiyle yapılır (§ 7.4).
 
 Sunucu → istemci (`IPcHubClient`):
 
 | Metot | Gövde |
 |---|---|
-| `StartScreenStream` | `{ sessionId, monitorIndex, publishUrl, publishTicket, video: { maxWidth, fps, bitrateKbps, keyframeSec } }` |
+| `StartScreenStream` | `{ sessionId, monitorIndex, publishUrl, profile? }` — bilet `publishUrl`'nin parola alanındadır; `profile` = `VideoProfile { fps, maxWidth, bitrateKbps }`, `null` = seçilen kodlayıcının varsayılanı, GOP her zaman 2 sn |
 | `StopScreenStream` | `{ sessionId }` |
 | *(Faz 8+)* `Input` | `{ controlSessionId, monitorIndex, events: [...] }` ([§ 12](#12-uzaktan-kontrol-faz-8--mvpde-yazılmaz-sözleşmesi-şimdiden-sabit)) |
 
@@ -213,7 +219,10 @@ yoktur, istemci UTC kabul eder.
 `cam_{id:N}_{profil}` ile aynı biçim. `mediamtx.yml`'e yol eklenmez (`all_others` = `source: publisher`).
 
 `MediaPathCleanupWorker` yalnızca `cam_` önekli yolları aday sayar (`IMediaGateway.IsManagedPathName`);
-`pc_` yolları ona görünmez. **Bu worker'a dokunulmaz.**
+`pc_` yolları ona görünmez. **Bu worker'a dokunulmaz.** Temizlemesi de gerekmez: worker MediaMTX **yapılandırmasındaki** yolları
+siler (`v3/config/paths/delete`). `cam_` yolları API ile yapılandırmaya eklendiği için birikir. `pc_` yolları yapılandırmaya hiç
+eklenmez; `all_others` üzerinden yalnızca yayıncı (PC'deki FFmpeg) bağlıyken vardır ve yayıncı gidince kendiliğinden kalkar.
+PC tarafında temizlenecek şey yol değil **yayıncı, oturum ve bilettir**; bunun sahibi modüldür ([§ 8.3](#83-kiralama-ve-otomatik-durdurma)).
 
 ### 7.2 MediaMTX yetkilendirmesi
 
@@ -384,7 +393,11 @@ için oynatıcı değişmeden çalışır.
 - 45 sn yenilenmeyen kiralama düşer (sekme çökmesi `DELETE` göndermez).
 - Kiralaması kalmayan yayın 10 sn sonra `StopScreenStream` alır.
 - Yedek emniyet: MediaMTX'te `readers == 0` olan `pc_` yolu 60 sn sonra durdurulur.
-- İstemci koparsa yayın `Failed` olur; oynatıcı kopar ve kullanıcıya bildirilir.
+- Durdurmada yayın bileti hemen silinir. İstemci `StopScreenStream`'e uymazsa sunucu o RTSP bağlantısını MediaMTX API'siyle
+  zorla kapatır (kick; `IMediaGateway`'e eklenecek). Bilet silindiği için FFmpeg yeniden yayın yapamaz.
+- İstemci koparsa yayın `Failed` olur, istemci kendi FFmpeg'lerini durdurur; oynatıcı kopar ve kullanıcıya bildirilir.
+- Sunucu yeniden başlarsa bellekteki kiralamalar ve hub bağlantıları düşer; istemciler FFmpeg'lerini durdurur. Açılışta DB'de
+  açık kalan `ScreenSession` satırları `Failed` / `ServerRestart` olarak kapatılır.
 
 ### 8.4 Oturum durumu
 
@@ -407,13 +420,13 @@ Tek bir WPF süreci, **oturum açmış kullanıcının** oturumunda çalışır.
   seçeneği UAC sorusu çıkarmadan açılabilir.)
 - **Tek örnek:** oturum başına `Local\Scadex.RemoteDesk.Windows` mutex'i; ikinci örnek mevcut pencereyi
   öne getirip çıkar.
-- **Pencere kapatılınca uygulama kapanmaz, tepsiye iner.** Çıkış yalnızca tepsi menüsünden.
+- **Pencere kapatılınca uygulama kapanmaz, System Trayye iner.** Çıkış yalnızca System Tray menüsünden.
 - Uygulama **Per-Monitor DPI Aware v2**'dir (`app.manifest`); monitör boyutları ve (sonra) fare
   koordinatları fiziksel piksel olarak doğru çıkar.
 
 ### 9.2 Arayüz
 
-Tepsi ikonu (WinForms `NotifyIcon`, `UseWindowsForms` — üçüncü parti paket yok) + tek pencere:
+System Tray ikonu (WinForms `NotifyIcon`, `UseWindowsForms` — üçüncü parti paket yok) + tek pencere:
 
 | Alan | İçerik |
 |---|---|
@@ -421,9 +434,9 @@ Tepsi ikonu (WinForms `NotifyIcon`, `UseWindowsForms` — üçüncü parti paket
 | Merkez | Sunucu adresi, eşleşilen kabin ve cihaz adı |
 | Bu PC | Gönderilen MAC'ler (kopyalanabilir — teknisyen diyagrama girer), makine adı, sürüm |
 | Monitörler | Liste; izlenen monitör(ler) işaretli, kodlayıcı |
-| İzleniyor | Aktif yayın varken **tepsi ikonu değişir** ve pencerede belirgin gösterge çıkar |
+| İzleniyor | Aktif yayın varken **System Tray ikonu değişir** ve pencerede belirgin gösterge çıkar |
 
-Tepsi menüsü: Göster · Yeniden bağlan · Günlük klasörünü aç · Çıkış.
+System Tray menüsü: Göster · Yeniden bağlan · Günlük klasörünü aç · Çıkış.
 
 ### 9.3 Minimal kaynak kullanımı
 
@@ -470,7 +483,7 @@ FFmpeg başladı/çıktı (çıkış kodu), yeniden deneme. **Bilet asla loglanm
 ### 9.7 WPF seçiminin bedeli
 
 Kullanıcı oturumunda çalışan bir uygulama şunları **göremez / yapamaz**: kilit ekranı, oturum açılmamış PC,
-UAC güvenli masaüstü, Ctrl+Alt+Del. Kullanıcı uygulamayı tepsiden kapatırsa PC bir sonraki oturum açılışına
+UAC güvenli masaüstü, Ctrl+Alt+Del. Kullanıcı uygulamayı System Trayden kapatırsa PC bir sonraki oturum açılışına
 kadar bağlı değildir (listede "bağlı değil" görünür). Bunlar gerekirse ileride **ayrı, küçük bir Windows
 servisi** eklenir; WPF istemcisi o zaman arayüz olarak kalır.
 
@@ -506,10 +519,11 @@ kopyalanmaz. Saklama/temizlik işi yok (Scadex'in genel kararı; proje sahibi so
 | Yer | Değişiklik |
 |---|---|
 | `Scadex.Model/Enums/EntityEnums.cs` | `DeviceType.Pc = 13` |
-| `Scadex.DataAccess/Contexts/AppDbContext.cs` (DEVICE TYPE seed) | `Pc` satırı + `AppDbContext` migration'ı. PC şablonu admin şablon ekranından oluşturulur (ya da sistem şablonu seed'i — Faz 2'de karar) |
-| `Scadex.Business` (`Utils/`) | `IMediaPathAuthorizer` genişleme noktası ([§ 7.2](#72-mediamtx-yetkilendirmesi)) |
-| `Scadex.WebAPI/Controllers/MediaGatewayController.cs` | `cam_` aynen; diğerleri yetkilendiricilere; `MediaMtxAuthDto` XML doc'u güncellenir ("yalnızca read" artık doğru değil) |
-| `Scadex.WebAPI/Program.cs` | Modülün iki kayıt satırı |
+| `Scadex.DataAccess/Contexts/AppDbContext.cs` (DEVICE TYPE seed) | `Pc` satırı + migration `AddPcDeviceType`. PC **Peripheral değildir**: mevcut "Bilgisayar" sistem şablonu Peripheral'dan `Pc` tipine taşındı; Id'si eski (Peripheral, 7) kimliğinde kalır (Id değişseydi ona bağlı cihazlar migration'ı kırardı). Migration'da işlem sırası elle düzeltildi: önce tip, sonra şablon (EF tersini üretiyor, FK patlar) |
+| `Scadex.Business/Utils/MediaGateway/IMediaPathAuthorizer.cs` | Genişleme noktası ([§ 7.2](#72-mediamtx-yetkilendirmesi)) |
+| `Scadex.WebAPI/Controllers/MediaGatewayController.cs` | `cam_` yolu yetkilendiricilere **hiç sorulmaz**, bugünkü yoldan geçer; diğer yollar onu üstlenen yetkilendiriciye, kimse üstlenmezse bugünkü yola (→ 401). `MediaMtxAuthDto` XML doc'u güncellendi |
+| Frontend `models/enums/entityEnums.ts`, palet ikonu, şablon ekranı tip listesi | `DeviceType.Pc = 13` aynası ("Bilgisayar") |
+| `Scadex.WebAPI/Program.cs` | Modülün iki kayıt satırı (Faz 2'de `.AddRemoteDeskModule`, hub eşlemesi Faz 3'te) |
 | `appsettings*.json` | `Modules:RemoteDesk:{Enabled, PublishRtspBaseUrl, AllowedNetworks}` |
 | `CLAUDE.md` | Modül bölümü + "`Scadex.slnx` 6 proje" cümlesi (artık WPF dahil 9) |
 
@@ -562,7 +576,7 @@ C# DTO değişince TS aynası elle güncellenir.
 | Biletsiz / başka yola / kamera yoluna yayın | Yayın bileti yol + oturuma bağlı; `cam_*` publish her zaman 401 |
 | Okuma biletiyle yayın ya da tersi | Ayrı cache anahtar uzayları |
 | Bilet sızıntısı | Loglarda maske; ağ LAN/VPN varsayımı |
-| İzlemenin fark edilmemesi | `ScreenViewLog`; PC'de tepsi ve pencere göstergesi |
+| İzlemenin fark edilmemesi | `ScreenViewLog`; PC'de System Tray ve pencere göstergesi |
 
 > **Yetki:** Çekirdekte yetki zorlaması bilinçli olarak yok (CLAUDE.md). Ekran izleme ve özellikle uzaktan
 > kontrol bu boşluğun en ağır sonuçlandığı yerdir; Faz 8 öncesi karar gerekir ([§ 17](#17-açık-kararlar)).
@@ -663,7 +677,7 @@ RemoteDesk.md                      bu doküman (depo kökü)
 - **İş parçacığı:** SignalR ve süreç olayları iş parçacığı havuzundan gelir. Tekil özellik bildirimleri WPF
   tarafından taşınır; `ObservableCollection` değişiklikleri ve komutların `RaiseCanExecuteChanged`'i
   `Dispatcher` üzerinden yapılır.
-- **Kapanış tek yoldan:** tepsi "Çıkış" → `await host.StopAsync()` (yayınlar durur, bağlantı kapanır) →
+- **Kapanış tek yoldan:** System Tray "Çıkış" → `await host.StopAsync()` (yayınlar durur, bağlantı kapanır) →
   `Application.Shutdown()`. Pencere kapatma yalnızca gizler.
 - Nullable açık, async + `CancellationToken`, Options, Serilog.
 
@@ -681,8 +695,8 @@ Her faz bir öncekinin başarı kriteri sağlanmadan başlamaz.
 |---|---|---|
 | **0** | Proje iskeleti: Contracts bağımlılıksız, modül csproj'u Signalization kalıbında, WPF'te `Microsoft.Extensions.Hosting` + içerik kökü + kapanış yolu + namespace düzeni | `dotnet build Scadex.slnx` temiz (`NU1903` hariç); WPF açılıp temiz kapanıyor |
 | **1** ✅ | **Medya hattı kanıtı** (2026-09-29 tamamlandı — § 16.2) — kod yazmadan, elle FFmpeg ile iki monitörden `pc_test_0/1`'e publish (geçici auth'suz yerel yol) → WHEP ile tarayıcı. Kodlayıcı başına filtre zinciri; `output_idx` ↔ DXGI sırası. | İki monitör tarayıcıda; uçtan uca ≈ 130–200 ms (QSV); yazılım yedeği `libopenh264` ~52 ms zincir |
-| **2** | Çekirdek: `DeviceType.Pc` + seed + migration, `IMediaPathAuthorizer` + controller. Modül iskeleti: kayıt, `RemoteDeskDbContext`, şema, migration. Contracts projesi. | Modül kapalıyken uçlar 404 / hub negotiate 404; açıkken tablolar oluşur; **kamera izleme bozulmadı**; `cam_*` publish 401 |
-| **3** | `PcHub` + `Hello`/MAC eşleşmesi + bellek kaydı + canlılık. WPF: tek örnek, tepsi, bağlantı ekranı, `appsettings.json`, yeniden bağlanma (henüz yayın yok). | WPF "Bağlı — kabin/cihaz" gösteriyor; tanımsız MAC'te MAC listesi görünüyor; ağ kesilip gelince bağlanıyor; boşta CPU ≈ 0 |
+| **2** ✅ | Çekirdek: `DeviceType.Pc` + seed + migration, `IMediaPathAuthorizer` + controller. Modül iskeleti: kayıt, `RemoteDeskDbContext`, şema, migration. Contracts projesi. **2026-09-29:** + bilet deposu (`ScreenTicketStore`), `pc_*` yetkilendiricisi (`AllowedNetworks` dahil), `GET /api/RemoteDesk/pcs`. | Modül kapalıyken `pcs` 404 ve OpenAPI'de yok (JWT'li istekle sınandı); açıkken `remotedesk` şeması + iki tablo oluştu, `pcs` 200; gerçek kamera biletiyle `cam_` okuma 200, aynı biletle `cam_` publish ve `pc_` okuma 401; biletsiz/yanlış biletli `pc_` publish 401. Hub negotiate kriteri Faz 3'e kaldı (hub henüz yok) |
+| **3** ✅ | `PcHub` + `Hello`/MAC eşleşmesi + bellek kaydı + canlılık. WPF: tek örnek, System Tray, bağlantı ekranı, `appsettings.json`, yeniden bağlanma (henüz yayın yok). **2026-09-29:** canlılık yalnızca bellekte (`PcConnectionRegistry`), `Device` durumuna yazılmaz (§ 17 #1 önerisi). Yapılmadı: hızlı kullanıcı değiştirme (`SessionSwitch`), System Trayde "günlük klasörü" (Serilog henüz yok), "izleniyor" ikonu (Faz 5). | Sınandı (bu makine): tanımsız PC'de iki fiziksel kartın MAC'i gösterildi; diyagrama farklı biçimde (`50-8d-…`, küçük harf) yazılan MAC eşleşti → "Bağlı — kabin / cihaz", `pcs` `isConnected: true`, 2 monitör; modül kapalıyken negotiate 404 ve istemcide "modül kapalı"; merkez yeniden başlayınca kendiliğinden bağlandı; ikinci örnek mevcut pencereyi öne getirip çıktı; pencereyi kapatmak System Trayye indirdi; gizliyken boşta 30 sn'de 47 ms CPU (≈%0,16), private bellek 60 MB (working set 144 MB). Sınanmadı: `Ambiguous`, `AlreadyConnected`, System Tray "Çıkış" |
 | **4** ◐ | WPF yayın: monitör listesi, FFmpeg yöneticisi, kodlayıcı denemesi, `Start/StopScreenStream`, idempotency, Job Object. **2026-09-29: merkezden önce yapıldı** — DXGI monitör/ekran kartı okuma, kodlayıcı sınaması ve seçimi (§ 7.4), monitör başına test yayını (yalnızca kodla / RTSP), geri kalma bekçisi, kilit ekranında bekleme, Job Object ve saha ekranı hazır; `StartScreenStream` komutu Faz 3 (PcHub) ile bağlanacak. | Sunucudan elle tetiklenen komutla seçilen monitör MediaMTX'e yayınlanıyor; uygulama öldürülünce FFmpeg kalmıyor |
 | **5** | İzleme akışı: `view` ucu, hazır-bekleme, biletler, kiralama, otomatik durdurma, `ScreenSession`/`ScreenViewLog`. | Tarayıcı kapanınca ≤ 60 sn'de FFmpeg duruyor; iki izleyici aynı yayını; iki izleyici farklı monitörleri |
 | **6** | Frontend: PC listesi, PC ekranı (monitör seçici + oynatıcı), `VITE_MODULES`. | `npm run lint` + `npm run build` yeşil; uçtan uca izleme |
@@ -700,7 +714,7 @@ Her faz sonunda rapor: değişen dosyalar · eklenen özellik · mimari değişi
 ## 15. Test matrisi
 
 **Bağlantı:** config yok/bozuk · merkez erişilemez · tanımsız MAC · iki MAC iki cihazda (`Ambiguous`) ·
-MAC farklı ayraçla girilmiş · aynı PC ikinci kez bağlanıyor · ağ kesintisi · uygulama tepsiden kapatılıp
+MAC farklı ayraçla girilmiş · aynı PC ikinci kez bağlanıyor · ağ kesintisi · uygulama System Trayden kapatılıp
 açılıyor · hızlı kullanıcı değiştirme · cihaz diyagramda silinip yeniden çiziliyor.
 
 **Yayın:** başlat · durdur · çift başlat · çift durdur · aynı monitöre farklı oturum · iki monitör aynı anda
@@ -763,14 +777,15 @@ kendi test komutu olarak yeniden yazılabilir.
 
 Önerilen seçenek ilk sıradadır:
 
-1. **PC bağlı değilken kabin `Warning`'e düşsün mü?** Öneri: hayır — kullanıcı uygulamayı kapatınca ya da PC
+1. **PC bağlı değilken kabin `Warning`'e düşsün mü?** *(Faz 3'te öneri uygulandı — bağlantı yalnızca bellekte, `Device.DeviceStatusId`'e yazılmıyor; onay bekliyor.)* Öneri: hayır — kullanıcı uygulamayı kapatınca ya da PC
    kapalıyken kabin uyarıya geçerdi; Signalization gibi **bilerek** kabin durumuna yansımasın ve bu
    CLAUDE.md'ye yazılsın. (Evet denirse [§ 10.4](#104-canlılık) aynen uygulanır.)
-2. **İzlendiğine dair onay.** Öneri: onay yok, yalnızca görünür gösterge (tepsi + pencere) — saha PC'lerinin
+2. **İzlendiğine dair onay.** Öneri: onay yok, yalnızca görünür gösterge (System Tray + pencere) — saha PC'lerinin
    başında çoğu zaman kimse yoktur. Çalışan izleme (KVKK) gerekiyorsa kurulum başına "onay iste" ayarı.
 3. **Yetki.** Öneri: MVP'de izleme her giriş yapmış kullanıcıya açık + `ScreenViewLog`; Faz 8'den önce en az
    bir "uzaktan kontrol" rolü zorunlu.
-4. **PC şablonu.** Öneri: sistem şablonu seed'i (her kurulumda hazır); alternatif: admin şablon ekranından.
+4. ~~**PC şablonu.**~~ **Kapandı (2026-09-29):** yeni tip `DeviceType.Pc`; mevcut "Bilgisayar" sistem şablonu bu tipe
+   taşındı (Peripheral kullanılmaz). Admin ekranından başka PC şablonları da açılabilir.
 5. ~~**Yazılım yedeğinin lisansı.**~~ **Kapandı (2026-09-29):** yazılım yedeği OpenH264 yerine VP9 (libvpx,
    telifsiz). H.264 yalnızca donanım kodlayıcılarında kullanılır; patenti sürücü/üreticiyle gelir.
 
@@ -792,7 +807,11 @@ kendi test komutu olarak yeniden yazılabilir.
 | 2026-09-29 | Kontratlar `Scadex.RemoteDesk.Contracts`; projeler `Modules/RemoteDesk/` altında; doküman depo kökünde. |
 | 2026-09-29 | WPF istemcisi projenin kendi MVVM altyapısını (`Helpers/`) ve Generic Host DI'ını kullanır; CommunityToolkit.Mvvm yok. |
 | 2026-09-29 | Uygulayıcı Claude Code (bu depo). |
+| 2026-09-29 | **Tek FFmpeg build'i:** Scadex sunucusu (`MediaTools/ffmpeg`) ve istemci (`tools/ffmpeg`) aynı BtbN 8.1 LGPL exe'yi kullanır; GPL build kaldırıldı. Çekirdeğin anlık görüntü + klip komutları H.264 ve H.265 kaynakta bu build'le doğrulandı (JPEG 1920×1080, klip tam 5,0 sn, ilk paket anahtar kare). |
 | 2026-09-29 | **Kodlayıcı seçimi:** donanımda H.264 (monitörün kartı önce: NVENC / QSV / AMF), yoksa yazılımda VP9; her aday gerçek denemeyle sınanır. OpenH264, `h264_mf`, x264 çıkarıldı. Yakalama `-init_hw_device d3d11va=cap:<adaptör>` + `-filter_complex ddagrab`. |
+| 2026-09-29 | **PC kendi tipidir (`DeviceType.Pc = 13`), Peripheral değil** (kullanıcı kararı). "Bilgisayar" sistem şablonu Pc'ye taşındı, Id'si korunur. |
+| 2026-09-29 | Faz 2: `IMediaPathAuthorizer` — `cam_` yolu modüle hiç sorulmaz; modül `pc_`'yi üstlenir (`read` → okuma bileti, `publish` → `AllowedNetworks` + yayın bileti). Açık oturum tekilliği DB'de filtreli unique index (`[Status] IN (1,2,3,4)`; SQL Server filtreli index'te `NOT IN` yok). Modül uçları `api/RemoteDesk/...`. |
+| 2026-09-29 | Faz 3: `PcHub` anonim; `Hello` normalize MAC ile aktif Pc cihazlarını eşler, tek eşleşme kabul, cihaz başına ilk bağlanan kazanır; bağlantı kaydı bellekte. İstemci SignalR'ın otomatik yeniden bağlanmasını kullanmaz (her bağlantı `Hello` ile yeniden eşlenmeli); geri çekilme 1/2/5/10/30 sn, reddedilince 60 sn. Pencere kapatmak System Trayye indirir; `--tray` argümanı pencereyi açmadan başlatır (oturum açma görevi için). |
 | 2026-09-29 | Faz 1: FFmpeg 8.1 LGPL; `h264_mf` bırakıldı → yazılım yedeği `libopenh264`; QSV `async_depth 1`; çıkış `-fps_mode passthrough` zorunlu; geri kalma bekçisi; tarayıcıda `jitterBufferTarget = 0` (yalnızca PC yayını). Ölçümler § 16.2. |
 
 ---

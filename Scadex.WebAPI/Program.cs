@@ -20,6 +20,7 @@ using Scadex.DataAccess;
 using Scadex.DataAccess.Contexts;
 using Scadex.Model.Dtos.Cabinet.Commands;
 using Scadex.Model.Entities;
+using Scadex.RemoteDesk;
 using Scadex.Signalization;
 using Scadex.WebAPI.BackgroundServices;
 using Scadex.WebAPI.Hubs;
@@ -283,7 +284,8 @@ builder.Services.AddScoped<ICameraCaptureGateway, CameraCaptureGateway>();
 builder.Services.AddControllers()
     .AddJsonOptions(options => options.JsonSerializerOptions.SetByProjectSettings())
     // Musteri/kurum modülleri — her birinin kendi "Modules:<Ad>:Enabled" ayarı kapalıysa servisleri de enpoinleri de yüklenmez. Yeni modül= buraya bir satır.
-    .AddSignalizationModule(builder.Configuration);
+    .AddSignalizationModule(builder.Configuration)
+    .AddRemoteDeskModule(builder.Configuration);
 
 builder.Services.AddOpenApi(options =>
 {
@@ -340,5 +342,6 @@ app.MapHub<DiagramHub>("/hubs/diagram");
 
 // Musteri/kurum modullerinin hub'lari — "Modules:<Ad>:Enabled" kapaliysa eslenmez (negotiate 404). Yeni modulun hub'i varsa buraya bir satir.
 app.MapSignalizationModule(builder.Configuration);
+app.MapRemoteDeskModule(builder.Configuration);
 
 app.Run();

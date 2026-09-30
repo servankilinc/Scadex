@@ -352,7 +352,8 @@ public class AppDbContext : IdentityDbContext<User, Role, Guid>
             new DeviceType { Id = (int)EntityEnums.DeviceType.MeasurementDevice, Name = nameof(EntityEnums.DeviceType.MeasurementDevice), Category = "Measurement" },
             new DeviceType { Id = (int)EntityEnums.DeviceType.CardReader, Name = nameof(EntityEnums.DeviceType.CardReader), Category = "Field" },
             new DeviceType { Id = (int)EntityEnums.DeviceType.Mains, Name = nameof(EntityEnums.DeviceType.Mains), Category = "Power" },
-            new DeviceType { Id = (int)EntityEnums.DeviceType.CircuitBreaker, Name = nameof(EntityEnums.DeviceType.CircuitBreaker), Category = "Power" }
+            new DeviceType { Id = (int)EntityEnums.DeviceType.CircuitBreaker, Name = nameof(EntityEnums.DeviceType.CircuitBreaker), Category = "Power" },
+            new DeviceType { Id = (int)EntityEnums.DeviceType.Pc, Name = nameof(EntityEnums.DeviceType.Pc), Category = "Field" }
         );
         #endregion
 
@@ -686,6 +687,7 @@ public class AppDbContext : IdentityDbContext<User, Role, Guid>
         EntityEnums.DeviceType.CardReader => "#FCE7F3",         // pembe
         EntityEnums.DeviceType.Mains => "#FECACA",              // koyu kirmizi
         EntityEnums.DeviceType.CircuitBreaker => "#FED7AA",     // koyu turuncu
+        EntityEnums.DeviceType.Pc => "#E0F2FE",                 // gok mavisi
         _ => "#F1F5F9"
     };
 
@@ -694,9 +696,10 @@ public class AppDbContext : IdentityDbContext<User, Role, Guid>
         var templates = new List<ComponentTemplate>();
         var pins = new List<ComponentTemplatePin>();
 
-        void Template(EntityEnums.DeviceType type, int ordinal, string name, double width, double height, string imageFile, PinSpec[] specs)
+        // idType: Id'yi tipten bagimsiz sabitlemek icin (sablon baska tipe tasininca). Verilmezse Id kendi tipinden uretilir.
+        void Template(EntityEnums.DeviceType type, int ordinal, string name, double width, double height, string imageFile, PinSpec[] specs, EntityEnums.DeviceType? idType = null)
         {
-            var templateId = SeedTemplateId(type, ordinal);
+            var templateId = SeedTemplateId(idType ?? type, ordinal);
             templates.Add(new ComponentTemplate
             {
                 Id = templateId,
@@ -717,7 +720,7 @@ public class AppDbContext : IdentityDbContext<User, Role, Guid>
                 var spec = specs[i];
                 pins.Add(new ComponentTemplatePin
                 {
-                    Id = SeedPinId(type, ordinal, i + 1),
+                    Id = SeedPinId(idType ?? type, ordinal, i + 1),
                     ComponentTemplateId = templateId,
                     Name = spec.Name,
                     Side = spec.Side,
@@ -732,9 +735,9 @@ public class AppDbContext : IdentityDbContext<User, Role, Guid>
         }
 
         // SVG cizimlerinde pin koordinati viewBox birimindedir ve viewBox = Width x Height.
-        void SvgTemplate(EntityEnums.DeviceType type, int ordinal, string name, double width, double height, string imageFile, PinSpec[] specs)
+        void SvgTemplate(EntityEnums.DeviceType type, int ordinal, string name, double width, double height, string imageFile, PinSpec[] specs, EntityEnums.DeviceType? idType = null)
             => Template(type, ordinal, name, width, height, imageFile,
-                [.. specs.Select(s => s with { X = s.X / width, Y = s.Y / height })]);
+                [.. specs.Select(s => s with { X = s.X / width, Y = s.Y / height })], idType);
 
         // ---- GORA MODULLERI (Docs/assets/components PNG'leri) ----
         // Koordinatlar PNG'deki klemens noktalarinin merkezidir. Olcek k gorsel pikselini tuval birimine
@@ -883,8 +886,9 @@ public class AppDbContext : IdentityDbContext<User, Role, Guid>
             [.. DcLoadPins("+12V", Volt.DC_12V, 35, 75, 178), new("RJ45", 115, 178, Side.Bottom, Fn.RJ45, Dir.Bidirectional, Volt.Data)]);
         SvgTemplate(EntityEnums.DeviceType.Peripheral, 5, "Bozuk Para Kasası", 160, 170, "coin-acceptor.svg", DcLoadPins("+12V", Volt.DC_12V, 55, 105, 148));
         SvgTemplate(EntityEnums.DeviceType.Peripheral, 6, "Banknot Kasası", 160, 190, "bill-acceptor.svg", DcLoadPins("+24V", Volt.DC_24V, 55, 105, 168));
-        SvgTemplate(EntityEnums.DeviceType.Peripheral, 7, "Bilgisayar", 200, 150, "computer.svg",
-            [.. DcLoadPins("+12V", Volt.DC_12V, 50, 90, 128), new("RJ45", 150, 128, Side.Bottom, Fn.RJ45, Dir.Bidirectional, Volt.Data)]);
+        SvgTemplate(EntityEnums.DeviceType.Pc, 7, "Bilgisayar", 200, 150, "computer.svg",
+            [.. DcLoadPins("+12V", Volt.DC_12V, 50, 90, 128), new("RJ45", 150, 128, Side.Bottom, Fn.RJ45, Dir.Bidirectional, Volt.Data)],
+            idType: EntityEnums.DeviceType.Peripheral);
         // Aydinlatma LED'i sebekeye degil, ROLE CIKISINA baglanir: cikis modulunun ucu kuru
         // kontaktir ve kartin kendi beslemesi 12VDC'dir, dolayisiyla o da siren/kilit gibi bir
         // DC yuktur. Yonlendirme LED'inden farki: bu panoyu/alani aydinlatir, sinyal vermez.

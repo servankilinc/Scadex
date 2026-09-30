@@ -36,6 +36,54 @@
     <ScrollViewer VerticalScrollBarVisibility="Auto">
         <StackPanel Margin="16">
 
+            <!-- Merkez bağlantısı -->
+            <Border Style="{StaticResource Card}" DataContext="{Binding Connection}">
+                <StackPanel>
+                    <DockPanel>
+                        <Button DockPanel.Dock="Right" Content="Yeniden bağlan" Command="{Binding ReconnectCommand}" Margin="0" />
+                        <Ellipse Width="12" Height="12" Fill="{Binding StateBrush}" Margin="0,0,8,0" VerticalAlignment="Center" />
+                        <TextBlock Text="{Binding Title}" FontSize="17" FontWeight="SemiBold" Foreground="{Binding StateBrush}"
+                                   VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
+                    </DockPanel>
+                    <TextBlock Text="{Binding Detail}" Style="{StaticResource Value}" Margin="0,6,0,0" />
+                    <TextBlock Text="{Binding MatchedText}" Style="{StaticResource Value}" FontWeight="SemiBold"
+                               Visibility="{Binding HasMatched, Converter={StaticResource BoolToVisibility}}" />
+                    <Grid Margin="0,6,0,0">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                        </Grid.RowDefinitions>
+                        <TextBlock Grid.Row="0" Text="Merkez" Style="{StaticResource Label}" />
+                        <TextBlock Grid.Row="0" Grid.Column="1" Text="{Binding CentralUrl}" Style="{StaticResource Value}" />
+                        <TextBlock Grid.Row="1" Text="Bilgisayar" Style="{StaticResource Label}" />
+                        <TextBlock Grid.Row="1" Grid.Column="1" Text="{Binding MachineName}" Style="{StaticResource Value}" />
+                        <TextBlock Grid.Row="2" Text="MAC adresleri" Style="{StaticResource Label}" />
+                        <StackPanel Grid.Row="2" Grid.Column="1">
+                            <ItemsControl ItemsSource="{Binding Adapters}">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <StackPanel Orientation="Horizontal" Margin="0,3,0,0">
+                                            <!-- Seçilebilir: teknisyen kopyalayıp diyagrama yapıştırır. -->
+                                            <TextBox Text="{Binding DisplayMac, Mode=OneWay}" IsReadOnly="True" BorderThickness="0" Background="Transparent"
+                                                     FontFamily="Consolas" Padding="0" Width="140" />
+                                            <TextBlock Foreground="#6B7580">
+                                                <Run Text="{Binding Name, Mode=OneWay}" /><Run Text=" · " /><Run Text="{Binding Description, Mode=OneWay}" />
+                                            </TextBlock>
+                                        </StackPanel>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                            <Button Content="MAC'leri kopyala" Command="{Binding CopyMacsCommand}" HorizontalAlignment="Left" Margin="0,6,0,0" />
+                        </StackPanel>
+                    </Grid>
+                </StackPanel>
+            </Border>
+
             <!-- Başlık: FFmpeg ve donanım -->
             <Border Style="{StaticResource Card}">
                 <StackPanel>

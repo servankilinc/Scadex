@@ -99,7 +99,8 @@ const DEVICE_TYPES: DeviceType[] = [
   DeviceType.MeasurementDevice,
   DeviceType.CardReader,
   DeviceType.Mains,
-  DeviceType.CircuitBreaker
+  DeviceType.CircuitBreaker,
+  DeviceType.Pc
 ];
 
 const DEFAULT_DRAFT = {

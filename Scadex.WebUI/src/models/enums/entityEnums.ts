@@ -60,7 +60,9 @@ export const DeviceType = {
   /** Şebeke girişi — 220 AC beslemenin kabine girdiği nokta (L / N / PE). */
   Mains: 11,
   /** Sigorta / devre kesici. */
-  CircuitBreaker: 12
+  CircuitBreaker: 12,
+  /** Saha bilgisayarı — çevre birimi değil; RemoteDesk modülünde ekranı izlenir (MAC ile eşlenir). */
+  Pc: 13
 } as const;
 export type DeviceType = (typeof DeviceType)[keyof typeof DeviceType];
 
@@ -76,7 +78,8 @@ export const DeviceTypeLabels: Record<DeviceType, string> = {
   [DeviceType.MeasurementDevice]: 'Ölçüm Cihazı',
   [DeviceType.CardReader]: 'Kart Okuyucu',
   [DeviceType.Mains]: 'Şebeke Girişi',
-  [DeviceType.CircuitBreaker]: 'Sigorta / Kesici'
+  [DeviceType.CircuitBreaker]: 'Sigorta / Kesici',
+  [DeviceType.Pc]: 'Bilgisayar'
 };
 
 // ─────────────────────────────────────────────────────────────

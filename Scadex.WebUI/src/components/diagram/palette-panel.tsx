@@ -7,6 +7,7 @@ import {
   LightbulbIcon,
   LogInIcon,
   LogOutIcon,
+  MonitorIcon,
   MoveRightIcon,
   PanelLeftCloseIcon,
   PanelLeftOpenIcon,
@@ -44,12 +45,13 @@ const DEVICE_TYPE_ICON: Record<DeviceType, LucideIcon> = {
   [DeviceType.MeasurementDevice]: GaugeIcon,
   [DeviceType.CardReader]: IdCardIcon,
   [DeviceType.Mains]: PlugZapIcon,
-  [DeviceType.CircuitBreaker]: ToggleLeftIcon
+  [DeviceType.CircuitBreaker]: ToggleLeftIcon,
+  [DeviceType.Pc]: MonitorIcon
 };
 
 /**
  * Grupların gösterim sırası: `DeviceType`'ın TANIM sırası (ControlModule →
- * CircuitBreaker). API yanıtının sırasına bağlı kalınmıyor — sunucu farklı bir
+ * Pc). API yanıtının sırasına bağlı kalınmıyor — sunucu farklı bir
  * sırayla dönerse grupların yeri değişir, kullanıcı her seferinde aynı yerde
  * arar.
  */

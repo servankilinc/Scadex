@@ -6,9 +6,17 @@
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <UseWPF>true</UseWPF>
+    <!-- Yalnızca System Tray ikonu (NotifyIcon) için; üçüncü parti paket yok. -->
+    <UseWindowsForms>true</UseWindowsForms>
     <!-- LibraryImport (Job Object P/Invoke) üretilen kodda unsafe kullanır. -->
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
   </PropertyGroup>
+
+  <!-- WinForms'un örtük using'leri WPF adlarıyla çakışır (Application, MessageBox, Brush, Color…); System Tray kodu tam adla yazar. -->
+  <ItemGroup>
+    <Using Remove="System.Windows.Forms" />
+    <Using Remove="System.Drawing" />
+  </ItemGroup>
 
   <ItemGroup>
 	<None Remove="appsettings.json" />
@@ -27,6 +35,7 @@
   </ItemGroup>
 	
   <ItemGroup>
+    <PackageReference Include="Microsoft.AspNetCore.SignalR.Client" Version="10.0.11" />
     <PackageReference Include="Microsoft.Extensions.Hosting" Version="10.0.11" />
     <PackageReference Include="Vortice.DXGI" Version="3.8.3" />
   </ItemGroup>

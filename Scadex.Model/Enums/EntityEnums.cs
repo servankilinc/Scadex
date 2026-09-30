@@ -56,7 +56,8 @@ public static class EntityEnums
         /// <summary>Şebeke girişi — kabine dışarıdan gelen 220 AC beslemenin başladığı nokta. Pinleri L / N / PE'dir.</summary>
         Mains = 11,
         /// <summary> Sigorta / devre kesici — referans diyagramdaki "ŞEBEKE", "220V ÇIKIŞ" ve "LAMBA" şalterleri. </summary>
-        CircuitBreaker = 12
+        CircuitBreaker = 12,
+        Pc = 13
     }
 
 
