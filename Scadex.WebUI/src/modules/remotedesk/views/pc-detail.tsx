@@ -1,7 +1,7 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Link, useParams } from 'react-router';
 import { useQueryClient } from '@tanstack/react-query';
-import { ArrowLeftIcon, EyeIcon, LoaderIcon, MonitorIcon, MonitorOffIcon, MousePointerClickIcon, VideoOffIcon } from 'lucide-react';
+import { ArrowLeftIcon, EyeIcon, LoaderIcon, MaximizeIcon, MonitorIcon, MonitorOffIcon, MousePointerClickIcon, VideoOffIcon } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -21,9 +21,20 @@ import { ScreenStreamStateLabels, type PcDetailDto, type PcMonitorDto } from '..
  * Aynı PC'yi (aynı ya da farklı monitörlerini) istenen sayıda kullanıcı aynı anda izleyebilir; aynı monitörün izleyicileri PC'deki
  * tek yayını paylaşır. Monitör değiştirmek eski kiralamayı bırakıp yenisini açar (oynatıcı `key` ile yeniden kurulur).
  *
- * Uzaktan kontrol (Faz 8, yalnızca fare): `RemotePcControl` izni olan kullanıcı izlerken "Kontrolü al" der; kontrol PC başına tek
+ * Uzaktan kontrol (fare Faz 8, klavye Faz 9): `RemotePcControl` izni olan kullanıcı izlerken "Kontrolü al" der; kontrol PC başına tek
  * kullanıcıdadır, diğerleri izlemeye devam eder. Monitör değiştirmek ya da ekrandan çıkmak kontrolü bırakır.
  */
+
+/** Tarayıcının yakalayamadığı tuşlar (işletim sistemi/tarayıcı önce alır) — `KeyboardEvent.code` dizileri. Ctrl+Alt+Del gönderilemez. */
+const COMBOS: { label: string; codes: string[] }[] = [
+  { label: 'Win', codes: ['MetaLeft'] },
+  { label: 'Alt+Tab', codes: ['AltLeft', 'Tab'] },
+  { label: 'Ctrl+Shift+Esc', codes: ['ControlLeft', 'ShiftLeft', 'Escape'] }
+];
+
+/** Keyboard Lock API (yalnızca Chromium, yalnızca tam ekranda) — TS DOM kütüphanesinde yok. */
+type KeyboardLock = { lock?: (codes?: string[]) => Promise<void>; unlock?: () => void };
+const keyboardLock = () => (navigator as Navigator & { keyboard?: KeyboardLock }).keyboard;
 
 const CONTROL_PERMISSION: keyof typeof Permission = 'RemotePcControl';
 export default function RemoteDeskPcDetail() {
@@ -138,6 +149,7 @@ function MonitorPicker({ monitors, selected, onSelect }: { monitors: PcMonitorDt
 function PcPlayer({ deviceId, monitorIndex, control }: { deviceId: string; monitorIndex: number; control: PcControlDto | null }) {
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const surfaceRef = useRef<HTMLDivElement | null>(null);
+  const playerRef = useRef<HTMLDivElement | null>(null);
   const stream = usePcStream(videoRef, deviceId, monitorIndex);
   const remote = useRemoteControl(surfaceRef, videoRef, deviceId, monitorIndex);
   const can = usePermission();
@@ -150,11 +162,38 @@ function PcPlayer({ deviceId, monitorIndex, control }: { deviceId: string; monit
 
   const controlling = remote.status === 'active';
 
+  // Tam ekran + Keyboard Lock: Win, Alt+Tab, Ctrl+W gibi tuşlar da sayfaya gelir (çıkış: Esc basılı tutulur).
+  const toggleFullscreen = useCallback(async () => {
+    const player = playerRef.current;
+    if (!player) return;
+    if (document.fullscreenElement) {
+      await document.exitFullscreen().catch(() => undefined);
+      return;
+    }
+    await player.requestFullscreen().catch(() => undefined);
+    await keyboardLock()?.lock?.().catch(() => undefined);
+    surfaceRef.current?.focus({ preventScroll: true });
+  }, []);
+
+  // Tam ekrandan çıkınca ya da kontrol bitince kilit kalkar (kilitliyken Esc tek basışta çıkmaz).
+  useEffect(() => {
+    const unlock = () => {
+      if (!document.fullscreenElement) keyboardLock()?.unlock?.();
+    };
+    document.addEventListener('fullscreenchange', unlock);
+    return () => document.removeEventListener('fullscreenchange', unlock);
+  }, []);
+  useEffect(() => {
+    if (!controlling) keyboardLock()?.unlock?.();
+  }, [controlling]);
+
   return (
     <div className='flex flex-col gap-2'>
       <div
+        ref={playerRef}
         className={cn(
           'relative aspect-video max-h-[calc(100vh-14rem)] overflow-hidden rounded-xl border bg-black',
+          '[&:fullscreen]:max-h-none [&:fullscreen]:rounded-none [&:fullscreen]:border-0',
           controlling && 'border-primary ring-2 ring-primary'
         )}>
         {/* `contain`: ekranın tamamı görünmeli; fare koordinatı çizilen görüntü dikdörtgenine göre hesaplanır (§ 12.3). */}
@@ -163,7 +202,12 @@ function PcPlayer({ deviceId, monitorIndex, control }: { deviceId: string; monit
         {/* Kontrol katmanı: her zaman var (ref kontrol istenmeden önce hazır olsun), olayları yalnızca kontrol sizdeyken yakalar. */}
         <div
           ref={surfaceRef}
-          className={cn('absolute inset-0 touch-none select-none', controlling ? 'pointer-events-auto' : 'pointer-events-none')}
+          // Klavye olayları için odak alabilmeli (tıklayınca ve kontrol verilince odaklanır).
+          tabIndex={-1}
+          className={cn(
+            'absolute inset-0 touch-none outline-none select-none',
+            controlling ? 'pointer-events-auto' : 'pointer-events-none'
+          )}
         />
 
         {stream.state !== 'connected' && (
@@ -194,7 +238,15 @@ function PcPlayer({ deviceId, monitorIndex, control }: { deviceId: string; monit
       )}
 
       {can(CONTROL_PERMISSION) && (stream.state === 'connected' || remote.status !== 'idle') && (
-        <ControlBar status={remote.status} message={remote.message} control={control} onRequest={remote.request} onRelease={remote.release} />
+        <ControlBar
+          status={remote.status}
+          message={remote.message}
+          control={control}
+          onRequest={remote.request}
+          onRelease={remote.release}
+          onCombo={remote.sendCombo}
+          onFullscreen={() => void toggleFullscreen()}
+        />
       )}
     </div>
   );
@@ -205,13 +257,17 @@ function ControlBar({
   message,
   control,
   onRequest,
-  onRelease
+  onRelease,
+  onCombo,
+  onFullscreen
 }: {
   status: 'idle' | 'requesting' | 'active';
   message?: string;
   control: PcControlDto | null;
   onRequest: () => void;
   onRelease: () => void;
+  onCombo: (codes: string[]) => void;
+  onFullscreen: () => void;
 }) {
   const me = useCurrentUser();
   // Aynı kullanıcının başka sekmesi kontrol ediyorsa buradan devralınabilir; başka kullanıcıysa beklenir.
@@ -225,8 +281,17 @@ function ControlBar({
             <MousePointerClickIcon />
             Kontrolü bırak
           </Button>
+          {COMBOS.map(combo => (
+            <Button key={combo.label} size='sm' variant='outline' onClick={() => onCombo(combo.codes)}>
+              {combo.label}
+            </Button>
+          ))}
+          <Button size='sm' variant='outline' onClick={onFullscreen} title='Tam ekranda Win, Alt+Tab gibi tuşlar da gider (çıkış: Esc basılı tutun)'>
+            <MaximizeIcon />
+            Tam ekran
+          </Button>
           <span className='text-muted-foreground'>
-            Kontrol sizde: görüntü üzerindeki fare hareketleri, tıklamalar ve tekerlek PC'ye gidiyor. Klavye henüz desteklenmiyor.
+            Kontrol sizde: fare ve klavye PC'ye gidiyor (klavye için görüntüye bir kez tıklayın). Ctrl+Alt+Del gönderilemez.
           </span>
         </>
       ) : (

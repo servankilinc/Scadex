@@ -27,12 +27,16 @@ public interface IRemoteInputService
 }
 
 /// <summary>
-/// Merkezden gelen fare olaylarını <c>SendInput</c> ile uygular (RemoteDesk.md § 12, Faz 8 — klavye Faz 9).
+/// Merkezden gelen fare ve klavye olaylarını <c>SendInput</c> ile uygular (RemoteDesk.md § 12).
 /// <list type="bullet">
-/// <item>Tek işçi, tek kuyruk: olay sırası korunur. Ardışık <c>Move</c>'lardan yalnızca sonuncusu uygulanır (son-durum); <c>Down/Up/Wheel</c> asla düşmez.</item>
+/// <item>Tek işçi, tek kuyruk: olay sırası korunur. Ardışık <c>Move</c>'lardan yalnızca sonuncusu uygulanır (son-durum); düğme, tekerlek ve
+/// tuş olayları asla düşmez.</item>
+/// <item>Tuşlar <c>KEYEVENTF_SCANCODE</c> ile basılır (<see cref="KeyboardScanCodes"/>): karakteri PC'nin kendi klavye düzeni belirler
+/// (Türkçe Q'da ğ/ş/ı doğru çıkar).</item>
 /// <item>Koordinat: [0,1] → monitörün fiziksel dikdörtgeni (DXGI) → sanal masaüstü 0–65535 (<c>ABSOLUTE | VIRTUALDESK</c>). Sanal masaüstü
 /// monitörlerin DXGI dikdörtgenlerinin birleşimidir; <c>GetSystemMetrics</c> kullanılmaz çünkü işlemin DPI farkındalığına göre ölçeklenir.</item>
-/// <item>Takılı düğme emniyeti (§ 12.5): kontrol bitince, bağlantı kopunca ya da düğme basılıyken 5 sn olay gelmezse basılı düğmeler bırakılır.</item>
+/// <item>Takılı düğme/tuş emniyeti (§ 12.5): kontrol bitince, bağlantı kopunca ya da basılı bir şey varken 5 sn olay gelmezse basılı düğme ve
+/// tuşların hepsi bırakılır (basılı tutulan tuşu tarayıcı tekrarlayarak gönderdiği için sürekli basmak bu süreyi aşmaz).</item>
 /// <item>Girdi yalnızca <c>ControlStarted</c> ile <c>ControlEnded</c> arasında, o oturumun kimliğiyle kabul edilir.</item>
 /// </list>
 /// Normal yetkiyle çalışan istemci yönetici pencerelerine ve kilit ekranına girdi gönderemez (UIPI, § 12.6); Windows bunu sessizce engeller.
@@ -48,6 +52,7 @@ public sealed partial class RemoteInputService(IMonitorService monitors, ILogger
 
     // Yalnızca işçi iş parçacığında kullanılır.
     private readonly HashSet<MouseButton> _pressed = [];
+    private readonly HashSet<string> _pressedKeys = new(StringComparer.Ordinal);
     private IReadOnlyList<MonitorInfo> _monitors = [];
     private DateTime _lastEventUtc;
     private bool _blockedLogged;
@@ -110,7 +115,7 @@ public sealed partial class RemoteInputService(IMonitorService monitors, ILogger
 
                 if (!hasWork)
                 {
-                    if (_pressed.Count > 0 && DateTime.UtcNow - _lastEventUtc > StuckButtonTimeout)
+                    if ((_pressed.Count > 0 || _pressedKeys.Count > 0) && DateTime.UtcNow - _lastEventUtc > StuckButtonTimeout)
                         ReleasePressed("5 sn olay gelmedi");
                     continue;
                 }
@@ -193,6 +198,15 @@ public sealed partial class RemoteInputService(IMonitorService monitors, ILogger
                 }
                 break;
 
+            case InputEventType.KeyDown or InputEventType.KeyUp when KeyboardScanCodes.TryGet(e.Code, out ushort scan, out bool extended):
+                bool keyDown = e.Type == InputEventType.KeyDown;
+                if (Send(Key(scan, extended, keyDown)))
+                {
+                    if (keyDown) _pressedKeys.Add(e.Code!);
+                    else _pressedKeys.Remove(e.Code!);
+                }
+                break;
+
             case InputEventType.Wheel:
                 // DOM: pozitif deltaY = aşağı; Windows: pozitif = ileri (yukarı). Yatayda ikisi de sağa pozitif.
                 if (e.DeltaY is { } wy and not 0)
@@ -205,11 +219,15 @@ public sealed partial class RemoteInputService(IMonitorService monitors, ILogger
 
     private void ReleasePressed(string reason)
     {
-        if (_pressed.Count == 0) return;
-        foreach (var button in _pressed.ToList())
+        if (_pressed.Count == 0 && _pressedKeys.Count == 0) return;
+        foreach (var button in _pressed)
             Send(Mouse(0, 0, 0, ButtonFlag(button, down: false)));
-        logger.LogInformation("Basılı kalan fare düğmeleri bırakıldı ({Reason}): {Buttons}", reason, string.Join(", ", _pressed));
+        foreach (var code in _pressedKeys)
+            if (KeyboardScanCodes.TryGet(code, out ushort scan, out bool extended))
+                Send(Key(scan, extended, down: false));
+        logger.LogInformation("Basılı kalanlar bırakıldı ({Reason}): {Buttons} {Keys}", reason, string.Join(", ", _pressed), string.Join(", ", _pressedKeys));
         _pressed.Clear();
+        _pressedKeys.Clear();
     }
 
     private void LoadMonitors()
@@ -250,7 +268,21 @@ public sealed partial class RemoteInputService(IMonitorService monitors, ILogger
     };
 
     private static INPUT Mouse(int dx, int dy, uint data, uint flags) =>
-        new() { Type = INPUT_MOUSE, Mi = new MOUSEINPUT { Dx = dx, Dy = dy, MouseData = data, Flags = flags } };
+        new() { Type = INPUT_MOUSE, U = new InputUnion { Mi = new MOUSEINPUT { Dx = dx, Dy = dy, MouseData = data, Flags = flags } } };
+
+    private static INPUT Key(ushort scanCode, bool extended, bool down) =>
+        new()
+        {
+            Type = INPUT_KEYBOARD,
+            U = new InputUnion
+            {
+                Ki = new KEYBDINPUT
+                {
+                    Scan = scanCode,
+                    Flags = KEYEVENTF_SCANCODE | (extended ? KEYEVENTF_EXTENDEDKEY : 0) | (down ? 0 : KEYEVENTF_KEYUP)
+                }
+            }
+        };
 
     private unsafe bool Send(INPUT input)
     {
@@ -271,6 +303,10 @@ public sealed partial class RemoteInputService(IMonitorService monitors, ILogger
 
     #region Win32
     private const uint INPUT_MOUSE = 0;
+    private const uint INPUT_KEYBOARD = 1;
+    private const uint KEYEVENTF_EXTENDEDKEY = 0x0001;
+    private const uint KEYEVENTF_KEYUP = 0x0002;
+    private const uint KEYEVENTF_SCANCODE = 0x0008;
     private const uint MOUSEEVENTF_MOVE = 0x0001;
     private const uint MOUSEEVENTF_LEFTDOWN = 0x0002;
     private const uint MOUSEEVENTF_LEFTUP = 0x0004;
@@ -283,13 +319,29 @@ public sealed partial class RemoteInputService(IMonitorService monitors, ILogger
     private const uint MOUSEEVENTF_VIRTUALDESK = 0x4000;
     private const uint MOUSEEVENTF_ABSOLUTE = 0x8000;
 
-    // INPUT yalnızca fare kolunu taşır: union'ın en büyük üyesi MOUSEINPUT olduğu için boyut (x64'te 40) doğrudur. Faz 9'da klavye için
-    // KEYBDINPUT aynı ofsete (explicit union) eklenecek.
+    // INPUT = tür + union (MOUSEINPUT | KEYBDINPUT). Union'ın en büyük üyesi MOUSEINPUT: x64'te INPUT 40 bayt (sizeof ile gönderilir).
     [StructLayout(LayoutKind.Sequential)]
     private struct INPUT
     {
         public uint Type;
-        public MOUSEINPUT Mi;
+        public InputUnion U;
+    }
+
+    [StructLayout(LayoutKind.Explicit)]
+    private struct InputUnion
+    {
+        [FieldOffset(0)] public MOUSEINPUT Mi;
+        [FieldOffset(0)] public KEYBDINPUT Ki;
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct KEYBDINPUT
+    {
+        public ushort Vk;
+        public ushort Scan;
+        public uint Flags;
+        public uint Time;
+        public nint ExtraInfo;
     }
 
     [StructLayout(LayoutKind.Sequential)]

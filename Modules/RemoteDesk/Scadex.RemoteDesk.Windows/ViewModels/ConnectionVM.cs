@@ -71,7 +71,7 @@ public class ConnectionVM : BaseViewModel
     public bool IsWatching => _watched.Count > 0 || _controller is not null;
     public string WatchingText => !IsWatching ? ""
         : (_watched.Count > 0 ? "Bu PC'nin ekranı merkezden izleniyor — " + string.Join(", ", _watched.Select(i => $"Monitör {i}")) : "Bu PC merkezden izleniyor")
-          + (_controller is not null ? $" · {_controller} fareyi uzaktan kontrol ediyor" : "");
+          + (_controller is not null ? $" · {_controller} PC'yi uzaktan kontrol ediyor (fare ve klavye)" : "");
 
     /// <summary> Uzaktan kontrol eden kullanıcı (yalnızca UI iş parçacığında değişir). </summary>
     private string? _controller;

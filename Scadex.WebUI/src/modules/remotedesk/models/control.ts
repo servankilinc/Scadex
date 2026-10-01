@@ -8,9 +8,8 @@ export const InputEventType = {
   Down: 2,
   Up: 3,
   Wheel: 4,
-  /** Faz 9 — sunucu henüz iletmez. */
+  /** `code` zorunlu; sunucu yalnızca tablosundaki (Contracts `KeyboardScanCodes`) kodları iletir. */
   KeyDown: 5,
-  /** Faz 9 — sunucu henüz iletmez. */
   KeyUp: 6
 } as const;
 export type InputEventType = (typeof InputEventType)[keyof typeof InputEventType];
@@ -36,6 +35,8 @@ export interface InputEvent {
   deltaX?: number;
   /** Windows birimi (120 = bir çentik), DOM yönü (pozitif = aşağı). */
   deltaY?: number;
+  /** `KeyboardEvent.code` — fiziksel tuş (karakteri PC'nin klavye düzeni belirler). */
+  code?: string;
 }
 
 export interface InputBatch {

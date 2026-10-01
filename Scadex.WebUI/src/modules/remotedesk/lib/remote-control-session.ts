@@ -12,14 +12,17 @@ import {
 } from '../models/control';
 
 /**
- * Bir PC'nin uzaktan kontrolü (RemoteDesk.md § 12, Faz 8 — yalnızca fare). React'in dışında; `use-remote-control.ts` yaşam döngüsünü bağlar.
+ * Bir PC'nin uzaktan kontrolü (RemoteDesk.md § 12: fare Faz 8, klavye Faz 9). React'in dışında; `use-remote-control.ts` yaşam döngüsünü bağlar.
  *
  * - Bağlantı `/hubs/remote-desk/viewer`'a, oturum başına ayrı açılır ve bitince kapanır: kontrol nadir ve kısa bir iştir, sürekli açık
  *   bir soket gerekmez. Otomatik yeniden bağlanma YOK: bağlantı koparsa sunucu kontrolü zaten bitirir, kullanıcı yeniden ister.
  * - Olaylar ~60 Hz (16 ms) paketlerle `send` ile (yanıt beklemeden) gider. Paket içinde ardışık hareketlerden yalnızca sonuncusu kalır;
  *   düğme ve tekerlek olayları asla düşmez, sıra korunur.
  * - Koordinatlar video kutusuna değil `object-fit: contain` ile ÇİZİLEN görüntüye göre [0,1]'e çevrilir (letterbox payı çıkar).
- * - Pencere odağı kaybolunca / sekme gizlenince basılı düğmeler bırakılır (§ 12.5).
+ * - Klavye: katman odaktayken `keydown/keyup` `KeyboardEvent.code` ile gider (karakter değil — PC kendi düzeniyle yorumlar). Tarayıcının
+ *   varsayılanı engellenir; yine de Win, Alt+Tab, Ctrl+W/T/N gibi kısayolları tarayıcı/işletim sistemi yakalar — onlar için `sendCombo` ya da
+ *   tam ekranda Keyboard Lock (Chromium). Ctrl+Alt+Del hiçbir yoldan gönderilemez.
+ * - Katman odağı, pencere odağı ya da sekme görünürlüğü kaybolunca basılı düğme ve tuşlar bırakılır (§ 12.5).
  */
 
 export type RemoteControlState = 'requesting' | 'active' | 'ended';
@@ -37,6 +40,8 @@ export interface RemoteControlOptions {
 export interface RemoteControlHandle {
   /** Kontrolü bırakır ve bağlantıyı kapatır. Birden çok kez çağrılabilir. */
   stop: () => void;
+  /** Tarayıcının yakalayamadığı kombinasyon (ör. `['MetaLeft']`, `['AltLeft', 'Tab']`): sırayla basılır, ters sırayla bırakılır. */
+  sendCombo: (codes: string[]) => void;
 }
 
 const FLUSH_MS = 16;
@@ -55,6 +60,7 @@ export function startRemoteControl(options: RemoteControlOptions): RemoteControl
   let queue: InputEvent[] = [];
   let flushTimer: number | null = null;
   const pressed = new Set<MouseButton>();
+  const pressedKeys = new Set<string>();
 
   // ------------------------------------------------------------ bitiş
 
@@ -104,6 +110,8 @@ export function startRemoteControl(options: RemoteControlOptions): RemoteControl
   function releasePressed(): void {
     for (const button of pressed) push({ type: InputEventType.Up, button });
     pressed.clear();
+    for (const code of pressedKeys) push({ type: InputEventType.KeyUp, code });
+    pressedKeys.clear();
   }
 
   // ------------------------------------------------------------ koordinat
@@ -140,6 +148,8 @@ export function startRemoteControl(options: RemoteControlOptions): RemoteControl
     e.preventDefault();
     // Yakalama: düğme görüntünün dışında bırakılsa da `pointerup` bize gelsin (takılı düğme olmasın).
     surface.setPointerCapture(e.pointerId);
+    // Klavye olayları katmana gelsin.
+    surface.focus({ preventScroll: true });
     pressed.add(button);
     push({ type: InputEventType.Down, button, x: p.x, y: p.y });
     flush();
@@ -167,6 +177,38 @@ export function startRemoteControl(options: RemoteControlOptions): RemoteControl
 
   const onContextMenu = (e: Event) => e.preventDefault();
 
+  function onKeyDown(e: KeyboardEvent): void {
+    if (!e.code || e.isComposing) return;
+    e.preventDefault();
+    e.stopPropagation();
+    // Basılı tutulunca tarayıcı tekrar gönderir; o da iletilir (Windows enjekte edilen tuşu kendisi tekrarlamaz).
+    pressedKeys.add(e.code);
+    push({ type: InputEventType.KeyDown, code: e.code });
+    flush();
+  }
+
+  function onKeyUp(e: KeyboardEvent): void {
+    if (!e.code || !pressedKeys.has(e.code)) return;
+    e.preventDefault();
+    e.stopPropagation();
+    pressedKeys.delete(e.code);
+    push({ type: InputEventType.KeyUp, code: e.code });
+    flush();
+  }
+
+  function onSurfaceBlur(): void {
+    releasePressed();
+    flush();
+  }
+
+  function sendCombo(codes: string[]): void {
+    if (finished || !controlSessionId) return;
+    for (const code of codes) push({ type: InputEventType.KeyDown, code });
+    for (const code of [...codes].reverse()) push({ type: InputEventType.KeyUp, code });
+    flush();
+    surface.focus({ preventScroll: true });
+  }
+
   function onFocusLost(): void {
     if (document.visibilityState === 'hidden' || !document.hasFocus()) {
       releasePressed();
@@ -180,6 +222,9 @@ export function startRemoteControl(options: RemoteControlOptions): RemoteControl
     surface.addEventListener('pointerup', onPointerUp);
     surface.addEventListener('wheel', onWheel, { passive: false });
     surface.addEventListener('contextmenu', onContextMenu);
+    surface.addEventListener('keydown', onKeyDown);
+    surface.addEventListener('keyup', onKeyUp);
+    surface.addEventListener('blur', onSurfaceBlur);
     window.addEventListener('blur', onFocusLost);
     document.addEventListener('visibilitychange', onFocusLost);
     flushTimer = window.setInterval(() => flush(), FLUSH_MS);
@@ -191,6 +236,9 @@ export function startRemoteControl(options: RemoteControlOptions): RemoteControl
     surface.removeEventListener('pointerup', onPointerUp);
     surface.removeEventListener('wheel', onWheel);
     surface.removeEventListener('contextmenu', onContextMenu);
+    surface.removeEventListener('keydown', onKeyDown);
+    surface.removeEventListener('keyup', onKeyUp);
+    surface.removeEventListener('blur', onSurfaceBlur);
     window.removeEventListener('blur', onFocusLost);
     document.removeEventListener('visibilitychange', onFocusLost);
     if (flushTimer !== null) window.clearInterval(flushTimer);
@@ -218,6 +266,7 @@ export function startRemoteControl(options: RemoteControlOptions): RemoteControl
       }
       controlSessionId = response.controlSessionId;
       attach();
+      surface.focus({ preventScroll: true });
       onState('active');
     } catch (error) {
       // 401/403: izin yok ya da oturum düşmüş.
@@ -226,5 +275,5 @@ export function startRemoteControl(options: RemoteControlOptions): RemoteControl
     }
   })();
 
-  return { stop: () => finish(undefined, true) };
+  return { stop: () => finish(undefined, true), sendCombo };
 }

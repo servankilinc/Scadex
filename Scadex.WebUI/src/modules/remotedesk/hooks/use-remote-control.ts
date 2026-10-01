@@ -11,6 +11,8 @@ export interface RemoteControl {
   message?: string;
   request: () => void;
   release: () => void;
+  /** Tarayıcının yakalayamadığı tuş kombinasyonunu gönderir (yalnızca kontrol sizdeyken). */
+  sendCombo: (codes: string[]) => void;
 }
 
 /**
@@ -58,8 +60,10 @@ export function useRemoteControl(
     });
   }, [deviceId, monitorIndex, surfaceRef, videoRef, queryClient]);
 
+  const sendCombo = useCallback((codes: string[]) => handleRef.current?.sendCombo(codes), []);
+
   // Sökülünce ya da PC/monitör değişince bırak.
   useEffect(() => release, [deviceId, monitorIndex, release]);
 
-  return { status, message, request, release };
+  return { status, message, request, release, sendCombo };
 }

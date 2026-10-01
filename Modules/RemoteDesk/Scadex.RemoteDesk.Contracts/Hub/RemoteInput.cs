@@ -7,9 +7,9 @@ public enum InputEventType
     Down = 2,
     Up = 3,
     Wheel = 4,
-    /// <summary> Faz 9 — Faz 8'de sunucu iletmez. </summary>
+    /// <summary> <c>Code</c> zorunlu ve <see cref="KeyboardScanCodes"/> tablosunda olmalı. </summary>
     KeyDown = 5,
-    /// <summary> Faz 9 — Faz 8'de sunucu iletmez. </summary>
+    /// <summary> <c>Code</c> zorunlu ve <see cref="KeyboardScanCodes"/> tablosunda olmalı. </summary>
     KeyUp = 6
 }
 
@@ -31,7 +31,8 @@ public enum MouseButton
 /// <param name="Button"><c>Down/Up</c>'ta zorunlu.</param>
 /// <param name="DeltaX">Yatay tekerlek; DOM yönü (pozitif = sağa), Windows birimi (120 = bir çentik).</param>
 /// <param name="DeltaY">Dikey tekerlek; DOM yönü (pozitif = aşağı/kullanıcıya doğru), Windows birimi (120 = bir çentik). İstemci işaretini çevirir.</param>
-/// <param name="Code">Faz 9: <c>KeyboardEvent.code</c> (ör. <c>KeyA</c>).</param>
+/// <param name="Code"><c>KeyDown/KeyUp</c>'ta <c>KeyboardEvent.code</c> (ör. <c>KeyA</c>) — tuşun fiziksel konumu, karakter değil.
+/// Tuşa basılı tutulunca tarayıcının tekrarladığı <c>KeyDown</c>'lar da gönderilir: Windows enjekte edilen tuşu kendisi tekrarlamaz.</param>
 public sealed record InputEvent(
     long Seq,
     long T,
@@ -45,12 +46,13 @@ public sealed record InputEvent(
 
 /// <summary>
 /// Tarayıcının ~60 Hz'de gönderdiği paket. Aynı paket sunucudan PC'ye <c>IPcHubClient.Input</c> ile iletilir.
-/// Hareket için son-durum semantiği: ardışık <c>Move</c>'lardan yalnızca sonuncusu işlenir; <c>Down/Up/Wheel</c> asla düşürülmez, sıra korunur.
+/// Hareket için son-durum semantiği: ardışık <c>Move</c>'lardan yalnızca sonuncusu işlenir; <c>Down/Up/Wheel/KeyDown/KeyUp</c> asla düşürülmez,
+/// sıra korunur.
 /// </summary>
 public sealed record InputBatch(Guid ControlSessionId, int MonitorIndex, InputEvent[] Events);
 
 /// <summary> PC'ye: uzaktan kontrol başladı — istemci göstergeyi açar, girdi kabul etmeye başlar. </summary>
 public sealed record ControlStartedCommand(Guid ControlSessionId, string UserName);
 
-/// <summary> PC'ye: uzaktan kontrol bitti — istemci basılı kalan düğmeleri bırakır, göstergeyi kapatır. Bilinmeyen oturum için sessizce başarılıdır. </summary>
+/// <summary> PC'ye: uzaktan kontrol bitti — istemci basılı kalan düğme ve tuşları bırakır, göstergeyi kapatır. Bilinmeyen oturum için sessizce başarılıdır. </summary>
 public sealed record ControlEndedCommand(Guid ControlSessionId);

@@ -16,7 +16,7 @@ namespace Scadex.RemoteDesk.Control;
 /// <item>Kontrol yalnızca o PC'yi İZLEYENE verilir (canlı kiralama); izleme biterse kontrol de biter — görmeden tıklanmaz.</item>
 /// <item>Girdi sunucuda saklanmaz, sıraya alınmaz: doğrulanıp PC'ye hemen iletilir. Tarayıcının bağlantısı başına hub çağrıları sıralı
 /// işlendiği için (SignalR varsayılanı) olay sırası korunur.</item>
-/// <item>Faz 8 yalnızca fare: klavye olayları (Faz 9) iletilmez.</item>
+/// <item>Tuş yalnızca <c>KeyboardScanCodes</c> tablosundaysa iletilir; Ctrl+Alt+Del Windows'ta <c>SendInput</c> ile gönderilemez (güvenli dikkat dizisi).</item>
 /// </list>
 /// </summary>
 public sealed class RemoteControlCoordinator
@@ -261,7 +261,7 @@ public sealed class RemoteControlCoordinator
             session.UserName, session.DeviceId, reason, session.InputEventCount, (DateTime.UtcNow - session.StartedUtc).TotalSeconds);
     }
 
-    /// <summary> Yalnızca fare olayları (Faz 8), aralık dışı değerler kırpılır, zorunlu alanı eksik olay atılır. </summary>
+    /// <summary> Fare ve tablodaki tuşlar; aralık dışı değerler kırpılır, zorunlu alanı eksik ya da tanımsız olay atılır. </summary>
     private static InputEvent[] Sanitize(InputEvent[]? events)
     {
         if (events is null || events.Length == 0)
@@ -292,7 +292,10 @@ public sealed class RemoteControlCoordinator
                         DeltaY = e.DeltaY is { } dy ? Math.Clamp(dy, -MaxWheelDelta, MaxWheelDelta) : null
                     });
                     break;
-                // KeyDown/KeyUp: Faz 9. Diğer/eksik olaylar atılır.
+                case InputEventType.KeyDown or InputEventType.KeyUp when KeyboardScanCodes.IsKnown(e.Code):
+                    result.Add(e with { X = null, Y = null, Button = null, DeltaX = null, DeltaY = null });
+                    break;
+                // Bilinmeyen tür ya da eksik alanlı olay atılır.
             }
         }
         return [.. result];

@@ -668,7 +668,7 @@ ayrıca karar verilir.
 pencerelerine, UAC'ye ve kilit ekranına girdi gitmez; Windows `SendInput`'u reddeder, istemci bunu oturum başına bir kez günlüğe
 yazar. Gerekirse Görev Zamanlayıcı ("en yüksek ayrıcalıkla") ayrı bir karardır.
 
-### 12.7 Uygulama (Faz 8, 2026-09-30 — yalnızca fare)
+### 12.7 Uygulama (fare Faz 8, 2026-09-30; klavye Faz 9, 2026-10-01)
 
 **Merkez** (`Control/RemoteControlCoordinator`, singleton, bellekte; `Hubs/ViewerHub`):
 
@@ -677,7 +677,8 @@ yazar. Gerekirse Görev Zamanlayıcı ("en yüksek ayrıcalıkla") ayrı bir kar
   `PcNotConnected`, `NotFound`. Aynı bağlantıdan tekrar istek aynı oturumu döndürür; **aynı kullanıcının başka sekmesi devralır**
   (eskisine `Replaced`), başka kullanıcı devralamaz.
 - `SendInput(batch)`: tarayıcı `send` ile (yanıtsız) gönderir. Sunucu yalnızca o bağlantının oturumunu kabul eder, monitörün PC'de
-  olduğunu doğrular, olayları süzer (Faz 8'de yalnızca Move/Down/Up/Wheel; `x,y` [0,1]'e, tekerlek ±20 çentiğe kırpılır; paket
+  olduğunu doğrular, olayları süzer (Move/Down/Up/Wheel; KeyDown/KeyUp yalnızca `code` Contracts'taki `KeyboardScanCodes` tablosundaysa;
+  `x,y` [0,1]'e, tekerlek ±20 çentiğe kırpılır; paket
   başına ≤ 256 olay) ve PC'ye hemen iletir — kuyruk ve saklama yoktur. Geçersiz paket sessizce atılır.
 - Bitiş (`RemoteControlEndReason`): `Released` (bırak / ekrandan çıkış), `ViewerDisconnected`, `PcDisconnected`, `Idle` (**5 dk** girdi
   yok), `ServerRestart`, `ViewEnded` (kullanıcının o PC'deki son kiralaması düştü; süpürmede, ≤ 5 sn), `Replaced`. Sunucu bitirirse
@@ -692,16 +693,27 @@ yazar. Gerekirse Görev Zamanlayıcı ("en yüksek ayrıcalıkla") ayrı bir kar
   olay da hareketse yenisi onun yerine yazılır. `pointerdown`'da pointer capture (görüntü dışında bırakılan düğme de `up` üretir).
 - Tekerlek Windows birimine çevrilir: piksel modunda ×1,2 (Chromium'da bir çentik ≈ 100 px → 120), satır ×40, sayfa ×120. `deltaY`
   DOM yönündedir (pozitif = aşağı); işareti istemci çevirir.
-- Pencere odağı kaybolunca / sekme gizlenince basılı düğmeler için `Up` gönderilir. Monitör değiştirmek kontrolü bırakır.
+- Klavye: katman `tabIndex=-1` ile odak alır (kontrol verilince ve her tıklamada). `keydown/keyup` → `KeyDown/KeyUp { code }`
+  (`KeyboardEvent.code`, karakter değil); tarayıcının varsayılanı engellenir, basılı tutulan tuşun tekrarlanan `keydown`'ları da gider
+  (Windows enjekte edilen tuşu kendisi tekrarlamaz). IME bileşimindeki olaylar atlanır.
+- Tarayıcının / Windows'un önce aldığı tuşlar için çubukta **Win**, **Alt+Tab**, **Ctrl+Shift+Esc** düğmeleri (`sendCombo`: sırayla bas,
+  ters sırayla bırak) ve **Tam ekran**: oynatıcı tam ekrana geçer, Chromium'da `navigator.keyboard.lock()` ile Win/Alt+Tab/Ctrl+W da
+  sayfaya gelir (çıkış: Esc basılı tutulur); tam ekrandan çıkınca ya da kontrol bitince kilit kalkar. **Ctrl+Alt+Del gönderilemez.**
+- Katman odağı ya da pencere odağı kaybolunca, sekme gizlenince basılı düğme ve tuşlar için `Up/KeyUp` gönderilir. Monitör değiştirmek
+  kontrolü bırakır.
 
 **PC** (`Services/Input/RemoteInputService`, hosted service + tek kuyruk):
 
 - `SendInput` + `MOUSEEVENTF_ABSOLUTE | VIRTUALDESK`. Sanal masaüstü monitörlerin **DXGI dikdörtgenlerinin birleşimi**dir
   (`GetSystemMetrics` işlemin DPI farkındalığına göre ölçeklendiği için kullanılmaz; istemcide `app.manifest` yoktur). `Down/Up` konum
   taşıyorsa hareketle tek `INPUT`'ta gider.
-- Ardışık hareketlerden yalnızca sonuncusu uygulanır; düğme/tekerlek sırası korunur.
-- Takılı düğme emniyeti: `ControlEnded`, merkez bağlantısının kopması ya da düğme basılıyken 5 sn olay gelmemesi → basılı düğmeler bırakılır.
-- Gösterge: pencerede kırmızı şerit "… {kullanıcı} fareyi uzaktan kontrol ediyor", tepside kırmızı noktalı ikon ve "KONTROL EDİLİYOR".
+- Tuşlar `KEYEVENTF_SCANCODE` (+ `0xE0` önekliler için `EXTENDEDKEY`) ile basılır; `INPUT` fare/klavye union'ıdır (x64'te 40 bayt).
+  `Pause` (E1 dizisi), medya tuşları ve F13+ tabloda bilerek yok.
+- Ardışık hareketlerden yalnızca sonuncusu uygulanır; düğme/tekerlek/tuş sırası korunur.
+- Takılı düğme/tuş emniyeti: `ControlEnded`, merkez bağlantısının kopması ya da basılı bir şey varken 5 sn olay gelmemesi → basılı düğme ve
+  tuşların hepsi bırakılır.
+- Gösterge: pencerede kırmızı şerit "… {kullanıcı} PC'yi uzaktan kontrol ediyor (fare ve klavye)", tepside kırmızı noktalı ikon ve
+  "KONTROL EDİLİYOR".
 
 ---
 
@@ -710,7 +722,7 @@ yazar. Gerekirse Görev Zamanlayıcı ("en yüksek ayrıcalıkla") ayrı bir kar
 ```text
 Modules/RemoteDesk/
   Scadex.RemoteDesk.Contracts/     net10.0, bağımlılıksız — hub metot adları, komut/durum/monitör tipleri,
-                                   enum'lar, (Faz 8) giriş olayları + code→scancode tablosu
+                                   enum'lar, giriş olayları (RemoteInput.cs) + code→scancode tablosu (KeyboardScanCodes.cs)
   Scadex.RemoteDesk/               net10.0 class library — merkez modülü
     Controllers/ Hubs/ Realtime/ Services/{Abstract,Concrete}/ Data/ Model/ ServiceRegistration.cs
     → Contracts + Scadex.Business (Signalization ile aynı referans yönü)
@@ -764,7 +776,7 @@ Her faz bir öncekinin başarı kriteri sağlanmadan başlamaz.
 | **6** ✅ | Frontend: PC listesi, PC ekranı (monitör seçici + oynatıcı), `VITE_MODULES`. **2026-09-30:** `src/modules/remotedesk/` (liste, PC ekranı, `pc-stream-session.ts` — kiralama yenileme/bırakma, kopunca yeni kiralamayla yeniden başlama), `whep.ts`'e `lowLatency` seçeneği (yalnızca PC). `.env.development` → `signalization,remotedesk`; `.env.production` DEĞİŞMEDİ. İzleme `RemotePcView` iznine bağlı: menü maddesi ve rota izinsiz kullanıcıda gizli. | `npm run lint` + `npm run build` yeşil. Aynı akış (giriş → izleme → WHEP → kiralama) başlıksız Chrome'da test sayfasıyla sınandı: 1920×1080, 28–30 fps, jitter tamponu 39–52 ms. **React ekranları (2026-09-30), başlıksız Chrome + DevTools protokolüyle:** giriş → menü → PC listesi (bağlı, 2 monitör) → PC ekranı 4,3 sn'de 1920×1080 görüntü, monitör kartı "Yayında · 1 izleyici" → 2. monitöre geçiş 3,7 sn → listeye dönünce iki yayın da durdu, FFmpeg kalmadı; konsolda hata yok. Sınanmadı: bağlı olmayan PC ekranı, "Tekrar dene" |
 | **7** ✅ | ~~Kurulum paketi + oturum açma görevi~~ → **2026-09-30 (kullanıcı kararı):** kurulum paketi yok, klasöre publish + elle dağıtım; başlangıç uygulamalarına `--tray` ile elle eklenir (§ 9.1, § 9.6). Yapılan: istemciye Serilog (§ 9.5, System Tray'de "Günlük klasörünü aç"), publish'e LGPL `LICENSE.txt`, FFmpeg yoksa publish'i durduran kontrol, kaynak ölçümü ([§ 16.3](#163-faz-7-ölçümleri-2026-09-30)). `CLAUDE.md` güncellendi. | Sınandı: self-contained publish (≈ 300 MB) scratchpad'e alındı, çalışma klasörü `System32` iken `--tray` ile açılıp merkeze bağlandı; günlükte açılış → bağlantı → yayın isteği → sınama → yayın (maskeli adres) → durdurma satırları, bilet yok; boşta ve yayında hedefler tuttu. Sınanmadı: temiz (geliştirme araçsız) PC, başlangıç kısayoluyla oturum açılışı, System Tray "Çıkış" satırı |
 | **8** ✅ | Fare ([§ 12](#12-uzaktan-kontrol-faz-8)) + viewer hub + `RemoteControlSession` + yetki kararı. **2026-09-30:** yeni izin `RemotePcControl = 11`; § 12.7. Klavye olayları sözleşmede var, sunucu Faz 9'a kadar iletmez. | Sınandı (bu makine, başlıksız Chrome + DevTools fare olayları → gerçek imleç): "Kontrolü al" 0,3 sn'de verildi; görüntüde (0.25, 0.25) → imleç 480,270, (0.75, 0.5) → 1440,540 (1920×1080 monitör 0, beklenen 480,270 / 1439,540); 22 hızlı hareket → PC'ye 20 olay, imleç son noktada; bırakınca hareket PC'ye gitmedi; sayfa kapanınca `ViewerDisconnected`; izleme bırakılınca 1,9 sn'de `ViewEnded`; PC istemcisi kapanınca 0,6 sn'de `PcDisconnected`; izlemeden istek `NotViewing`; jetonsuz negotiate 401, izinsiz 403. Başlıkta "… kontrol ediyor" rozeti. **Sınanmadı:** gerçek tıklama/tekerlek (kullanıcının masaüstünde tıklamamak için), takılı düğme emniyeti, `Busy` (ikinci kullanıcı), 5 dk `Idle`, ikinci monitör ve negatif koordinatlı monitör, yönetici penceresi (UIPI) |
-| **9** | Klavye (scan code, değiştirici tuşlar, takılı tuş emniyeti) | |
+| **9** ✅ | Klavye (scan code, değiştirici tuşlar, takılı tuş emniyeti). **2026-10-01:** Contracts `KeyboardScanCodes` (Chromium `code` ↔ set-1), sunucu yalnızca tablodaki kodu iletir, PC `KEYEVENTF_SCANCODE` ile basar; tarayıcıda Win / Alt+Tab / Ctrl+Shift+Esc düğmeleri ve tam ekran + Keyboard Lock; § 12.7. | Sınandı (bu makine, Türkçe Q, başlıksız Chrome + DevTools tuş olayları): Not Defteri'ne uzaktan **tıklayıp** odaklandı, `Shift+M e r h a b a ␣ [ ] ; ' i , . ␣ 1 2 3` → metin birebir "Merhaba ğüşiıöç 123" (UTF-16 kod noktalarıyla doğrulandı); yalnızca Shift basılı bırakılınca PC 5 sn sonra bıraktı ("Basılı kalanlar bırakıldı (5 sn olay gelmedi): ShiftLeft"); özel tuş ve tam ekran düğmeleri görünüyor. **Sınanmadı:** Win / Alt+Tab / Ctrl+Shift+Esc düğmelerinin PC'deki etkisi (kullanıcının masaüstünü bozmamak için), gerçek tam ekran + Keyboard Lock (başlıksız tarayıcıda yok), AltGr kombinasyonları (@, €), sayısal tuş takımı |
 | **10** | Tüm monitörler tek görüntü, pano | |
 | **11** | Kilit ekranı / UAC için servis bileşeni, otomatik güncelleme, ses, kayıt | |
 
@@ -890,6 +902,7 @@ Aynı makine; publish edilmiş (Release, self-contained) istemci `--tray` ile, p
 | 2026-09-29 | Faz 3: `PcHub` anonim; `Hello` normalize MAC ile aktif Pc cihazlarını eşler, tek eşleşme kabul, cihaz başına ilk bağlanan kazanır; bağlantı kaydı bellekte. İstemci SignalR'ın otomatik yeniden bağlanmasını kullanmaz (her bağlantı `Hello` ile yeniden eşlenmeli); geri çekilme 1/2/5/10/30 sn, reddedilince 60 sn. Pencere kapatmak System Trayye indirir; `--tray` argümanı pencereyi açmadan başlatır (oturum açma görevi için). |
 | 2026-09-30 | **İstemcide test yayını kaldırıldı** ("Test yayını başlat", "Durdur", "yalnızca kodla" hedefi, `TestPublishUrl`): yayın yalnızca merkezin komutuyla. Sınama ve tercih monitör kartlarından ayrı bir "Encoder" kutucuğunda (tüm monitörler birlikte sınanır); monitör kartlarında yayın durumu salt okunur kalır. Arayüzde "kodlayıcı" yerine "encoder". |
 | 2026-09-30 | **Kodlayıcı tercihi PC başına ve bellekte** (kullanıcı kararı): "Tercih et" rozetini ve tüm yayınları (merkez dahil) değiştirir, çalışmadığı monitörde otomatik seçim; tercih değişince yayın merkez oturumu kapanmadan yeniden başlar. Eski "Bu adayla yayınla" kaldırıldı: merkez yayınını durdurup test yayını açıyordu. Aynı işte yakalanan hata: `StreamSession.StopAsync` önce iptal ettiği için FFmpeg sahipsiz kalabiliyordu → önce nazik durdurma, sonra iptal. |
+| 2026-10-01 | **Faz 9 — klavye** (§ 12.7): tuş `KeyboardEvent.code` ile gider, PC scan code ile basar (karakteri PC'nin düzeni belirler; tablo Contracts'ta, sunucu tablodışı kodu atar). Tarayıcının yakalayamadığı tuşlar için düğmeler + tam ekranda Keyboard Lock; Ctrl+Alt+Del bilerek yok. Takılı tuş emniyeti düğmelerle aynı kural (5 sn). |
 | 2026-09-30 | **Faz 8 — uzaktan fare** (§ 12.7): ayrı izin `RemotePcControl`; kontrol PC başına tek kullanıcı, yalnızca izleyene; aynı kullanıcının başka sekmesi devralır, başka kullanıcı devralamaz; 5 dk girdi yoksa düşer; sanal masaüstü DXGI dikdörtgenlerinden; UIPI için yükseltme yok. Açılışta yetim izleme kayıtları da kapanır (önceden yalnızca oturumlar kapanıyordu). |
 | 2026-09-30 | **Faz 7 daraldı** (kullanıcı kararı): kurulum paketi (Inno Setup/MSI) ve Görev Zamanlayıcı görevi yazılmadı — istemci klasöre publish alınıp elle dağıtılır, başlangıç uygulamalarına `--tray` ile eklenir. İstemci günlüğü kullanıcı başına `%LocalAppData%` altında; FFmpeg'siz publish hata verir. |
 | 2026-09-30 | **§ 17 kapandı** (kullanıcı kararları): PC bağlantısı kabin durumuna yansımaz; izlendiğine dair onay alınmaz (gösterge + denetim kaydı yeter); izleme yeni `RemotePcView` iznine bağlı — projede **zorlanan ilk izin**, modül uçlarında policy (yoksa 403), frontend'de menü maddesi ve rota da izne bağlı. |
