@@ -5,6 +5,7 @@ using Microsoft.Extensions.Logging;
 using Scadex.DataAccess.UoW;
 using Scadex.RemoteDesk.Contracts.Hub;
 using Scadex.RemoteDesk.Contracts.Media;
+using Scadex.RemoteDesk.Control;
 using Scadex.RemoteDesk.Media;
 using Scadex.RemoteDesk.Realtime;
 using Scadex.RemoteDesk.Streaming;
@@ -28,11 +29,14 @@ public class PcHub : Hub<IPcHubClient>
     private readonly PcConnectionRegistry _registry;
     private readonly RemoteDeskNetworkPolicy _networkPolicy;
     private readonly ScreenStreamCoordinator _streams;
+    private readonly RemoteControlCoordinator _control;
     private readonly ILogger<PcHub> _logger;
 
-    public PcHub(IUnitOfWork unitOfWork, PcConnectionRegistry registry, RemoteDeskNetworkPolicy networkPolicy, ScreenStreamCoordinator streams, ILogger<PcHub> logger)
+    public PcHub(IUnitOfWork unitOfWork, PcConnectionRegistry registry, RemoteDeskNetworkPolicy networkPolicy, ScreenStreamCoordinator streams,
+        RemoteControlCoordinator control, ILogger<PcHub> logger)
     {
         _streams = streams;
+        _control = control;
         _unitOfWork = unitOfWork;
         _registry = registry;
         _networkPolicy = networkPolicy;
@@ -110,7 +114,8 @@ public class PcHub : Hub<IPcHubClient>
     {
         if (Context.Items.TryGetValue(DeviceIdItem, out var value) && value is Guid deviceId)
         {
-            // Önce yayınlar (bu bağlantıya ait olanlar), sonra kayıt: kayıt başka bağlantıya geçtiyse Remove false döner.
+            // Önce kontrol ve yayınlar (bu bağlantıya ait olanlar), sonra kayıt: kayıt başka bağlantıya geçtiyse Remove false döner.
+            await _control.OnPcDisconnectedAsync(deviceId, Context.ConnectionId);
             await _streams.OnClientDisconnectedAsync(deviceId, Context.ConnectionId);
             if (_registry.Remove(deviceId, Context.ConnectionId))
                 _logger.LogInformation("RemoteDesk: {DeviceId} bağlantısı koptu ({Reason})", deviceId, exception?.Message ?? "istemci kapattı");

@@ -289,6 +289,9 @@ public static class EntityEnums
         ManageAccessCards = 9,
         
         /// <summary> PC ekranlarını canlı izleyebilir (RemoteDesk modülü). </summary>
-        RemotePcView = 10
+        RemotePcView = 10,
+
+        /// <summary> PC'yi uzaktan kontrol edebilir (fare, klavye) — RemoteDesk modülü için </summary>
+        RemotePcControl = 11
     }
 }

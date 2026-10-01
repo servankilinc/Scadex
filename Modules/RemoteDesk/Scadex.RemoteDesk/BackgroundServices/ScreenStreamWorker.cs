@@ -1,13 +1,15 @@
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using Scadex.RemoteDesk.Control;
 using Scadex.RemoteDesk.Streaming;
 
 namespace Scadex.RemoteDesk.BackgroundServices;
 
 /// <summary>
 /// Açılışta önceki süreçten açık kalan yayın oturumlarını kapatır, sonra <see cref="Interval"/>'da bir koordinatörün süpürmesini çalıştırır
-/// (düşen kiralamalar, izleyicisiz yayınlar, durdurmaya uymayan yayıncılar). Yayın yokken tur boştur (DB/MediaMTX'e gidilmez).
+/// (düşen kiralamalar, izleyicisiz yayınlar, durdurmaya uymayan yayıncılar) ve ardından uzaktan kontrolün süpürmesini (boşta kalan kontrol,
+/// izlemesi biten kontrolcü). Yayın ve kontrol yokken tur boştur (DB/MediaMTX'e gidilmez).
 /// </summary>
 public sealed class ScreenStreamWorker : BackgroundService
 {
@@ -15,11 +17,16 @@ public sealed class ScreenStreamWorker : BackgroundService
 
     private readonly ScreenStreamCoordinator _coordinator;
     private readonly ScreenSessionStore _store;
+    private readonly RemoteControlCoordinator _control;
+    private readonly RemoteControlStore _controlStore;
     private readonly RemoteDeskOptions _options;
     private readonly ILogger<ScreenStreamWorker> _logger;
 
-    public ScreenStreamWorker(ScreenStreamCoordinator coordinator, ScreenSessionStore store, IOptions<RemoteDeskOptions> options, ILogger<ScreenStreamWorker> logger)
+    public ScreenStreamWorker(ScreenStreamCoordinator coordinator, ScreenSessionStore store, RemoteControlCoordinator control, RemoteControlStore controlStore,
+        IOptions<RemoteDeskOptions> options, ILogger<ScreenStreamWorker> logger)
     {
+        _control = control;
+        _controlStore = controlStore;
         _coordinator = coordinator;
         _store = store;
         _options = options.Value;
@@ -39,6 +46,9 @@ public sealed class ScreenStreamWorker : BackgroundService
             int orphans = await _store.CloseOrphansAsync(stoppingToken);
             if (orphans > 0)
                 _logger.LogInformation("RemoteDesk: önceki çalışmadan açık kalan {Count} yayın oturumu kapatıldı", orphans);
+            int controls = await _controlStore.CloseOrphansAsync(stoppingToken);
+            if (controls > 0)
+                _logger.LogInformation("RemoteDesk: önceki çalışmadan açık kalan {Count} uzaktan kontrol oturumu kapatıldı", controls);
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
@@ -51,6 +61,7 @@ public sealed class ScreenStreamWorker : BackgroundService
             try
             {
                 await _coordinator.SweepAsync(stoppingToken);
+                await _control.SweepAsync(stoppingToken);
             }
             catch (Exception ex) when (ex is not OperationCanceledException)
             {

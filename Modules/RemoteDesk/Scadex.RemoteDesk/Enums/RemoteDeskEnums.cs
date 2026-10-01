@@ -34,4 +34,36 @@ public static class RemoteDeskEnums
         /// <summary> PC'de durduruldu (saha ekranındaki "Durdur" ya da istemci kapatıldı). </summary>
         StoppedOnPc = 6
     }
+
+    /// <summary> Kontrol isteğinin sonucu (viewer hub <c>RequestControl</c>). </summary>
+    public enum ControlRequestStatus
+    {
+        Granted = 1,
+        /// <summary> PC'yi başka bir kullanıcı kontrol ediyor — kontrol PC başına tek kullanıcıdadır. </summary>
+        Busy = 2,
+        /// <summary> Kullanıcı bu PC'yi izlemiyor (canlı kiralaması yok) — görmeden kontrol verilmez. </summary>
+        NotViewing = 3,
+        /// <summary> PC'deki istemci merkeze bağlı değil. </summary>
+        PcNotConnected = 4,
+        NotFound = 5
+    }
+
+    /// <summary> Uzaktan kontrolün neden bittiği (Faz 8). </summary>
+    public enum RemoteControlEndReason
+    {
+        /// <summary> Kullanıcı "Kontrolü bırak" dedi ya da ekrandan çıktı. </summary>
+        Released = 1,
+        /// <summary> Tarayıcının viewer hub bağlantısı koptu (sekme kapandı, ağ). </summary>
+        ViewerDisconnected = 2,
+        /// <summary> PC'deki istemcinin bağlantısı koptu. </summary>
+        PcDisconnected = 3,
+        /// <summary> Uzun süre girdi gelmedi. </summary>
+        Idle = 4,
+        /// <summary> Sunucu kapanırken ya da yeniden başlarken açık kalan oturum. </summary>
+        ServerRestart = 5,
+        /// <summary> Kullanıcının bu PC'deki izlemesi (kiralaması) bitti — görmeden kontrol edilmez. </summary>
+        ViewEnded = 6,
+        /// <summary> Aynı kullanıcı başka bir sekmeden kontrolü aldı. </summary>
+        Replaced = 7
+    }
 }

@@ -1,3 +1,5 @@
+import type { PcControlDto } from './control';
+
 /**
  * RemoteDesk DTO'larının ELLE yazılmış TS aynası (backend: `Scadex.RemoteDesk/Model/Dtos`). C# tarafı değişince burası da
  * değişmeli — codegen yok. Enum'lar sayı olarak gelir.
@@ -62,6 +64,8 @@ export interface PcDetailDto extends PcListItemDto {
   connectedUtc: string | null;
   /** Bağlı değilken boş. */
   monitors: PcMonitorDto[];
+  /** PC'yi şu an uzaktan kontrol eden kullanıcı; yoksa `null`. */
+  control: PcControlDto | null;
 }
 
 /**

@@ -168,7 +168,7 @@ için query filter **vardır**.
 her derlemede yeni migration istemesine yol açar):
 
 - `System` şirketi, `Owner` / `Admin` / `Manager` / `User` rolleri
-- 5 `DeviceStatus` (renk + ikon ile), 13 `DeviceType`, 11 `Permission` (`Pc` ve `RemotePcView` RemoteDesk için, 2026-09-29/30)
+- 5 `DeviceStatus` (renk + ikon ile), 13 `DeviceType`, 12 `Permission` (`Pc`, `RemotePcView` ve `RemotePcControl` RemoteDesk için, 2026-09-29/30)
 - Admin'e tüm izinler
 - **Admin kullanıcısı: `admin` / `Admin!2345` — ilk girişten sonra değiştirin.**
 - 19 sistem şablonu + 190 pin — palet boş açılmasın diye. Kaynak `Docs/Example_Scada_Diagram.pdf`'teki
@@ -193,7 +193,7 @@ her derlemede yeni migration istemesine yol açar):
 - `Logout` ve `RevokeAll` kullanıcı kimliğini **gövdeden değil, token'dan** okur.
 - Login yanıtı ve token, kullanıcının rollerinden hesaplanan `permission` claim'lerini taşır.
 - **Ama çekirdekte hiçbir uç bu claim'i okumaz** — bkz. § 6. Tek istisna RemoteDesk modülüdür: uçları
-  `RemotePcView` iznini ister (policy, yoksa 403; 2026-09-30).
+  `RemotePcView` iznini ister (policy, yoksa 403; 2026-09-30), uzaktan kontrol hub'ı `RemotePcControl`'ü.
 
 `TokenSettings:SecurityKey` yoksa uygulama açılışta istisna atar (dev anahtarı
 `appsettings.json` içinde duruyor).

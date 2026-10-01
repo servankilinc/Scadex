@@ -157,6 +157,10 @@ durur. Ayrıntı: PROJECT_OVERVIEW.md § 10.
   bilerek yoktur (gösterge + `ScreenViewLog`). **Modülün HTTP uçları `RemotePcView` iznini ister** (projede zorlanan ilk izin,
   aşağıdaki "yetki zorlaması yok" kuralının tek istisnası): policy modülün kaydında (`RemoteDeskModule.ViewPolicy`), izin kodu
   `Permission.RemotePcView` adıyla aynı — enum'u yeniden adlandırmayın. `PcHub` anonim kalır.
+  **Uzaktan kontrol (Faz 8, yalnızca fare) ayrı izindir: `RemotePcControl`** — `/hubs/remote-desk/viewer` bu policy ile korunur
+  (`RemoteDeskModule.ControlPolicy`). Kontrol PC başına tek kullanıcıdadır ve yalnızca o PC'yi **izleyene** verilir (canlı kiralama;
+  izleme biterse kontrol süpürmede düşer) — bu bağı gevşetmeyin, görmeden tıklamak demektir. Girdi sunucuda saklanmaz/sıraya alınmaz,
+  yalnızca `RemoteControlSession` denetim satırı yazılır (RemoteDesk.md § 12.7).
   **Windows istemcisinin kurulum paketi bilerek yoktur (2026-09-30):** `dotnet publish ... -c Release -r win-x64 --self-contained true -o <klasör>`
   ile klasöre alınıp elle dağıtılır, başlangıç uygulamalarına `--tray` ile eklenir (RemoteDesk.md § 9.6). `tools\ffmpeg\` (LGPL exe +
   `LICENSE.txt`) git'te yoktur; eksikse publish bilerek hata verir. İstemci günlüğü `%LocalAppData%\Scadex\RemoteDesk\logs`'tadır.

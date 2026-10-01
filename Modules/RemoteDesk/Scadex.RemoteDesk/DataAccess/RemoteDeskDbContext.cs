@@ -14,6 +14,7 @@ public class RemoteDeskDbContext : DbContext
 
     public DbSet<ScreenSession> ScreenSessions { get; set; }
     public DbSet<ScreenViewLog> ScreenViewLogs { get; set; }
+    public DbSet<RemoteControlSession> RemoteControlSessions { get; set; }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -42,6 +43,17 @@ public class RemoteDeskDbContext : DbContext
             // Denetim sorguları: bir PC'nin / bir kullanıcının izleme geçmişi.
             v.HasIndex(v => new { v.DeviceId, v.StartedUtc });
             v.HasIndex(v => new { v.UserId, v.StartedUtc });
+        });
+
+        modelBuilder.Entity<RemoteControlSession>(c =>
+        {
+            c.ToTable("RemoteControlSession");
+            c.HasKey(c => c.Id);
+            c.Property(c => c.Id).ValueGeneratedNever();
+
+            // Denetim sorguları: bir PC'nin / bir kullanıcının kontrol geçmişi.
+            c.HasIndex(c => new { c.DeviceId, c.StartedUtc });
+            c.HasIndex(c => new { c.UserId, c.StartedUtc });
         });
     }
 }

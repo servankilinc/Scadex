@@ -21,6 +21,11 @@ public interface IPcHubClient
 {
     Task StartScreenStream(StartScreenStreamCommand command);
     Task StopScreenStream(StopScreenStreamCommand command);
+
+    // Uzaktan kontrol (Faz 8, RemoteDesk.md § 12). Girdi yalnızca ControlStarted ile ControlEnded arasında, o oturumun kimliğiyle kabul edilir.
+    Task ControlStarted(ControlStartedCommand command);
+    Task ControlEnded(ControlEndedCommand command);
+    Task Input(InputBatch batch);
 }
 
 /// <summary> Bağlantının ilk ve zorunlu çağrısı; kabul edilene kadar başka çağrı yapılamaz. </summary>

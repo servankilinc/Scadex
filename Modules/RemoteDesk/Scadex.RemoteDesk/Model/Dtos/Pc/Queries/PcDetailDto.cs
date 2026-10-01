@@ -1,3 +1,5 @@
+using Scadex.RemoteDesk.Model.Dtos.Control;
+
 namespace Scadex.RemoteDesk.Model.Dtos.Pc.Queries;
 
 /// <summary> PC ekranı: liste satırı + bağlı istemcinin monitörleri ve her monitörün yayın durumu. </summary>
@@ -10,6 +12,9 @@ public class PcDetailDto : PcListItemDto
 
     /// <summary> Bağlı değilken boş. </summary>
     public List<PcMonitorDto> Monitors { get; set; } = [];
+
+    /// <summary> PC'yi şu an uzaktan kontrol eden kullanıcı; yoksa <c>null</c>. </summary>
+    public PcControlDto? Control { get; set; }
 }
 
 public class PcMonitorDto

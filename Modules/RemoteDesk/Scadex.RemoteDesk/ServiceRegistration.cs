@@ -8,6 +8,7 @@ using Scadex.Business.Utils.MediaGateway;
 using Scadex.Core.Utils.Auth;
 using Scadex.RemoteDesk.BackgroundServices;
 using Scadex.RemoteDesk.Contracts.Hub;
+using Scadex.RemoteDesk.Control;
 using Scadex.RemoteDesk.DataAccess;
 using Scadex.RemoteDesk.Hubs;
 using Scadex.RemoteDesk.Media;
@@ -30,6 +31,9 @@ public static class RemoteDeskModule
     /// rol izni değişince kullanıcı yeniden giriş yapmalı ya da token'ı tazelenmeli (claim'ler token'a girişte yazılır).
     /// </summary>
     public const string ViewPolicy = nameof(Permission.RemotePcView);
+
+    /// <summary> Uzaktan kontrol izni (<c>Permission.RemotePcControl</c>) — viewer hub'ı ister. İzlemeden ayrıdır; kontrol için izlemek de gerekir. </summary>
+    public const string ControlPolicy = nameof(Permission.RemotePcControl);
 }
 
 public static class ServiceRegistration
@@ -60,13 +64,17 @@ public static class ServiceRegistration
     }
 
     /// <summary>
-    /// Modülün hub'ını eşler: <c>/hubs/remote-desk/pc</c> (Windows istemcileri). Kapalıyken eşlenmez → negotiate 404
+    /// Modülün hub'larını eşler: <c>/hubs/remote-desk/pc</c> (Windows istemcileri) ve <c>/hubs/remote-desk/viewer</c> (tarayıcı, uzaktan kontrol).
+    /// Kapalıyken eşlenmez → negotiate 404
     /// (servisleri kayıtlı olmadığı için eşlenseydi her bağlantıda DI hatası olurdu).
     /// </summary>
     public static IEndpointRouteBuilder MapRemoteDeskModule(this IEndpointRouteBuilder app, IConfiguration configuration)
     {
         if (RemoteDeskModule.IsEnabled(configuration))
+        {
             app.MapHub<PcHub>(PcHubContract.Path);
+            app.MapHub<ViewerHub>(ViewerHub.Path);
+        }
 
         return app;
     }
@@ -78,7 +86,8 @@ public static class ServiceRegistration
         #region YETKI
         // Policy modülün kaydında tanımlanır: modül kapalıyken controller'lar da çıkarıldığı için tanımsız policy'ye çarpan uç kalmaz.
         services.AddAuthorizationBuilder()
-            .AddPolicy(RemoteDeskModule.ViewPolicy, policy => policy.RequireClaim(AppClaimTypes.Permission, RemoteDeskModule.ViewPolicy));
+            .AddPolicy(RemoteDeskModule.ViewPolicy, policy => policy.RequireClaim(AppClaimTypes.Permission, RemoteDeskModule.ViewPolicy))
+            .AddPolicy(RemoteDeskModule.ControlPolicy, policy => policy.RequireClaim(AppClaimTypes.Permission, RemoteDeskModule.ControlPolicy));
         #endregion
 
         #region DB CONTEXT
@@ -106,6 +115,12 @@ public static class ServiceRegistration
         services.AddSingleton<ScreenSessionStore>();
         services.AddSingleton<ScreenStreamCoordinator>();
         services.AddHostedService<ScreenStreamWorker>();
+        #endregion
+
+        #region UZAKTAN KONTROL
+        // Kontrol eden kullanıcı bellekte (PC başına tek); DB yalnızca denetim. Süpürmesi ScreenStreamWorker'dadır.
+        services.AddSingleton<RemoteControlStore>();
+        services.AddSingleton<RemoteControlCoordinator>();
         #endregion
 
         #region SERVISLER

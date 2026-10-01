@@ -96,6 +96,10 @@ public sealed class ScreenSessionStore
                     .SetProperty(s => s.Status, ScreenSessionStatus.Failed)
                     .SetProperty(s => s.StoppedUtc, DateTime.UtcNow)
                     .SetProperty(s => s.StopReason, ScreenStopReason.ServerRestart), cancellationToken);
+            // Açılışta canlı izleme olamaz: açık kalmış izleme kayıtları da (oturumu kapalı olanlar dahil) kapanır.
+            await db.ScreenViewLogs
+                .Where(v => v.EndedUtc == null)
+                .ExecuteUpdateAsync(u => u.SetProperty(v => v.EndedUtc, DateTime.UtcNow), cancellationToken);
         });
         return count;
     }

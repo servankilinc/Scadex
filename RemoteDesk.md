@@ -197,7 +197,9 @@ Sunucu → istemci (`IPcHubClient`):
 |---|---|
 | `StartScreenStream` | `{ sessionId, monitorIndex, publishUrl, profile? }` — bilet `publishUrl`'nin parola alanındadır; `profile` = `VideoProfile { fps, maxWidth, bitrateKbps }`, `null` = seçilen kodlayıcının varsayılanı, GOP her zaman 2 sn |
 | `StopScreenStream` | `{ sessionId }` |
-| *(Faz 8+)* `Input` | `{ controlSessionId, monitorIndex, events: [...] }` ([§ 12](#12-uzaktan-kontrol-faz-8--mvpde-yazılmaz-sözleşmesi-şimdiden-sabit)) |
+| `ControlStarted` *(Faz 8)* | `{ controlSessionId, userName }` — gösterge açılır, bu oturumun girdisi kabul edilir |
+| `ControlEnded` *(Faz 8)* | `{ controlSessionId }` — basılı düğmeler bırakılır |
+| `Input` *(Faz 8)* | `{ controlSessionId, monitorIndex, events: [...] }` ([§ 12](#12-uzaktan-kontrol-faz-8)) |
 
 Kurallar: JSON Scadex'le aynı — camelCase, **enum sayı**, `null` alanlar gövdede kalır; istemcinin
 SignalR bağlantısı aynı `JsonSerializerOptions`'la kurulur. Sunucudan gelen `...Utc` damgalarında `Z`
@@ -522,7 +524,7 @@ Signalization modülünün kalıbı birebir izlenir (CLAUDE.md § "Müşteri mod
 |---|---|---|
 | `ScreenSession` | `Id`, `DeviceId`, `MonitorIndex`, `MediaPath`, `Status`, `CreatedUtc`, `StartedUtc`, `StoppedUtc`, `StopReason`, `FailureReason` | Bir FFmpeg ömrü |
 | `ScreenViewLog` | `Id`, `ScreenSessionId`, `DeviceId`, `MonitorIndex`, `UserId`, `StartedUtc`, `EndedUtc` | **Kim, hangi PC'nin hangi monitörünü, ne zaman izledi** |
-| `RemoteControlSession` *(Faz 8+)* | `Id`, `DeviceId`, `UserId`, `StartedUtc`, `EndedUtc`, `EndReason` | |
+| `RemoteControlSession` *(Faz 8)* | `Id`, `DeviceId`, `UserId`, `StartedUtc`, `EndedUtc`, `EndReason`, `InputEventCount` | Kim, hangi PC'yi, ne kadar kontrol etti; girdinin kendisi kaydedilmez |
 
 `DeviceId`/`UserId` FK değildir (modül kuralı). PC'nin adı, kabini ve MAC'i her zaman çekirdekteki
 `Device`'tan okunur; bağlantı durumu, istemci sürümü ve monitör listesi **bellektedir** — hiçbiri tabloya
@@ -598,12 +600,14 @@ C# DTO değişince TS aynası elle güncellenir.
 > **Yetki (2026-09-30):** Modülün tüm HTTP uçları `RemotePcView` iznini ister (`Permission.RemotePcView = 10`,
 > seed'de Admin rolüne verilir); yoksa 403. Policy modülün kaydında tanımlanır (`RemoteDeskModule.ViewPolicy`), claim
 > girişte token'a yazıldığı için rol izni değişince kullanıcı yeniden giriş yapmalıdır. Okuma bileti yalnızca `view`
-> ucundan çıktığı için WHEP de dolaylı olarak bu izne bağlıdır. `PcHub` (PC istemcisi) anonim kalır. Uzaktan kontrol
-> (Faz 8) için ayrı bir izin açılacak; bu izin kontrolü kapsamaz.
+> ucundan çıktığı için WHEP de dolaylı olarak bu izne bağlıdır. `PcHub` (PC istemcisi) anonim kalır.
+>
+> **Uzaktan kontrol ayrı izindir (Faz 8):** `RemotePcControl = 11` (Admin'e seed). Viewer hub'ı (`/hubs/remote-desk/viewer`) bu izni
+> ister — izinsiz kullanıcı bağlanamaz (negotiate 403). Kontrol için izlemek de gerekir (`RemotePcView` + canlı kiralama).
 
 ---
 
-## 12. Uzaktan kontrol (Faz 8+) — MVP'de yazılmaz, sözleşmesi şimdiden sabit
+## 12. Uzaktan kontrol (Faz 8+)
 
 ### 12.1 Kanal
 
@@ -659,6 +663,45 @@ basılı bir şey kalmışsa **hepsini bırakır**. Tarayıcı `blur`/`visibilit
 Normal yetkiyle çalışan istemci **yönetici olarak çalışan pencerelere** tıklayamaz/yazamaz. Çözüm:
 oturum açma görevini "en yüksek ayrıcalıkla" çalıştırmak (§ 9.1). Güvenlik yüzeyini büyüttüğü için Faz 8'de
 ayrıca karar verilir.
+
+**Faz 8 durumu (2026-09-30):** yükseltme YOK — istemci başlangıç uygulamalarından normal yetkiyle açılır (§ 9.1). Yönetici
+pencerelerine, UAC'ye ve kilit ekranına girdi gitmez; Windows `SendInput`'u reddeder, istemci bunu oturum başına bir kez günlüğe
+yazar. Gerekirse Görev Zamanlayıcı ("en yüksek ayrıcalıkla") ayrı bir karardır.
+
+### 12.7 Uygulama (Faz 8, 2026-09-30 — yalnızca fare)
+
+**Merkez** (`Control/RemoteControlCoordinator`, singleton, bellekte; `Hubs/ViewerHub`):
+
+- `RequestControl(deviceId)` → `RequestControlResponse { status, controlSessionId, controllerName, message, idleTimeoutSec }`.
+  Red istisna değil yanıttır: `Busy` (başka kullanıcı; adı döner), `NotViewing` (canlı kiralama yok — **görmeden kontrol verilmez**),
+  `PcNotConnected`, `NotFound`. Aynı bağlantıdan tekrar istek aynı oturumu döndürür; **aynı kullanıcının başka sekmesi devralır**
+  (eskisine `Replaced`), başka kullanıcı devralamaz.
+- `SendInput(batch)`: tarayıcı `send` ile (yanıtsız) gönderir. Sunucu yalnızca o bağlantının oturumunu kabul eder, monitörün PC'de
+  olduğunu doğrular, olayları süzer (Faz 8'de yalnızca Move/Down/Up/Wheel; `x,y` [0,1]'e, tekerlek ±20 çentiğe kırpılır; paket
+  başına ≤ 256 olay) ve PC'ye hemen iletir — kuyruk ve saklama yoktur. Geçersiz paket sessizce atılır.
+- Bitiş (`RemoteControlEndReason`): `Released` (bırak / ekrandan çıkış), `ViewerDisconnected`, `PcDisconnected`, `Idle` (**5 dk** girdi
+  yok), `ServerRestart`, `ViewEnded` (kullanıcının o PC'deki son kiralaması düştü; süpürmede, ≤ 5 sn), `Replaced`. Sunucu bitirirse
+  tarayıcıya `ControlEnded { controlSessionId, reason }`, PC'ye `ControlEnded` gider.
+- Denetim: `remotedesk.RemoteControlSession` (kim, hangi PC, başlangıç/bitiş, neden, olay sayısı). Girdinin kendisi kaydedilmez.
+  Açılışta açık kalan satırlar `ServerRestart` ile kapanır. `GET pcs/{id}` → `control: { userId, userName, startedUtc } | null`.
+
+**Tarayıcı** (`lib/remote-control-session.ts` + `hooks/use-remote-control.ts`, PC ekranında "Kontrolü al / bırak"):
+
+- Hub bağlantısı yalnızca kontrol sırasında açıktır; otomatik yeniden bağlanma yok (koparsa sunucu zaten bitirir).
+- Olaylar video üstündeki şeffaf katmandan (yalnızca kontrol sizdeyken olay yakalar) alınır, 16 ms'de bir paketlenir; kuyruktaki son
+  olay da hareketse yenisi onun yerine yazılır. `pointerdown`'da pointer capture (görüntü dışında bırakılan düğme de `up` üretir).
+- Tekerlek Windows birimine çevrilir: piksel modunda ×1,2 (Chromium'da bir çentik ≈ 100 px → 120), satır ×40, sayfa ×120. `deltaY`
+  DOM yönündedir (pozitif = aşağı); işareti istemci çevirir.
+- Pencere odağı kaybolunca / sekme gizlenince basılı düğmeler için `Up` gönderilir. Monitör değiştirmek kontrolü bırakır.
+
+**PC** (`Services/Input/RemoteInputService`, hosted service + tek kuyruk):
+
+- `SendInput` + `MOUSEEVENTF_ABSOLUTE | VIRTUALDESK`. Sanal masaüstü monitörlerin **DXGI dikdörtgenlerinin birleşimi**dir
+  (`GetSystemMetrics` işlemin DPI farkındalığına göre ölçeklendiği için kullanılmaz; istemcide `app.manifest` yoktur). `Down/Up` konum
+  taşıyorsa hareketle tek `INPUT`'ta gider.
+- Ardışık hareketlerden yalnızca sonuncusu uygulanır; düğme/tekerlek sırası korunur.
+- Takılı düğme emniyeti: `ControlEnded`, merkez bağlantısının kopması ya da düğme basılıyken 5 sn olay gelmemesi → basılı düğmeler bırakılır.
+- Gösterge: pencerede kırmızı şerit "… {kullanıcı} fareyi uzaktan kontrol ediyor", tepside kırmızı noktalı ikon ve "KONTROL EDİLİYOR".
 
 ---
 
@@ -720,7 +763,7 @@ Her faz bir öncekinin başarı kriteri sağlanmadan başlamaz.
 | **5** ✅ | İzleme akışı: `view` ucu, hazır-bekleme, biletler, kiralama, otomatik durdurma, `ScreenSession`/`ScreenViewLog`. **2026-09-30:** `ScreenStreamCoordinator` (bellekte, tek kilit), `ScreenStreamWorker` (açılışta yetim oturumları kapatır, 5 sn'de bir süpürür), `GET pcs/{id}` (monitörler + yayın durumu + izleyici sayısı). Çekirdeğe `IMediaGateway.GetRuntimePathAsync` / `KickPublisherAsync`. | Sınandı: izleme 1,3–2,8 sn'de hazır (ilkinde kodlayıcı sınaması dahil); aynı monitöre ikinci izleyici 15 ms'de aynı yayına katıldı, farklı monitör ayrı yayın; yenilenmeyen kiralama 47 sn'de düştü; bırakınca 14 sn'de durdu; **tarayıcı öldürülünce 51 sn'de durdu**; okuyucusuz kiralama 60 sn'de durduruldu; gerçek WebRTC izleyicisi 75 sn boyunca kesilmedi; kick ucu (`v3/rtspsessions/kick`) doğrulandı; API yeniden başlayınca yetim oturum `Failed/ServerRestart`; istemci koparsa `Failed/ClientDisconnected`. Sınanmadı: istemcinin durdurmaya UYMADIĞI durum (kick bu yol için yazıldı) |
 | **6** ✅ | Frontend: PC listesi, PC ekranı (monitör seçici + oynatıcı), `VITE_MODULES`. **2026-09-30:** `src/modules/remotedesk/` (liste, PC ekranı, `pc-stream-session.ts` — kiralama yenileme/bırakma, kopunca yeni kiralamayla yeniden başlama), `whep.ts`'e `lowLatency` seçeneği (yalnızca PC). `.env.development` → `signalization,remotedesk`; `.env.production` DEĞİŞMEDİ. İzleme `RemotePcView` iznine bağlı: menü maddesi ve rota izinsiz kullanıcıda gizli. | `npm run lint` + `npm run build` yeşil. Aynı akış (giriş → izleme → WHEP → kiralama) başlıksız Chrome'da test sayfasıyla sınandı: 1920×1080, 28–30 fps, jitter tamponu 39–52 ms. **React ekranları (2026-09-30), başlıksız Chrome + DevTools protokolüyle:** giriş → menü → PC listesi (bağlı, 2 monitör) → PC ekranı 4,3 sn'de 1920×1080 görüntü, monitör kartı "Yayında · 1 izleyici" → 2. monitöre geçiş 3,7 sn → listeye dönünce iki yayın da durdu, FFmpeg kalmadı; konsolda hata yok. Sınanmadı: bağlı olmayan PC ekranı, "Tekrar dene" |
 | **7** ✅ | ~~Kurulum paketi + oturum açma görevi~~ → **2026-09-30 (kullanıcı kararı):** kurulum paketi yok, klasöre publish + elle dağıtım; başlangıç uygulamalarına `--tray` ile elle eklenir (§ 9.1, § 9.6). Yapılan: istemciye Serilog (§ 9.5, System Tray'de "Günlük klasörünü aç"), publish'e LGPL `LICENSE.txt`, FFmpeg yoksa publish'i durduran kontrol, kaynak ölçümü ([§ 16.3](#163-faz-7-ölçümleri-2026-09-30)). `CLAUDE.md` güncellendi. | Sınandı: self-contained publish (≈ 300 MB) scratchpad'e alındı, çalışma klasörü `System32` iken `--tray` ile açılıp merkeze bağlandı; günlükte açılış → bağlantı → yayın isteği → sınama → yayın (maskeli adres) → durdurma satırları, bilet yok; boşta ve yayında hedefler tuttu. Sınanmadı: temiz (geliştirme araçsız) PC, başlangıç kısayoluyla oturum açılışı, System Tray "Çıkış" satırı |
-| **8** | Fare ([§ 12](#12-uzaktan-kontrol-faz-8--mvpde-yazılmaz-sözleşmesi-şimdiden-sabit)) + viewer hub + `RemoteControlSession` + yetki kararı | |
+| **8** ✅ | Fare ([§ 12](#12-uzaktan-kontrol-faz-8)) + viewer hub + `RemoteControlSession` + yetki kararı. **2026-09-30:** yeni izin `RemotePcControl = 11`; § 12.7. Klavye olayları sözleşmede var, sunucu Faz 9'a kadar iletmez. | Sınandı (bu makine, başlıksız Chrome + DevTools fare olayları → gerçek imleç): "Kontrolü al" 0,3 sn'de verildi; görüntüde (0.25, 0.25) → imleç 480,270, (0.75, 0.5) → 1440,540 (1920×1080 monitör 0, beklenen 480,270 / 1439,540); 22 hızlı hareket → PC'ye 20 olay, imleç son noktada; bırakınca hareket PC'ye gitmedi; sayfa kapanınca `ViewerDisconnected`; izleme bırakılınca 1,9 sn'de `ViewEnded`; PC istemcisi kapanınca 0,6 sn'de `PcDisconnected`; izlemeden istek `NotViewing`; jetonsuz negotiate 401, izinsiz 403. Başlıkta "… kontrol ediyor" rozeti. **Sınanmadı:** gerçek tıklama/tekerlek (kullanıcının masaüstünde tıklamamak için), takılı düğme emniyeti, `Busy` (ikinci kullanıcı), 5 dk `Idle`, ikinci monitör ve negatif koordinatlı monitör, yönetici penceresi (UIPI) |
 | **9** | Klavye (scan code, değiştirici tuşlar, takılı tuş emniyeti) | |
 | **10** | Tüm monitörler tek görüntü, pano | |
 | **11** | Kilit ekranı / UAC için servis bileşeni, otomatik güncelleme, ses, kayıt | |
@@ -847,6 +890,7 @@ Aynı makine; publish edilmiş (Release, self-contained) istemci `--tray` ile, p
 | 2026-09-29 | Faz 3: `PcHub` anonim; `Hello` normalize MAC ile aktif Pc cihazlarını eşler, tek eşleşme kabul, cihaz başına ilk bağlanan kazanır; bağlantı kaydı bellekte. İstemci SignalR'ın otomatik yeniden bağlanmasını kullanmaz (her bağlantı `Hello` ile yeniden eşlenmeli); geri çekilme 1/2/5/10/30 sn, reddedilince 60 sn. Pencere kapatmak System Trayye indirir; `--tray` argümanı pencereyi açmadan başlatır (oturum açma görevi için). |
 | 2026-09-30 | **İstemcide test yayını kaldırıldı** ("Test yayını başlat", "Durdur", "yalnızca kodla" hedefi, `TestPublishUrl`): yayın yalnızca merkezin komutuyla. Sınama ve tercih monitör kartlarından ayrı bir "Encoder" kutucuğunda (tüm monitörler birlikte sınanır); monitör kartlarında yayın durumu salt okunur kalır. Arayüzde "kodlayıcı" yerine "encoder". |
 | 2026-09-30 | **Kodlayıcı tercihi PC başına ve bellekte** (kullanıcı kararı): "Tercih et" rozetini ve tüm yayınları (merkez dahil) değiştirir, çalışmadığı monitörde otomatik seçim; tercih değişince yayın merkez oturumu kapanmadan yeniden başlar. Eski "Bu adayla yayınla" kaldırıldı: merkez yayınını durdurup test yayını açıyordu. Aynı işte yakalanan hata: `StreamSession.StopAsync` önce iptal ettiği için FFmpeg sahipsiz kalabiliyordu → önce nazik durdurma, sonra iptal. |
+| 2026-09-30 | **Faz 8 — uzaktan fare** (§ 12.7): ayrı izin `RemotePcControl`; kontrol PC başına tek kullanıcı, yalnızca izleyene; aynı kullanıcının başka sekmesi devralır, başka kullanıcı devralamaz; 5 dk girdi yoksa düşer; sanal masaüstü DXGI dikdörtgenlerinden; UIPI için yükseltme yok. Açılışta yetim izleme kayıtları da kapanır (önceden yalnızca oturumlar kapanıyordu). |
 | 2026-09-30 | **Faz 7 daraldı** (kullanıcı kararı): kurulum paketi (Inno Setup/MSI) ve Görev Zamanlayıcı görevi yazılmadı — istemci klasöre publish alınıp elle dağıtılır, başlangıç uygulamalarına `--tray` ile eklenir. İstemci günlüğü kullanıcı başına `%LocalAppData%` altında; FFmpeg'siz publish hata verir. |
 | 2026-09-30 | **§ 17 kapandı** (kullanıcı kararları): PC bağlantısı kabin durumuna yansımaz; izlendiğine dair onay alınmaz (gösterge + denetim kaydı yeter); izleme yeni `RemotePcView` iznine bağlı — projede **zorlanan ilk izin**, modül uçlarında policy (yoksa 403), frontend'de menü maddesi ve rota da izne bağlı. |
 | 2026-09-30 | Faz 4–5: yayın ve izleyiciler bellekte (`ScreenStreamCoordinator`), DB yalnızca denetim. Hazır bekleme 30 sn; bekleyen izleme isteği süpürmede izleyici sayılır (ilk yayın beklerken durdurulmasın). Durdurmada bilet hemen silinir, uymayan yayıncı 10 sn sonra atılır (kick). PC'de "izleniyor" göstergesi zorunlu (pencere şeridi + tepsi ikonu). |

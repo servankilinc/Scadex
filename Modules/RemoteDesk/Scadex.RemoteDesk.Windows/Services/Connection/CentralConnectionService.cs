@@ -11,6 +11,7 @@ using Microsoft.Extensions.Options;
 using Microsoft.Win32;
 using Scadex.RemoteDesk.Contracts.Hub;
 using Scadex.RemoteDesk.Contracts.Media;
+using Scadex.RemoteDesk.Windows.Services.Input;
 using Scadex.RemoteDesk.Windows.Services.Monitors;
 using Scadex.RemoteDesk.Windows.Services.Network;
 using Scadex.RemoteDesk.Windows.Services.Streaming;
@@ -44,6 +45,7 @@ public sealed class CentralConnectionService : BackgroundService, ICentralConnec
     private readonly INetworkAdapterService _adapters;
     private readonly IMonitorService _monitors;
     private readonly IScreenStreamService _streams;
+    private readonly IRemoteInputService _input;
     private readonly ILogger<CentralConnectionService> _logger;
 
     /// <summary> Oturum başına son bildirilen durum — merkeze yalnızca DURUM DEĞİŞİNCE gider (ilerleme satırları her saniye gelir). </summary>
@@ -54,8 +56,9 @@ public sealed class CentralConnectionService : BackgroundService, ICentralConnec
     private HubConnection? _accepted;
 
     public CentralConnectionService(IOptions<RemoteDeskClientOptions> options, INetworkAdapterService adapters, IMonitorService monitors,
-        IScreenStreamService streams, ILogger<CentralConnectionService> logger)
+        IScreenStreamService streams, IRemoteInputService input, ILogger<CentralConnectionService> logger)
     {
+        _input = input;
         _streams = streams;
         _streams.StatusChanged += OnStreamStatus;
         _options = options.Value;
@@ -158,6 +161,11 @@ public sealed class CentralConnectionService : BackgroundService, ICentralConnec
             return _streams.StopSessionAsync(command.SessionId);
         });
 
+        // Uzaktan kontrol (Faz 8): yalnızca kuyruğa bırakılır, SendInput istemcinin kendi işçisinde.
+        hub.On<ControlStartedCommand>(nameof(IPcHubClient.ControlStarted), _input.Begin);
+        hub.On<ControlEndedCommand>(nameof(IPcHubClient.ControlEnded), command => _input.End(command.ControlSessionId));
+        hub.On<InputBatch>(nameof(IPcHubClient.Input), _input.Enqueue);
+
         try
         {
             Publish(new ConnectionStatus(ConnectionState.Connecting, CentralUrl, failures == 0 ? "Bağlanıyor…" : $"Bağlanıyor… ({failures + 1}. deneme)"));
@@ -203,7 +211,9 @@ public sealed class CentralConnectionService : BackgroundService, ICentralConnec
             lock (_gate) _accepted = null;
             _logger.LogInformation("Merkez bağlantısı kapandı: {Reason}", reason?.Message ?? "yeniden bağlanılıyor");
 
-            // Bağlantı koptu: merkezin başlattığı yayınlar durur (merkez de onları bitmiş sayar; biletleri silinir). § 6.3
+            // Bağlantı koptu: uzaktan kontrol biter (basılı düğmeler bırakılır, § 12.5) ve merkezin başlattığı yayınlar durur
+            // (merkez de onları bitmiş sayar; biletleri silinir). § 6.3
+            _input.EndAll();
             await _streams.StopAllAsync();
             _reported.Clear();
             Publish(new ConnectionStatus(ConnectionState.Disconnected, CentralUrl,

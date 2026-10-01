@@ -4,6 +4,7 @@ using System.Windows.Input;
 using System.Windows.Media;
 using Scadex.RemoteDesk.Windows.Helpers;
 using Scadex.RemoteDesk.Windows.Services.Connection;
+using Scadex.RemoteDesk.Windows.Services.Input;
 using Scadex.RemoteDesk.Windows.Services.Network;
 using Scadex.RemoteDesk.Windows.Services.Streaming;
 
@@ -11,7 +12,7 @@ namespace Scadex.RemoteDesk.Windows.ViewModels;
 
 /// <summary>
 /// Ana ekrandaki merkez bağlantısı kartı: durum, eşlenen kabin/cihaz ve bu PC'nin gönderdiği MAC'ler. Merkez bu PC'nin ekranını
-/// izlerken belirgin "izleniyor" uyarısı da buradadır (tepsi ikonu da buna bakar) — izleme fark edilmeden yapılmaz (§ 9.2).
+/// izlerken belirgin "izleniyor" uyarısı da buradadır (tepsi ikonu da buna bakar) — izleme ve uzaktan kontrol fark edilmeden yapılmaz (§ 9.2).
 /// </summary>
 public class ConnectionVM : BaseViewModel
 {
@@ -24,9 +25,10 @@ public class ConnectionVM : BaseViewModel
     private readonly SortedSet<int> _watched = [];
     private string _connectionShort = "";
 
-    public ConnectionVM(ICentralConnection connection, INetworkAdapterService adapters, IScreenStreamService streams)
+    public ConnectionVM(ICentralConnection connection, INetworkAdapterService adapters, IScreenStreamService streams, IRemoteInputService input)
     {
         streams.StatusChanged += status => Application.Current?.Dispatcher.BeginInvoke(() => ApplyStream(status));
+        input.ControllerChanged += user => Application.Current?.Dispatcher.BeginInvoke(() => ApplyController(user));
         _connection = connection;
         _adapters = adapters;
 
@@ -62,12 +64,26 @@ public class ConnectionVM : BaseViewModel
     public bool HasMatched => MatchedText.Length > 0;
 
     /// <summary> System Tray ipucu için kısa özet. </summary>
-    public string ShortText => IsWatching ? "İZLENİYOR — " + _connectionShort : _connectionShort;
+    public string ShortText => _controller is not null ? "KONTROL EDİLİYOR — " + _connectionShort
+        : IsWatching ? "İZLENİYOR — " + _connectionShort : _connectionShort;
 
-    public bool IsWatching => _watched.Count > 0;
-    public string WatchingText => IsWatching
-        ? "Bu PC'nin ekranı merkezden izleniyor — " + string.Join(", ", _watched.Select(i => $"Monitör {i}"))
-        : "";
+    /// <summary> Merkez ekranı izliyor ya da fareyi kontrol ediyor — kırmızı şerit ve tepsi ikonu buna bakar. </summary>
+    public bool IsWatching => _watched.Count > 0 || _controller is not null;
+    public string WatchingText => !IsWatching ? ""
+        : (_watched.Count > 0 ? "Bu PC'nin ekranı merkezden izleniyor — " + string.Join(", ", _watched.Select(i => $"Monitör {i}")) : "Bu PC merkezden izleniyor")
+          + (_controller is not null ? $" · {_controller} fareyi uzaktan kontrol ediyor" : "");
+
+    /// <summary> Uzaktan kontrol eden kullanıcı (yalnızca UI iş parçacığında değişir). </summary>
+    private string? _controller;
+
+    private void ApplyController(string? user)
+    {
+        if (_controller == user) return;
+        _controller = user;
+        OnPropertyChanged(nameof(IsWatching));
+        OnPropertyChanged(nameof(WatchingText));
+        OnPropertyChanged(nameof(ShortText));
+    }
 
     private void ApplyStream(StreamStatus status)
     {

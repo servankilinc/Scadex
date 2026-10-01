@@ -254,6 +254,20 @@ public sealed class ScreenStreamCoordinator
             _lock.Release();
         }
     }
+
+    /// <summary> Kullanıcının bu PC'de (herhangi bir monitörde) canlı kiralaması var mı — uzaktan kontrol yalnızca izleyene verilir. </summary>
+    public async Task<bool> IsViewingAsync(Guid deviceId, Guid userId, CancellationToken cancellationToken = default)
+    {
+        await _lock.WaitAsync(cancellationToken);
+        try
+        {
+            return _leases.Values.Any(l => l.UserId == userId && l.Stream.DeviceId == deviceId && !l.Stream.IsStopping);
+        }
+        finally
+        {
+            _lock.Release();
+        }
+    }
     #endregion
 
     #region Zamanlayıcı (ScreenStreamWorker)

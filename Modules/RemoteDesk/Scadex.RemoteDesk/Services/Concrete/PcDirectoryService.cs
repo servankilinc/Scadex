@@ -1,5 +1,6 @@
 using Scadex.Core.Utils.ResultPattern;
 using Scadex.DataAccess.UoW;
+using Scadex.RemoteDesk.Control;
 using Scadex.RemoteDesk.Model.Dtos.Pc.Queries;
 using Scadex.RemoteDesk.Realtime;
 using Scadex.RemoteDesk.Services.Abstract;
@@ -14,9 +15,11 @@ public class PcDirectoryService : IPcDirectoryService
     private readonly IUnitOfWork _unitOfWork;
     private readonly PcConnectionRegistry _connections;
     private readonly ScreenStreamCoordinator _streams;
+    private readonly RemoteControlCoordinator _control;
 
-    public PcDirectoryService(IUnitOfWork unitOfWork, PcConnectionRegistry connections, ScreenStreamCoordinator streams)
+    public PcDirectoryService(IUnitOfWork unitOfWork, PcConnectionRegistry connections, ScreenStreamCoordinator streams, RemoteControlCoordinator control)
     {
+        _control = control;
         _unitOfWork = unitOfWork;
         _connections = connections;
         _streams = streams;
@@ -84,6 +87,7 @@ public class PcDirectoryService : IPcDirectoryService
                     ViewerCount = stream.Viewers
                 };
             })];
+            pc.Control = await _control.GetControllerAsync(deviceId, cancellationToken);
         }
 
         return Result<PcDetailDto>.Success(pc);

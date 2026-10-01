@@ -1,14 +1,18 @@
 import { useEffect, useRef, useState } from 'react';
 import { Link, useParams } from 'react-router';
 import { useQueryClient } from '@tanstack/react-query';
-import { ArrowLeftIcon, EyeIcon, LoaderIcon, MonitorIcon, MonitorOffIcon, VideoOffIcon } from 'lucide-react';
+import { ArrowLeftIcon, EyeIcon, LoaderIcon, MonitorIcon, MonitorOffIcon, MousePointerClickIcon, VideoOffIcon } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
+import { useCurrentUser, usePermission } from '@/lib/auth-session';
 import { cn, formatUtcDateTime } from '@/lib/utils';
+import type { Permission } from '@/models/enums/entityEnums';
 import { remoteDeskKeys } from '../api/query-keys';
 import { usePc } from '../hooks/use-pcs';
 import { usePcStream } from '../hooks/use-pc-stream';
+import { useRemoteControl } from '../hooks/use-remote-control';
+import type { PcControlDto } from '../models/control';
 import { ScreenStreamStateLabels, type PcDetailDto, type PcMonitorDto } from '../models/pc';
 
 /**
@@ -16,7 +20,12 @@ import { ScreenStreamStateLabels, type PcDetailDto, type PcMonitorDto } from '..
  *
  * Aynı PC'yi (aynı ya da farklı monitörlerini) istenen sayıda kullanıcı aynı anda izleyebilir; aynı monitörün izleyicileri PC'deki
  * tek yayını paylaşır. Monitör değiştirmek eski kiralamayı bırakıp yenisini açar (oynatıcı `key` ile yeniden kurulur).
+ *
+ * Uzaktan kontrol (Faz 8, yalnızca fare): `RemotePcControl` izni olan kullanıcı izlerken "Kontrolü al" der; kontrol PC başına tek
+ * kullanıcıdadır, diğerleri izlemeye devam eder. Monitör değiştirmek ya da ekrandan çıkmak kontrolü bırakır.
  */
+
+const CONTROL_PERMISSION: keyof typeof Permission = 'RemotePcControl';
 export default function RemoteDeskPcDetail() {
   const { deviceId } = useParams();
   const pc = usePc(deviceId);
@@ -46,7 +55,9 @@ export default function RemoteDeskPcDetail() {
       ) : (
         <>
           <MonitorPicker monitors={monitors} selected={monitorIndex} onSelect={setSelected} />
-          {monitorIndex !== undefined && <PcPlayer key={monitorIndex} deviceId={pc.data.deviceId} monitorIndex={monitorIndex} />}
+          {monitorIndex !== undefined && (
+            <PcPlayer key={monitorIndex} deviceId={pc.data.deviceId} monitorIndex={monitorIndex} control={pc.data.control} />
+          )}
         </>
       )}
     </div>
@@ -76,12 +87,20 @@ function PcHeader({ pc }: { pc: PcDetailDto }) {
           </p>
         </div>
       </div>
-      {pc.viewerCount > 0 && (
-        <Badge variant='outline'>
-          <EyeIcon />
-          Bu PC'yi şu an {pc.viewerCount} izleyici izliyor
-        </Badge>
-      )}
+      <div className='flex flex-wrap gap-2'>
+        {pc.control && (
+          <Badge variant='outline'>
+            <MousePointerClickIcon />
+            {pc.control.userName} kontrol ediyor
+          </Badge>
+        )}
+        {pc.viewerCount > 0 && (
+          <Badge variant='outline'>
+            <EyeIcon />
+            Bu PC'yi şu an {pc.viewerCount} izleyici izliyor
+          </Badge>
+        )}
+      </div>
     </div>
   );
 }
@@ -116,9 +135,12 @@ function MonitorPicker({ monitors, selected, onSelect }: { monitors: PcMonitorDt
   );
 }
 
-function PcPlayer({ deviceId, monitorIndex }: { deviceId: string; monitorIndex: number }) {
+function PcPlayer({ deviceId, monitorIndex, control }: { deviceId: string; monitorIndex: number; control: PcControlDto | null }) {
   const videoRef = useRef<HTMLVideoElement | null>(null);
+  const surfaceRef = useRef<HTMLDivElement | null>(null);
   const stream = usePcStream(videoRef, deviceId, monitorIndex);
+  const remote = useRemoteControl(surfaceRef, videoRef, deviceId, monitorIndex);
+  const can = usePermission();
   const queryClient = useQueryClient();
 
   // Görüntü gelince monitör kartındaki yayın durumu/izleyici sayısı 10 sn'lik yoklamayı beklemesin.
@@ -126,11 +148,23 @@ function PcPlayer({ deviceId, monitorIndex }: { deviceId: string; monitorIndex: 
     if (stream.state === 'connected') void queryClient.invalidateQueries({ queryKey: remoteDeskKeys.pc(deviceId) });
   }, [stream.state, deviceId, queryClient]);
 
+  const controlling = remote.status === 'active';
+
   return (
     <div className='flex flex-col gap-2'>
-      <div className='relative aspect-video max-h-[calc(100vh-14rem)] overflow-hidden rounded-xl border bg-black'>
-        {/* `contain`: ekranın tamamı görünmeli (ileride fare koordinatı da çizilen görüntü dikdörtgenine göre hesaplanacak, § 12.3). */}
+      <div
+        className={cn(
+          'relative aspect-video max-h-[calc(100vh-14rem)] overflow-hidden rounded-xl border bg-black',
+          controlling && 'border-primary ring-2 ring-primary'
+        )}>
+        {/* `contain`: ekranın tamamı görünmeli; fare koordinatı çizilen görüntü dikdörtgenine göre hesaplanır (§ 12.3). */}
         <video ref={videoRef} autoPlay playsInline muted className='size-full object-contain' />
+
+        {/* Kontrol katmanı: her zaman var (ref kontrol istenmeden önce hazır olsun), olayları yalnızca kontrol sizdeyken yakalar. */}
+        <div
+          ref={surfaceRef}
+          className={cn('absolute inset-0 touch-none select-none', controlling ? 'pointer-events-auto' : 'pointer-events-none')}
+        />
 
         {stream.state !== 'connected' && (
           <div className='pointer-events-none absolute inset-0 flex flex-col items-center justify-center gap-2 bg-black/60 px-6 text-center'>
@@ -157,6 +191,53 @@ function PcPlayer({ deviceId, monitorIndex }: { deviceId: string; monitorIndex: 
         <Button variant='outline' size='sm' onClick={stream.retry} className='self-start'>
           Tekrar dene
         </Button>
+      )}
+
+      {can(CONTROL_PERMISSION) && (stream.state === 'connected' || remote.status !== 'idle') && (
+        <ControlBar status={remote.status} message={remote.message} control={control} onRequest={remote.request} onRelease={remote.release} />
+      )}
+    </div>
+  );
+}
+
+function ControlBar({
+  status,
+  message,
+  control,
+  onRequest,
+  onRelease
+}: {
+  status: 'idle' | 'requesting' | 'active';
+  message?: string;
+  control: PcControlDto | null;
+  onRequest: () => void;
+  onRelease: () => void;
+}) {
+  const me = useCurrentUser();
+  // Aynı kullanıcının başka sekmesi kontrol ediyorsa buradan devralınabilir; başka kullanıcıysa beklenir.
+  const otherUser = status === 'idle' && control !== null && control.userId !== me?.id ? control.userName : null;
+
+  return (
+    <div className='flex flex-wrap items-center gap-3 text-sm'>
+      {status === 'active' ? (
+        <>
+          <Button size='sm' variant='destructive' onClick={onRelease}>
+            <MousePointerClickIcon />
+            Kontrolü bırak
+          </Button>
+          <span className='text-muted-foreground'>
+            Kontrol sizde: görüntü üzerindeki fare hareketleri, tıklamalar ve tekerlek PC'ye gidiyor. Klavye henüz desteklenmiyor.
+          </span>
+        </>
+      ) : (
+        <>
+          <Button size='sm' variant='outline' onClick={onRequest} disabled={status === 'requesting' || otherUser !== null}>
+            {status === 'requesting' ? <LoaderIcon className='animate-spin' /> : <MousePointerClickIcon />}
+            {status === 'requesting' ? 'Kontrol isteniyor…' : 'Kontrolü al'}
+          </Button>
+          {otherUser && <span className='text-muted-foreground'>{otherUser} kontrol ediyor; o bırakınca alabilirsiniz.</span>}
+          {!otherUser && message && <span className='text-muted-foreground'>{message}</span>}
+        </>
       )}
     </div>
   );

@@ -450,7 +450,9 @@ export const Permission = {
   /** Geçiş kartı tanımlama/yetkilendirme/iptal — kabin kapısını açan kimliği yönetir. */
   ManageAccessCards: 9,
   /** PC ekranlarını canlı izleme (RemoteDesk modülü) — sunucuda zorlanır, yoksa 403. */
-  RemotePcView: 10
+  RemotePcView: 10,
+  /** PC'yi uzaktan kontrol (RemoteDesk, Faz 8) — viewer hub'ı ister; izlemeden ayrıdır. */
+  RemotePcControl: 11
 } as const;
 export type Permission = (typeof Permission)[keyof typeof Permission];
 
@@ -465,5 +467,6 @@ export const PermissionLabels: Record<Permission, string> = {
   [Permission.ExportData]: 'Veri Dışa Aktarma',
   [Permission.ManageWorkflow]: 'İş Akışı Yönetimi',
   [Permission.ManageAccessCards]: 'Geçiş Kartı Yönetimi',
-  [Permission.RemotePcView]: 'PC Ekranı İzleme'
+  [Permission.RemotePcView]: 'PC Ekranı İzleme',
+  [Permission.RemotePcControl]: 'PC Uzaktan Kontrol'
 };

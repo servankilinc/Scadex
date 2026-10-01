@@ -3,6 +3,7 @@ using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Scadex.RemoteDesk.DataAccess;
 
@@ -11,9 +12,11 @@ using Scadex.RemoteDesk.DataAccess;
 namespace Scadex.RemoteDesk.Data.Migrations
 {
     [DbContext(typeof(RemoteDeskDbContext))]
-    partial class RemoteDeskDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260930132102_AddRemoteControlSession")]
+    partial class AddRemoteControlSession
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
