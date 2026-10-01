@@ -165,6 +165,12 @@ durur. Ayrıntı: PROJECT_OVERVIEW.md § 10.
   **Windows istemcisinin kurulum paketi bilerek yoktur (2026-09-30):** `dotnet publish ... -c Release -r win-x64 --self-contained true -o <klasör>`
   ile klasöre alınıp elle dağıtılır, başlangıç uygulamalarına `--tray` ile eklenir (RemoteDesk.md § 9.6). `tools\ffmpeg\` (LGPL exe +
   `LICENSE.txt`) git'te yoktur; eksikse publish bilerek hata verir. İstemci günlüğü `%LocalAppData%\Scadex\RemoteDesk\logs`'tadır.
+  **Yönetici pencerelerine (Görev Yöneticisi vb.) uzaktan kontrol için istemci YÜKSELTİLMİŞ çalışmalı (2026-10-01):** normal yetkide Windows
+  (UIPI) girdiyi yükseltilmiş pencereye iletmez, sessizce yutar — kod ile aşılamaz. Dağıtımda `Deploy/Install-StartupTask.ps1` oturum
+  açılışında "en yüksek ayrıcalıkla" görev kurar (UAC sormadan); `requireAdministrator`/`uiAccess` manifest'leri bilerek seçilmedi (biri her
+  açılış UAC sorar, biri kod imzası ister). Yetki başlangıç günlüğüne yazılır (`ProcessElevation.SelfElevated`). **Monitör listesi istemci
+  tarafında kendiliğinden güncellenir (2026-10-01):** `SessionSwitch` (RDP/konsol geçişi) + 12 sn uzlaştırma, merkeze yalnızca değişince
+  (`CentralConnectionService.ReportMonitorsIfChangedAsync`) — bu akışı tek-seferlik elle bildirime indirgemeyin.
 
 - **Çekirdek modülü bilmez.** Tek temas noktası `IScadaEventObserver` (Business/Utils/ScadaEvents):
   ingest (değer gerçekten değişince), **başarılı çıkış komutu** (kanal değeri değişince, `Direction =

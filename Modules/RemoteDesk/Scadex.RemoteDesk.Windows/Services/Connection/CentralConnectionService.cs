@@ -55,6 +55,11 @@ public sealed class CentralConnectionService : BackgroundService, ICentralConnec
     private CancellationTokenSource _wake = new();
     private HubConnection? _accepted;
 
+    /// <summary> Monitör listesinin merkeze bildirilmesi tek yerden ve yalnızca DEĞİŞİNCE yapılır (olay + periyodik uzlaştırma aynı yolu kullanır). </summary>
+    private static readonly TimeSpan MonitorReconcileInterval = TimeSpan.FromSeconds(12);
+    private readonly SemaphoreSlim _monitorReport = new(1, 1);
+    private string _reportedMonitors = "";
+
     public CentralConnectionService(IOptions<RemoteDeskClientOptions> options, INetworkAdapterService adapters, IMonitorService monitors,
         IScreenStreamService streams, IRemoteInputService input, ILogger<CentralConnectionService> logger)
     {
@@ -87,6 +92,9 @@ public sealed class CentralConnectionService : BackgroundService, ICentralConnec
         }
 
         SystemEvents.DisplaySettingsChanged += OnDisplaySettingsChanged;
+        SystemEvents.SessionSwitch += OnSessionSwitch;
+        // Olaylar kaçsa bile (RDP bağlan/kes'te DisplaySettingsChanged her zaman tetiklenmez) monitör listesi kendiliğinden güncel kalsın.
+        var reconcile = Task.Run(() => ReconcileMonitorsLoopAsync(stoppingToken), stoppingToken);
         try
         {
             int failures = 0;
@@ -133,6 +141,8 @@ public sealed class CentralConnectionService : BackgroundService, ICentralConnec
         finally
         {
             SystemEvents.DisplaySettingsChanged -= OnDisplaySettingsChanged;
+            SystemEvents.SessionSwitch -= OnSessionSwitch;
+            try { await reconcile; } catch (OperationCanceledException) { }
         }
     }
 
@@ -172,13 +182,14 @@ public sealed class CentralConnectionService : BackgroundService, ICentralConnec
             await hub.StartAsync(stoppingToken);
 
             var adapters = _adapters.GetPhysicalAdapters();
+            var helloMonitors = ReadMonitors();
             var request = new HelloRequest(
                 [.. adapters.Select(a => a.Mac)],
                 ClientVersion,
                 Environment.OSVersion.VersionString,
                 Environment.MachineName,
                 Environment.UserName,
-                ReadMonitors());
+                helloMonitors);
 
             var response = await hub.InvokeAsync<HelloResponse>(PcHubContract.Hello, request, stoppingToken);
             var matched = response.MatchedMacAddresses.Select(m => MacAddress.Normalize(m) is { } n ? MacAddress.Format(n) : m).ToList();
@@ -195,6 +206,9 @@ public sealed class CentralConnectionService : BackgroundService, ICentralConnec
             Publish(new ConnectionStatus(ConnectionState.Connected, CentralUrl, $"Bağlandı: {DateTime.Now:HH:mm:ss}",
                 response.DeviceId, response.DeviceName, response.CabinetName, matched));
             lock (_gate) _accepted = hub;
+            // Hello'da gönderilen liste başlangıç imzasıdır; sonraki bildirimler yalnızca bundan farklıysa gider.
+            await _monitorReport.WaitAsync(stoppingToken);
+            try { _reportedMonitors = MonitorSignature(helloMonitors); } finally { _monitorReport.Release(); }
 
             // Kopana ya da "Yeniden bağlan"a kadar bekle.
             using var linked = CancellationTokenSource.CreateLinkedTokenSource(stoppingToken, wake);
@@ -209,6 +223,9 @@ public sealed class CentralConnectionService : BackgroundService, ICentralConnec
             }
 
             lock (_gate) _accepted = null;
+            // Yeni bağlantı Hello ile listeyi baştan gönderecek; bayat imzayla bir bildirim atlanmasın.
+            await _monitorReport.WaitAsync(CancellationToken.None);
+            try { _reportedMonitors = ""; } finally { _monitorReport.Release(); }
             _logger.LogInformation("Merkez bağlantısı kapandı: {Reason}", reason?.Message ?? "yeniden bağlanılıyor");
 
             // Bağlantı koptu: uzaktan kontrol biter (basılı düğmeler bırakılır, § 12.5) ve merkezin başlattığı yayınlar durur
@@ -322,19 +339,72 @@ public sealed class CentralConnectionService : BackgroundService, ICentralConnec
         }
     }
 
-    /// <summary> Monitör takılıp çıkarılınca / çözünürlük değişince merkeze bildirilir (yalnızca olayla). </summary>
-    private void OnDisplaySettingsChanged(object? sender, EventArgs e)
+    /// <summary> Monitör takılıp çıkarılınca / çözünürlük değişince. </summary>
+    private void OnDisplaySettingsChanged(object? sender, EventArgs e) => _ = ReportMonitorsIfChangedAsync("ekran ayarı");
+
+    /// <summary>
+    /// Oturum geçişi (RDP bağlan/kes, konsol bağlan/kes, kilit açılması). RDP kesilince fiziksel monitörlere dönülür ama
+    /// <see cref="SystemEvents.DisplaySettingsChanged"/> her zaman tetiklenmez; topoloji oturduktan sonra birkaç kez okunur.
+    /// </summary>
+    private void OnSessionSwitch(object? sender, SessionSwitchEventArgs e)
+    {
+        if (e.Reason is SessionSwitchReason.RemoteConnect or SessionSwitchReason.RemoteDisconnect
+            or SessionSwitchReason.ConsoleConnect or SessionSwitchReason.ConsoleDisconnect or SessionSwitchReason.SessionUnlock)
+            _ = ReportAfterSettleAsync(e.Reason.ToString());
+    }
+
+    private async Task ReportAfterSettleAsync(string trigger)
+    {
+        foreach (int delayMs in (int[])[1000, 3000])
+        {
+            await Task.Delay(delayMs);
+            await ReportMonitorsIfChangedAsync(trigger);
+        }
+    }
+
+    /// <summary> Bağlıyken periyodik uzlaştırma: hiçbir olay gelmese de liste kendiliğinden güncel kalır (kullanıcıdan bağımsız). </summary>
+    private async Task ReconcileMonitorsLoopAsync(CancellationToken stoppingToken)
+    {
+        using var timer = new PeriodicTimer(MonitorReconcileInterval);
+        try
+        {
+            while (await timer.WaitForNextTickAsync(stoppingToken))
+                await ReportMonitorsIfChangedAsync("periyodik");
+        }
+        catch (OperationCanceledException) { }
+    }
+
+    /// <summary> Monitör listesi son bildirilenden farklıysa merkeze gönderir; aynıysa sessiz. Tüm tetikleyiciler bu tek yoldan geçer. </summary>
+    private async Task ReportMonitorsIfChangedAsync(string trigger)
     {
         HubConnection? hub;
         lock (_gate) hub = _accepted;
         if (hub is null) return;
 
-        _ = Task.Run(async () =>
+        await _monitorReport.WaitAsync();
+        try
         {
-            try { await hub.InvokeAsync(PcHubContract.ReportMonitors, ReadMonitors()); }
-            catch (Exception ex) { _logger.LogWarning(ex, "Monitör listesi merkeze bildirilemedi"); }
-        });
+            var monitors = ReadMonitors();
+            string signature = MonitorSignature(monitors);
+            if (signature == _reportedMonitors) return;
+
+            await hub.InvokeAsync(PcHubContract.ReportMonitors, monitors);
+            _reportedMonitors = signature;
+            _logger.LogInformation("Monitörler değişti, merkeze bildirildi ({Trigger}): {Count} monitör", trigger, monitors.Length);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            _logger.LogWarning(ex, "Monitör listesi merkeze bildirilemedi");
+        }
+        finally
+        {
+            _monitorReport.Release();
+        }
     }
+
+    /// <summary> Değişiklik algısı için monitör listesinin özeti (sıra, adaptör/çıkış, konum, boyut, birincil). </summary>
+    private static string MonitorSignature(MonitorInfo[] monitors) =>
+        string.Join("|", monitors.Select(m => $"{m.Index}:{m.AdapterIndex}.{m.OutputIndex}:{m.Left},{m.Top},{m.Width}x{m.Height}:{(m.IsPrimary ? 1 : 0)}"));
 
     private void Publish(ConnectionStatus status)
     {

@@ -97,8 +97,11 @@ public partial class App : Application
         _showWait = ThreadPool.RegisterWaitForSingleObject(_showSignal, (_, _) => Dispatcher.BeginInvoke(ShowMainWindow), null, Timeout.Infinite, false);
 
         var log = AppHost.Services.GetRequiredService<ILogger<App>>();
-        log.LogInformation("İstemci başladı: sürüm {Version}, {Mode}, günlük {Folder}",
-            typeof(App).Assembly.GetName().Version, e.Args.Contains(TrayArgument, StringComparer.OrdinalIgnoreCase) ? "System Tray'de" : "pencereli", ClientLog.Folder);
+        log.LogInformation("İstemci başladı: sürüm {Version}, {Mode}, yetki {Elevation}, günlük {Folder}",
+            typeof(App).Assembly.GetName().Version,
+            e.Args.Contains(TrayArgument, StringComparer.OrdinalIgnoreCase) ? "System Tray'de" : "pencereli",
+            Services.Input.ProcessElevation.SelfElevated ? "yükseltilmiş" : "normal",
+            ClientLog.Folder);
 
         // Beklenmeyen hatalar yalnızca günlüğe yazılır; davranış değişmez (işlenmeyen hata yine uygulamayı kapatır).
         DispatcherUnhandledException += (_, args) => log.LogCritical(args.Exception, "Arayüzde işlenmeyen hata");

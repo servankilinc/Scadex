@@ -44,6 +44,8 @@
 
   <!-- LGPL build tools\ffmpeg altına elle konur veya varsa publish'e kopyalanır; uygulama sabit yerde arar: <uygulama>\tools\ffmpeg\ffmpeg.exe (FfmpegLocator). -->
   <ItemGroup>
+    <!-- Oturum açılışında yükseltilmiş başlatma görevini kuran betik; publish klasörüyle birlikte dağıtılır (RemoteDesk.md § 9.6, § 12.6). -->
+    <None Update="Deploy\Install-StartupTask.ps1" CopyToOutputDirectory="PreserveNewest" />
     <None Update="tools\ffmpeg\ffmpeg.exe" CopyToOutputDirectory="PreserveNewest" />
     <!-- Lisans exe ile birlikte dağıtılmak zorunda. -->
     <None Update="tools\ffmpeg\LICENSE.txt" CopyToOutputDirectory="PreserveNewest" />

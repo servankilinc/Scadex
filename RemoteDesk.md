@@ -425,10 +425,17 @@ Created → CommandSent → Streaming → Stopping → Stopped
 Tek bir WPF süreci, **oturum açmış kullanıcının** oturumunda çalışır. Servis, yardımcı süreç ve named pipe
 **yoktur**.
 
-- **Otomatik başlatma (karar 2026-09-30):** kurulum paketi yok; proje sahibi uygulamayı Windows başlangıç
-  uygulamalarına elle ekler — kısayolun hedefi `Scadex.RemoteDesk.Windows.exe --tray` (pencere açılmadan System Tray'de
-  başlar). Çalışma klasörü önemsizdir (§ 9.4). Faz 8'de UIPI için "en yüksek ayrıcalıkla çalıştır" gerekirse
-  başlangıç kısayolu yetmez, Görev Zamanlayıcı görevine geçilir (§ 12.6).
+- **Otomatik başlatma (karar 2026-09-30, güncel 2026-10-01):** kurulum paketi yok; istemci Program Files altına konur. İki yol:
+  - **Yalnızca izleme + normal pencere kontrolü için:** başlangıç klasörü kısayolu, hedefi `Scadex.RemoteDesk.Windows.exe --tray`
+    (pencere açmadan System Tray'de, normal yetki).
+  - **Yönetici pencerelerini de (Görev Yöneticisi vb.) kontrol için:** `Deploy/Install-StartupTask.ps1` ile oturum açılışında "en
+    yüksek ayrıcalıkla" Görev Zamanlayıcı görevi (UAC sormadan yükseltilmiş başlar — § 12.6). **Önerilen yol budur.**
+  - **İkisi birden kurulmaz:** oturum açılışında hem kısayol (normal) hem görev (yükseltilmiş) açılırsa tek-örnek kilidinde normal
+    örnek kazanabilir ve yükseltilmiş örnek "ikinci örnek" diye kapanır. Görev kurulunca kısayol kaldırılır. Çalışma klasörü her iki
+    yolda da önemsizdir (§ 9.4).
+- **Monitörler kendiliğinden güncellenir (2026-10-01):** algılanan monitör listesi değişince (ekran ayarı, RDP bağlan/kes, konsol
+  geçişi) ve 12 sn'lik uzlaştırmada merkeze bildirilir — elle "yenile" gerekmez. RDP ile ayarlayıp ayrılınca fiziksel monitörlere
+  dönüş birkaç saniyede yansır. Ayrıntı § 9.3.
 - **Tek örnek:** oturum başına `Local\Scadex.RemoteDesk.Windows` mutex'i; ikinci örnek mevcut pencereyi
   öne getirip çıkar.
 - **Pencere kapatılınca uygulama kapanmaz, System Trayye iner.** Çıkış yalnızca System Tray menüsünden.
@@ -451,11 +458,13 @@ System Tray menüsü: Göster · Yeniden bağlan · Günlük klasörünü aç ·
 
 ### 9.3 Minimal kaynak kullanımı
 
-- **Boştayken:** yalnızca SignalR WebSocket'i (15 sn keep-alive). Zamanlayıcı yok, yoklama yok, CPU ≈ 0.
+- **Boştayken:** SignalR WebSocket'i (15 sn keep-alive) + 12 sn'de bir monitör uzlaştırması (ucuz DXGI enumerasyonu, liste
+  değişmedikçe ağ trafiği yok). Başka zamanlayıcı/yoklama yok, CPU ≈ 0.
 - **UI yalnızca olayla güncellenir:** servisler durum değişince olay yayar, ViewModel özelliği değişir;
   gizli pencere çizilmediği için bunun maliyeti yoktur. Zamanlayıcıyla yenilenen kontrol ve animasyon yok.
-- Monitör listesi yalnızca açılışta ve `SystemEvents.DisplaySettingsChanged`'de okunur; MAC listesi yalnızca
-  bağlanırken.
+- Monitör listesi açılışta, `SystemEvents.DisplaySettingsChanged`'de, `SystemEvents.SessionSwitch`'te (RDP bağlan/kes, konsol
+  bağlan/kes, kilit açılması) ve 12 sn'lik uzlaştırmada okunur; merkeze yalnızca **değişince** bildirilir (§ 9.1). MAC listesi
+  yalnızca bağlanırken.
 - Kodlayıcı denemesi ilk yayında (§ 7.4); FFmpeg yalnızca izlenen monitör için, `BelowNormal` öncelikte.
 - Workstation GC. Hedef: boşta **< 100 MB** bellek, **≈ %0 CPU** — Faz 7'de tuttu: %0,13 CPU, private 29 MB
   ([§ 16.3](#163-faz-7-ölçümleri-2026-09-30)).
@@ -477,9 +486,10 @@ yayın adresi sunucudan gelir. FFmpeg yolu uygulama klasörüne göreli sabittir
 
 Serilog (Faz 7, `Services/Shell/ClientLog.cs`): `%LocalAppData%\Scadex\RemoteDesk\logs\client-YYYYMMDD.log` (kullanıcı
 başına — uygulama klasörü yazılabilir olmayabilir; günlük döner, 14 dosya, dosya başına 10 MB), seviye Information,
-`Microsoft`/`System` Warning. System Tray menüsünde "Günlük klasörünü aç". Olaylar: açılış (sürüm, System Tray/pencere),
-merkeze bağlandı/kapandı/kabul etmedi, merkez yayın istedi/durdurdu, encoder sınama sonuçları, yayın başladı (encoder, profil,
-maskeli adres), profil düşürme, FFmpeg çıktısı (çıkış kodu), tercih değişimi, System Tray'den çıkış; işlenmeyen hatalar
+`Microsoft`/`System` Warning. System Tray menüsünde "Günlük klasörünü aç". Olaylar: açılış (sürüm, System Tray/pencere,
+**yetki yükseltilmiş/normal** — § 12.6), merkeze bağlandı/kapandı/kabul etmedi, merkez yayın istedi/durdurdu, encoder sınama
+sonuçları, yayın başladı (encoder, profil, maskeli adres), profil düşürme, FFmpeg çıktısı (çıkış kodu), monitör listesi değişti
+(tetikleyici), tercih değişimi, System Tray'den çıkış; işlenmeyen hatalar
 `Critical` (davranış değişmez, uygulama yine kapanır). **Bilet asla loglanmaz**; FFmpeg adresi `rtsp://***@` ile maskelenir
 (Faz 7'de günlükte bilet araması 0 sonuç).
 
@@ -489,8 +499,10 @@ maskeli adres), profil düşürme, FFmpeg çıktısı (çıkış kodu), tercih d
   `dotnet publish Modules/RemoteDesk/Scadex.RemoteDesk.Windows -c Release -r win-x64 --self-contained true -o <klasör>`
   (≈ 300 MB: .NET gömülü, kurulum gerekmez + 134 MB FFmpeg). Klasörde `tools\ffmpeg\ffmpeg.exe` ve LGPL `LICENSE.txt` gelir;
   **ikisinden biri geliştirme ortamında yoksa publish hata verip durur** (`RequireFfmpegForPublish`, csproj) — FFmpeg'siz
-  istemci sahaya gitmesin. `*.pubxml` depoda yok sayıldığı için publish profili yok; komut budur. Sahada: klasörü kopyala →
-  `appsettings.json > CentralApiUrl` → başlangıç uygulamalarına `--tray` ile ekle (§ 9.1). Ekranda "Encoder" kutucuğu (sınama, seçilen encoder, "Tercih et" —
+  istemci sahaya gitmesin. `*.pubxml` depoda yok sayıldığı için publish profili yok; komut budur. Sahada: klasörü **Program Files**
+  altına kopyala → `appsettings.json > CentralApiUrl` → otomatik başlatma (§ 9.1): yönetici pencerelerini de kontrol için publish'le
+  gelen `Deploy/Install-StartupTask.ps1` (yönetici PowerShell'de bir kez; oturum açılışında yükseltilmiş başlatır — § 12.6), yalnızca
+  izleme yetecekse `--tray` kısayolu. Ekranda "Encoder" kutucuğu (sınama, seçilen encoder, "Tercih et" —
   § 7.4) ve her monitörün kartında merkez yayınının salt okunur durumu (encoder/zincir/profil, canlı fps/hız/CPU) görünür.
   Sahadaki test yayını 2026-09-30'da kaldırıldı: yayın yalnızca merkezin isteğiyle başlar ve durur.
 - Binary'ler kod imzalı olmalı (uzaktan erişim yazılımları AV'lerce sık işaretlenir).
@@ -660,13 +672,21 @@ basılı bir şey kalmışsa **hepsini bırakır**. Tarayıcı `blur`/`visibilit
 
 ### 12.6 UIPI
 
-Normal yetkiyle çalışan istemci **yönetici olarak çalışan pencerelere** tıklayamaz/yazamaz. Çözüm:
-oturum açma görevini "en yüksek ayrıcalıkla" çalıştırmak (§ 9.1). Güvenlik yüzeyini büyüttüğü için Faz 8'de
-ayrıca karar verilir.
+Normal (medium integrity) yetkiyle çalışan istemci **yönetici olarak çalışan (high integrity) pencerelere** `SendInput` ile girdi
+gönderemez; Windows bunu çoğu zaman **sessizce yutar** (`SendInput` başarı döner, hiçbir şey olmaz). Yönetici hesabında Görev
+Yöneticisi kendiliğinden yükseltilmiş açıldığı için öndeyken uzaktan fare/klavye ona ulaşmaz. Normal yetkiden kod ile aşılamaz (OS
+güvenlik sınırı).
 
-**Faz 8 durumu (2026-09-30):** yükseltme YOK — istemci başlangıç uygulamalarından normal yetkiyle açılır (§ 9.1). Yönetici
-pencerelerine, UAC'ye ve kilit ekranına girdi gitmez; Windows `SendInput`'u reddeder, istemci bunu oturum başına bir kez günlüğe
-yazar. Gerekirse Görev Zamanlayıcı ("en yüksek ayrıcalıkla") ayrı bir karardır.
+**Çözüm (2026-10-01): istemci yükseltilmiş çalışır.** Dağıtım yolu Görev Zamanlayıcı'da "en yüksek ayrıcalıkla" (RunLevel Highest)
+oturum-açılışı görevidir (`Deploy/Install-StartupTask.ps1`, § 9.1) — UAC sormadan yükseltilmiş başlar, istemci yönetici pencerelerine
+de girdi gönderebilir. Elendi: `app.manifest requireAdministrator` (her açılışta UAC sorar, başlangıç klasöründen otomatik başlamayı
+bozar) ve `uiAccess=true` (kod imzalama sertifikası + Program Files şartı; sertifika yok). İstemcinin yetkisi başlangıç günlüğüne
+yazılır ("yetki yükseltilmiş/normal", `Services/Input/ProcessElevation.cs`), böylece her PC'de görevin yükseltilmiş başlattığı tek
+satırdan doğrulanır. `SendInput` reddedilirse istemci bunu oturum başına bir kez günlüğe yazar.
+
+**Güvenlik:** Yükseltilmiş çalışma, `RemotePcControl` iznine sahip kullanıcıya o PC'de fiilen yönetici düzeyi verir — bilinçli kabul.
+**Yükseltilmiş olsa bile erişilemez:** UAC güvenli masaüstü, kilit ekranı, Ctrl+Alt+Del (Windows tüm uygulamalara kapatır; ayrı SYSTEM
+servisi gerekir — Faz 11).
 
 ### 12.7 Uygulama (fare Faz 8, 2026-09-30; klavye Faz 9, 2026-10-01)
 
@@ -902,6 +922,8 @@ Aynı makine; publish edilmiş (Release, self-contained) istemci `--tray` ile, p
 | 2026-09-29 | Faz 3: `PcHub` anonim; `Hello` normalize MAC ile aktif Pc cihazlarını eşler, tek eşleşme kabul, cihaz başına ilk bağlanan kazanır; bağlantı kaydı bellekte. İstemci SignalR'ın otomatik yeniden bağlanmasını kullanmaz (her bağlantı `Hello` ile yeniden eşlenmeli); geri çekilme 1/2/5/10/30 sn, reddedilince 60 sn. Pencere kapatmak System Trayye indirir; `--tray` argümanı pencereyi açmadan başlatır (oturum açma görevi için). |
 | 2026-09-30 | **İstemcide test yayını kaldırıldı** ("Test yayını başlat", "Durdur", "yalnızca kodla" hedefi, `TestPublishUrl`): yayın yalnızca merkezin komutuyla. Sınama ve tercih monitör kartlarından ayrı bir "Encoder" kutucuğunda (tüm monitörler birlikte sınanır); monitör kartlarında yayın durumu salt okunur kalır. Arayüzde "kodlayıcı" yerine "encoder". |
 | 2026-09-30 | **Kodlayıcı tercihi PC başına ve bellekte** (kullanıcı kararı): "Tercih et" rozetini ve tüm yayınları (merkez dahil) değiştirir, çalışmadığı monitörde otomatik seçim; tercih değişince yayın merkez oturumu kapanmadan yeniden başlar. Eski "Bu adayla yayınla" kaldırıldı: merkez yayınını durdurup test yayını açıyordu. Aynı işte yakalanan hata: `StreamSession.StopAsync` önce iptal ettiği için FFmpeg sahipsiz kalabiliyordu → önce nazik durdurma, sonra iptal. |
+| 2026-10-01 | **UIPI çözümü** (§ 12.6): yönetici pencerelerine (Görev Yöneticisi) kontrol için istemci yükseltilmiş çalışır — Görev Zamanlayıcı "en yüksek ayrıcalıkla" oturum-açılışı görevi (`Deploy/Install-StartupTask.ps1`, UAC sormaz). `requireAdministrator` ve `uiAccess` elendi (biri UAC sorar, biri imza ister). Yetki başlangıç günlüğüne yazılır (`ProcessElevation`). |
+| 2026-10-01 | **Monitörler kendiliğinden yenilenir** (§ 9.1/§ 9.3): istemci `SessionSwitch` (RDP/konsol geçişi) + 12 sn'lik uzlaştırmayla monitör listesini merkeze yalnızca değişince bildirir. RDP ile ayarlayıp ayrılınca fiziksel monitörlere dönüş elle "yenile" gerekmeden yansır. |
 | 2026-10-01 | **Faz 9 — klavye** (§ 12.7): tuş `KeyboardEvent.code` ile gider, PC scan code ile basar (karakteri PC'nin düzeni belirler; tablo Contracts'ta, sunucu tablodışı kodu atar). Tarayıcının yakalayamadığı tuşlar için düğmeler + tam ekranda Keyboard Lock; Ctrl+Alt+Del bilerek yok. Takılı tuş emniyeti düğmelerle aynı kural (5 sn). |
 | 2026-09-30 | **Faz 8 — uzaktan fare** (§ 12.7): ayrı izin `RemotePcControl`; kontrol PC başına tek kullanıcı, yalnızca izleyene; aynı kullanıcının başka sekmesi devralır, başka kullanıcı devralamaz; 5 dk girdi yoksa düşer; sanal masaüstü DXGI dikdörtgenlerinden; UIPI için yükseltme yok. Açılışta yetim izleme kayıtları da kapanır (önceden yalnızca oturumlar kapanıyordu). |
 | 2026-09-30 | **Faz 7 daraldı** (kullanıcı kararı): kurulum paketi (Inno Setup/MSI) ve Görev Zamanlayıcı görevi yazılmadı — istemci klasöre publish alınıp elle dağıtılır, başlangıç uygulamalarına `--tray` ile eklenir. İstemci günlüğü kullanıcı başına `%LocalAppData%` altında; FFmpeg'siz publish hata verir. |
