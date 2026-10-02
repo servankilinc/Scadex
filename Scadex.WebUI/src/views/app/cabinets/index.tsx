@@ -1,27 +1,52 @@
 import { useMemo, useState } from 'react';
 import { Link } from 'react-router';
-import { CpuIcon, MapPinIcon, PencilIcon, PlusIcon, SearchIcon } from 'lucide-react';
+import { PencilIcon, PlusIcon, SearchIcon, WorkflowIcon } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
-import { Skeleton } from '@/components/ui/skeleton';
 import { StatusDot } from '@/components/diagram/template-node';
 import { CabinetFormDialog } from '@/components/cabinet/cabinet-form-dialog';
-import ScadaPanelImage from '@/assets/bg-scada-diagram.jpg';
-import { GLASS_BADGE, GLASS_BUTTON } from '@/lib/glass-styles';
-import { cn } from '@/lib/utils';
+import { DataTable, type DataTableColumn } from '@/components/custom/data-table';
 import type { CabinetDetailDto } from '@/models/cabinet';
 import { deviceStatusLabel } from '@/models/enums';
 import { useCabinets } from '@/hooks/use-cabinets';
 import { useCabinetOverviewLive } from '@/hooks/use-cabinet-overview-live';
 
+const COLUMNS: DataTableColumn<CabinetDetailDto>[] = [
+  {
+    id: 'name',
+    header: 'Kabin',
+    cell: cabinet => (
+      <div className='flex items-center gap-2'>
+        <span className='font-medium'>{cabinet.name}</span>
+        {!cabinet.isActive && <Badge variant='secondary'>Pasif</Badge>}
+      </div>
+    )
+  },
+  { id: 'company', header: 'Firma', cell: cabinet => cabinet.companyName },
+  {
+    id: 'status',
+    header: 'Durum',
+    cell: cabinet => (
+      <Badge variant='outline'>
+        <StatusDot statusId={cabinet.deviceStatusId} />
+        {deviceStatusLabel(cabinet.deviceStatusId)}
+      </Badge>
+    )
+  },
+  {
+    id: 'location',
+    header: 'Konum',
+    className: 'max-w-xs truncate',
+    cell: cabinet => cabinet.locationDescription ?? '—'
+  }
+];
+
 /**
- * Kabin kartları — diyagram editörünün giriş noktası.
+ * Kabin listesi — diyagram editörünün giriş noktası.
  *
- * Tablo değil kart: kabin sayısı azdır ve karar verirken bakılan şey durum ve
- * konumdur, sıralanabilir sütunlar değil. Düzen Canlı İzleme'nin kabin seçimiyle
- * (`views/app/cameras`) aynıdır: arama + resimli kart grid'i.
+ * Durum kolonu canlıdır (`useCabinetOverviewLive`). Arama + tablo düzeni Kameralar'ın kabin
+ * seçimiyle (`views/app/cameras`) aynıdır.
  */
 export default function Cabinets() {
   const { data, isPending, isError, error } = useCabinets();
@@ -57,24 +82,26 @@ export default function Cabinets() {
 
       {isError && <p className='text-sm text-destructive'>{error.message}</p>}
 
-      <div className='grid gap-3 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4'>
-        {isPending && Array.from({ length: 6 }, (_, i) => <Skeleton key={i} className='h-40 w-full rounded-xl' />)}
-        {filteredCabinets.map(cabinet => (
-          <CabinetCard key={cabinet.id} cabinet={cabinet} onEdit={() => setEditing(cabinet)} />
-        ))}
-      </div>
-
-      {data?.length === 0 && (
-        <Card>
-          <CardContent className='py-8 text-center text-sm text-muted-foreground'>Henüz kabin yok.</CardContent>
-        </Card>
-      )}
-
-      {!!data?.length && filteredCabinets.length === 0 && (
-        <Card>
-          <CardContent className='py-8 text-center text-sm text-muted-foreground'>Aramaya uyan kabin yok.</CardContent>
-        </Card>
-      )}
+      <DataTable
+        columns={COLUMNS}
+        rows={filteredCabinets}
+        getRowKey={cabinet => cabinet.id}
+        isLoading={isPending}
+        isRowMuted={cabinet => !cabinet.isActive}
+        emptyMessage={data?.length ? 'Aramaya uyan kabin yok.' : 'Henüz kabin yok.'}
+        actions={cabinet => (
+          <>
+            <Button size='sm' variant='outline' nativeButton={false} render={<Link to={`/cabinets/${cabinet.id}/diagram`} />}>
+              <WorkflowIcon />
+              Diyagramı aç
+            </Button>
+            <Button size='sm' variant='outline' onClick={() => setEditing(cabinet)}>
+              <PencilIcon />
+              Düzenle
+            </Button>
+          </>
+        )}
+      />
 
       <CabinetFormDialog open={isCreating} onOpenChange={setIsCreating} />
       {/* `key` ile her kabin için TAZE bir dialog: form state'i bir önceki
@@ -83,65 +110,5 @@ export default function Cabinets() {
         <CabinetFormDialog key={editing.id} open onOpenChange={open => !open && setEditing(null)} cabinet={editing} />
       )}
     </div>
-  );
-}
-
-function CabinetCard({ cabinet, onEdit }: { cabinet: CabinetDetailDto; onEdit: () => void }) {
-  return (
-    <Card className={cn('relative isolate min-h-40 overflow-hidden p-0 shadow-md', !cabinet.isActive && 'opacity-60')}>
-      {/* Kabin fotoğrafı yok; arka plan kabinin ne olduğunu (pano içi) temsil eden bir illüstrasyon.
-          Detaylar, resmin üstündeki koyu katmanla okunaklı kalacak şekilde ÖN planda — Canlı İzleme
-          kabin kartıyla aynı iki katman. */}
-      <img src={ScadaPanelImage} alt='' className='absolute inset-0 -z-20 size-full bg-muted object-cover opacity-50' />
-      <div className='absolute inset-0 -z-10 bg-black/70 dark:bg-black/10' />
-
-      <div className='flex h-full flex-col gap-3 p-4 text-white'>
-        <div className='min-w-0'>
-          <h3 className='flex items-center gap-2 text-base font-medium'>
-            <CpuIcon className='size-4 shrink-0' />
-            <span className='truncate'>{cabinet.name}</span>
-          </h3>
-          <p className='truncate text-sm text-white/70'>{cabinet.companyName}</p>
-        </div>
-
-        <div className='flex flex-wrap items-center gap-1.5'>
-          {/* `CabinetStatusBadge` yerine cam rozet + durum noktası: onun "Bilinmiyor" hâli
-              `text-foreground` kullanır ve açık temada koyu katmanın üstünde görünmez olurdu. */}
-          <Badge variant='outline' className={GLASS_BADGE}>
-            <StatusDot statusId={cabinet.deviceStatusId} />
-            {deviceStatusLabel(cabinet.deviceStatusId)}
-          </Badge>
-          {/* Pasif kayitlar listede GORUNUR — IsActive global query filter'i
-              bilerek yok, pasife alinan bir kabin geri alinabilsin diye. */}
-          {!cabinet.isActive && (
-            <Badge variant='outline' className={GLASS_BADGE}>
-              Pasif
-            </Badge>
-          )}
-        </div>
-
-        {cabinet.locationDescription && (
-          <p className='flex items-center gap-1 truncate text-xs text-white/70'>
-            <MapPinIcon className='size-3 shrink-0' />
-            {cabinet.locationDescription}
-          </p>
-        )}
-
-        <div className='mt-auto flex gap-2'>
-          <Button
-            size='sm'
-            variant='outline'
-            className={cn('flex-1', GLASS_BUTTON)}
-            nativeButton={false}
-            render={<Link to={`/cabinets/${cabinet.id}/diagram`} />}>
-
-            Diyagramı aç
-          </Button>
-          <Button size='sm' variant='outline' className={GLASS_BUTTON} onClick={onEdit} aria-label={`${cabinet.name} kabinini düzenle`}>
-            <PencilIcon />
-          </Button>
-        </div>
-      </div>
-    </Card>
   );
 }

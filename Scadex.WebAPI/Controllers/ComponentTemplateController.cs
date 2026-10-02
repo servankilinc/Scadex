@@ -43,6 +43,26 @@ public class ComponentTemplateController : BaseController
         return ToAction(result);
     }
 
+    /// <summary> DeviceTypeId başına aktif ComponentTempalate sayısı (ComponentTemplate olmayan tip listede yok). </summary>
+    [HttpGet("type-counts")]
+    public async Task<IActionResult> GetTypeCounts(CancellationToken cancellationToken)
+    {
+        var result = await _componentTemplateService.GetTypeCountsAsync(cancellationToken);
+        return ToAction(result);
+    }
+/*
+
+/// <summary> </summary>
+/// <summary> </summary>
+*/
+    /// <summary> Seçili DeviceTypeId'nin aktif ComponentTemplate listesi, pin şeması olmadan. </summary>
+    [HttpGet("by-type/{deviceTypeId:int}")]
+    public async Task<IActionResult> GetListByDeviceType(int deviceTypeId, CancellationToken cancellationToken)
+    {
+        var result = await _componentTemplateService.GetListByDeviceTypeAsync(deviceTypeId, cancellationToken);
+        return ToAction(result);
+    }
+
     /// <summary> Sablonu ve pin semasini TEK transaction'da olusturur. </summary>
     [HttpPost]
     public async Task<IActionResult> Create(ComponentTemplateCreateRequest request, CancellationToken cancellationToken)

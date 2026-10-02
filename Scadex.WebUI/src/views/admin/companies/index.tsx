@@ -1,16 +1,14 @@
 import { useEffect, useState } from 'react';
 import { Controller, useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { Building2Icon, PencilIcon, PlusIcon } from 'lucide-react';
-import { Badge } from '@/components/ui/badge';
+import { PencilIcon, PlusIcon } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Field, FieldDescription, FieldError, FieldGroup, FieldLabel } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
-import { Skeleton } from '@/components/ui/skeleton';
 import { Switch } from '@/components/ui/switch';
 import { Textarea } from '@/components/ui/textarea';
+import { ActiveBadge, DataTable, type DataTableColumn } from '@/components/custom/data-table';
 import { handleFormApiError } from '@/lib/axios-helper';
 import { companyCreateRequestSchema, companyUpdateRequestSchema, type CompanyCreateRequest, type CompanyDto } from '@/models/company';
 import { useCompanies, useCreateCompany, useUpdateCompany } from '@/hooks/use-companies';
@@ -41,16 +39,20 @@ export default function Companies() {
 
       {isError && <p className='text-sm text-destructive'>{error.message}</p>}
 
-      <div className='grid gap-3 sm:grid-cols-2 lg:grid-cols-3'>
-        {isPending && Array.from({ length: 3 }, (_, i) => <Skeleton key={i} className='h-32 w-full rounded-xl' />)}
-        {data?.map(company => <CompanyCard key={company.id} company={company} onEdit={() => setEditing(company)} />)}
-      </div>
-
-      {data?.length === 0 && (
-        <Card>
-          <CardContent className='py-8 text-center text-sm text-muted-foreground'>Henüz firma yok.</CardContent>
-        </Card>
-      )}
+      <DataTable
+        columns={COLUMNS}
+        rows={data}
+        getRowKey={company => company.id}
+        isLoading={isPending}
+        isRowMuted={company => !company.isActive}
+        emptyMessage='Henüz firma yok.'
+        actions={company => (
+          <Button size='sm' variant='outline' onClick={() => setEditing(company)}>
+            <PencilIcon />
+            Düzenle
+          </Button>
+        )}
+      />
 
       <CompanyCreateDialog open={isCreating} onOpenChange={setIsCreating} />
       <CompanyEditDialog company={editing} onClose={() => setEditing(null)} />
@@ -58,33 +60,11 @@ export default function Companies() {
   );
 }
 
-function CompanyCard({ company, onEdit }: { company: CompanyDto; onEdit: () => void }) {
-  return (
-    <Card className={company.isActive ? undefined : 'opacity-60'}>
-      <CardHeader>
-        <CardTitle className='flex items-center gap-2'>
-          <Building2Icon className='size-4 shrink-0' />
-          <span className='truncate'>{company.name}</span>
-        </CardTitle>
-        {company.description && <CardDescription className='truncate'>{company.description}</CardDescription>}
-      </CardHeader>
-
-      <CardContent className='flex flex-col gap-3'>
-        {/* Pasif kayitlar listede GORUNUR — geri alinabilsin diye. */}
-        {!company.isActive && (
-          <div>
-            <Badge variant='secondary'>Pasif</Badge>
-          </div>
-        )}
-
-        <Button size='sm' variant='outline' onClick={onEdit}>
-          <PencilIcon />
-          Düzenle
-        </Button>
-      </CardContent>
-    </Card>
-  );
-}
+const COLUMNS: DataTableColumn<CompanyDto>[] = [
+  { id: 'name', header: 'Firma', cell: company => <span className='font-medium'>{company.name}</span> },
+  { id: 'description', header: 'Açıklama', className: 'max-w-md truncate', cell: company => company.description || '—' },
+  { id: 'active', header: 'Durum', cell: company => <ActiveBadge isActive={company.isActive} /> }
+];
 
 // ─────────────────────────────────────────────────────────── yeni firma
 

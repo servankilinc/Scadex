@@ -1,27 +1,5 @@
 import { useState, type DragEvent } from 'react';
-import {
-  ChevronRightIcon,
-  CpuIcon,
-  GaugeIcon,
-  IdCardIcon,
-  LightbulbIcon,
-  LogInIcon,
-  LogOutIcon,
-  MonitorIcon,
-  MoveRightIcon,
-  PanelLeftCloseIcon,
-  PanelLeftOpenIcon,
-  PlugZapIcon,
-  PuzzleIcon,
-  RadarIcon,
-  Rows3Icon,
-  SquareIcon,
-  StickyNoteIcon,
-  ToggleLeftIcon,
-  TypeIcon,
-  ZapIcon,
-  type LucideIcon
-} from 'lucide-react';
+import { ChevronRightIcon, MoveRightIcon, PanelLeftCloseIcon, PanelLeftOpenIcon, SquareIcon, StickyNoteIcon, TypeIcon } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -29,33 +7,9 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { AnnotationShape, AnnotationShapeLabels, DeviceType, DeviceTypeLabels } from '@/models/enums';
 import type { ComponentTemplatePaletteDto } from '@/models/componentTemplate';
 import { readableTextColor, safeCssColor } from '@/lib/diagram/colors';
+import { DEVICE_TYPE_ICON, DEVICE_TYPE_ORDER } from '@/lib/diagram/device-type-icon';
 import { setTemplateDragData } from '@/lib/diagram/dnd';
 import { useComponentTemplatePalette } from '@/hooks/use-component-templates';
-
-/** Şablon kartında ve grup başlığında kullanılan, DeviceType başına TEK ikon. */
-const DEVICE_TYPE_ICON: Record<DeviceType, LucideIcon> = {
-  [DeviceType.ControlModule]: CpuIcon,
-  [DeviceType.InputModule]: LogInIcon,
-  [DeviceType.OutputModule]: LogOutIcon,
-  [DeviceType.LedModule]: LightbulbIcon,
-  [DeviceType.TerminalBlock]: Rows3Icon,
-  [DeviceType.Sensor]: RadarIcon,
-  [DeviceType.Peripheral]: PuzzleIcon,
-  [DeviceType.PowerSupply]: ZapIcon,
-  [DeviceType.MeasurementDevice]: GaugeIcon,
-  [DeviceType.CardReader]: IdCardIcon,
-  [DeviceType.Mains]: PlugZapIcon,
-  [DeviceType.CircuitBreaker]: ToggleLeftIcon,
-  [DeviceType.Pc]: MonitorIcon
-};
-
-/**
- * Grupların gösterim sırası: `DeviceType`'ın TANIM sırası (ControlModule →
- * Pc). API yanıtının sırasına bağlı kalınmıyor — sunucu farklı bir
- * sırayla dönerse grupların yeri değişir, kullanıcı her seferinde aynı yerde
- * arar.
- */
-const DEVICE_TYPE_ORDER = Object.values(DeviceType) as DeviceType[];
 
 /** Katalogdaki tanım sırasını koruyarak DeviceType'a göre gruplar (bkz. roles/index.tsx > groupByCategory). */
 function groupByDeviceType(templates: ComponentTemplatePaletteDto[]): [DeviceType, ComponentTemplatePaletteDto[]][] {

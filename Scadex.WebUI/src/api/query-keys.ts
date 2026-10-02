@@ -18,7 +18,11 @@ export const componentTemplateKeys = {
    * diyagramın ALTINDA DEĞİL: şablon kütüphanesi kabinden bağımsız bir kaynak ve
    * `diagramKeys` invalidation'ı paleti uçurmamalı (tersi de geçerli).
    */
-  palette: () => [...componentTemplateKeys.all, 'palette'] as const
+  palette: () => [...componentTemplateKeys.all, 'palette'] as const,
+  /** Yönetim ekranının tip kartları (tip başına sayı). */
+  typeCounts: () => [...componentTemplateKeys.all, 'type-counts'] as const,
+  /** Yönetim ekranının tablosu — tek tipe süzülü, pinsiz liste. */
+  byType: (deviceTypeId: number) => [...componentTemplateKeys.all, 'by-type', deviceTypeId] as const
 };
 
 export const cabinetKeys = {

@@ -8,6 +8,8 @@ export {
 } from './commands/componentTemplateCreateRequest';
 
 // Queries — sunucu ciktisi, saf interface
+export type { ComponentTemplateListItemDto } from './queries/componentTemplateListItemDto';
 export type { ComponentTemplatePaletteDto } from './queries/componentTemplatePaletteDto';
 export type { ComponentTemplatePalettePinDto } from './queries/componentTemplatePalettePinDto';
+export type { ComponentTemplateTypeCountDto } from './queries/componentTemplateTypeCountDto';
 export type { TemplateImageDto } from './queries/templateImageDto';

@@ -1,9 +1,10 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
-import { createComponentTemplate, getPalette, uploadTemplateImage } from '@/api/component-template';
+import { createComponentTemplate, getPalette, getTemplatesByType, getTemplateTypeCounts, uploadTemplateImage } from '@/api/component-template';
 import { componentTemplateKeys } from '@/api/query-keys';
 import { toApiError } from '@/lib/axios-helper';
 import type { ComponentTemplateCreateRequest } from '@/models/componentTemplate';
+import type { DeviceType } from '@/models/enums';
 
 /** Uzun `staleTime`: palet her kabinette aynıdır ve yalnızca şablon yazarlığı değiştirir. */
 export function useComponentTemplatePalette() {
@@ -11,6 +12,26 @@ export function useComponentTemplatePalette() {
     queryKey: componentTemplateKeys.palette(),
     queryFn: getPalette,
     staleTime: 30 * 60 * 1000
+  });
+}
+
+/**
+ * Yönetim ekranının tip kartları. Paletin aksine uzun `staleTime` YOK: yönetim ekranında taze sayı
+ * beklenir; önbellekteki değer anında gösterilir, arkada yenilenir.
+ */
+export function useTemplateTypeCounts() {
+  return useQuery({
+    queryKey: componentTemplateKeys.typeCounts(),
+    queryFn: getTemplateTypeCounts
+  });
+}
+
+/** Yönetim ekranının tablosu: yalnızca seçili tipin şablonları. Tip seçili değilse istek atılmaz. */
+export function useTemplatesByType(deviceTypeId: DeviceType | null) {
+  return useQuery({
+    queryKey: componentTemplateKeys.byType(deviceTypeId ?? 0),
+    queryFn: () => getTemplatesByType(deviceTypeId!),
+    enabled: deviceTypeId != null
   });
 }
 
@@ -42,7 +63,8 @@ export function useUploadTemplateImage() {
  * için cache'i yerinde güncellemek uydurma veri yazmak olurdu.
  *
  * Bu invalidation güvenli: palet ayrı bir anahtarda duruyor ve diyagram grafına
- * dokunmuyor, yani kaydedilmemiş bir düzenlemeyi ezme riski yok.
+ * dokunmuyor, yani kaydedilmemiş bir düzenlemeyi ezme riski yok. Kök anahtar (`all`) düşürülür:
+ * palet, yönetim ekranının tip sayaçları ve tipe süzülü listeler birlikte eskir.
  */
 export function useCreateTemplate() {
   const queryClient = useQueryClient();
@@ -50,7 +72,7 @@ export function useCreateTemplate() {
   return useMutation({
     mutationFn: (request: ComponentTemplateCreateRequest) => createComponentTemplate(request),
     onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: componentTemplateKeys.palette() });
+      void queryClient.invalidateQueries({ queryKey: componentTemplateKeys.all });
       toast.success('Şablon oluşturuldu.');
     },
     onError: error => {

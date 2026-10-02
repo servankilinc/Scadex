@@ -1,10 +1,9 @@
 import { useState } from 'react';
 import { Controller, useForm, type UseFormRegisterReturn } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { PencilIcon, PlusIcon, ShieldIcon, UserIcon } from 'lucide-react';
+import { PencilIcon, PlusIcon, ShieldIcon } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Field, FieldDescription, FieldError, FieldGroup, FieldLabel } from '@/components/ui/field';
@@ -12,6 +11,7 @@ import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Switch } from '@/components/ui/switch';
+import { ActiveBadge, DataTable, type DataTableColumn } from '@/components/custom/data-table';
 import { handleFormApiError } from '@/lib/axios-helper';
 import { useCurrentUser } from '@/lib/auth-session';
 import type { RoleDto } from '@/models/role';
@@ -50,18 +50,26 @@ export default function Users() {
 
       {isError && <p className='text-sm text-destructive'>{error.message}</p>}
 
-      <div className='grid gap-3 sm:grid-cols-2 lg:grid-cols-3'>
-        {isPending && Array.from({ length: 3 }, (_, i) => <Skeleton key={i} className='h-40 w-full rounded-xl' />)}
-        {data?.map(user => (
-          <UserCard key={user.id} user={user} onEdit={() => setEditing(user)} onRoles={() => setAssigning(user)} />
-        ))}
-      </div>
-
-      {data?.length === 0 && (
-        <Card>
-          <CardContent className='py-8 text-center text-sm text-muted-foreground'>Henüz kullanıcı yok.</CardContent>
-        </Card>
-      )}
+      <DataTable
+        columns={COLUMNS}
+        rows={data}
+        getRowKey={user => user.id}
+        isLoading={isPending}
+        isRowMuted={user => !user.isActive}
+        emptyMessage='Henüz kullanıcı yok.'
+        actions={user => (
+          <>
+            <Button size='sm' variant='outline' onClick={() => setEditing(user)}>
+              <PencilIcon />
+              Düzenle
+            </Button>
+            <Button size='sm' variant='outline' onClick={() => setAssigning(user)}>
+              <ShieldIcon />
+              Roller
+            </Button>
+          </>
+        )}
+      />
 
       {/* Dialoglar koşullu mount edilir (ve `key` alır): her açılış TAZE bir form.
           `useEffect` + `form.reset` kalıbı bilerek kullanılmadı. */}
@@ -74,44 +82,14 @@ export default function Users() {
   );
 }
 
-function UserCard({ user, onEdit, onRoles }: { user: UserDetailDto; onEdit: () => void; onRoles: () => void }) {
-  return (
-    <Card className={user.isActive ? undefined : 'opacity-60'}>
-      <CardHeader>
-        <CardTitle className='flex items-center gap-2'>
-          <UserIcon className='size-4 shrink-0' />
-          <span className='truncate'>{user.fullName}</span>
-        </CardTitle>
-        <CardDescription className='truncate'>
-          {user.userName ?? '—'} · {user.companyName}
-        </CardDescription>
-      </CardHeader>
-
-      <CardContent className='flex flex-col gap-3'>
-        {user.email && <p className='truncate text-sm text-muted-foreground'>{user.email}</p>}
-        {user.identityCardId && <p className='truncate text-xs text-muted-foreground'>Kart: {user.identityCardId}</p>}
-
-        {/* Pasif kayitlar listede GORUNUR — geri alinabilsin diye. */}
-        {!user.isActive && (
-          <div className='flex flex-wrap gap-1.5'>
-            <Badge variant='secondary'>Pasif</Badge>
-          </div>
-        )}
-
-        <div className='grid grid-cols-2 gap-2'>
-          <Button size='sm' variant='outline' onClick={onEdit}>
-            <PencilIcon />
-            Düzenle
-          </Button>
-          <Button size='sm' variant='outline' onClick={onRoles}>
-            <ShieldIcon />
-            Roller
-          </Button>
-        </div>
-      </CardContent>
-    </Card>
-  );
-}
+const COLUMNS: DataTableColumn<UserDetailDto>[] = [
+  { id: 'fullName', header: 'Ad soyad', cell: user => <span className='font-medium'>{user.fullName}</span> },
+  { id: 'userName', header: 'Kullanıcı adı', cell: user => user.userName ?? '—' },
+  { id: 'company', header: 'Firma', cell: user => user.companyName },
+  { id: 'email', header: 'E-posta', className: 'max-w-xs truncate', cell: user => user.email ?? '—' },
+  { id: 'card', header: 'Kart', cell: user => (user.identityCardId ? <span className='font-mono text-xs'>{user.identityCardId}</span> : '—') },
+  { id: 'active', header: 'Durum', cell: user => <ActiveBadge isActive={user.isActive} /> }
+];
 
 /**
  * Kart okuyucudan gelen HAM kart kimliği. Sunucu ham string karşılaştırması yapar

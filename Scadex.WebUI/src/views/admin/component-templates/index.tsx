@@ -1,23 +1,37 @@
-import { useRef, useState, type ChangeEvent } from 'react';
+import { useMemo, useRef, useState, type ChangeEvent } from 'react';
+import { useSearchParams } from 'react-router';
 import { ImageIcon, PlusIcon, XIcon } from 'lucide-react';
 import { toast } from 'sonner';
+import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Skeleton } from '@/components/ui/skeleton';
 import { Switch } from '@/components/ui/switch';
+import { DataTable, type DataTableColumn } from '@/components/custom/data-table';
 import { DeviceType, DeviceTypeLabels } from '@/models/enums';
-import type { ComponentTemplateCreateRequest, ComponentTemplatePaletteDto, TemplatePinDraft } from '@/models/componentTemplate';
+import type { ComponentTemplateCreateRequest, ComponentTemplateListItemDto, TemplatePinDraft } from '@/models/componentTemplate';
 import { componentTemplateCreateSchema } from '@/models/componentTemplate';
-import { useComponentTemplatePalette, useCreateTemplate, useUploadTemplateImage } from '@/hooks/use-component-templates';
-import { readableTextColor, safeCssColor } from '@/lib/diagram/colors';
+import { useCreateTemplate, useTemplatesByType, useTemplateTypeCounts, useUploadTemplateImage } from '@/hooks/use-component-templates';
+import { safeCssColor } from '@/lib/diagram/colors';
+import { DEVICE_TYPE_ICON, DEVICE_TYPE_ORDER } from '@/lib/diagram/device-type-icon';
+import { cn } from '@/lib/utils';
 import { aspectRatio, fitToTemplate, lockedSide, readImageSize, templateImageSrc } from '@/lib/diagram/template-image';
 import { TemplatePinEditor } from './template-pin-editor';
 
+/** `?type=` değerini doğrular; bilinmeyen/boş değer = seçim yok. */
+function parseDeviceType(raw: string | null): DeviceType | null {
+  const value = Number(raw);
+  return raw != null && DEVICE_TYPE_ORDER.includes(value as DeviceType) ? (value as DeviceType) : null;
+}
+
 /**
- * Palet yazarlığı — şablon listesi + yeni şablon formu.
+ * Palet yazarlığı — tip kartları + seçili tipin şablonları + yeni şablon formu.
+ *
+ * Tüm şablonlar tek listede GÖSTERİLMEZ: önce tip seçilir, tablo yalnızca o tipin şablonlarını
+ * listeler. Seçim `?type=` sorgu parametresindedir — yenilemede ve paylaşılan bağlantıda korunur.
+ * Tip kartlarının ikonları diyagram paletinin ağacıyla aynı haritadan gelir (`DEVICE_TYPE_ICON`).
  *
  * Şablon ve pinleri TEK istekte gider (`POST /api/ComponentTemplate`). Generic
  * CRUD ile yazmak mümkün değildi: pin eklemek şablonun önce var olmasını
@@ -27,15 +41,28 @@ import { TemplatePinEditor } from './template-pin-editor';
  * Sözleşme: `docs/api-contract/10-component-template.md`
  */
 export default function ComponentTemplates() {
-  const { data, isPending, isError, error } = useComponentTemplatePalette();
   const [isCreating, setIsCreating] = useState(false);
+  const [searchParams, setSearchParams] = useSearchParams();
+  const selectedType = parseDeviceType(searchParams.get('type'));
+
+  // İki ayrı, hafif istek: kartlar yalnızca sayıyı, tablo yalnızca seçili tipi çeker. Diyagram
+  // paletinin ucu (`/palette`) burada KULLANILMAZ — tüm şablonları pin şemalarıyla döndürür.
+  const typeCounts = useTemplateTypeCounts();
+  const templates = useTemplatesByType(selectedType);
+
+  const countByType = useMemo(() => new Map(typeCounts.data?.map(item => [item.deviceTypeId, item.count])), [typeCounts.data]);
+  const loadError = typeCounts.error ?? templates.error;
+
+  // `replace`: tip kartları arasında gezinmek geçmişi doldurmasın, "geri" önceki SAYFAYA dönsün.
+  const selectType = (type: DeviceType | null) =>
+    setSearchParams(type == null ? {} : { type: String(type) }, { replace: true });
 
   return (
     <div className='flex flex-col gap-4 p-4'>
       <div className='flex flex-wrap items-start justify-between gap-3'>
         <div>
           <h1 className='text-lg font-semibold'>Şablonlar</h1>
-          <p className='text-muted-foreground text-sm'>Paletteki bileşenler. Yeni şablon yazıp diyagramlarda kullanabilirsiniz.</p>
+          <p className='text-muted-foreground text-sm'>Paletteki bileşenler. Şablonlarını görmek için bir cihaz tipi seçin.</p>
         </div>
         {!isCreating && (
           <Button size='sm' onClick={() => setIsCreating(true)}>
@@ -45,63 +72,153 @@ export default function ComponentTemplates() {
         )}
       </div>
 
-      {isCreating && <TemplateForm onDone={() => setIsCreating(false)} />}
+      {/* Form seçili tiple açılır; oluşturulan şablonun tipi seçilir ki yeni kayıt tabloda hemen görünsün. */}
+      {isCreating && (
+        <TemplateForm
+          initialDeviceType={selectedType}
+          onDone={createdType => {
+            setIsCreating(false);
+            if (createdType != null) selectType(createdType);
+          }}
+        />
+      )}
 
-      {isError && <p className='text-destructive text-sm'>{error.message}</p>}
+      {loadError && <p className='text-destructive text-sm'>{loadError.message}</p>}
 
-      <div className='grid gap-3 sm:grid-cols-2 lg:grid-cols-3'>
-        {isPending && Array.from({ length: 6 }, (_, i) => <Skeleton key={i} className='h-24 w-full rounded-xl' />)}
-        {data?.map(template => <TemplateCard key={template.id} template={template} />)}
+      <div className='grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5'>
+        {DEVICE_TYPE_ORDER.map(type => (
+          <DeviceTypeCard
+            key={type}
+            deviceType={type}
+            // Sunucu şablonu olmayan tipi göndermez → 0.
+            count={typeCounts.isPending ? null : (countByType.get(type) ?? 0)}
+            selected={type === selectedType}
+            // Seçili karta tekrar basmak seçimi kaldırır.
+            onSelect={() => selectType(type === selectedType ? null : type)}
+          />
+        ))}
       </div>
 
-      {data?.length === 0 && !isCreating && (
-        <Card>
-          <CardContent className='text-muted-foreground py-8 text-center text-sm'>Aktif şablon yok.</CardContent>
-        </Card>
+      {selectedType == null ? (
+        <p className='text-muted-foreground rounded-xl border border-dashed py-8 text-center text-sm'>Şablonlarını görmek için yukarıdan bir cihaz tipi seçin.</p>
+      ) : (
+        <section className='flex flex-col gap-2'>
+          <h2 className='text-sm font-semibold'>{DeviceTypeLabels[selectedType]} şablonları</h2>
+          {/* Satır eylemi yok: şablonların güncelleme/silme ucu bulunmuyor, bu yüzden "İşlemler" kolonu da yok.
+              "Cihaz tipi" kolonu da yok — tablo zaten tek tipe süzülü. */}
+          <DataTable
+            columns={COLUMNS}
+            rows={templates.data}
+            getRowKey={template => template.id}
+            isLoading={templates.isPending}
+            emptyMessage='Bu tipte aktif şablon yok.'
+          />
+        </section>
       )}
     </div>
   );
 }
 
-function TemplateCard({ template }: { template: ComponentTemplatePaletteDto }) {
+function DeviceTypeCard({
+  deviceType,
+  count,
+  selected,
+  onSelect
+}: {
+  deviceType: DeviceType;
+  /** `null` = sayılar henüz yükleniyor. */
+  count: number | null;
+  selected: boolean;
+  onSelect: () => void;
+}) {
+  const Icon = DEVICE_TYPE_ICON[deviceType];
+
   return (
-    <Card>
-      <CardContent className='flex items-center gap-3 py-4'>
-        <div
-          // Kartta sablonun GERCEK en-boy orani gosteriliyor: palet ile canvas
-          // arasindaki zihinsel eslesmeyi kuran sey bu.
-          className='grid size-12 shrink-0 place-items-center rounded border text-[10px] font-semibold'
-          style={{ backgroundColor: safeCssColor(template.backgroundColor), color: readableTextColor(template.backgroundColor) }}>
-          {template.pins.length}
-        </div>
-        <div className='min-w-0'>
-          <p className='truncate text-sm font-medium'>{template.name}</p>
-          <p className='text-muted-foreground truncate text-xs'>
-            {DeviceTypeLabels[template.deviceTypeId]} · {template.width} × {template.height}
-          </p>
-        </div>
-      </CardContent>
-    </Card>
+    <button
+      type='button'
+      aria-pressed={selected}
+      onClick={onSelect}
+      className={cn(
+        'bg-card hover:bg-accent focus-visible:ring-ring flex items-center gap-3 rounded-xl p-3 text-left ring-1 ring-foreground/10 transition-colors outline-none focus-visible:ring-2',
+        selected && 'bg-accent ring-primary ring-2'
+      )}>
+      <span
+        className={cn(
+          'grid size-10 shrink-0 place-items-center rounded-lg transition-colors',
+          selected ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground'
+        )}>
+        <Icon className='size-5' />
+      </span>
+      <span className='min-w-0'>
+        <span className='block truncate text-sm font-medium'>{DeviceTypeLabels[deviceType]}</span>
+        <span className='text-muted-foreground block text-xs'>{count == null ? '…' : count === 0 ? 'Şablon yok' : `${count} şablon`}</span>
+      </span>
+    </button>
+  );
+}
+
+const COLUMNS: DataTableColumn<ComponentTemplateListItemDto>[] = [
+  {
+    id: 'name',
+    header: 'Şablon',
+    cell: template => (
+      <div className='flex items-center gap-3'>
+        <TemplatePreview template={template} />
+        <span className='font-medium'>{template.name}</span>
+        {template.isSystemTemplate && <Badge variant='outline'>Sistem</Badge>}
+      </div>
+    )
+  },
+  { id: 'size', header: 'Boyut', cell: template => `${template.width} × ${template.height}` },
+  { id: 'pins', header: 'Pin', className: 'text-right tabular-nums', cell: template => template.pinCount },
+  {
+    id: 'monitorable',
+    header: 'Ağ izlemesi',
+    cell: template => (template.isMonitorable ? <Badge variant='outline'>Açılabilir</Badge> : <span className='text-muted-foreground'>—</span>)
+  }
+];
+
+/** Ön izleme kutusunun sınırı (px). Şablon bu kutuya ORANI korunarak sığdırılır. */
+const PREVIEW_MAX_WIDTH = 64;
+const PREVIEW_MAX_HEIGHT = 40;
+
+/**
+ * Şablonun tuvaldeki görünümünün küçültülmüş hâli — yalnızca görsel: pin çizilmez, etkileşim yok.
+ *
+ * Kutu şablonun `width × height` oranındadır; görsel `object-fill` ile basılır (tuvaldeki
+ * `TemplateNode` ile aynı gerekçe: oran görsele kilitli, germe olmaz). Görseli olmayan şablonda
+ * yalnızca arka plan rengi görünür.
+ */
+function TemplatePreview({ template }: { template: ComponentTemplateListItemDto }) {
+  const imageSrc = templateImageSrc(template.backgroundImageUrl);
+  const ratio = aspectRatio(template);
+  const fitsByWidth = ratio >= PREVIEW_MAX_WIDTH / PREVIEW_MAX_HEIGHT;
+  const width = fitsByWidth ? PREVIEW_MAX_WIDTH : Math.max(Math.round(PREVIEW_MAX_HEIGHT * ratio), 4);
+  const height = fitsByWidth ? Math.max(Math.round(PREVIEW_MAX_WIDTH / ratio), 4) : PREVIEW_MAX_HEIGHT;
+
+  return (
+    // Sabit genişlikli yuva: oranı farklı şablonlarda adlar aynı hizadan başlasın.
+    <span className='grid shrink-0 place-items-center' style={{ width: PREVIEW_MAX_WIDTH, height: PREVIEW_MAX_HEIGHT }}>
+      <span
+        className='relative overflow-hidden rounded-sm border shadow-xs'
+        style={{ width, height, backgroundColor: safeCssColor(template.backgroundColor) }}>
+        {imageSrc && (
+          <img
+            src={imageSrc}
+            alt=''
+            aria-hidden
+            loading='lazy'
+            decoding='async'
+            draggable={false}
+            className='pointer-events-none absolute inset-0 size-full object-fill select-none'
+          />
+        )}
+      </span>
+    </span>
   );
 }
 
 // ─────────────────────────────────────────────────────────── yeni şablon
-
-const DEVICE_TYPES: DeviceType[] = [
-  DeviceType.ControlModule,
-  DeviceType.InputModule,
-  DeviceType.OutputModule,
-  DeviceType.LedModule,
-  DeviceType.TerminalBlock,
-  DeviceType.Sensor,
-  DeviceType.Peripheral,
-  DeviceType.PowerSupply,
-  DeviceType.MeasurementDevice,
-  DeviceType.CardReader,
-  DeviceType.Mains,
-  DeviceType.CircuitBreaker,
-  DeviceType.Pc
-];
 
 const DEFAULT_DRAFT = {
   name: '',
@@ -117,8 +234,15 @@ const DEFAULT_DRAFT = {
 /** Dosya seçicinin kabul ettikleri — sunucudaki beyaz listeyle aynı. */
 const ACCEPTED_IMAGE_TYPES = '.png,.jpg,.jpeg,.webp,.svg';
 
-function TemplateForm({ onDone }: { onDone: () => void }) {
-  const [draft, setDraft] = useState(DEFAULT_DRAFT);
+function TemplateForm({
+  initialDeviceType,
+  onDone
+}: {
+  initialDeviceType: DeviceType | null;
+  /** Vazgeçilince argümansız, oluşturulunca şablonun tipiyle çağrılır. */
+  onDone: (createdType?: DeviceType) => void;
+}) {
+  const [draft, setDraft] = useState(() => ({ ...DEFAULT_DRAFT, deviceTypeId: initialDeviceType ?? DEFAULT_DRAFT.deviceTypeId }));
   const [selectedPin, setSelectedPin] = useState<number | null>(null);
   const [issue, setIssue] = useState<string | null>(null);
   /**
@@ -194,7 +318,7 @@ function TemplateForm({ onDone }: { onDone: () => void }) {
         setDraft(DEFAULT_DRAFT);
         setSelectedPin(null);
         setRatio(null);
-        onDone();
+        onDone(parsed.data.deviceTypeId as DeviceType);
       }
     });
   }
@@ -213,7 +337,7 @@ function TemplateForm({ onDone }: { onDone: () => void }) {
                 <SelectValue>{DeviceTypeLabels[draft.deviceTypeId as DeviceType]}</SelectValue>
               </SelectTrigger>
               <SelectContent>
-                {DEVICE_TYPES.map(type => (
+                {DEVICE_TYPE_ORDER.map(type => (
                   <SelectItem key={type} value={type}>
                     {DeviceTypeLabels[type]}
                   </SelectItem>
@@ -318,7 +442,7 @@ function TemplateForm({ onDone }: { onDone: () => void }) {
         {issue && <p className='text-destructive text-xs'>{issue}</p>}
 
         <div className='flex justify-end gap-2 border-t pt-4'>
-          <Button size='sm' variant='outline' onClick={onDone} disabled={mutation.isPending}>
+          <Button size='sm' variant='outline' onClick={() => onDone()} disabled={mutation.isPending}>
             Vazgeç
           </Button>
           <Button size='sm' onClick={submit} disabled={mutation.isPending}>

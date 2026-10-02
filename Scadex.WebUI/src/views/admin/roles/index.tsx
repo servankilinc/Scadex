@@ -1,16 +1,16 @@
 import { useState } from 'react';
 import { Controller, useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { KeyRoundIcon, PencilIcon, PlusIcon, ShieldIcon } from 'lucide-react';
+import { KeyRoundIcon, PencilIcon, PlusIcon } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Field, FieldDescription, FieldError, FieldGroup, FieldLabel } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Switch } from '@/components/ui/switch';
+import { ActiveBadge, DataTable, type DataTableColumn } from '@/components/custom/data-table';
 import { handleFormApiError } from '@/lib/axios-helper';
 import type { PermissionDto } from '@/models/permission';
 import { roleCreateRequestSchema, roleUpdateRequestSchema, type RoleCreateRequest, type RoleDto, type RoleUpdateRequest } from '@/models/role';
@@ -49,18 +49,27 @@ export default function Roles() {
 
       {isError && <p className='text-sm text-destructive'>{error.message}</p>}
 
-      <div className='grid gap-3 sm:grid-cols-2 lg:grid-cols-3'>
-        {isPending && Array.from({ length: 4 }, (_, i) => <Skeleton key={i} className='h-32 w-full rounded-xl' />)}
-        {data?.map(role => (
-          <RoleCard key={role.id} role={role} onEdit={() => setEditing(role)} onPermissions={() => setGranting(role)} />
-        ))}
-      </div>
-
-      {data?.length === 0 && (
-        <Card>
-          <CardContent className='py-8 text-center text-sm text-muted-foreground'>Henüz rol yok.</CardContent>
-        </Card>
-      )}
+      <DataTable
+        columns={COLUMNS}
+        rows={data}
+        getRowKey={role => role.id}
+        isLoading={isPending}
+        isRowMuted={role => !role.isActive}
+        emptyMessage='Henüz rol yok.'
+        actions={role => (
+          <>
+            {/* Sistem rolünün adı ve aktifliği kilitli — sunucu 403 döner. */}
+            <Button size='sm' variant='outline' onClick={() => setEditing(role)} disabled={role.isImmutable}>
+              <PencilIcon />
+              Düzenle
+            </Button>
+            <Button size='sm' variant='outline' onClick={() => setGranting(role)}>
+              <KeyRoundIcon />
+              İzinler
+            </Button>
+          </>
+        )}
+      />
 
       {/* Dialoglar koşullu mount edilir (ve `key` alır): her açılış TAZE bir form. */}
       {isCreating && <RoleCreateDialog onClose={() => setIsCreating(false)} />}
@@ -70,40 +79,15 @@ export default function Roles() {
   );
 }
 
-function RoleCard({ role, onEdit, onPermissions }: { role: RoleDto; onEdit: () => void; onPermissions: () => void }) {
-  return (
-    <Card className={role.isActive ? undefined : 'opacity-60'}>
-      <CardHeader>
-        <CardTitle className='flex items-center gap-2'>
-          <ShieldIcon className='size-4 shrink-0' />
-          <span className='truncate'>{role.name}</span>
-        </CardTitle>
-      </CardHeader>
-
-      <CardContent className='flex flex-col gap-3'>
-        {(role.isImmutable || !role.isActive) && (
-          <div className='flex flex-wrap gap-1.5'>
-            {role.isImmutable && <Badge variant='outline'>Sistem rolü</Badge>}
-            {/* Pasif kayitlar listede GORUNUR — geri alinabilsin diye. */}
-            {!role.isActive && <Badge variant='secondary'>Pasif</Badge>}
-          </div>
-        )}
-
-        <div className='grid grid-cols-2 gap-2'>
-          {/* Sistem rolünün adı ve aktifliği kilitli — sunucu 403 döner. */}
-          <Button size='sm' variant='outline' onClick={onEdit} disabled={role.isImmutable}>
-            <PencilIcon />
-            Düzenle
-          </Button>
-          <Button size='sm' variant='outline' onClick={onPermissions}>
-            <KeyRoundIcon />
-            İzinler
-          </Button>
-        </div>
-      </CardContent>
-    </Card>
-  );
-}
+const COLUMNS: DataTableColumn<RoleDto>[] = [
+  { id: 'name', header: 'Rol', cell: role => <span className='font-medium'>{role.name}</span> },
+  {
+    id: 'kind',
+    header: 'Tür',
+    cell: role => (role.isImmutable ? <Badge variant='outline'>Sistem rolü</Badge> : <span className='text-muted-foreground'>Özel</span>)
+  },
+  { id: 'active', header: 'Durum', cell: role => <ActiveBadge isActive={role.isActive} /> }
+];
 
 // ─────────────────────────────────────────────────────────── yeni rol
 

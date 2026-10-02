@@ -28,7 +28,12 @@ import { ScreenStreamStateLabels, type PcDetailDto, type PcMonitorDto } from '..
 /** Tarayıcının yakalayamadığı tuşlar (işletim sistemi/tarayıcı önce alır) — `KeyboardEvent.code` dizileri. Ctrl+Alt+Del gönderilemez. */
 const COMBOS: { label: string; codes: string[] }[] = [
   { label: 'Win', codes: ['MetaLeft'] },
+  { label: 'Win+R', codes: ['MetaLeft', 'KeyR'] },
+  { label: 'Win+D', codes: ['MetaLeft', 'KeyD'] },
+  { label: 'Win+E', codes: ['MetaLeft', 'KeyE'] },
   { label: 'Alt+Tab', codes: ['AltLeft', 'Tab'] },
+  { label: 'Alt+F4', codes: ['AltLeft', 'F4'] },
+  { label: 'Ctrl+Esc', codes: ['ControlLeft', 'Escape'] },
   { label: 'Ctrl+Shift+Esc', codes: ['ControlLeft', 'ShiftLeft', 'Escape'] }
 ];
 

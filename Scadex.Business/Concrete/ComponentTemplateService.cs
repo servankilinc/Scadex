@@ -131,6 +131,50 @@ public partial class ComponentTemplateService : IComponentTemplateService
         return Result<ICollection<ComponentTemplatePaletteDto>>.Success(templates ?? []);
     }
 
+    public async Task<Result<ICollection<ComponentTemplateTypeCountDto>>> GetTypeCountsAsync(CancellationToken cancellationToken = default)
+    {
+        // Yalnızca tip kolonu okunur ve bellekte gruplanır: şablon kütüphanesi küçüktür ve
+        // RepositoryBase GroupBy sunmuyor — bunun için repository'ye özel metot açmaya değmez.
+        var deviceTypeIds = await _unitOfWork.ComponentTemplates.GetAllAsync(
+            select: t => t.DeviceTypeId,
+            where: t => t.IsActive,
+            cancellationToken: cancellationToken
+        );
+
+        var counts = (deviceTypeIds ?? [])
+            .GroupBy(id => id)
+            .Select(g => new ComponentTemplateTypeCountDto { DeviceTypeId = g.Key, Count = g.Count() })
+            .OrderBy(c => c.DeviceTypeId)
+            .ToList();
+
+        return Result<ICollection<ComponentTemplateTypeCountDto>>.Success(counts);
+    }
+
+    public async Task<Result<ICollection<ComponentTemplateListItemDto>>> GetListByDeviceTypeAsync(int deviceTypeId, CancellationToken cancellationToken = default)
+    {
+        var templates = await _unitOfWork.ComponentTemplates.GetAllAsync(
+            select: t => new ComponentTemplateListItemDto
+            {
+                Id = t.Id,
+                Name = t.Name,
+                DeviceTypeId = t.DeviceTypeId,
+                IsSystemTemplate = t.IsSystemTemplate,
+                Width = t.Width,
+                Height = t.Height,
+                BackgroundColor = t.BackgroundColor,
+                BackgroundImageUrl = t.BackgroundImageUrl,
+                IsMonitorable = t.IsMonitorable,
+                // SQL'de alt sorgu COUNT'u olur; pin satırları istemciye taşınmaz.
+                PinCount = t.ComponentTemplatePins!.Count
+            },
+            where: t => t.IsActive && t.DeviceTypeId == deviceTypeId,
+            orderBy: q => q.OrderBy(t => t.Name),
+            cancellationToken: cancellationToken
+        );
+
+        return Result<ICollection<ComponentTemplateListItemDto>>.Success(templates ?? []);
+    }
+
     /// <summary> ComponentTemplate + ComponentTemplatePin'leri TEK transaction'da olusturur. </summary>
     public async Task<Result<CreatedDto>> CreateAsync(ComponentTemplateCreateRequest request, CancellationToken cancellationToken = default)
     {
