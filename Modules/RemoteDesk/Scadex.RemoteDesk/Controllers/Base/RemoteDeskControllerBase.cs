@@ -8,10 +8,12 @@ namespace Scadex.RemoteDesk.Controllers.Base;
 
 /// <summary>
 /// TODO: Modül enpointlerine rate limitting açılacak
-/// <para/>Tüm uçlar <c>RemotePcView</c> iznini ister (yoksa 403). PC istemcisi bu controller'ları değil <c>PcHub</c>'ı kullanır (anonim).
+/// <para/>Taban yalnızca kimlik ister; izin policy'si her controller'da ayrıca verilir: izleme uçları <c>RemotePcView</c>,
+/// rapor uçları <c>RemotePcAudit</c>. Policy tabanda OLMAMALI — ASP.NET <c>[Authorize]</c>'ları VE ile birleştirir, rapor da
+/// izleme iznini isterdi. PC istemcisi bu controller'ları değil <c>PcHub</c>'ı kullanır (anonim).
 /// </summary>
 [ApiController]
-[Authorize(Policy = RemoteDeskModule.ViewPolicy)]
+[Authorize]
 [Route("api/RemoteDesk")]
 public abstract class RemoteDeskControllerBase : ControllerBase
 {

@@ -484,6 +484,13 @@ public class AppDbContext : IdentityDbContext<User, Role, Guid>
                 Code = nameof(EntityEnums.Permission.RemotePcControl),
                 DisplayName = "PC'yi uzaktan kontrol et",
                 Category = "RemoteDesk"
+            },
+            new Permission
+            {
+                Id = (int)EntityEnums.Permission.RemotePcAudit,
+                Code = nameof(EntityEnums.Permission.RemotePcAudit),
+                DisplayName = "PC izleme raporunu gor",
+                Category = "RemoteDesk"
             }
         );
         #endregion
@@ -565,6 +572,11 @@ public class AppDbContext : IdentityDbContext<User, Role, Guid>
             {
                 RoleId = new Guid("7138ec51-4f9e-4afd-b61b-5a9a4584f5da"),
                 PermissionId = (int)EntityEnums.Permission.RemotePcControl
+            },
+            new RolePermission
+            {
+                RoleId = new Guid("7138ec51-4f9e-4afd-b61b-5a9a4584f5da"),
+                PermissionId = (int)EntityEnums.Permission.RemotePcAudit
             }
         );
         #endregion

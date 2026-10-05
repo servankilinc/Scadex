@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Logging;
 using Scadex.RemoteDesk.Controllers.Base;
@@ -6,6 +7,7 @@ using Scadex.RemoteDesk.Services.Abstract;
 namespace Scadex.RemoteDesk.Controllers;
 
 /// <summary> İzlenebilir PC'ler. </summary>
+[Authorize(Policy = RemoteDeskModule.ViewPolicy)]
 public class PcController : RemoteDeskControllerBase
 {
     private readonly IPcDirectoryService _service;

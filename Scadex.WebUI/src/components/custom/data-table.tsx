@@ -1,5 +1,7 @@
 import type { ReactNode } from 'react';
+import { ChevronLeftIcon, ChevronRightIcon } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { cn } from '@/lib/utils';
@@ -101,6 +103,42 @@ export function DataTable<T>({
             ))}
         </TableBody>
       </Table>
+    </div>
+  );
+}
+
+/**
+ * Sunucu sayfalı tablonun alt şeridi: kayıt sayısı + önceki/sonraki. Alanlar sunucunun `PaginationResponse`'u ile aynı adlıdır,
+ * yanıt doğrudan verilebilir. Tek sayfada düğmeler gizlenir.
+ */
+export function DataTablePager({
+  pagination,
+  onPageChange
+}: {
+  pagination: { page: number; pageCount: number; dataCount: number; hasPrevious: boolean; hasNext: boolean };
+  onPageChange: (page: number) => void;
+}) {
+  const { page, pageCount, dataCount, hasPrevious, hasNext } = pagination;
+
+  return (
+    <div className='flex flex-wrap items-center justify-between gap-2 text-sm text-muted-foreground'>
+      <span>
+        {dataCount} kayıt
+        {pageCount > 1 && ` · sayfa ${page}/${pageCount}`}
+      </span>
+
+      {pageCount > 1 && (
+        <div className='flex items-center gap-2'>
+          <Button size='sm' variant='outline' disabled={!hasPrevious} onClick={() => onPageChange(page - 1)}>
+            <ChevronLeftIcon />
+            Önceki
+          </Button>
+          <Button size='sm' variant='outline' disabled={!hasNext} onClick={() => onPageChange(page + 1)}>
+            Sonraki
+            <ChevronRightIcon />
+          </Button>
+        </div>
+      )}
     </div>
   );
 }

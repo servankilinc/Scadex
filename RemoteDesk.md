@@ -570,7 +570,7 @@ değişikliği yoktur.
 
 ### 10.5 Uç noktalar (kullanıcı JWT'si)
 
-Hepsi `RemotePcView` iznini ister; izin yoksa 403 ([§ 11](#11-güvenlik-özeti)).
+İzleme uçları `RemotePcView`, rapor uçları `RemotePcAudit` iznini ister; izin yoksa 403 ([§ 11](#11-güvenlik-özeti)).
 
 | Uç | İş |
 |---|---|
@@ -578,6 +578,12 @@ Hepsi `RemotePcView` iznini ister; izin yoksa 403 ([§ 11](#11-güvenlik-özeti)
 | `GET /api/RemoteDesk/pcs/{deviceId}` | Aynısı + monitör listesi ve her monitörün yayın durumu |
 | `POST /api/RemoteDesk/pcs/{deviceId}/monitors/{index}/view` | İzlemeyi başlat ([§ 8.2](#82-başlatma)) |
 | `POST /api/RemoteDesk/views/{viewId}/renew` · `DELETE /api/RemoteDesk/views/{viewId}` | Kiralama |
+| `GET /api/RemoteDesk/reports/filters` | *(Audit)* Denetim tablolarında geçen PC'ler ve kullanıcılar (silinmiş/pasif dahil) |
+| `POST /api/RemoteDesk/reports/views` · `…/controls` | *(Audit)* `ScreenViewLog` / `RemoteControlSession`, sayfalı, yeniden eskiye; gövde `{ deviceId?, userId?, fromUtc?, toUtc?, page, pageSize ≤ 100 }`, tarih aralığı kaydın başlangıcına |
+| `POST /api/RemoteDesk/reports/summary` | *(Audit)* Aynı filtreyle oturum sayıları, toplam süreler, en çok izlenen PC, en çok izleyen kullanıcı |
+
+Rapor fare/klavye girdisi göstermez: girdi zaten saklanmıyor, `RemoteControlSession.InputEventCount` da raporda bilerek yok
+(kullanıcı kararı, 2026-10-05). Adlar çekirdekten projeksiyonla çözülür; çekirdekte artık olmayan kimlik `null` ad ile listelenir.
 
 Kurallar: `Result<T>` → çıplak DTO, hatalar ProblemDetails; controller'lar modülün temel sınıfından türer
 (`SignalizationControllerBase` kalıbı); rate limit takılmaz (modül kararı); hiçbir metot `companyId` almaz;
@@ -594,6 +600,9 @@ C# DTO değişince TS aynası elle güncellenir.
 - **PC yayınında alıcıya `receiver.jitterBufferTarget = 0`** verilir (Chrome): Faz 1'de jitter buffer'ı
   106 ms'den 55 ms'ye indirdi. Bu, `whep.ts`'e isteğe bağlı bir seçenek olarak eklenir; **kamera akışının
   varsayılanı değişmez** (kamera ağında titreme daha fazla, tampon orada işe yarıyor).
+- **İzleme Raporu** (`/remote-desk/reports`, ayrı menü maddesi, `RemotePcAudit`): PC / kullanıcı / tarih filtresi (URL'de),
+  dört özet kartı, "İzleme kayıtları" ve "Kontrol kayıtları" sekmeleri (ortak `DataTable` + `DataTablePager`). PC ekranındaki
+  "Kayıtlar" düğmesi raporu `?deviceId=` ile süzülü açar. İzin rotada çocuk başınadır: yalnızca rapor izni olan kullanıcı PC listesine düşmez.
 - Sorgu anahtarları `['remoteDesk', …]`; sunucu damgaları için `toUtcDate` / `formatUtcDateTime`.
 
 ---
@@ -616,6 +625,11 @@ C# DTO değişince TS aynası elle güncellenir.
 >
 > **Uzaktan kontrol ayrı izindir (Faz 8):** `RemotePcControl = 11` (Admin'e seed). Viewer hub'ı (`/hubs/remote-desk/viewer`) bu izni
 > ister — izinsiz kullanıcı bağlanamaz (negotiate 403). Kontrol için izlemek de gerekir (`RemotePcView` + canlı kiralama).
+>
+> **Denetim raporu ayrı izindir (2026-10-05):** `RemotePcAudit = 12` (Admin'e seed, `RemoteDeskModule.AuditPolicy`). İzleyen operatör
+> başkalarının izleme geçmişini görmez. Policy bu yüzden **controller başınadır**: `RemoteDeskControllerBase` yalnızca kimlik ister,
+> `PcController`/`ViewController` `ViewPolicy`, `ReportController` `AuditPolicy` taşır — tabana policy koymayın, `[Authorize]`'lar
+> VE ile birleşir ve rapor izleme iznini de isterdi.
 
 ---
 
@@ -922,6 +936,7 @@ Aynı makine; publish edilmiş (Release, self-contained) istemci `--tray` ile, p
 | 2026-09-29 | Faz 3: `PcHub` anonim; `Hello` normalize MAC ile aktif Pc cihazlarını eşler, tek eşleşme kabul, cihaz başına ilk bağlanan kazanır; bağlantı kaydı bellekte. İstemci SignalR'ın otomatik yeniden bağlanmasını kullanmaz (her bağlantı `Hello` ile yeniden eşlenmeli); geri çekilme 1/2/5/10/30 sn, reddedilince 60 sn. Pencere kapatmak System Trayye indirir; `--tray` argümanı pencereyi açmadan başlatır (oturum açma görevi için). |
 | 2026-09-30 | **İstemcide test yayını kaldırıldı** ("Test yayını başlat", "Durdur", "yalnızca kodla" hedefi, `TestPublishUrl`): yayın yalnızca merkezin komutuyla. Sınama ve tercih monitör kartlarından ayrı bir "Encoder" kutucuğunda (tüm monitörler birlikte sınanır); monitör kartlarında yayın durumu salt okunur kalır. Arayüzde "kodlayıcı" yerine "encoder". |
 | 2026-09-30 | **Kodlayıcı tercihi PC başına ve bellekte** (kullanıcı kararı): "Tercih et" rozetini ve tüm yayınları (merkez dahil) değiştirir, çalışmadığı monitörde otomatik seçim; tercih değişince yayın merkez oturumu kapanmadan yeniden başlar. Eski "Bu adayla yayınla" kaldırıldı: merkez yayınını durdurup test yayını açıyordu. Aynı işte yakalanan hata: `StreamSession.StopAsync` önce iptal ettiği için FFmpeg sahipsiz kalabiliyordu → önce nazik durdurma, sonra iptal. |
+| 2026-10-05 | **İzleme Raporu** (§ 10.5/§ 10.6/§ 11): yeni izin `RemotePcAudit` (kullanıcı kararı — izleme izninden ayrı); `ScreenViewLog` ve `RemoteControlSession` sayfalı listelenir, özet kartları ve PC ekranından bağlantı var. Girdi sayısı raporda gösterilmez (kullanıcı kararı). Taban controller'dan policy kaldırıldı, controller başına verildi. CSV dışa aktarım yok. |
 | 2026-10-01 | **UIPI çözümü** (§ 12.6): yönetici pencerelerine (Görev Yöneticisi) kontrol için istemci yükseltilmiş çalışır — Görev Zamanlayıcı "en yüksek ayrıcalıkla" oturum-açılışı görevi (`Deploy/Install-StartupTask.ps1`, UAC sormaz). `requireAdministrator` ve `uiAccess` elendi (biri UAC sorar, biri imza ister). Yetki başlangıç günlüğüne yazılır (`ProcessElevation`). |
 | 2026-10-01 | **Monitörler kendiliğinden yenilenir** (§ 9.1/§ 9.3): istemci `SessionSwitch` (RDP/konsol geçişi) + 12 sn'lik uzlaştırmayla monitör listesini merkeze yalnızca değişince bildirir. RDP ile ayarlayıp ayrılınca fiziksel monitörlere dönüş elle "yenile" gerekmeden yansır. |
 | 2026-10-01 | **Faz 9 — klavye** (§ 12.7): tuş `KeyboardEvent.code` ile gider, PC scan code ile basar (karakteri PC'nin düzeni belirler; tablo Contracts'ta, sunucu tablodışı kodu atar). Tarayıcının yakalayamadığı tuşlar için düğmeler + tam ekranda Keyboard Lock; Ctrl+Alt+Del bilerek yok. Takılı tuş emniyeti düğmelerle aynı kural (5 sn). |

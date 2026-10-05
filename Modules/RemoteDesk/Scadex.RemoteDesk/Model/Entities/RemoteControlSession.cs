@@ -8,7 +8,7 @@ namespace Scadex.RemoteDesk.Model.Entities;
 /// Canlı durum bellektedir (<c>RemoteControlCoordinator</c>); bu satır yalnızca denetim içindir. Girdinin kendisi (tıklama/konum) KAYDEDİLMEZ,
 /// yalnızca sayısı. Saklama/temizlik işi yoktur.
 /// </summary>
-public class RemoteControlSession : IEntity
+public class RemoteControlSession : IEntity, IRemoteAccessRecord
 {
     /// <summary> Tarayıcıya ve PC'ye giden <c>controlSessionId</c>. </summary>
     public Guid Id { get; set; }

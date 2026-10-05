@@ -34,6 +34,9 @@ public static class RemoteDeskModule
 
     /// <summary> Uzaktan kontrol izni (<c>Permission.RemotePcControl</c>) — viewer hub'ı ister. İzlemeden ayrıdır; kontrol için izlemek de gerekir. </summary>
     public const string ControlPolicy = nameof(Permission.RemotePcControl);
+
+    /// <summary> Denetim raporu izni (<c>Permission.RemotePcAudit</c>) — rapor endpointleri için. İzlemeden ayrıdır: izleyen operatör başkalarının geçmişini görmez. </summary>
+    public const string AuditPolicy = nameof(Permission.RemotePcAudit);
 }
 
 public static class ServiceRegistration
@@ -87,7 +90,8 @@ public static class ServiceRegistration
         // Policy modülün kaydında tanımlanır: modül kapalıyken controller'lar da çıkarıldığı için tanımsız policy'ye çarpan uç kalmaz.
         services.AddAuthorizationBuilder()
             .AddPolicy(RemoteDeskModule.ViewPolicy, policy => policy.RequireClaim(AppClaimTypes.Permission, RemoteDeskModule.ViewPolicy))
-            .AddPolicy(RemoteDeskModule.ControlPolicy, policy => policy.RequireClaim(AppClaimTypes.Permission, RemoteDeskModule.ControlPolicy));
+            .AddPolicy(RemoteDeskModule.ControlPolicy, policy => policy.RequireClaim(AppClaimTypes.Permission, RemoteDeskModule.ControlPolicy))
+            .AddPolicy(RemoteDeskModule.AuditPolicy, policy => policy.RequireClaim(AppClaimTypes.Permission, RemoteDeskModule.AuditPolicy));
         #endregion
 
         #region DB CONTEXT
@@ -121,6 +125,11 @@ public static class ServiceRegistration
         // Kontrol eden kullanıcı bellekte (PC başına tek); DB yalnızca denetim. Süpürmesi ScreenStreamWorker'dadır.
         services.AddSingleton<RemoteControlStore>();
         services.AddSingleton<RemoteControlCoordinator>();
+        #endregion
+
+        #region RAPOR
+        // Denetim tablolarını (ScreenViewLog, RemoteControlSession) okur; adlar çekirdekten projeksiyonla çözülür.
+        services.AddScoped<IRemoteAccessReportService, RemoteAccessReportService>();
         #endregion
 
         #region SERVISLER

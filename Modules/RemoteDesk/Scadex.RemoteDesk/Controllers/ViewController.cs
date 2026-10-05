@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Logging;
 using Scadex.RemoteDesk.Controllers.Base;
@@ -6,6 +7,7 @@ using Scadex.RemoteDesk.Services.Abstract;
 namespace Scadex.RemoteDesk.Controllers;
 
 /// <summary> Ekran izleme: başlat, kiralamayı yenile, bırak. </summary>
+[Authorize(Policy = RemoteDeskModule.ViewPolicy)]
 public class ViewController : RemoteDeskControllerBase
 {
     private readonly IScreenViewService _service;

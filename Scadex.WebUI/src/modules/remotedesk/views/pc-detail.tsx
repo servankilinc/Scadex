@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Link, useParams } from 'react-router';
 import { useQueryClient } from '@tanstack/react-query';
-import { ArrowLeftIcon, EyeIcon, LoaderIcon, MaximizeIcon, MonitorIcon, MonitorOffIcon, MousePointerClickIcon, VideoOffIcon } from 'lucide-react';
+import { ArrowLeftIcon, ClipboardListIcon, EyeIcon, LoaderIcon, MaximizeIcon, MonitorIcon, MonitorOffIcon, MousePointerClickIcon, VideoOffIcon } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -42,6 +42,7 @@ type KeyboardLock = { lock?: (codes?: string[]) => Promise<void>; unlock?: () =>
 const keyboardLock = () => (navigator as Navigator & { keyboard?: KeyboardLock }).keyboard;
 
 const CONTROL_PERMISSION: keyof typeof Permission = 'RemotePcControl';
+const AUDIT_PERMISSION: keyof typeof Permission = 'RemotePcAudit';
 export default function RemoteDeskPcDetail() {
   const { deviceId } = useParams();
   const pc = usePc(deviceId);
@@ -81,6 +82,8 @@ export default function RemoteDeskPcDetail() {
 }
 
 function PcHeader({ pc }: { pc: PcDetailDto }) {
+  const can = usePermission();
+
   return (
     <div className='flex flex-wrap items-start justify-between gap-3'>
       <div className='flex items-start gap-3'>
@@ -115,6 +118,13 @@ function PcHeader({ pc }: { pc: PcDetailDto }) {
             <EyeIcon />
             Bu PC'yi şu an {pc.viewerCount} izleyici izliyor
           </Badge>
+        )}
+        {/* Rapor ayrı izindir: izleyen herkes bu PC'nin geçmişini görmez. */}
+        {can(AUDIT_PERMISSION) && (
+          <Button size='sm' variant='outline' nativeButton={false} render={<Link to={`/remote-desk/reports?deviceId=${pc.deviceId}`} />}>
+            <ClipboardListIcon />
+            Kayıtlar
+          </Button>
         )}
       </div>
     </div>

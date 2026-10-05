@@ -292,6 +292,9 @@ public static class EntityEnums
         RemotePcView = 10,
 
         /// <summary> PC'yi uzaktan kontrol edebilir (fare, klavye) — RemoteDesk modülü için </summary>
-        RemotePcControl = 11
+        RemotePcControl = 11,
+
+        /// <summary> PC izleme/kontrol denetim raporunu görebilir (kim, hangi PC'yi, ne zaman) — RemoteDesk modülü için </summary>
+        RemotePcAudit = 12
     }
 }

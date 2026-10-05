@@ -157,6 +157,9 @@ durur. Ayrıntı: PROJECT_OVERVIEW.md § 10.
   bilerek yoktur (gösterge + `ScreenViewLog`). **Modülün HTTP uçları `RemotePcView` iznini ister** (projede zorlanan ilk izin,
   aşağıdaki "yetki zorlaması yok" kuralının tek istisnası): policy modülün kaydında (`RemoteDeskModule.ViewPolicy`), izin kodu
   `Permission.RemotePcView` adıyla aynı — enum'u yeniden adlandırmayın. `PcHub` anonim kalır.
+  **Denetim raporu (`/remote-desk/reports`, 2026-10-05) ayrı izindir: `RemotePcAudit`** (`RemoteDeskModule.AuditPolicy`) — izleyen
+  operatör başkalarının geçmişini görmesin diye. Policy bu yüzden **controller başınadır**, `RemoteDeskControllerBase` yalnızca kimlik ister:
+  tabana policy koymayın (`[Authorize]`'lar VE ile birleşir, rapor izleme iznini de isterdi). Raporda girdi sayısı bilerek yok.
   **Uzaktan kontrol (fare Faz 8, klavye Faz 9) ayrı izindir: `RemotePcControl`** — `/hubs/remote-desk/viewer` bu policy ile korunur
   (`RemoteDeskModule.ControlPolicy`). Kontrol PC başına tek kullanıcıdadır ve yalnızca o PC'yi **izleyene** verilir (canlı kiralama;
   izleme biterse kontrol süpürmede düşer) — bu bağı gevşetmeyin, görmeden tıklamak demektir. Girdi sunucuda saklanmaz/sıraya alınmaz,
@@ -411,7 +414,7 @@ Bir şeyin çalıştığını varsaymadan önce doğrulayın:
 
 PROJECT_OVERVIEW.md §7'deki **bilinçli boşluklar** unutulmuş değil, sıraya alınmıştır. Talep
 edilmeden bunlara girmeyin: yetki zorlaması yok (`permission` claim'i üretilir ama okunmaz; tek istisna RemoteDesk'in
-`RemotePcView` policy'si, 2026-09-30),
+`RemotePcView` / `RemotePcControl` / `RemotePcAudit` policy'leri, 2026-09-30 / 2026-10-05),
 kiracı izolasyonu yok, SCADA komutlarında retry/kuyruk yok (tekrarlanan röle darbesi başarısız
 komuttan kötüdür), kamera parolası düz metin saklanır, saklama/temizlik işleri yok,
 `ChannelEvent` bir değişim günlüğüdür — zaman serisi değildir.

@@ -2,7 +2,15 @@
  * RemoteDesk modülünün uçları (`api/RemoteDesk/...`). Backend'de `Modules:RemoteDesk:Enabled` kapalıysa HEPSİ 404 döner.
  */
 import http from '@/lib/axios-helper';
+import type { PaginationResponse } from '@/models/channelEvent';
 import type { PcDetailDto, PcListItemDto, ScreenViewDto } from '../models/pc';
+import type {
+  RemoteAccessFilterOptionsDto,
+  RemoteAccessReportQuery,
+  RemoteAccessSummaryDto,
+  RemoteControlReportItemDto,
+  ScreenViewReportItemDto
+} from '../models/report';
 
 const ROUTE = '/api/RemoteDesk';
 
@@ -30,4 +38,24 @@ export async function renewScreenView(viewId: string): Promise<void> {
 /** Bilinmeyen kiralamada da 200. */
 export async function releaseScreenView(viewId: string): Promise<void> {
   return http.delete(`${ROUTE}/views/${viewId}`);
+}
+
+// ─────────────────────────────────────────────────────────── denetim raporu (`RemotePcAudit`, yoksa 403)
+
+export async function getReportFilters(): Promise<RemoteAccessFilterOptionsDto> {
+  return http.get<RemoteAccessFilterOptionsDto>(`${ROUTE}/reports/filters`);
+}
+
+/** Listeler gövdeli POST'tur (Olay Geçmişi gibi): tarih süzgeci JSON'da UTC taşınır. */
+export async function getViewReport(query: RemoteAccessReportQuery): Promise<PaginationResponse<ScreenViewReportItemDto>> {
+  return http.post<PaginationResponse<ScreenViewReportItemDto>>(`${ROUTE}/reports/views`, query);
+}
+
+export async function getControlReport(query: RemoteAccessReportQuery): Promise<PaginationResponse<RemoteControlReportItemDto>> {
+  return http.post<PaginationResponse<RemoteControlReportItemDto>>(`${ROUTE}/reports/controls`, query);
+}
+
+/** Sayfa alanları yok sayılır; özet filtrenin tamamı üzerindendir. */
+export async function getReportSummary(query: RemoteAccessReportQuery): Promise<RemoteAccessSummaryDto> {
+  return http.post<RemoteAccessSummaryDto>(`${ROUTE}/reports/summary`, query);
 }

@@ -6,7 +6,7 @@ namespace Scadex.RemoteDesk.Model.Entities;
 /// İzleme denetim kaydı: <b>kim, hangi PC'nin hangi monitörünü, ne zaman</b> izledi. İzleyici (kiralama) başına bir satır;
 /// birden fazla izleyici aynı <see cref="ScreenSession"/>'ı paylaşır. Saklama/temizlik işi yoktur
 /// </summary>
-public class ScreenViewLog : IEntity
+public class ScreenViewLog : IEntity, IRemoteAccessRecord
 {
     public long Id { get; set; }
 
