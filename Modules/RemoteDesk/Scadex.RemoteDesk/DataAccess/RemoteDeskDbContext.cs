@@ -15,6 +15,7 @@ public class RemoteDeskDbContext : DbContext
     public DbSet<ScreenSession> ScreenSessions { get; set; }
     public DbSet<ScreenViewLog> ScreenViewLogs { get; set; }
     public DbSet<RemoteControlSession> RemoteControlSessions { get; set; }
+    public DbSet<FileTransferLog> FileTransferLogs { get; set; }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -54,6 +55,20 @@ public class RemoteDeskDbContext : DbContext
             // Denetim sorguları: bir PC'nin / bir kullanıcının kontrol geçmişi.
             c.HasIndex(c => new { c.DeviceId, c.StartedUtc });
             c.HasIndex(c => new { c.UserId, c.StartedUtc });
+        });
+
+        modelBuilder.Entity<FileTransferLog>(f =>
+        {
+            f.ToTable("FileTransferLog");
+            f.HasKey(f => f.Id);
+            f.Property(f => f.Id).ValueGeneratedNever();
+            f.Property(f => f.FileName).HasMaxLength(260).IsRequired();
+            f.Property(f => f.Path).HasMaxLength(1024).IsRequired();
+            f.Property(f => f.Error).HasMaxLength(512);
+
+            // Denetim sorguları: bir PC'nin / bir kullanıcının dosya transferi geçmişi.
+            f.HasIndex(f => new { f.DeviceId, f.StartedUtc });
+            f.HasIndex(f => new { f.UserId, f.StartedUtc });
         });
     }
 }

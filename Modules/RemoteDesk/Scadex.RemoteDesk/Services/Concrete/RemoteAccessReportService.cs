@@ -125,6 +125,43 @@ public class RemoteAccessReportService : IRemoteAccessReportService
     }
 
     /// <inheritdoc />
+    public async Task<Result<PaginationResponse<FileTransferReportItemDto>>> GetTransfersAsync(RemoteAccessReportQuery query, CancellationToken cancellationToken = default)
+    {
+        if (Validate(query) is { } failures)
+            return Result<PaginationResponse<FileTransferReportItemDto>>.Validation(failures, description: "Validation failed for RemoteAccessReportQuery");
+
+        var page = await ApplyFilter(_db.FileTransferLogs.AsNoTracking(), query)
+            .OrderByDescending(f => f.StartedUtc)
+            .Select(f => new FileTransferReportItemDto
+            {
+                Id = f.Id,
+                DeviceId = f.DeviceId,
+                UserId = f.UserId,
+                Direction = f.Direction,
+                FileName = f.FileName,
+                Path = f.Path,
+                SizeBytes = f.SizeBytes,
+                StartedUtc = f.StartedUtc,
+                EndedUtc = f.EndedUtc,
+                Success = f.Success,
+                Error = f.Error
+            })
+            .ToPaginateAsync(query.ToPaginationRequest(), cancellationToken);
+
+        var devices = await LoadDevicesAsync(page.Data.Select(r => r.DeviceId), cancellationToken);
+        var users = await LoadUsersAsync(page.Data.Select(r => r.UserId), cancellationToken);
+        foreach (var row in page.Data)
+        {
+            if (devices.TryGetValue(row.DeviceId, out var device))
+                (row.DeviceName, row.CabinetName) = device;
+            if (users.TryGetValue(row.UserId, out var user))
+                (row.UserFullName, row.UserName) = user;
+        }
+
+        return Result<PaginationResponse<FileTransferReportItemDto>>.Success(page);
+    }
+
+    /// <inheritdoc />
     public async Task<Result<RemoteAccessSummaryDto>> GetSummaryAsync(RemoteAccessReportQuery query, CancellationToken cancellationToken = default)
     {
         if (Validate(query) is { } failures)

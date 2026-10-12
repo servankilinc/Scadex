@@ -25,8 +25,9 @@ public class ConnectionVM : BaseViewModel
     private readonly SortedSet<int> _watched = [];
     private string _connectionShort = "";
 
-    public ConnectionVM(ICentralConnection connection, INetworkAdapterService adapters, IScreenStreamService streams, IRemoteInputService input)
+    public ConnectionVM(ICentralConnection connection, INetworkAdapterService adapters, IScreenStreamService streams, IRemoteInputService input, Services.FileTransfer.IFileTransferService files)
     {
+        files.ActiveChanged += active => Application.Current?.Dispatcher.BeginInvoke(() => ApplyFileTransfer(active));
         streams.StatusChanged += status => Application.Current?.Dispatcher.BeginInvoke(() => ApplyStream(status));
         input.ControllerChanged += user => Application.Current?.Dispatcher.BeginInvoke(() => ApplyController(user));
         _connection = connection;
@@ -65,21 +66,34 @@ public class ConnectionVM : BaseViewModel
 
     /// <summary> System Tray ipucu için kısa özet. </summary>
     public string ShortText => _controller is not null ? "KONTROL EDİLİYOR — " + _connectionShort
+        : _fileTransfer ? "DOSYA AKTARILIYOR — " + _connectionShort
         : IsWatching ? "İZLENİYOR — " + _connectionShort : _connectionShort;
 
-    /// <summary> Merkez ekranı izliyor ya da fareyi kontrol ediyor — kırmızı şerit ve tepsi ikonu buna bakar. </summary>
-    public bool IsWatching => _watched.Count > 0 || _controller is not null;
+    /// <summary> Merkez ekranı izliyor, kontrol ediyor ya da dosya aktarıyor — kırmızı şerit ve tepsi ikonu buna bakar. </summary>
+    public bool IsWatching => _watched.Count > 0 || _controller is not null || _fileTransfer;
     public string WatchingText => !IsWatching ? ""
         : (_watched.Count > 0 ? "Bu PC'nin ekranı merkezden izleniyor — " + string.Join(", ", _watched.Select(i => $"Monitör {i}")) : "Bu PC merkezden izleniyor")
-          + (_controller is not null ? $" · {_controller} PC'yi uzaktan kontrol ediyor (fare ve klavye)" : "");
+          + (_controller is not null ? $" · {_controller} PC'yi uzaktan kontrol ediyor (fare ve klavye)" : "")
+          + (_fileTransfer ? " · dosya aktarılıyor" : "");
 
     /// <summary> Uzaktan kontrol eden kullanıcı (yalnızca UI iş parçacığında değişir). </summary>
     private string? _controller;
+    /// <summary> Bir dosya transferi sürüyor mu (yalnızca UI iş parçacığında değişir). </summary>
+    private bool _fileTransfer;
 
     private void ApplyController(string? user)
     {
         if (_controller == user) return;
         _controller = user;
+        OnPropertyChanged(nameof(IsWatching));
+        OnPropertyChanged(nameof(WatchingText));
+        OnPropertyChanged(nameof(ShortText));
+    }
+
+    private void ApplyFileTransfer(bool active)
+    {
+        if (_fileTransfer == active) return;
+        _fileTransfer = active;
         OnPropertyChanged(nameof(IsWatching));
         OnPropertyChanged(nameof(WatchingText));
         OnPropertyChanged(nameof(ShortText));

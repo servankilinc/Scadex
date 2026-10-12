@@ -491,6 +491,13 @@ public class AppDbContext : IdentityDbContext<User, Role, Guid>
                 Code = nameof(EntityEnums.Permission.RemotePcAudit),
                 DisplayName = "PC izleme raporunu gor",
                 Category = "RemoteDesk"
+            },
+            new Permission
+            {
+                Id = (int)EntityEnums.Permission.RemotePcFileTransfer,
+                Code = nameof(EntityEnums.Permission.RemotePcFileTransfer),
+                DisplayName = "PC ile dosya transferi",
+                Category = "RemoteDesk"
             }
         );
         #endregion
@@ -577,6 +584,11 @@ public class AppDbContext : IdentityDbContext<User, Role, Guid>
             {
                 RoleId = new Guid("7138ec51-4f9e-4afd-b61b-5a9a4584f5da"),
                 PermissionId = (int)EntityEnums.Permission.RemotePcAudit
+            },
+            new RolePermission
+            {
+                RoleId = new Guid("7138ec51-4f9e-4afd-b61b-5a9a4584f5da"),
+                PermissionId = (int)EntityEnums.Permission.RemotePcFileTransfer
             }
         );
         #endregion

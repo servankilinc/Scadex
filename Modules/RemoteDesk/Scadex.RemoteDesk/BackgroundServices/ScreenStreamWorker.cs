@@ -22,11 +22,17 @@ public sealed class ScreenStreamWorker : BackgroundService
     private readonly RemoteDeskOptions _options;
     private readonly ILogger<ScreenStreamWorker> _logger;
 
+    private readonly FileTransfer.FileTransferStore _fileStore;
+    private readonly FileTransfer.FileTransferLogStore _fileLog;
+
     public ScreenStreamWorker(ScreenStreamCoordinator coordinator, ScreenSessionStore store, RemoteControlCoordinator control, RemoteControlStore controlStore,
+        FileTransfer.FileTransferStore fileStore, FileTransfer.FileTransferLogStore fileLog,
         IOptions<RemoteDeskOptions> options, ILogger<ScreenStreamWorker> logger)
     {
         _control = control;
         _controlStore = controlStore;
+        _fileStore = fileStore;
+        _fileLog = fileLog;
         _coordinator = coordinator;
         _store = store;
         _options = options.Value;
@@ -49,6 +55,9 @@ public sealed class ScreenStreamWorker : BackgroundService
             int controls = await _controlStore.CloseOrphansAsync(stoppingToken);
             if (controls > 0)
                 _logger.LogInformation("RemoteDesk: önceki çalışmadan açık kalan {Count} uzaktan kontrol oturumu kapatıldı", controls);
+            int transfers = await _fileLog.CloseOrphansAsync(stoppingToken);
+            if (transfers > 0)
+                _logger.LogInformation("RemoteDesk: önceki çalışmadan açık kalan {Count} dosya transferi kapatıldı", transfers);
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
@@ -62,6 +71,7 @@ public sealed class ScreenStreamWorker : BackgroundService
             {
                 await _coordinator.SweepAsync(stoppingToken);
                 await _control.SweepAsync(stoppingToken);
+                _fileStore.Sweep();
             }
             catch (Exception ex) when (ex is not OperationCanceledException)
             {

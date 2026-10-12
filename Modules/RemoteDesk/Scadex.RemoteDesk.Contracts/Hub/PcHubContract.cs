@@ -14,6 +14,7 @@ public static class PcHubContract
     public const string Hello = nameof(Hello);
     public const string ReportMonitors = nameof(ReportMonitors);
     public const string ReportStreamState = nameof(ReportStreamState);
+    public const string ReportFileTransfer = nameof(ReportFileTransfer);
 }
 
 /// <summary> Sunucu → istemci. Metot adları arayüz metot adlarıdır (<c>Hub&lt;IPcHubClient&gt;</c>). </summary>
@@ -26,6 +27,17 @@ public interface IPcHubClient
     Task ControlStarted(ControlStartedCommand command);
     Task ControlEnded(ControlEndedCommand command);
     Task Input(InputBatch batch);
+
+    // Dosya transferi. ListDirectory SignalR client-result ile değer döndürür (tipli proxy'de son parametre
+    // CancellationToken: sunucu zaman aşımı için kullanır, PC'ye gönderilmez). Baytlar hub'dan GEÇMEZ (biletli HTTP).
+    Task<DirectoryListing> ListDirectory(ListDirectoryCommand command, CancellationToken cancellationToken = default);
+    Task UploadFile(FileUploadCommand command);
+    Task DownloadFile(FileDownloadCommand command);
+
+    // Panolar arası aktarım. GetClipboard client-result ile uzak panonun metnini döndürür (metin yoksa null);
+    // son parametre CancellationToken sunucu zaman aşımı içindir, PC'ye gönderilmez. SetClipboard metni uzak panoya yazar.
+    Task<string?> GetClipboard(CancellationToken cancellationToken = default);
+    Task SetClipboard(SetClipboardCommand command);
 }
 
 /// <summary> Bağlantının ilk ve zorunlu çağrısı; kabul edilene kadar başka çağrı yapılamaz. </summary>

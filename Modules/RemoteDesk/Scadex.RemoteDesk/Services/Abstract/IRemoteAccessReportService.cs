@@ -18,6 +18,9 @@ public interface IRemoteAccessReportService
     /// <summary> Uzaktan kontrol kayıtları (<c>RemoteControlSession</c>), yeniden eskiye. </summary>
     Task<Result<PaginationResponse<RemoteControlReportItemDto>>> GetControlsAsync(RemoteAccessReportQuery query, CancellationToken cancellationToken = default);
 
+    /// <summary> Dosya transferi kayıtları (<c>FileTransferLog</c>), yeniden eskiye. </summary>
+    Task<Result<PaginationResponse<FileTransferReportItemDto>>> GetTransfersAsync(RemoteAccessReportQuery query, CancellationToken cancellationToken = default);
+
     /// <summary> Aynı filtreyle özet: oturum sayıları, toplam süreler, en çok izlenen PC ve en çok izleyen kullanıcı. </summary>
     Task<Result<RemoteAccessSummaryDto>> GetSummaryAsync(RemoteAccessReportQuery query, CancellationToken cancellationToken = default);
 }

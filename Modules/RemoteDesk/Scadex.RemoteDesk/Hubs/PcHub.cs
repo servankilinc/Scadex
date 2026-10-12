@@ -30,13 +30,15 @@ public class PcHub : Hub<IPcHubClient>
     private readonly RemoteDeskNetworkPolicy _networkPolicy;
     private readonly ScreenStreamCoordinator _streams;
     private readonly RemoteControlCoordinator _control;
+    private readonly FileTransfer.FileTransferCoordinator _files;
     private readonly ILogger<PcHub> _logger;
 
     public PcHub(IUnitOfWork unitOfWork, PcConnectionRegistry registry, RemoteDeskNetworkPolicy networkPolicy, ScreenStreamCoordinator streams,
-        RemoteControlCoordinator control, ILogger<PcHub> logger)
+        RemoteControlCoordinator control, FileTransfer.FileTransferCoordinator files, ILogger<PcHub> logger)
     {
         _streams = streams;
         _control = control;
+        _files = files;
         _unitOfWork = unitOfWork;
         _registry = registry;
         _networkPolicy = networkPolicy;
@@ -109,6 +111,10 @@ public class PcHub : Hub<IPcHubClient>
     /// <summary> Yayın durumu (başladı, yeniden deniyor, ekran kilitli, başarısız…). Yalnızca durum değişince gelir. </summary>
     public Task ReportStreamState(StreamStateReport report) =>
         _streams.OnStreamStateAsync(RequireDeviceId(), Context.ConnectionId, report);
+
+    /// <summary> Dosya transferinin sonucu (push/pull bitti ya da reddedildi). </summary>
+    public Task ReportFileTransfer(FileTransferResult result) =>
+        _files.OnPcResultAsync(RequireDeviceId(), Context.ConnectionId, result);
 
     public override async Task OnDisconnectedAsync(Exception? exception)
     {

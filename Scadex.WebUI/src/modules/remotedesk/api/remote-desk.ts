@@ -3,6 +3,7 @@
  */
 import http from '@/lib/axios-helper';
 import type { PaginationResponse } from '@/models/channelEvent';
+import type { FileTransferReportItemDto } from '../models/fileTransfer';
 import type { PcDetailDto, PcListItemDto, ScreenViewDto } from '../models/pc';
 import type {
   RemoteAccessFilterOptionsDto,
@@ -53,6 +54,10 @@ export async function getViewReport(query: RemoteAccessReportQuery): Promise<Pag
 
 export async function getControlReport(query: RemoteAccessReportQuery): Promise<PaginationResponse<RemoteControlReportItemDto>> {
   return http.post<PaginationResponse<RemoteControlReportItemDto>>(`${ROUTE}/reports/controls`, query);
+}
+
+export async function getTransferReport(query: RemoteAccessReportQuery): Promise<PaginationResponse<FileTransferReportItemDto>> {
+  return http.post<PaginationResponse<FileTransferReportItemDto>>(`${ROUTE}/reports/transfers`, query);
 }
 
 /** Sayfa alanları yok sayılır; özet filtrenin tamamı üzerindendir. */

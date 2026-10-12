@@ -11,6 +11,7 @@ using Microsoft.Extensions.Options;
 using Microsoft.Win32;
 using Scadex.RemoteDesk.Contracts.Hub;
 using Scadex.RemoteDesk.Contracts.Media;
+using Scadex.RemoteDesk.Windows.Services.FileTransfer;
 using Scadex.RemoteDesk.Windows.Services.Input;
 using Scadex.RemoteDesk.Windows.Services.Monitors;
 using Scadex.RemoteDesk.Windows.Services.Network;
@@ -46,6 +47,8 @@ public sealed class CentralConnectionService : BackgroundService, ICentralConnec
     private readonly IMonitorService _monitors;
     private readonly IScreenStreamService _streams;
     private readonly IRemoteInputService _input;
+    private readonly IFileTransferService _files;
+    private readonly Clipboard.IClipboardAccess _clip;
     private readonly ILogger<CentralConnectionService> _logger;
 
     /// <summary> Oturum başına son bildirilen durum — merkeze yalnızca DURUM DEĞİŞİNCE gider (ilerleme satırları her saniye gelir). </summary>
@@ -61,9 +64,12 @@ public sealed class CentralConnectionService : BackgroundService, ICentralConnec
     private string _reportedMonitors = "";
 
     public CentralConnectionService(IOptions<RemoteDeskClientOptions> options, INetworkAdapterService adapters, IMonitorService monitors,
-        IScreenStreamService streams, IRemoteInputService input, ILogger<CentralConnectionService> logger)
+        IScreenStreamService streams, IRemoteInputService input, IFileTransferService files, Clipboard.IClipboardAccess clip,
+        ILogger<CentralConnectionService> logger)
     {
         _input = input;
+        _files = files;
+        _clip = clip;
         _streams = streams;
         _streams.StatusChanged += OnStreamStatus;
         _options = options.Value;
@@ -175,6 +181,26 @@ public sealed class CentralConnectionService : BackgroundService, ICentralConnec
         hub.On<ControlStartedCommand>(nameof(IPcHubClient.ControlStarted), _input.Begin);
         hub.On<ControlEndedCommand>(nameof(IPcHubClient.ControlEnded), command => _input.End(command.ControlSessionId));
         hub.On<InputBatch>(nameof(IPcHubClient.Input), _input.Enqueue);
+
+        // Dosya transferi. ListDirectory client-result ile değer döndürür; yükle/indir baytları biletli HTTP'den,
+        // sonuç hub'dan (ReportFileTransfer). Baytlar bu hub'dan GEÇMEZ.
+        hub.On<ListDirectoryCommand, DirectoryListing>(nameof(IPcHubClient.ListDirectory), command => _files.ListDirectory(command));
+        hub.On<FileUploadCommand>(nameof(IPcHubClient.UploadFile), async command =>
+        {
+            var result = await _files.UploadFileAsync(command, stoppingToken);
+            try { await hub.InvokeAsync(PcHubContract.ReportFileTransfer, result, stoppingToken); }
+            catch (Exception ex) { _logger.LogWarning(ex, "Dosya transferi sonucu bildirilemedi"); }
+        });
+        hub.On<FileDownloadCommand>(nameof(IPcHubClient.DownloadFile), async command =>
+        {
+            var result = await _files.DownloadFileAsync(command, stoppingToken);
+            try { await hub.InvokeAsync(PcHubContract.ReportFileTransfer, result, stoppingToken); }
+            catch (Exception ex) { _logger.LogWarning(ex, "Dosya transferi sonucu bildirilemedi"); }
+        });
+
+        // Panolar arası aktarım (RemoteDesk.md § 12.9). GetClipboard client-result ile uzak pano metnini döndürür; SetClipboard yazar.
+        hub.On(nameof(IPcHubClient.GetClipboard), () => _clip.ReadAsync());
+        hub.On<SetClipboardCommand>(nameof(IPcHubClient.SetClipboard), command => _clip.WriteAsync(command.Text));
 
         try
         {

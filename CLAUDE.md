@@ -171,9 +171,30 @@ durur. Ayrıntı: PROJECT_OVERVIEW.md § 10.
   **Yönetici pencerelerine (Görev Yöneticisi vb.) uzaktan kontrol için istemci YÜKSELTİLMİŞ çalışmalı (2026-10-01):** normal yetkide Windows
   (UIPI) girdiyi yükseltilmiş pencereye iletmez, sessizce yutar — kod ile aşılamaz. Dağıtımda `Deploy/Install-StartupTask.ps1` oturum
   açılışında "en yüksek ayrıcalıkla" görev kurar (UAC sormadan); `requireAdministrator`/`uiAccess` manifest'leri bilerek seçilmedi (biri her
-  açılış UAC sorar, biri kod imzası ister). Yetki başlangıç günlüğüne yazılır (`ProcessElevation.SelfElevated`). **Monitör listesi istemci
+  açılış UAC sorar, biri kod imzası ister). Yetki başlangıç günlüğüne yazılır (`ProcessElevation.SelfElevated`).
+  **Servis + Agent + WPF geçişi planlandı (Faz 11a, 2026-10-06, RemoteDesk.md § 9.8), uygulanmadı:** Görev Zamanlayıcı yolu kalkacak — bu
+  yolu genişletmeyin; `Scadex.RemoteDesk.Windows.Service` projesi bunun içindir. Geçiş tamamlanana kadar yukarıdaki düzen geçerlidir. **Monitör listesi istemci
   tarafında kendiliğinden güncellenir (2026-10-01):** `SessionSwitch` (RDP/konsol geçişi) + 12 sn uzlaştırma, merkeze yalnızca değişince
   (`CentralConnectionService.ReportMonitorsIfChangedAsync`) — bu akışı tek-seferlik elle bildirime indirgemeyin.
+  **Dosya transferi (2026-10-05) dördüncü ayrı izindir: `RemotePcFileTransfer`** (`RemoteDeskModule.FileTransferPolicy`) — viewer hub
+  metotları ve `FileTransferController` bunu ister. **Transfer KONTROLE değil İZLEMEYE bağlıdır (2026-10-05 kullanıcı kararı):** her işlem,
+  kullanıcı o PC'yi **o an izliyorsa** kabul edilir (`FileTransferCoordinator` → `ScreenStreamCoordinator.IsViewingAsync`); kontrol (fare/klavye)
+  ALMAK gerekmez — salt dosya indirmek için PC'yi tek kullanıcıya kilitlemek aşırıydı. **Viewer hub'ın sınıf politikası `RemotePcView`**
+  (bağlanmak için), kontrol metotları (`RequestControl`/`SendInput`/`ReleaseControl`) ayrıca `RemotePcControl`, dosya metotları
+  `RemotePcFileTransfer` ister — bu üç-katmanı gevşetmeyin; `GetControlForViewerAsync`/`ControlLease` kaldırıldı, geri eklemeyin. **Dosyanın
+  baytları hub'dan GEÇMEZ** — tek-kullanımlık biletli HTTP ile merkez `%TEMP%` üzerinden akar (`FileTransferStore`, `ScreenTicketStore` kalıbı,
+  1 GB sınır akışta zorlanır); hub yalnızca komut ve küçük dizin listesini (client-result `ListDirectory`) taşır. **Yükleme (PC'ye yazma) sistem
+  klasörlerine (Windows / Program Files / Startup) PC tarafında reddedilir**, gezme/okuma/indirme her yerde serbest (kullanıcı kararı); istemci
+  yükseltilmiş çalıştığı için bu denetim şarttır, gevşetmeyin (RemoteDesk.md § 12.8). Frontend'de dosya transferi kontrol oturumundan ayrı kendi
+  viewer hub bağlantısını taşır (`lib/file-transfer-session.ts` + `hooks/use-file-transfer.ts`). Arayüz iki panelli bir modaldir
+  (`file-transfer-dialog.tsx`: sol yerel / sağ uzak, ortada Yükle/İndir), izlerken "Dosya aktarımı" düğmesiyle açılır. **Sol (yerel) panel
+  File System Access API kullanır ve GÜVENLİ BAĞLAM (HTTPS/localhost) ister; bu bir web platform kısıtıdır, YEDEK KOD YAZILMAZ** — `http://LAN-IP`'de
+  çalışmaz, sahada HTTPS/localhost sağlanır (kullanıcı kararı 2026-10-06; eski klasik fallback + `FSA_SUPPORTED` dallanması kaldırıldı). Her
+  indir/yükle `FileTransferLog` denetimi olur; dizin listeleme kaydedilmez.
+  **Panolar arası metin aktarımı (2026-10-06, RemoteDesk.md § 12.9):** üst-orta araç çubuğunda Dışa/İçe aktar; aynı yetki/kapı (`RemotePcFileTransfer`
+  + izleme, `ClipboardCoordinator`). Metin hub'dan geçer (küçük; dosya baytlarından farklı), 1.000.000 karakter sınırı — bu yüzden **ViewerHub +
+  PcHub `MaximumReceiveMessageSize` 4 MB** (diğer hub'lar varsayılan 32 KB). İçerik **loglanmaz/denetlenmez** (parola olabilir). Tek-tık
+  `navigator.clipboard` (güvenli bağlam, yedek yok); istemci panosu WPF STA (`Application.Current.Dispatcher`).
 
 - **Çekirdek modülü bilmez.** Tek temas noktası `IScadaEventObserver` (Business/Utils/ScadaEvents):
   ingest (değer gerçekten değişince), **başarılı çıkış komutu** (kanal değeri değişince, `Direction =

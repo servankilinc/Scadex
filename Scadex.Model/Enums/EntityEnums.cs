@@ -295,6 +295,9 @@ public static class EntityEnums
         RemotePcControl = 11,
 
         /// <summary> PC izleme/kontrol denetim raporunu görebilir (kim, hangi PC'yi, ne zaman) — RemoteDesk modülü için </summary>
-        RemotePcAudit = 12
+        RemotePcAudit = 12,
+
+        /// <summary> Uzak PC ile dosya transferi yapabilir (gez/indir/yükle) — RemoteDesk modülü; kontrolü elinde tutana açıktır, ayrı ve en hassas izin </summary>
+        RemotePcFileTransfer = 13
     }
 }

@@ -11,7 +11,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { DataTable, DataTablePager, type DataTableColumn } from '@/components/custom/data-table';
 import { formatUtcDateTime, toUtcDate } from '@/lib/utils';
-import { useControlReport, useReportFilters, useReportSummary, useViewReport } from '../hooks/use-remote-access-report';
+import { useControlReport, useReportFilters, useReportSummary, useTransferReport, useViewReport } from '../hooks/use-remote-access-report';
 import {
   RemoteControlEndReasonLabels,
   type RemoteAccessReportQuery,
@@ -20,12 +20,13 @@ import {
   type ReportUserOptionDto,
   type ScreenViewReportItemDto
 } from '../models/report';
+import { FileTransferDirection, type FileTransferReportItemDto } from '../models/fileTransfer';
 
 /** "Hepsi" seçeneği — Base UI Select boş string'i "seçim yok" sayar. */
 const ALL = 'all';
 const PAGE_SIZE = 25;
 
-type ReportTab = 'views' | 'controls';
+type ReportTab = 'views' | 'controls' | 'transfers';
 
 /**
  * PC izleme raporu — `/remote-desk/reports` (`RemotePcAudit`).
@@ -43,7 +44,8 @@ export default function RemoteDeskReports() {
   const userId = searchParams.get('userId') ?? ALL;
   const from = searchParams.get('from') ?? '';
   const to = searchParams.get('to') ?? '';
-  const tab: ReportTab = searchParams.get('tab') === 'controls' ? 'controls' : 'views';
+  const rawTab = searchParams.get('tab');
+  const tab: ReportTab = rawTab === 'controls' ? 'controls' : rawTab === 'transfers' ? 'transfers' : 'views';
   const page = Math.max(Number(searchParams.get('page')) || 1, 1);
 
   /** Filtre değişince sayfa başa döner (sayfa açıkça verilmedikçe). `replace`: filtre oynamak geçmişi doldurmasın. */
@@ -74,9 +76,10 @@ export default function RemoteDeskReports() {
   const summary = useReportSummary(query);
   const views = useViewReport(query, tab === 'views');
   const controls = useControlReport(query, tab === 'controls');
+  const transfers = useTransferReport(query, tab === 'transfers');
 
   const isFiltered = deviceId !== ALL || userId !== ALL || from !== '' || to !== '';
-  const listError = (tab === 'views' ? views.error : controls.error) ?? summary.error ?? filters.error;
+  const listError = (tab === 'views' ? views.error : tab === 'controls' ? controls.error : transfers.error) ?? summary.error ?? filters.error;
 
   const pcs = filters.data?.pcs ?? [];
   const users = filters.data?.users ?? [];
@@ -172,10 +175,11 @@ export default function RemoteDeskReports() {
         )}
       </div>
 
-      <Tabs value={tab} onValueChange={value => update({ tab: value === 'controls' ? 'controls' : null })}>
+      <Tabs value={tab} onValueChange={value => update({ tab: value === 'views' ? null : value })}>
         <TabsList>
           <TabsTrigger value='views'>İzleme kayıtları</TabsTrigger>
           <TabsTrigger value='controls'>Kontrol kayıtları</TabsTrigger>
+          <TabsTrigger value='transfers'>Dosya transferi</TabsTrigger>
         </TabsList>
 
         <TabsContent value='views' className='flex flex-col gap-3'>
@@ -198,6 +202,17 @@ export default function RemoteDeskReports() {
             emptyMessage={isFiltered ? 'Bu filtreye uyan kontrol kaydı yok.' : 'Henüz uzaktan kontrol kaydı yok.'}
           />
           {controls.data && <DataTablePager pagination={controls.data} onPageChange={next => update({ page: String(next) })} />}
+        </TabsContent>
+
+        <TabsContent value='transfers' className='flex flex-col gap-3'>
+          <DataTable
+            columns={TRANSFER_COLUMNS}
+            rows={transfers.data?.data}
+            getRowKey={row => row.id}
+            isLoading={transfers.isPending}
+            emptyMessage={isFiltered ? 'Bu filtreye uyan dosya transferi yok.' : 'Henüz dosya transferi yok.'}
+          />
+          {transfers.data && <DataTablePager pagination={transfers.data} onPageChange={next => update({ page: String(next) })} />}
         </TabsContent>
       </Tabs>
     </div>
@@ -244,6 +259,39 @@ const CONTROL_COLUMNS: DataTableColumn<RemoteControlReportItemDto>[] = [
   ...commonColumns<RemoteControlReportItemDto>(),
   { id: 'reason', header: 'Bitiş nedeni', cell: row => (row.endReason ? RemoteControlEndReasonLabels[row.endReason] : '—') }
 ];
+
+const TRANSFER_COLUMNS: DataTableColumn<FileTransferReportItemDto>[] = [
+  { id: 'started', header: 'Başlangıç', className: 'font-mono text-xs', cell: row => formatUtcDateTime(row.startedUtc) },
+  { id: 'user', header: 'Kullanıcı', cell: row => <NameCell name={row.userFullName} detail={row.userName} missing='bilinmeyen kullanıcı' /> },
+  { id: 'pc', header: 'PC', cell: row => <NameCell name={row.deviceName} detail={row.cabinetName} missing='silinmiş PC' /> },
+  { id: 'direction', header: 'Yön', cell: row => (row.direction === FileTransferDirection.ToPc ? "PC'ye yükleme" : "PC'den indirme") },
+  { id: 'file', header: 'Dosya', cell: row => <NameCell name={row.fileName} detail={row.path} missing='—' /> },
+  { id: 'size', header: 'Boyut', className: 'tabular-nums', cell: row => formatBytes(row.sizeBytes) },
+  {
+    id: 'result',
+    header: 'Sonuç',
+    cell: row =>
+      row.success == null ? (
+        <Badge variant='secondary'>Sürüyor</Badge>
+      ) : row.success ? (
+        <Badge variant='outline'>Başarılı</Badge>
+      ) : (
+        <span className='text-amber-600 dark:text-amber-400' title={row.error ?? undefined}>Başarısız</span>
+      )
+  }
+];
+
+function formatBytes(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`;
+  const units = ['KB', 'MB', 'GB', 'TB'];
+  let value = bytes / 1024;
+  let i = 0;
+  while (value >= 1024 && i < units.length - 1) {
+    value /= 1024;
+    i++;
+  }
+  return `${value.toFixed(value >= 10 || i === 0 ? 0 : 1)} ${units[i]}`;
+}
 
 /** Ad + altında ikincil bilgi. Ad `null` = kayıt çekirdekte artık yok; denetim satırı yine de gösterilir. */
 function NameCell({ name, detail, missing }: { name: string | null; detail: string | null; missing: string }): ReactNode {

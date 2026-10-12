@@ -27,8 +27,13 @@ monitörünü canlı izler. Sonraki aşamada aynı ekrandan fare ve klavye komut
 | PC'de bağlantı ve "izleniyor" durumunu gösteren WPF arayüzü | ✅ | |
 | İzleme denetim kaydı (kim, hangi PC, hangi monitör, ne zaman) | ✅ | |
 | Fare / klavye | Sözleşme hazır, **uygulama yok** | ✅ |
-| Tüm monitörler tek görüntüde, pano, dosya, ses, kayıt, otomatik güncelleme | ❌ | ✅ |
-| Kilit ekranı, UAC güvenli masaüstü, oturum açılmamış PC | ❌ ([§ 9.7](#97-wpf-seçiminin-bedeli)) | ayrı bileşen gerekir |
+| Dosya transferi (gezme, indir, yükle) — PC'yi izleyen kullanıcı, ayrı izin | | ✅ |
+| Panolar arası metin aktarımı (içe/dışa) — PC'yi izleyen kullanıcı | | ✅ |
+| Ses, kayıt | ❌ | ✅ |
+| Oturum açılmadan bağlı olma, kapatılamayan istemci (servis + Agent + WPF) | ❌ ([§ 9.7](#97-wpf-seçiminin-bedeli)) | Faz 11a ([§ 9.8](#98-planlanan-süreç-modeli--servis--agent--wpf-faz-11a)) |
+| Kilit ekranı, UAC güvenli masaüstü, oturum açılmamış PC'nin ekranı | ❌ ([§ 9.7](#97-wpf-seçiminin-bedeli)) | Faz 11b ([§ 9.8](#98-planlanan-süreç-modeli--servis--agent--wpf-faz-11a)) |
+
+"Tüm monitörler tek görüntüde" ve otomatik güncelleme kapsamdan çıktı (kullanıcı kararı, 2026-10-06).
 
 ---
 
@@ -505,15 +510,71 @@ sonuçları, yayın başladı (encoder, profil, maskeli adres), profil düşürm
   izleme yetecekse `--tray` kısayolu. Ekranda "Encoder" kutucuğu (sınama, seçilen encoder, "Tercih et" —
   § 7.4) ve her monitörün kartında merkez yayınının salt okunur durumu (encoder/zincir/profil, canlı fps/hız/CPU) görünür.
   Sahadaki test yayını 2026-09-30'da kaldırıldı: yayın yalnızca merkezin isteğiyle başlar ve durur.
-- Binary'ler kod imzalı olmalı (uzaktan erişim yazılımları AV'lerce sık işaretlenir).
-- Otomatik güncelleme MVP dışı; geldiğinde imzalı paket + imza doğrulaması.
+- Binary'ler kod imzalı olmalı (uzaktan erişim yazılımları AV'lerce sık işaretlenir) — sertifika gelince; Faz 11a'dan sonra
+  (SYSTEM + ekran yakalama + girdi) daha da önemli.
+- Otomatik güncelleme **yapılmayacak** (kullanıcı kararı, 2026-10-06).
 
 ### 9.7 WPF seçiminin bedeli
 
 Kullanıcı oturumunda çalışan bir uygulama şunları **göremez / yapamaz**: kilit ekranı, oturum açılmamış PC,
 UAC güvenli masaüstü, Ctrl+Alt+Del. Kullanıcı uygulamayı System Trayden kapatırsa PC bir sonraki oturum açılışına
-kadar bağlı değildir (listede "bağlı değil" görünür). Bunlar gerekirse ileride **ayrı, küçük bir Windows
-servisi** eklenir; WPF istemcisi o zaman arayüz olarak kalır.
+kadar bağlı değildir (listede "bağlı değil" görünür). **Planlandı:** [§ 9.8](#98-planlanan-süreç-modeli--servis--agent--wpf-faz-11a)
+(Faz 11a: servis + Agent + WPF; Faz 11b: kilit ekranı / UAC / Ctrl+Alt+Del).
+
+### 9.8 Planlanan süreç modeli — servis + Agent + WPF (Faz 11a)
+
+> **Durum (2026-10-06): karar verildi, uygulanmadı.** Bugün geçerli olan § 9.1'deki düzendir (tek WPF süreci +
+> `Deploy/Install-StartupTask.ps1`). Faz 11a'nın Agent'ı kullanıcı oturumuna başlatan bileşeni henüz yazılmadı; o hazır
+> olana kadar Görev Zamanlayıcı yolu silinmez.
+
+**Neden (kullanıcı önerisi):** Windows açılınca ve oturum açılmadan merkeze bağlı olmak; logout/login'de kendiliğinden yeniden
+bağlanmak; çökünce yeniden başlamak; kullanıcının istemciyi kapatamaması; kurulumun kullanıcıdan bağımsız olması (`-ForUser` yok);
+Görev Zamanlayıcı'nın kalkması.
+
+**Temel kısıt:** Windows servisi Session 0'da çalışır, kullanıcı masaüstünü göremez ve girdi gönderemez. Bu yüzden ekran ve girdi
+işini servis değil, servisin kullanıcı oturumunda başlattığı ayrı bir süreç (**Agent**) yapar. WPF kullanıcı yetkisinde kalır:
+SYSTEM yetkili bir pencere (ör. dosya diyaloğu) yerel yetki yükseltme açığı olurdu.
+
+| | **Servis** | **Agent** | **WPF arayüz** |
+|---|---|---|---|
+| Uygulama türü | Windows Service (.NET Worker) | Penceresiz süreç (Generic Host) | WPF + System Tray |
+| Kim başlatır | Windows, açılışta otomatik | Servis | Oturum açılışında `HKLM\…\Run` |
+| Nerede / kimlik | Session 0, LocalSystem | Kullanıcının oturumu, SYSTEM | Kullanıcının oturumu, normal yetki |
+| Merkez hub bağlantısı | — | **Var** (`PcHub`, Hello, MAC) | — |
+| Ekran yakalama (ddagrab/FFmpeg) | — | **Var** | — |
+| Fare/klavye (`SendInput`) | — | **Var** (yükseltilmiş pencereler dahil) | — |
+| Dosya transferi, pano | — | **Var** (sistem klasörü reddi aynen) | — |
+| Monitör listesi, encoder sınaması | — | **Var** | Agent'tan gösterir |
+| Oturum değişimi (login/logout/RDP) | **İzler**, Agent'ı yeni oturumda kurar | Kapanır, yenisi başlar | Yeni oturumda yeniden açılır |
+| Çökme kurtarma | SCM kurtarma ayarı | Servis yeniden başlatır (geri çekilmeli) | Gerekmez |
+| Kapatma | Yalnızca yönetici durdurur | Kullanıcı kapatamaz | "Çıkış" yalnızca arayüzü kapatır |
+| "İzleniyor / kontrol ediliyor" | — | Durumu üretir | **Gösterir** (şerit + tepsi ikonu) |
+| Kullanıcıdan komut | — | Pipe'tan yalnızca Yeniden bağlan / Encoder sına / Tercih et | Bu üçünü gönderir |
+| Günlük | `%ProgramData%\Scadex\RemoteDesk\logs` | `%ProgramData%\…\logs` | `%LocalAppData%` (yalnızca arayüz) |
+| Bugünkü karşılığı | Yok (Görev Zamanlayıcı görevi) | Bugünkü `Services/` klasörü | Bugünkü `Views/` + `ViewModels/` + `TrayIcon` |
+
+**Projeler:** `Scadex.RemoteDesk.Windows.Service` — servis + Agent tek exe (`Scadex.RemoteDesk.Windows.Service.exe`; "Agent" bu
+exe'nin `--session` modunun adıdır, ayrı proje değildir) · `Scadex.RemoteDesk.Windows` — yalnızca arayüz · yerel IPC kayıtları
+`Scadex.RemoteDesk.Contracts` içinde.
+
+**Kararlar (kullanıcı, 2026-10-06):**
+- Hub bağlantısını Agent tutar; servis yalnızca gözetmendir, merkezle konuşmaz.
+- Oturumdaki kullanıcı Agent'ı kapatamaz.
+- Dosya transferi Agent kimliğiyle yapılır; sistem klasörü reddi (§ 12.8) aynen kalır.
+- WPF ↔ Agent named pipe'ı yalnızca durum + üç zararsız komut taşır; girdi, yayın ve dosya komutu taşımaz. Pipe yalnızca SYSTEM'e ve
+  o oturumun kullanıcısına açıktır.
+- **Görev Zamanlayıcı kalkar.** `Deploy/Install-Service.ps1` (yönetici PowerShell'de bir kez, tekrar çalıştırılabilir) eski görevi
+  ve başlangıç kısayolunu siler, servisi otomatik başlangıç + SCM kurtarma ile kurar, arayüzü `HKLM\…\Run`'a `--tray` ile ekler;
+  `-Uninstall` geri alır. Kurulum paketi yine yok.
+- **Seviye karma:** servis/Agent/pipe/günlük/geçiş/test production seviyesinde; kurulum betik kalır, kod imzası sertifika gelince,
+  otomatik güncelleme yok. Temiz (geliştirme araçsız) bir PC'de kurulum denemesi şart.
+
+**SYSTEM kimliği yüzünden değişecekler:** günlük `%ProgramData%` altına taşınır (SYSTEM'in `LocalAppData`'sı systemprofile'dır);
+Hello'daki kullanıcı adı oturumdaki kullanıcıdan alınır (oturum yoksa boş); dosya transferinin reddettiği Startup klasörü oturumdaki
+kullanıcınınki olur.
+
+**Faz 11b (11a'nın üzerine):** kilit ekranı, login ekranı, UAC güvenli masaüstü, Ctrl+Alt+Del. Giriş masaüstü değişince yakalama
+ve girdinin yeni masaüstüne taşınması gerekir; ayrı adım.
 
 ---
 
@@ -617,6 +678,7 @@ C# DTO değişince TS aynası elle güncellenir.
 | Okuma biletiyle yayın ya da tersi | Ayrı cache anahtar uzayları |
 | Bilet sızıntısı | Loglarda maske; ağ LAN/VPN varsayımı |
 | İzlemenin fark edilmemesi | `ScreenViewLog`; PC'de System Tray ve pencere göstergesi |
+| Dosya ile veri sızdırma / sistem bozma | Ayrı izin + izleme şartı; sistem klasörlerine yazma kapalı; `FileTransferLog` denetimi; 1 GB sınır |
 
 > **Yetki (2026-09-30):** Modülün tüm HTTP uçları `RemotePcView` iznini ister (`Permission.RemotePcView = 10`,
 > seed'de Admin rolüne verilir); yoksa 403. Policy modülün kaydında tanımlanır (`RemoteDeskModule.ViewPolicy`), claim
@@ -630,6 +692,16 @@ C# DTO değişince TS aynası elle güncellenir.
 > başkalarının izleme geçmişini görmez. Policy bu yüzden **controller başınadır**: `RemoteDeskControllerBase` yalnızca kimlik ister,
 > `PcController`/`ViewController` `ViewPolicy`, `ReportController` `AuditPolicy` taşır — tabana policy koymayın, `[Authorize]`'lar
 > VE ile birleşir ve rapor izleme iznini de isterdi.
+>
+> **Dosya transferi ayrı izindir (2026-10-05):** `RemotePcFileTransfer = 13` (Admin'e seed, `RemoteDeskModule.FileTransferPolicy`).
+> Viewer hub metotları (`ListPcDirectory`/`RequestDownload`/`RequestUpload`) ve `FileTransferController` bu izni ister; ayrıca her işlem,
+> kullanıcı o PC'yi **o an izliyorsa** kabul edilir (kontrol ALMAK gerekmez — izlemeye bağlı, 2026-10-05). Yükleme sistem klasörlerine PC
+> tarafında reddedilir ([§ 12.8](#128-dosya-transferi-2026-10-05)).
+>
+> **Viewer hub'ın yetki modeli (2026-10-05):** `/hubs/remote-desk/viewer` sınıf politikası **`RemotePcView`** (bağlanmak için en az
+> izleme izni); kontrol metotları ayrıca `RemotePcControl`, dosya metotları `RemotePcFileTransfer` (metot politikaları, sınıfla VE ile
+> birleşir). Önceden sınıf `RemotePcControl`'dü — dosya transferi kontrole bağlıyken yetiyordu; izlemeye bağlanınca View+FileTransfer
+> (kontrolsüz) kullanıcının da bağlanabilmesi için taban `RemotePcView`'e indirildi (regresyon yok: kontrol zaten izlemeyi gerektirir).
 
 ---
 
@@ -699,8 +771,9 @@ yazılır ("yetki yükseltilmiş/normal", `Services/Input/ProcessElevation.cs`),
 satırdan doğrulanır. `SendInput` reddedilirse istemci bunu oturum başına bir kez günlüğe yazar.
 
 **Güvenlik:** Yükseltilmiş çalışma, `RemotePcControl` iznine sahip kullanıcıya o PC'de fiilen yönetici düzeyi verir — bilinçli kabul.
-**Yükseltilmiş olsa bile erişilemez:** UAC güvenli masaüstü, kilit ekranı, Ctrl+Alt+Del (Windows tüm uygulamalara kapatır; ayrı SYSTEM
-servisi gerekir — Faz 11).
+**Yükseltilmiş olsa bile erişilemez:** UAC güvenli masaüstü, kilit ekranı, Ctrl+Alt+Del (Windows tüm uygulamalara kapatır; Faz 11b —
+[§ 9.8](#98-planlanan-süreç-modeli--servis--agent--wpf-faz-11a)). Faz 11a ile girdi SYSTEM yetkili Agent'tan gider; UIPI çözümü için
+Görev Zamanlayıcı görevi gerekmez.
 
 ### 12.7 Uygulama (fare Faz 8, 2026-09-30; klavye Faz 9, 2026-10-01)
 
@@ -748,6 +821,74 @@ servisi gerekir — Faz 11).
   tuşların hepsi bırakılır.
 - Gösterge: pencerede kırmızı şerit "… {kullanıcı} PC'yi uzaktan kontrol ediyor (fare ve klavye)", tepside kırmızı noktalı ikon ve
   "KONTROL EDİLİYOR".
+
+### 12.8 Dosya transferi (2026-10-05)
+
+Operatör, ekranını izlediği PC'nin dosya sistemini gezer, dosya indirir ve yükler. Ayrı izindir: **`RemotePcFileTransfer = 13`**
+(Admin'e seed; `RemoteDeskModule.FileTransferPolicy`). Kontrol izninden bağımsız — dosya transferi en tehlikeli yetenektir, ayrı
+verilmeli. **Transfer İZLEMEYE bağlıdır, kontrole değil (2026-10-05 kararı):** her işlem **viewer hub**'ından gelir ve yalnızca kullanıcı
+o PC'nin ekranını **o an izliyorsa** kabul edilir (`FileTransferCoordinator` → `ScreenStreamCoordinator.IsViewingAsync`); izleme biterse
+transfer imkânı da düşer ("görmeden iş yapılmaz"). Fare/klavye **kontrolünü ele geçirmek gerekmez** — salt bir log dosyasını indirmek için
+PC'yi tek kullanıcıya kilitlemek (kontrol şeridi) aşırı olurdu. Viewer hub'ına bağlanmak `RemotePcView` ister (sınıf politikası); kontrol
+metotları ayrıca `RemotePcControl`, dosya metotları `RemotePcFileTransfer` ister (metot politikaları) — biri olup diğeri olmayan kullanıcı
+yalnızca hakkı olan metotları çağırır.
+
+**Mimari — baytlar hub'dan GEÇMEZ.** PC dinleyen port açmaz; her şey merkez üzerinden gider. Küçük veri (dizin listesi, komut) hub'da
+taşınır; **dosyanın baytları tek-kullanımlık biletli HTTP** ile akar (`FileTransferStore`, canlı görüntüdeki `ScreenTicketStore`
+kalıbı — ayrı anahtar uzayı, 1 GB sınır, 30 dk TTL, merkez `%TEMP%\scadex-remotedesk-ft`). Uçlar `FileTransferController`'da: tarayıcı
+yüklemesi `POST filetransfer?fileName=` (gövde = ham baytlar, biletli id döner) + indirmesi `GET filetransfer/{id}` (`DeleteOnClose`);
+PC tarafı `PUT filetransfer/{id}/push?ticket=` ve `GET filetransfer/{id}/pull?ticket=` (`[AllowAnonymous]`, bilet doğrulanır). 1 GB
+akışta zorlanır (`CopyWithLimitAsync`), aşılırsa reddedilir.
+
+**Akış.** Gezme: viewer hub `ListPcDirectory(deviceId, path)` → sunucu SignalR **client-result** ile PC'ye sorar
+(`IPcHubClient.ListDirectory` → `DirectoryListing`; path boşsa sürücü kökleri, 20 sn zaman aşımı). İndirme (PC→tarayıcı): hub
+`RequestDownload` → `FileTransferStore` transferId+bilet üretir → PC'ye `UploadFile(id, path, ticket)` → PC dosyayı `push` ucuna
+akıtır → tarayıcı `GET filetransfer/{id}` ile indirir. Yükleme (tarayıcı→PC): tarayıcı `POST filetransfer` ile merkeze akıtır
+(transferId) → hub `RequestUpload(id, destPath)` → PC'ye `DownloadFile(id, destPath, ticket)` → PC `pull` ucundan çekip `destPath`'e
+yazar. PC her iki yönde sonucu `ReportFileTransfer(FileTransferResult)` ile bildirir; sunucu tarayıcıya `IViewerHubClient.FileTransferState`
+yollar (`FileTransferStatus`: CentralReceiving/ReadyForPc/PcSending/ReadyForBrowser/Completed/Failed).
+
+**Yazma sistem klasörlerine kapalı (kullanıcı kararı).** Gezme/okuma/indirme her yerde serbest; ama **yükleme** `C:\Windows`,
+`Program Files`/`Program Files (x86)` ve başlangıç (Startup/CommonStartup) klasörlerine PC tarafında (yazan taraf) reddedilir —
+hedef yolu `Path.GetFullPath` ile normalize edip (`..`/uzun yol kaçışına karşı) korumalı köklerin altındaysa reddeder, nedeni sonuç
+olarak döner ("Bu klasöre yazma kapalı (sistem klasörü)."). İstemci yükseltilmiş çalıştığı (§ 12.6) için bu denetim şart.
+
+**Denetim.** Dizin listeleme kaydedilmez; her **indirme/yükleme** `remotedesk.FileTransferLog` (`IRemoteAccessRecord`: kim, PC, yön,
+yol, boyut, başlangıç/bitiş, sonuç, hata). Açılışta açık kalan satırlar `ScreenStreamWorker` ile kapatılır; store süpürmesi aynı
+worker'da. Rapor ekranında `reports/transfers` sekmesi (`RemotePcAudit` iznine bağlı, diğer denetim raporlarıyla aynı).
+
+**PC göstergesi.** Aktarım sürerken pencere şeridi + tepsi "DOSYA AKTARILIYOR" (izleniyor/kontrol ediliyor kalıbı, `ConnectionVM`).
+
+**Tarayıcı — iki panelli pencere (2026-10-05).** PC ekranında (PC **izlenirken** + `RemotePcFileTransfer` izniyle) bir "Dosya aktarımı"
+düğmesi büyük bir modal açar (`components/file-transfer-dialog.tsx`): **sol = yerel**, **sağ = uzak (PC)** gezgin, **ortada Yükle →** (yerel
+seçili dosya → uzak aktif klasör) **ve ← İndir** (uzak seçili dosya → yerel aktif klasör). Sağ panel (`remote-file-pane.tsx`) dizin listesini
+react-query ile çeker (yükleme sonrası dialog aynı anahtarı invalidate eder).
+- **Yerel panel (`local-file-pane.tsx`, `lib/local-fs.ts`)** File System Access API kullanır: "Klasör seç" ile seçilen kök altında gerçek
+  yerel ağaç gezilir, indirme seçili yerel klasöre yazılır. FSA yalnızca **güvenli bağlamda** (HTTPS veya `localhost`, Chromium/Edge) çalışır;
+  bu **dağıtım gereğidir, kodda yedek/dallanma YOKTUR** (kullanıcı kararı 2026-10-06 — sahada HTTPS/localhost sağlanır). Düz `http://LAN-IP`'de
+  pano/dosya panelleri çalışmaz; "sade kod" için klasik fallback bilerek yazılmadı.
+- **İndirme iki adıma ayrıldı** (`FileTransferApi`): `prepareDownload(pcPath)` (hub `RequestDownload` + `FileTransferState` bekler) +
+  `fetchDownloadBlob(transferId)` (biletli `GET`, tek kullanımlık). Çağıran baytı seçili yerel klasöre FSA ile yazar. `upload(file, destPath)`
+  seçili yerel dosyayı (`FileSystemFileHandle.getFile()`) alır.
+- Dosya transferi **kontrol oturumundan ayrı** kendi viewer hub bağlantısını taşır: `lib/file-transfer-session.ts`,
+  `hooks/use-file-transfer.ts` (izleme + izin varken açar, kapanınca kapatır), `models/fileTransfer.ts`.
+
+### 12.9 Panolar arası aktarım (2026-10-06)
+
+Operatör yerelde kopyaladığı **metni** uzak PC'ye ve tersine aktarır. Üst-orta araç çubuğunda (§ 12.7 sonrası) iki düğme: **Dışa aktar**
+(yerel pano → uzak PC panosu) ve **İçe aktar** (uzak PC panosu → yerel pano). Dosya transferiyle **aynı yetki/kapı**: `RemotePcFileTransfer`
+izni + PC'yi **o an izlemek** (kontrol almak gerekmez; `ClipboardCoordinator` → `IsViewingAsync`, `FileTransferCoordinator.ResolveAsync` ile
+aynı). **Manuel** düğme (oto-senkron yok). İçerik **LOGLANMAZ/denetlenmez** (parola olabilir).
+
+- **Akış.** Dışa: tarayıcı `navigator.clipboard.readText()` → viewer hub `SetRemoteClipboard(deviceId, text)` → `ClipboardCoordinator.SetAsync`
+  → PC'ye `SetClipboard` → istemci Windows panosuna yazar (`ClipboardAccess`, WPF panosu STA → `Application.Current.Dispatcher`). İçe: hub
+  `GetRemoteClipboard(deviceId)` → PC client-result `GetClipboard` → uzak pano metni → `navigator.clipboard.writeText(text)`.
+- **Metin küçük olduğu için hub'dan geçer** (dosya baytları gibi HTTP'ye gerek yok). Sınır **1.000.000 karakter**: sunucu
+  (`ClipboardCoordinator`), istemci okuması (`ClipboardAccess`) ve tarayıcı (dışa aktarma guard'ı) kapar. Varsayılan 32 KB SignalR alım sınırı
+  yetmediği için **ViewerHub + PcHub `MaximumReceiveMessageSize` 4 MB'a** çıkarıldı (`ServiceRegistration`; diğer hub'lar varsayılanda).
+- **Güvenli bağlam gerektirir:** `navigator.clipboard` yalnızca HTTPS/localhost'ta vardır; FSA gibi bu da dağıtım gereğidir, **kod yedeği yok**
+  (kullanıcı kararı 2026-10-06). Düğmeler `canFiles` (izleme + izin) iken görünür; aynı viewer hub bağlantısını (`file-transfer-session.ts`)
+  kullanır. Sonuç/hata sonner `toast` ile bildirilir.
 
 ---
 
@@ -811,8 +952,12 @@ Her faz bir öncekinin başarı kriteri sağlanmadan başlamaz.
 | **7** ✅ | ~~Kurulum paketi + oturum açma görevi~~ → **2026-09-30 (kullanıcı kararı):** kurulum paketi yok, klasöre publish + elle dağıtım; başlangıç uygulamalarına `--tray` ile elle eklenir (§ 9.1, § 9.6). Yapılan: istemciye Serilog (§ 9.5, System Tray'de "Günlük klasörünü aç"), publish'e LGPL `LICENSE.txt`, FFmpeg yoksa publish'i durduran kontrol, kaynak ölçümü ([§ 16.3](#163-faz-7-ölçümleri-2026-09-30)). `CLAUDE.md` güncellendi. | Sınandı: self-contained publish (≈ 300 MB) scratchpad'e alındı, çalışma klasörü `System32` iken `--tray` ile açılıp merkeze bağlandı; günlükte açılış → bağlantı → yayın isteği → sınama → yayın (maskeli adres) → durdurma satırları, bilet yok; boşta ve yayında hedefler tuttu. Sınanmadı: temiz (geliştirme araçsız) PC, başlangıç kısayoluyla oturum açılışı, System Tray "Çıkış" satırı |
 | **8** ✅ | Fare ([§ 12](#12-uzaktan-kontrol-faz-8)) + viewer hub + `RemoteControlSession` + yetki kararı. **2026-09-30:** yeni izin `RemotePcControl = 11`; § 12.7. Klavye olayları sözleşmede var, sunucu Faz 9'a kadar iletmez. | Sınandı (bu makine, başlıksız Chrome + DevTools fare olayları → gerçek imleç): "Kontrolü al" 0,3 sn'de verildi; görüntüde (0.25, 0.25) → imleç 480,270, (0.75, 0.5) → 1440,540 (1920×1080 monitör 0, beklenen 480,270 / 1439,540); 22 hızlı hareket → PC'ye 20 olay, imleç son noktada; bırakınca hareket PC'ye gitmedi; sayfa kapanınca `ViewerDisconnected`; izleme bırakılınca 1,9 sn'de `ViewEnded`; PC istemcisi kapanınca 0,6 sn'de `PcDisconnected`; izlemeden istek `NotViewing`; jetonsuz negotiate 401, izinsiz 403. Başlıkta "… kontrol ediyor" rozeti. **Sınanmadı:** gerçek tıklama/tekerlek (kullanıcının masaüstünde tıklamamak için), takılı düğme emniyeti, `Busy` (ikinci kullanıcı), 5 dk `Idle`, ikinci monitör ve negatif koordinatlı monitör, yönetici penceresi (UIPI) |
 | **9** ✅ | Klavye (scan code, değiştirici tuşlar, takılı tuş emniyeti). **2026-10-01:** Contracts `KeyboardScanCodes` (Chromium `code` ↔ set-1), sunucu yalnızca tablodaki kodu iletir, PC `KEYEVENTF_SCANCODE` ile basar; tarayıcıda Win / Alt+Tab / Ctrl+Shift+Esc düğmeleri ve tam ekran + Keyboard Lock; § 12.7. | Sınandı (bu makine, Türkçe Q, başlıksız Chrome + DevTools tuş olayları): Not Defteri'ne uzaktan **tıklayıp** odaklandı, `Shift+M e r h a b a ␣ [ ] ; ' i , . ␣ 1 2 3` → metin birebir "Merhaba ğüşiıöç 123" (UTF-16 kod noktalarıyla doğrulandı); yalnızca Shift basılı bırakılınca PC 5 sn sonra bıraktı ("Basılı kalanlar bırakıldı (5 sn olay gelmedi): ShiftLeft"); özel tuş ve tam ekran düğmeleri görünüyor. **Sınanmadı:** Win / Alt+Tab / Ctrl+Shift+Esc düğmelerinin PC'deki etkisi (kullanıcının masaüstünü bozmamak için), gerçek tam ekran + Keyboard Lock (başlıksız tarayıcıda yok), AltGr kombinasyonları (@, €), sayısal tuş takımı |
-| **10** | Tüm monitörler tek görüntü, pano | |
-| **11** | Kilit ekranı / UAC için servis bileşeni, otomatik güncelleme, ses, kayıt | |
+| **Dosya T.** ✅ | Dosya transferi ([§ 12.8](#128-dosya-transferi-2026-10-05)): yeni izin `RemotePcFileTransfer = 13`; her iki yön, PC dosya sistemini gezme, dosya başına 1 GB, **PC'yi izleyen** kullanıcı (kontrol almak gerekmez); baytlar biletli HTTP ile (hub'dan değil); yükleme sistem klasörlerine kapalı; `FileTransferLog` denetimi + rapor sekmesi. **2026-10-05.** | Sınandı (bu makine, node + SignalR, konsol oturumu, **kontrol ALMADAN**): izlemeden önce dosya işlemi reddedildi ("ekranını izliyor olmalısınız"); `POST view` sonrası `ListPcDirectory` klasör/dosya ve sürücü köklerini döndürdü; 2 KB indirme byte-byte eşleşti (ReadyForBrowser); 3 KB yükleme hedefe yazıldı, byte-byte eşleşti (Completed); `C:\Windows`'a yükleme reddedildi (Failed, "sistem klasörü", dosya oluşmadı); üç işlem de `FileTransferLog`'a doğru yön/boyut/sonuçla düştü, `reports/transfers` listeledi. Regresyon: `RequestControl` hâlâ Granted + `SendInput` kabul. **Sınanmadı:** ~1 GB sınır aşımı, izleme transferin ortasında düşerse, gerçek tarayıcı arayüzü (gezgin paneli), izinsiz kullanıcı reddi (tasarımda) |
+| **10** | ~~Tüm monitörler tek görüntü~~ (kapsamdan çıktı, 2026-10-06) · pano: metin olarak yapıldı ([§ 12.9](#129-panolar-arası-aktarım-2026-10-06)) | |
+| **11a** | Servis + Agent + WPF ([§ 9.8](#98-planlanan-süreç-modeli--servis--agent--wpf-faz-11a)) — karar 2026-10-06, uygulanmadı. Görev Zamanlayıcı kalkar, `Install-Service.ps1` | Oturum açmadan merkezde bağlı; login/logout ve RDP'de kendiliğinden yeniden bağlı; Agent öldürülünce servis yeniden başlatır; tepsi "Çıkış" izlemeyi durdurmaz; yükseltilmiş pencereye girdi görevsiz ulaşır; temiz PC'de kurulum |
+| **11b** | Kilit ekranı / login ekranı / UAC güvenli masaüstü / Ctrl+Alt+Del (11a'nın üzerine) | |
+| **Ses** | PC sesinin aktarımı | |
+| **Kayıt** | İzleme oturumunun video kaydı | |
 
 Her faz sonunda rapor: değişen dosyalar · eklenen özellik · mimari değişiklik · nasıl doğrulandı · nasıl
 çalıştırılır · bilinen kısıtlar · sonraki adım.
@@ -924,7 +1069,7 @@ Aynı makine; publish edilmiş (Release, self-contained) istemci `--tray` ile, p
 | 2026-09-28 | `libx264` yok (GPL) → `h264_mf` yedek (2026-09-29 Faz 1 ile değişti, aşağıda); 4:2:0 ve B-frame yok zorunlu; klavyede `code` → scan code. |
 | 2026-09-29 | Kimlik `Device.MacAddress`; ajan tablosu / `AgentId` / "ajan ekle" ekranı yok; modül şemasında cihaz kopyası yok. |
 | 2026-09-29 | Kimlik doğrulama yalnızca MAC (kabul edilen risk, § 5.3); ayrı JWT şeması ve token ucu yok. |
-| 2026-09-29 | PC istemcisi WPF (`Scadex.RemoteDesk.Windows`), servis/yardımcı/named pipe yok; minimal kaynak; "Agent" adı kullanılmaz. |
+| 2026-09-29 | PC istemcisi WPF (`Scadex.RemoteDesk.Windows`), servis/yardımcı/named pipe yok; minimal kaynak; "Agent" adı kullanılmaz. **→ 2026-10-06 ile değişti** (§ 9.8). |
 | 2026-09-29 | Çoklu monitör MVP'de: monitör başına yol ve yayın, izleyici monitör seçer. |
 | 2026-09-29 | Kontratlar `Scadex.RemoteDesk.Contracts`; projeler `Modules/RemoteDesk/` altında; doküman depo kökünde. |
 | 2026-09-29 | WPF istemcisi projenin kendi MVVM altyapısını (`Helpers/`) ve Generic Host DI'ını kullanır; CommunityToolkit.Mvvm yok. |
@@ -936,6 +1081,14 @@ Aynı makine; publish edilmiş (Release, self-contained) istemci `--tray` ile, p
 | 2026-09-29 | Faz 3: `PcHub` anonim; `Hello` normalize MAC ile aktif Pc cihazlarını eşler, tek eşleşme kabul, cihaz başına ilk bağlanan kazanır; bağlantı kaydı bellekte. İstemci SignalR'ın otomatik yeniden bağlanmasını kullanmaz (her bağlantı `Hello` ile yeniden eşlenmeli); geri çekilme 1/2/5/10/30 sn, reddedilince 60 sn. Pencere kapatmak System Trayye indirir; `--tray` argümanı pencereyi açmadan başlatır (oturum açma görevi için). |
 | 2026-09-30 | **İstemcide test yayını kaldırıldı** ("Test yayını başlat", "Durdur", "yalnızca kodla" hedefi, `TestPublishUrl`): yayın yalnızca merkezin komutuyla. Sınama ve tercih monitör kartlarından ayrı bir "Encoder" kutucuğunda (tüm monitörler birlikte sınanır); monitör kartlarında yayın durumu salt okunur kalır. Arayüzde "kodlayıcı" yerine "encoder". |
 | 2026-09-30 | **Kodlayıcı tercihi PC başına ve bellekte** (kullanıcı kararı): "Tercih et" rozetini ve tüm yayınları (merkez dahil) değiştirir, çalışmadığı monitörde otomatik seçim; tercih değişince yayın merkez oturumu kapanmadan yeniden başlar. Eski "Bu adayla yayınla" kaldırıldı: merkez yayınını durdurup test yayını açıyordu. Aynı işte yakalanan hata: `StreamSession.StopAsync` önce iptal ettiği için FFmpeg sahipsiz kalabiliyordu → önce nazik durdurma, sonra iptal. |
+| 2026-10-05 | **Dosya transferi** (§ 12.8): yeni izin `RemotePcFileTransfer` (kullanıcı kararı — kontrol izninden ayrı); her iki yön, PC dosya sistemini gezme, dosya başına 1 GB. Baytlar hub'dan değil tek-kullanımlık biletli HTTP ile merkez üzerinden akar (`FileTransferStore`, `ScreenTicketStore` kalıbı); dizin listesi hub client-result. Yükleme sistem klasörlerine (Windows / Program Files / Startup) PC tarafında reddedilir, gezme/okuma/indirme serbest (kullanıcı kararı). Her indir/yükle `FileTransferLog` denetimi + rapor sekmesi; dizin listeleme kaydedilmez. |
+| 2026-10-06 | **Panolar arası metin aktarımı** (§ 12.9): üst-orta araç çubuğunda Dışa/İçe aktar; `RemotePcFileTransfer` + izleme (yeni izin yok); metin hub'dan (küçük), 1.000.000 karakter sınırı, ViewerHub/PcHub `MaximumReceiveMessageSize` 4 MB; içerik loglanmaz; tek-tık `navigator.clipboard` (güvenli bağlam). İstemci panosu WPF STA dispatcher ile. |
+| 2026-10-06 | **Güvenli-bağlam fallback kodu kaldırıldı** (kullanıcı kararı, "sade kod"): hem dosya transferi yerel paneli (klasik `<input type=file>` + tarayıcı indirmesi) hem pano yalnızca güvenli bağlamda (HTTPS/localhost) çalışır; `http://LAN-IP` için yedek yazılmaz, saha dağıtımında HTTPS/localhost sağlanır. `FSA_SUPPORTED` dallanması, `LocalClassicPane`, `save-blob.ts` silindi; `LocalState` tek biçime indi. |
+| 2026-10-06 | **Kapsam:** Faz 10 "tüm monitörler tek görüntü" ve otomatik güncelleme kapsamdan çıktı (kullanıcı kararı). Faz 11 dörde ayrıldı: 11a (servis + Agent + WPF), 11b (kilit ekranı / UAC / Ctrl+Alt+Del), ses, kayıt. |
+| 2026-10-06 | **PC istemcisi servis + Agent + WPF'e geçecek** (§ 9.8, kullanıcı önerisi; uygulanmadı): servis gözetmen, Agent kullanıcı oturumunda SYSTEM ile hub/yakalama/girdi/dosya/pano, WPF kullanıcı yetkisinde yalnızca gösterge. Hub bağlantısını Agent tutar; kullanıcı Agent'ı kapatamaz; dosya transferi Agent kimliğiyle, sistem klasörü reddi aynen; pipe yalnızca durum + üç komut. Görev Zamanlayıcı kalkacak (`Install-Service.ps1` + `HKLM\…\Run`). Seviye karma: paket yok, kod imzası sertifika gelince. 2026-09-29 "servis/yardımcı/named pipe yok" kararının yerine geçer. |
+| 2026-10-06 | Faz 11a projesi: `Scadex.RemoteDesk.Windows.Service` (servis + Agent tek exe; "Agent" `--session` modunun adı). WPF `Scadex.RemoteDesk.Windows` adıyla kalır. |
+| 2026-10-05 | **Dosya transferi iki panelli pencereye taşındı** (kullanıcı kararı): inline tek panel yerine büyük modal — sol yerel / sağ uzak gezgin, ortada Yükle/İndir. Yerel panel **hibrit** (kullanıcı kararı): File System Access API güvenli bağlamda (HTTPS/localhost, Chromium/Edge) tam gezilebilir + indirme seçili yerel klasöre; yoksa klasik "dosya seç" + tarayıcı indirmesine düşer (düz `http://LAN-IP` tarayıcıda yerel gezme yok — web platform kısıtı). İndirme `prepareDownload`+`fetchDownloadBlob` olarak ayrıldı (bayt tarayıcıya ya da yerel klasöre). `file-browser.tsx` kalktı → `file-transfer-dialog.tsx` + `local-file-pane.tsx` + `remote-file-pane.tsx` + `lib/local-fs.ts`. |
+| 2026-10-05 | **Dosya transferi KONTROLE değil İZLEMEYE bağlandı** (kullanıcı kararı, ilk uygulamadan sonra): salt dosya indirmek için fare/klavye kontrolünü ele geçirmek (PC'yi tek kullanıcıya kilitleyen kontrol şeridi) aşırıydı. Artık kullanıcı PC'yi **o an izliyorsa** yeter (`FileTransferCoordinator` → `IsViewingAsync`; eski `GetControlForViewerAsync`/`ControlLease` silindi). Viewer hub sınıf politikası `RemotePcControl` → **`RemotePcView`**; kontrol metotlarına `RemotePcControl`, dosya metotlarına `RemotePcFileTransfer` metot politikası eklendi. Frontend: dosya transferi kontrol oturumundan ayrıldı — kendi viewer hub bağlantısı (`lib/file-transfer-session.ts` + `hooks/use-file-transfer.ts`); panel izlerken görünür. Kontrol (fare/klavye) yolu değişmedi. |
 | 2026-10-05 | **İzleme Raporu** (§ 10.5/§ 10.6/§ 11): yeni izin `RemotePcAudit` (kullanıcı kararı — izleme izninden ayrı); `ScreenViewLog` ve `RemoteControlSession` sayfalı listelenir, özet kartları ve PC ekranından bağlantı var. Girdi sayısı raporda gösterilmez (kullanıcı kararı). Taban controller'dan policy kaldırıldı, controller başına verildi. CSV dışa aktarım yok. |
 | 2026-10-01 | **UIPI çözümü** (§ 12.6): yönetici pencerelerine (Görev Yöneticisi) kontrol için istemci yükseltilmiş çalışır — Görev Zamanlayıcı "en yüksek ayrıcalıkla" oturum-açılışı görevi (`Deploy/Install-StartupTask.ps1`, UAC sormaz). `requireAdministrator` ve `uiAccess` elendi (biri UAC sorar, biri imza ister). Yetki başlangıç günlüğüne yazılır (`ProcessElevation`). |
 | 2026-10-01 | **Monitörler kendiliğinden yenilenir** (§ 9.1/§ 9.3): istemci `SessionSwitch` (RDP/konsol geçişi) + 12 sn'lik uzlaştırmayla monitör listesini merkeze yalnızca değişince bildirir. RDP ile ayarlayıp ayrılınca fiziksel monitörlere dönüş elle "yenile" gerekmeden yansır. |

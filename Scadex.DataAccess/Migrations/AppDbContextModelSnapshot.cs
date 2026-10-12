@@ -3858,6 +3858,13 @@ namespace Scadex.DataAccess.Migrations
                             Category = "RemoteDesk",
                             Code = "RemotePcAudit",
                             DisplayName = "PC izleme raporunu gor"
+                        },
+                        new
+                        {
+                            Id = 13,
+                            Category = "RemoteDesk",
+                            Code = "RemotePcFileTransfer",
+                            DisplayName = "PC ile dosya transferi"
                         });
                 });
 
@@ -4144,6 +4151,11 @@ namespace Scadex.DataAccess.Migrations
                         {
                             RoleId = new Guid("7138ec51-4f9e-4afd-b61b-5a9a4584f5da"),
                             PermissionId = 12
+                        },
+                        new
+                        {
+                            RoleId = new Guid("7138ec51-4f9e-4afd-b61b-5a9a4584f5da"),
+                            PermissionId = 13
                         });
                 });
 

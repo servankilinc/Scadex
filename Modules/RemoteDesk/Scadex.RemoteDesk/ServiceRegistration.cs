@@ -37,6 +37,9 @@ public static class RemoteDeskModule
 
     /// <summary> Denetim raporu izni (<c>Permission.RemotePcAudit</c>) — rapor endpointleri için. İzlemeden ayrıdır: izleyen operatör başkalarının geçmişini görmez. </summary>
     public const string AuditPolicy = nameof(Permission.RemotePcAudit);
+
+    /// <summary> Dosya transferi izni (<c>Permission.RemotePcFileTransfer</c>) — en hassas yetenek; izleme/kontrolden ayrı verilir. </summary>
+    public const string FileTransferPolicy = nameof(Permission.RemotePcFileTransfer);
 }
 
 public static class ServiceRegistration
@@ -91,7 +94,8 @@ public static class ServiceRegistration
         services.AddAuthorizationBuilder()
             .AddPolicy(RemoteDeskModule.ViewPolicy, policy => policy.RequireClaim(AppClaimTypes.Permission, RemoteDeskModule.ViewPolicy))
             .AddPolicy(RemoteDeskModule.ControlPolicy, policy => policy.RequireClaim(AppClaimTypes.Permission, RemoteDeskModule.ControlPolicy))
-            .AddPolicy(RemoteDeskModule.AuditPolicy, policy => policy.RequireClaim(AppClaimTypes.Permission, RemoteDeskModule.AuditPolicy));
+            .AddPolicy(RemoteDeskModule.AuditPolicy, policy => policy.RequireClaim(AppClaimTypes.Permission, RemoteDeskModule.AuditPolicy))
+            .AddPolicy(RemoteDeskModule.FileTransferPolicy, policy => policy.RequireClaim(AppClaimTypes.Permission, RemoteDeskModule.FileTransferPolicy));
         #endregion
 
         #region DB CONTEXT
@@ -125,6 +129,22 @@ public static class ServiceRegistration
         // Kontrol eden kullanıcı bellekte (PC başına tek); DB yalnızca denetim. Süpürmesi ScreenStreamWorker'dadır.
         services.AddSingleton<RemoteControlStore>();
         services.AddSingleton<RemoteControlCoordinator>();
+        #endregion
+
+        #region DOSYA TRANSFERI
+        // Geçici dosyalar + bilet bellekte/diskte (singleton); DB yalnızca denetim. Süpürmesi ScreenStreamWorker'dadır.
+        services.AddSingleton<FileTransfer.FileTransferStore>();
+        services.AddSingleton<FileTransfer.FileTransferLogStore>();
+        services.AddSingleton<FileTransfer.FileTransferCoordinator>();
+        #endregion
+
+        #region PANO
+        services.AddSingleton<Clipboard.ClipboardCoordinator>();
+        // Pano metni hub'dan geçer. Varsayılan 32 KB alım sınırı büyük metne yetmez; bu iki RemoteDesk hub'ında yükseltilir
+        // (mantıksal sınır 1.000.000 karakter; UTF-8 en kötü 4 bayt → 4 MB başlık payıyla rahat). Diğer hub'lar varsayılanda kalır.
+        services.AddSignalR()
+            .AddHubOptions<Hubs.ViewerHub>(o => o.MaximumReceiveMessageSize = 4 * 1024 * 1024)
+            .AddHubOptions<Hubs.PcHub>(o => o.MaximumReceiveMessageSize = 4 * 1024 * 1024);
         #endregion
 
         #region RAPOR

@@ -1,5 +1,5 @@
 import { keepPreviousData, useQuery } from '@tanstack/react-query';
-import { getControlReport, getReportFilters, getReportSummary, getViewReport } from '../api/remote-desk';
+import { getControlReport, getReportFilters, getReportSummary, getTransferReport, getViewReport } from '../api/remote-desk';
 import { remoteDeskKeys } from '../api/query-keys';
 import type { RemoteAccessReportQuery } from '../models/report';
 
@@ -24,6 +24,15 @@ export function useControlReport(query: RemoteAccessReportQuery, enabled: boolea
   return useQuery({
     queryKey: remoteDeskKeys.report('controls', query),
     queryFn: () => getControlReport(query),
+    enabled,
+    placeholderData: keepPreviousData
+  });
+}
+
+export function useTransferReport(query: RemoteAccessReportQuery, enabled: boolean) {
+  return useQuery({
+    queryKey: remoteDeskKeys.report('transfers', query),
+    queryFn: () => getTransferReport(query),
     enabled,
     placeholderData: keepPreviousData
   });

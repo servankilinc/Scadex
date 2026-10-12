@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Link, useParams } from 'react-router';
 import { useQueryClient } from '@tanstack/react-query';
-import { ArrowLeftIcon, ClipboardListIcon, EyeIcon, LoaderIcon, MaximizeIcon, MonitorIcon, MonitorOffIcon, MousePointerClickIcon, VideoOffIcon } from 'lucide-react';
+import { ArrowLeftIcon, ArrowLeftRightIcon, ChevronDownIcon, ChevronUpIcon, ClipboardCopyIcon, ClipboardListIcon, ClipboardPasteIcon, EyeIcon, LoaderIcon, MaximizeIcon, MonitorIcon, MonitorOffIcon, MousePointerClickIcon, VideoOffIcon } from 'lucide-react';
+import { toast } from 'sonner';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -12,6 +13,8 @@ import { remoteDeskKeys } from '../api/query-keys';
 import { usePc } from '../hooks/use-pcs';
 import { usePcStream } from '../hooks/use-pc-stream';
 import { useRemoteControl } from '../hooks/use-remote-control';
+import { useFileTransfer } from '../hooks/use-file-transfer';
+import { FileTransferDialog } from '../components/file-transfer-dialog';
 import type { PcControlDto } from '../models/control';
 import { ScreenStreamStateLabels, type PcDetailDto, type PcMonitorDto } from '../models/pc';
 
@@ -42,6 +45,7 @@ type KeyboardLock = { lock?: (codes?: string[]) => Promise<void>; unlock?: () =>
 const keyboardLock = () => (navigator as Navigator & { keyboard?: KeyboardLock }).keyboard;
 
 const CONTROL_PERMISSION: keyof typeof Permission = 'RemotePcControl';
+const FILE_PERMISSION: keyof typeof Permission = 'RemotePcFileTransfer';
 const AUDIT_PERMISSION: keyof typeof Permission = 'RemotePcAudit';
 export default function RemoteDeskPcDetail() {
   const { deviceId } = useParams();
@@ -170,12 +174,51 @@ function PcPlayer({ deviceId, monitorIndex, control }: { deviceId: string; monit
   const can = usePermission();
   const queryClient = useQueryClient();
 
+  // Dosya transferi izlemeye bağlıdır, kontrole değil (RemoteDesk.md § 12.8): yayın bağlıyken + izinle açılır, kontrol ALMAK gerekmez.
+  const viewing = stream.state === 'connected';
+  const canFiles = viewing && can(FILE_PERMISSION);
+  const files = useFileTransfer(deviceId, canFiles);
+  const [filesOpen, setFilesOpen] = useState(false);
+  // Üst-orta araç çubuğu (kontrol + kısayol + dosya + pano): açılır/kapanır katman.
+  const [toolbarOpen, setToolbarOpen] = useState(true);
+
+  // Panolar arası aktarım (RemoteDesk.md § 12.9). Tek tık navigator.clipboard (güvenli bağlam gerekir — dağıtım gereği, yedek yok).
+  const exportClipboard = useCallback(async () => {
+    try {
+      const text = await navigator.clipboard.readText();
+      if (text.length > 1_000_000) {
+        toast.error('Pano metni çok uzun (en fazla ~1 milyon karakter).');
+        return;
+      }
+      const res = await files.setRemoteClipboard(text);
+      if (res.success) toast.success('Pano uzak PC’ye aktarıldı.');
+      else toast.error(res.message ?? 'Pano aktarılamadı.');
+    } catch {
+      toast.error('Yerel pano okunamadı (tarayıcı izni / HTTPS gerekir).');
+    }
+  }, [files]);
+
+  const importClipboard = useCallback(async () => {
+    try {
+      const res = await files.getRemoteClipboard();
+      if (!res.success) {
+        toast.error(res.message ?? 'Uzak pano alınamadı.');
+        return;
+      }
+      await navigator.clipboard.writeText(res.text ?? '');
+      toast.success(res.text ? 'Uzak pano yerele alındı.' : 'Uzak panoda metin yok.');
+    } catch {
+      toast.error('Yerel panoya yazılamadı (tarayıcı izni / HTTPS gerekir).');
+    }
+  }, [files]);
+
   // Görüntü gelince monitör kartındaki yayın durumu/izleyici sayısı 10 sn'lik yoklamayı beklemesin.
   useEffect(() => {
     if (stream.state === 'connected') void queryClient.invalidateQueries({ queryKey: remoteDeskKeys.pc(deviceId) });
   }, [stream.state, deviceId, queryClient]);
 
   const controlling = remote.status === 'active';
+  const canControlBar = can(CONTROL_PERMISSION) && (viewing || remote.status !== 'idle');
 
   // Tam ekran + Keyboard Lock: Win, Alt+Tab, Ctrl+W gibi tuşlar da sayfaya gelir (çıkış: Esc basılı tutulur).
   const toggleFullscreen = useCallback(async () => {
@@ -244,6 +287,59 @@ function PcPlayer({ deviceId, monitorIndex, control }: { deviceId: string; monit
             )}
           </div>
         )}
+
+        {/* Üst-orta araç çubuğu: kontrol + kısayol + dosya aktarımı; açılır/kapanır, yarı saydam zemin. Sarmalayıcı olayları geçirmez,
+            yalnızca panel/düğme tıklanabilir (kontrol sırasında görüntünün üstünü kaplamasın). */}
+        {(canControlBar || canFiles) && (
+          <div className='pointer-events-none absolute inset-x-0 top-2 z-20 flex justify-center px-2'>
+            {toolbarOpen ? (
+              <div className='pointer-events-auto flex max-w-full flex-wrap items-center justify-center gap-2 rounded-xl border bg-background/80 px-3 py-2 text-sm shadow-lg backdrop-blur-sm'>
+                {canControlBar && (
+                  <ControlBar
+                    status={remote.status}
+                    message={remote.message}
+                    control={control}
+                    onRequest={remote.request}
+                    onRelease={remote.release}
+                    onCombo={remote.sendCombo}
+                    onFullscreen={() => void toggleFullscreen()}
+                  />
+                )}
+                {canFiles && (
+                  <Button size='sm' variant='outline' onClick={() => setFilesOpen(true)}>
+                    <ArrowLeftRightIcon />
+                    Dosya aktarımı
+                  </Button>
+                )}
+                {canFiles && (
+                  <>
+                    <Button size='sm' variant='outline' onClick={() => void exportClipboard()} title='Yerel panodaki metni uzak PC panosuna aktar'>
+                      <ClipboardCopyIcon />
+                      Dışa aktar
+                    </Button>
+                    <Button size='sm' variant='outline' onClick={() => void importClipboard()} title='Uzak PC panosundaki metni yerel panoya al'>
+                      <ClipboardPasteIcon />
+                      İçe aktar
+                    </Button>
+                  </>
+                )}
+                <Button size='icon-sm' variant='ghost' onClick={() => setToolbarOpen(false)} title='Araç çubuğunu gizle'>
+                  <ChevronUpIcon />
+                </Button>
+              </div>
+            ) : (
+              <Button
+                size='sm'
+                variant='secondary'
+                className='pointer-events-auto rounded-full border bg-background/80 shadow-lg backdrop-blur-sm'
+                onClick={() => setToolbarOpen(true)}
+                title='Araç çubuğunu göster'>
+                <ChevronDownIcon />
+                {controlling ? 'Kontrol sizde' : 'Araç çubuğu'}
+              </Button>
+            )}
+          </div>
+        )}
       </div>
 
       {stream.state === 'failed' && (
@@ -252,17 +348,7 @@ function PcPlayer({ deviceId, monitorIndex, control }: { deviceId: string; monit
         </Button>
       )}
 
-      {can(CONTROL_PERMISSION) && (stream.state === 'connected' || remote.status !== 'idle') && (
-        <ControlBar
-          status={remote.status}
-          message={remote.message}
-          control={control}
-          onRequest={remote.request}
-          onRelease={remote.release}
-          onCombo={remote.sendCombo}
-          onFullscreen={() => void toggleFullscreen()}
-        />
-      )}
+      {canFiles && filesOpen && <FileTransferDialog deviceId={deviceId} files={files} onClose={() => setFilesOpen(false)} />}
     </div>
   );
 }
@@ -305,8 +391,8 @@ function ControlBar({
             <MaximizeIcon />
             Tam ekran
           </Button>
-          <span className='text-muted-foreground'>
-            Kontrol sizde: fare ve klavye PC'ye gidiyor (klavye için görüntüye bir kez tıklayın). Ctrl+Alt+Del gönderilemez.
+          <span className='text-xs text-muted-foreground' title='Klavye için görüntüye bir kez tıklayın. Ctrl+Alt+Del gönderilemez.'>
+            Klavye için tıklayın · Ctrl+Alt+Del yok
           </span>
         </>
       ) : (

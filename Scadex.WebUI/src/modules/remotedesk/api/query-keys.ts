@@ -11,5 +11,5 @@ export const remoteDeskKeys = {
   pc: (deviceId: string) => [...root, 'pcs', deviceId] as const,
   /** Denetim raporu — sorgu nesnesi anahtarın parçası (filtre/sayfa değişince yeni giriş). */
   reportFilters: () => [...root, 'reports', 'filters'] as const,
-  report: (kind: 'views' | 'controls' | 'summary', query: object) => [...root, 'reports', kind, query] as const
+  report: (kind: 'views' | 'controls' | 'transfers' | 'summary', query: object) => [...root, 'reports', kind, query] as const
 };

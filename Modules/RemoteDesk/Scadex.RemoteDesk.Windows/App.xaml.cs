@@ -62,6 +62,10 @@ public partial class App : Application
                 services.AddSingleton<IRemoteInputService>(sp => sp.GetRequiredService<RemoteInputService>());
                 services.AddHostedService(sp => sp.GetRequiredService<RemoteInputService>());
 
+                // Dosya transferi: dizin listesi + biletli HTTP yükle/indir.
+                services.AddSingleton<Services.FileTransfer.IFileTransferService, Services.FileTransfer.FileTransferService>();
+                services.AddSingleton<Services.Clipboard.IClipboardAccess, Services.Clipboard.ClipboardAccess>();
+
                 // Merkez bağlantısı: tek örnek hem hosted service (döngü) hem ICentralConnection (durum, "yeniden bağlan").
                 services.AddSingleton<CentralConnectionService>();
                 services.AddSingleton<ICentralConnection>(sp => sp.GetRequiredService<CentralConnectionService>());

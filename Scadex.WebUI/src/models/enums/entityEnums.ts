@@ -454,7 +454,9 @@ export const Permission = {
   /** PC'yi uzaktan kontrol (RemoteDesk, Faz 8) — viewer hub'ı ister; izlemeden ayrıdır. */
   RemotePcControl: 11,
   /** PC izleme/kontrol denetim raporu (RemoteDesk) — rapor enpointleri ister; izlemeden ayrıdır. */
-  RemotePcAudit: 12
+  RemotePcAudit: 12,
+  /** Uzak PC ile dosya transferi (RemoteDesk) — kontrolü elinde tutana açık, ayrı izin. */
+  RemotePcFileTransfer: 13
 } as const;
 export type Permission = (typeof Permission)[keyof typeof Permission];
 
@@ -471,5 +473,6 @@ export const PermissionLabels: Record<Permission, string> = {
   [Permission.ManageAccessCards]: 'Geçiş Kartı Yönetimi',
   [Permission.RemotePcView]: 'PC Ekranı İzleme',
   [Permission.RemotePcControl]: 'PC Uzaktan Kontrol',
-  [Permission.RemotePcAudit]: 'PC İzleme Raporu'
+  [Permission.RemotePcAudit]: 'PC İzleme Raporu',
+  [Permission.RemotePcFileTransfer]: 'PC Dosya Transferi'
 };

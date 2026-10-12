@@ -66,4 +66,30 @@ public static class RemoteDeskEnums
         /// <summary> Aynı kullanıcı başka bir sekmeden kontrolü aldı. </summary>
         Replaced = 7
     }
+
+    /// <summary> Dosya transferinin yönü (denetim kaydında saklanır). </summary>
+    public enum FileTransferDirection
+    {
+        /// <summary> Tarayıcıdan PC'ye (PC'ye yazılır). </summary>
+        ToPc = 1,
+        /// <summary> PC'den tarayıcıya (PC'den okunur). </summary>
+        FromPc = 2
+    }
+
+    /// <summary> Bir transferin anlık durumu (merkez belleğinde; denetime son durumu yazılır). </summary>
+    public enum FileTransferStatus
+    {
+        /// <summary> Tarayıcı dosyayı merkeze yüklüyor (ToPc). </summary>
+        CentralReceiving = 1,
+        /// <summary> Merkezde hazır, PC'ye yazılması bekleniyor (ToPc). </summary>
+        ReadyForPc = 2,
+        /// <summary> PC dosyayı merkeze gönderiyor (FromPc). </summary>
+        PcSending = 3,
+        /// <summary> Merkezde hazır, tarayıcıya indirilmeyi bekliyor (FromPc). </summary>
+        ReadyForBrowser = 4,
+        /// <summary> Tamamlandı. </summary>
+        Completed = 5,
+        /// <summary> Başarısız (hata / reddedildi / boyut aşıldı). </summary>
+        Failed = 6
+    }
 }

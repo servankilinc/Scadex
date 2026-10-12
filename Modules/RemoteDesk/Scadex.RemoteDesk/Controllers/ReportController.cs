@@ -38,6 +38,13 @@ public class ReportController : RemoteDeskControllerBase
         return ToAction(result);
     }
 
+    [HttpPost("reports/transfers")]
+    public async Task<IActionResult> GetTransfers(RemoteAccessReportQuery query, CancellationToken cancellationToken)
+    {
+        var result = await _service.GetTransfersAsync(query, cancellationToken);
+        return ToAction(result);
+    }
+
     [HttpPost("reports/summary")]
     public async Task<IActionResult> GetSummary(RemoteAccessReportQuery query, CancellationToken cancellationToken)
     {
