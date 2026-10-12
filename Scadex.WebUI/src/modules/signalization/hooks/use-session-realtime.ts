@@ -12,8 +12,8 @@ const BATCH_MS = 250;
 /**
  * Operatör işlemi canlı yayını (`/hubs/signalization`) → TanStack invalidation. Layout'a bir kez takılır (modülün `LayoutExtension`'ı).
  *
- * Yalnızca AKTİF sorgular yeniden çekilir: açık oturumlar (harita, canlı panel, uyarı izleyicisi), sayfalı geçmiş ve değişen
- * oturumun detayı. Özet rapor (`summary`) BİLEREK tazelenmez — 366 günlük aralığı her oturum değişiminde yeniden hesaplatmak
+ * Yalnızca AKTİF sorgular yeniden çekilir: açık oturumlar (harita, canlı panel, uyarı izleyicisi), sayfalı geçmiş, değişen
+ * oturumun detayı ve kabin tablosu. Özet rapor (`summary`) BİLEREK tazelenmez — 366 günlük aralığı her oturum değişiminde yeniden hesaplatmak
  * pahalı, rapor da canlı ekran değildir.
  *
  * Yoklama (`LIVE_POLL_MS`) kaldırılmadı: soket kurulamazsa ya da kopuksa geri dönüş odur.
@@ -33,6 +33,8 @@ export function useSessionRealtime(): void {
 
       void queryClient.invalidateQueries({ queryKey: signalizationKeys.openSessionsAll() });
       void queryClient.invalidateQueries({ queryKey: signalizationKeys.sessionLists() });
+      // Kabin tablosu: son işlem, 30 günlük sayılar ve siren (motor sireni oturumla birlikte sürer).
+      void queryClient.invalidateQueries({ queryKey: signalizationKeys.cabinetOverview() });
       for (const id of sessionIds) void queryClient.invalidateQueries({ queryKey: signalizationKeys.sessionDetail(id) });
     };
 
@@ -66,5 +68,6 @@ export function useSessionRealtime(): void {
       queryKey: signalizationKeys.sessions(),
       predicate: query => query.queryKey[2] !== 'summary'
     });
+    void queryClient.invalidateQueries({ queryKey: signalizationKeys.cabinetOverview() });
   }, [status, queryClient]);
 }

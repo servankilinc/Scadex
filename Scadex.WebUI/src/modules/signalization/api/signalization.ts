@@ -7,7 +7,7 @@
 import http from '@/lib/axios-helper';
 import type { PaginationResponse } from '@/models/channelEvent';
 import type { SignalAuthorityDto, SignalAuthoritySaveRequest } from '../models/authority';
-import type { SignalCabinetDto, SignalCabinetOptionsDto, SignalCabinetSaveRequest } from '../models/cabinet';
+import type { SignalCabinetDto, SignalCabinetOptionsDto, SignalCabinetOverviewDto, SignalCabinetSaveRequest } from '../models/cabinet';
 import type { SignalOperatorAuthorityRequest, SignalOperatorDto } from '../models/operator';
 import type { SignalCabinetCommandRequest, SignalCabinetCommandResultDto, SignalCabinetLiveDto } from '../models/virtual-cabinet';
 import type {
@@ -52,6 +52,11 @@ export async function setSignalOperatorAuthority(userId: string, request: Signal
 }
 
 // ─────────────────────────────────────────────────────────── kabin yapılandırması
+
+/** Kabin tablosu: çekirdekteki her kabin (pasifler dahil), yapılandırılmamışlar `isConfigured: false` ile. */
+export async function getSignalCabinetOverview(): Promise<SignalCabinetOverviewDto[]> {
+  return http.get<SignalCabinetOverviewDto[]>(`${CABINET_ROUTE}/overview`);
+}
 
 /** Yapılandırılmamış kabinde de 200 döner (`isConfigured: false` + varsayılanlar); kabin yoksa 404. */
 export async function getSignalCabinet(cabinetId: string): Promise<SignalCabinetDto> {

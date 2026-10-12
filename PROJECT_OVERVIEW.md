@@ -1149,8 +1149,9 @@ yoklama 404'te kendini durdurur.
 |---|---|
 | `/signalization/sessions` | Canlı panel (açık oturumlar, 5 sn yoklama, geçen süre sayacı) + filtreli sayfalı geçmiş (kabin, durum, bayrak, kurum, operatör, tarih) |
 | `/signalization/sessions/:id` | Özet, operatörler, iç kapı özeti, büyütülebilir giriş kareleri, zaman çizelgesi; açık oturumda 3 sn yoklama |
-| `/signalization/report` | Dönem özeti (KPI + operatör / kurum / kabin kırılımı, Recharts) |
-| `/signalization/cabinets?cabinetId=` | Kabin → dış kapı → iç kapı ağaç editörü (tam ağaç kaydı) |
+| `/signalization/report` | Dönem özeti (KPI + operatör / kurum / kabin kırılımı, Recharts; kabin / operatör / kurum / tarih filtresi, CSV) |
+| `/signalization/cabinets` | **Kabin tablosu** (2026-10-12): çekirdekteki HER kabin — modülde satırı olmayan "Yapılandırılmamış"; yapılandırma özeti, canlı işlem/alarm (açık oturum sorgusundan), siren, zamanlama ayarları, son 30 gün işlem/bayraklı; filtre + CSV. Çekirdeğin `/cabinets` ekranından ayrıdır (künye ve diyagram orada) |
+| `/signalization/cabinets/:cabinetId` | Kabin → dış kapı → iç kapı ağaç editörü (tam ağaç kaydı). Menüde YOK, kabin seçicisi yok: giriş yalnızca tablodaki "Yapılandır"dan (ilk kurulum dahil) |
 | `/signalization/authorities` | Kurum ↔ rol listesi (tam liste kaydı; çıkarılan pasife alınır, geri alınabilir) |
 | `/signalization/operators` | Aktif kullanıcılar, kart no, tek kurum seçimi (seçim anında kaydedilir) |
 | `/signalization/virtual-cabinet/:cabinetId` | Sanal kabin ara adımı: dış kapı kartları (ad, görsel, ardındaki iç kapılar) |
@@ -1352,6 +1353,7 @@ ekranlarını ayrı parçalara böler.
 |---|---|
 | `GET` · `PUT /api/SignalAuthority` | Kurum ↔ rol; PUT tam liste, aktif iç kapıda kullanılan kurum pasife alınamaz |
 | `GET /api/SignalOperator` · `PUT /api/SignalOperator/{userId}/authority` | Tek kurum seçimi, çekirdeğin rol sync'iyle yazılır |
+| `GET /api/SignalCabinet/overview` | Kabin tablosu: çekirdekteki her kabin (pasif dahil) + `isConfigured`, aktif kapı/kamera sayıları, kurumlar, siren (toplu `ReadOutputsAsync`), zamanlama ayarları (yapılandırılmamışta `null`), son işlem ve son 30 gün sayıları. Açık işlem/alarm taşımaz — ekran `/open`'dan türetir |
 | `GET` · `PUT /api/SignalCabinet/{cabinetId}` · `GET …/options` | Yapılandırma ağacı (tam ağaç, Guid'i istemci üretir, çıkan kapı pasife); seçenekler kanalları kullanım bilgisi ve kablo etiketiyle verir |
 | `GET /api/SignalCabinet/{cabinetId}/live` | Sanal kabinin tek okuması: kapı açık mı + siren / aydınlatma / kilit durumu ve `ChangedAtUtc`'leri — hepsi çekirdeğin `IoChannel.CurrentValue`'sundan (`ISignalChannelStateService`); durum alanlarında `null` = bilinmiyor |
 | `POST /api/SignalCabinet/{cabinetId}/command` | Elle komut: `{ target, targetId, turnOn }`. **200 ≠ başarı** — sonuç gövdedeki `status`'tedir (çekirdeğin komut ucuyla aynı); SCADA cevaplayana kadar bloklar |

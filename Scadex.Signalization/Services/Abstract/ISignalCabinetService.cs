@@ -6,6 +6,9 @@ namespace Scadex.Signalization.Services.Abstract;
 
 public interface ISignalCabinetService
 {
+    /// <summary> Kabin tablosu: cekirdekteki her kabin (pasifler dahil) + modul yapilandirma ozeti, siren durumu, islem istatistigi. </summary>
+    Task<Result<List<SignalCabinetOverviewDto>>> GetOverviewAsync(CancellationToken cancellationToken = default);
+
     /// <summary> Kabinin yapilandirma agaci; hic yapilandirilmadiysa varsayilanlarla <c>IsConfigured = false</c>. </summary>
     Task<Result<SignalCabinetDto>> GetAsync(Guid cabinetId, CancellationToken cancellationToken = default);
 

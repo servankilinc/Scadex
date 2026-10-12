@@ -12,6 +12,8 @@ export const signalizationKeys = {
   authorities: () => [...root, 'authorities'] as const,
   /** Aktif kullanıcılar + türetilmiş kurum. */
   operators: () => [...root, 'operators'] as const,
+  /** Kabin tablosu. Yoklanmaz — oturum canlı yayını ve yapılandırma kaydı invalidate eder. */
+  cabinetOverview: () => [...root, 'cabinet-overview'] as const,
   cabinet: (cabinetId: string) => [...root, 'cabinet', cabinetId] as const,
   /** Yapılandırma ekranının seçenekleri (kanallar, kameralar, kurumlar). */
   cabinetOptions: (cabinetId: string) => [...root, 'cabinet-options', cabinetId] as const,

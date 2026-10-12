@@ -57,9 +57,17 @@ const routes: RouteObject[] = [
         ]
       },
       {
+        // Kabin tablosu; kapı yapılandırmasına YALNIZCA buradan, kabin bazında girilir (menüde ayrı madde yok).
         path: 'cabinets',
-        handle: { crumb: 'Kapı Yapılandırması' },
-        lazy: async () => ({ Component: (await import('./views/admin/cabinet-config')).default })
+        handle: { crumb: 'Kabinler' },
+        children: [
+          { index: true, lazy: async () => ({ Component: (await import('./views/cabinets')).default }) },
+          {
+            path: ':cabinetId',
+            handle: { crumb: 'Kapı Yapılandırması' },
+            lazy: async () => ({ Component: (await import('./views/admin/cabinet-config')).default })
+          }
+        ]
       },
       {
         path: 'authorities',
@@ -82,7 +90,7 @@ export const signalizationModule: AppModule = {
   navItems: [
     { title: 'Operatör İşlemleri', url: '/signalization/sessions', icon: DoorOpenIcon },
     { title: 'Rapor', url: '/signalization/report', icon: ChartColumnIcon },
-    { title: 'Kapı Yapılandırması', url: '/signalization/cabinets', icon: SlidersHorizontalIcon },
+    { title: 'Kabinler', url: '/signalization/cabinets', icon: SlidersHorizontalIcon },
     { title: 'Kurumlar', url: '/signalization/authorities', icon: LandmarkIcon },
     { title: 'Operatörler', url: '/signalization/operators', icon: IdCardIcon }
   ],

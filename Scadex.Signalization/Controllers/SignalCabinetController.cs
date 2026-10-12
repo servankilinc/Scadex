@@ -12,6 +12,12 @@ public class SignalCabinetController : SignalizationControllerBase
     private readonly ISignalCabinetService _service;
     public SignalCabinetController(ILogger<SignalCabinetController> logger, ISignalCabinetService service) : base(logger) => _service = service;
 
+    [HttpGet("overview")]
+    public async Task<IActionResult> GetOverview(CancellationToken cancellationToken)
+    {
+        var result = await _service.GetOverviewAsync(cancellationToken);
+        return ToAction(result);
+    }
 
     [HttpGet("{cabinetId:guid}")]
     public async Task<IActionResult> Get(Guid cabinetId, CancellationToken cancellationToken)

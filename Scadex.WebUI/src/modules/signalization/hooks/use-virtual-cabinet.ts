@@ -50,6 +50,8 @@ export function useSignalCabinetCommand(cabinetId: string) {
 
       // Canlı yayın değişimi zaten getirir; bu okuma yayın kopmuşsa diye bir güvencedir. Başarısızlıkta ekran ESKİ değeri göstermeli.
       void queryClient.invalidateQueries({ queryKey: signalizationKeys.cabinetLive(cabinetId) });
+      // Kabin tablosundaki "Siren çalıyor" — tablo kabin durum yayınına abone değil.
+      void queryClient.invalidateQueries({ queryKey: signalizationKeys.cabinetOverview() });
 
       if (result.status === CommandStatus.Succeeded) {
         toast.success(`${label}: komut gönderildi.`);

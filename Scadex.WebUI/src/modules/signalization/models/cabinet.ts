@@ -9,6 +9,39 @@ import type { SignalAuthorityDto } from './authority';
 
 // ─────────────────────────────────────────────────────────── okuma
 
+/**
+ * Ayna: `Queries/SignalCabinetOverviewDto.cs` — kabin tablosunun satırı (`GET /api/SignalCabinet/overview`). Satır tabanı
+ * ÇEKİRDEK kabindir: `isConfigured = false` satırda yapılandırma alanları 0 / boş / `null`. Açık işlem/alarm burada YOK —
+ * ekran onu açık oturum sorgusundan türetir. `...Utc` damgasında `Z` yok: `formatUtcDateTime`.
+ */
+export interface SignalCabinetOverviewDto {
+  cabinetId: string;
+  cabinetName: string;
+  /** Çekirdekteki `Cabinet.IsActive`. */
+  cabinetIsActive: boolean;
+  isConfigured: boolean;
+  /** `false` ise motor bu kabinin olaylarını yok sayar. */
+  isEnabled: boolean;
+  outerDoorCount: number;
+  innerDoorCount: number;
+  /** Kamerası tanımlı dış kapı sayısı. */
+  cameraCount: number;
+  authorityNames: string[];
+  hasSiren: boolean;
+  /** `null` = bilinmiyor (siren tanımsız ya da hiç başarılı komut görmemiş). */
+  sirenIsOn: boolean | null;
+  sirenDurationSec: number | null;
+  awaitingCardTimeoutSec: number | null;
+  sessionMaxDurationMin: number | null;
+  entrySnapshotCount: number | null;
+  entrySnapshotIntervalMs: number | null;
+  lastSessionStartedAtUtc: string | null;
+  /** Son 30 günde başlamış işlem (açık dahil). */
+  sessionCount30d: number;
+  /** Bunlardan herhangi bir bayrağı olanlar. */
+  flaggedSessionCount30d: number;
+}
+
 /** Kabin hiç yapılandırılmadıysa `isConfigured = false` ve varsayılanlar döner. */
 export interface SignalCabinetDto {
   cabinetId: string;

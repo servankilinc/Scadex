@@ -9,8 +9,8 @@ import {
   type UseFormRegister
 } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { Link, useBlocker, useSearchParams } from 'react-router';
-import { ChevronRightIcon, DoorClosedIcon, DoorOpenIcon, LockIcon, LockOpenIcon, PlusIcon, SettingsIcon, SirenIcon, Trash2Icon } from 'lucide-react';
+import { Link, useBlocker, useParams } from 'react-router';
+import { ChevronLeftIcon, ChevronRightIcon, DoorClosedIcon, DoorOpenIcon, LockIcon, LockOpenIcon, PlusIcon, SettingsIcon, SirenIcon, Trash2Icon } from 'lucide-react';
 import {
   AlertDialog,
   AlertDialogCancel,
@@ -25,10 +25,8 @@ import { Button } from '@/components/ui/button';
 import { Card, CardAction, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Field, FieldDescription, FieldError, FieldLabel } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Switch } from '@/components/ui/switch';
-import { useCabinets } from '@/hooks/use-cabinets';
 import { newId } from '@/lib/sequential-id';
 import { cn } from '@/lib/utils';
 import { AuthoritySelect, CameraSelect, ChannelSelect, type ChannelUsage } from '../../components/config-selects';
@@ -46,7 +44,10 @@ import {
 } from '../../models/cabinet';
 
 /**
- * Kapı yapılandırması — `/signalization/cabinets?cabinetId=…`.
+ * Kapı yapılandırması — `/signalization/cabinets/:cabinetId`.
+ *
+ * Ekrana YALNIZCA kabin tablosundaki "Yapılandır" ile girilir (menüde madde yok, ekranda kabin seçici yok); yapılandırılmamış
+ * kabinin ilk kurulumu da buradan yapılır. Kabin değiştirmek için tabloya dönülür.
  *
  * Kullanıcının hiyerarşi JSON'unun görsel karşılığı: kabin (ortak siren, süreler) → dış kapılar (anahtar,
  * kamera) → iç kapılar (kurum, anahtar, kilit). Kapılar SANALDIR; seçilen her şey diyagramdaki kartların
@@ -59,22 +60,13 @@ import {
  * Kilit / siren durumu burada yalnızca GÖSTERİLİR; onları motor yazar.
  */
 export default function SignalCabinetConfig() {
-  const cabinets = useCabinets();
-  const [searchParams, setSearchParams] = useSearchParams();
-
-  const activeCabinets = useMemo(() => cabinets.data?.filter(c => c.isActive) ?? [], [cabinets.data]);
-  // Türetme, efekt DEĞİL: adres çubuğunda kabin yoksa ilk aktif kabin.
-  const cabinetId = searchParams.get('cabinetId') || activeCabinets[0]?.id || '';
+  const { cabinetId = '' } = useParams();
 
   const config = useSignalCabinet(cabinetId);
   const options = useSignalCabinetOptions(cabinetId);
   const loadError = config.error ?? options.error;
 
-  // Kabin seçimi adres çubuğunda: bağlantı paylaşılabilir ve kaydedilmemiş değişiklik varken seçim değişimi
-  // de bir gezinme olduğu için engelleyiciye takılır.
-  const selectCabinet = (id: string) => setSearchParams({ cabinetId: id }, { replace: true });
-
-  const picker = <CabinetPicker cabinets={activeCabinets} value={cabinetId} onChange={selectCabinet} isPending={cabinets.isPending} />;
+  const heading = <CabinetHeading name={config.data?.cabinetName} />;
 
   return (
     <div className='flex max-w-5xl flex-col gap-4 p-4'>
@@ -93,51 +85,31 @@ export default function SignalCabinetConfig() {
         </p>
       </div>
 
-      {activeCabinets.length === 0 && !cabinets.isPending && <p className='text-sm text-muted-foreground'>Önce bir kabin oluşturun.</p>}
       {loadError && <p className='text-sm text-destructive'>{loadError.message}</p>}
 
       {/* Form, kabin başına YENİDEN mount edilir (`key`): varsayılanlar veriden okunur, `reset` efekti yok. */}
       {config.data && options.data ? (
-        <CabinetConfigForm key={cabinetId} cabinetId={cabinetId} config={config.data} options={options.data} picker={picker} />
+        <CabinetConfigForm key={cabinetId} cabinetId={cabinetId} config={config.data} options={options.data} heading={heading} />
       ) : (
         <>
-          {picker}
-          {cabinetId && !loadError && <Skeleton className='h-96 w-full rounded-xl' />}
+          {heading}
+          {!loadError && <Skeleton className='h-96 w-full rounded-xl' />}
         </>
       )}
     </div>
   );
 }
 
-function CabinetPicker({
-  cabinets,
-  value,
-  onChange,
-  isPending
-}: {
-  cabinets: { id: string; name: string }[];
-  value: string;
-  onChange: (id: string) => void;
-  isPending: boolean;
-}) {
+/** Yapılandırılan kabin (salt okunur) + tabloya dönüş. Kabin seçimi tabloda yapılır. */
+function CabinetHeading({ name }: { name: string | null | undefined }) {
   return (
-    <Field className='w-full max-w-xs'>
-      <FieldLabel htmlFor='signal-cabinet'>Kabin</FieldLabel>
-      <Select value={value || null} onValueChange={next => next && onChange(next)}>
-        <SelectTrigger id='signal-cabinet' className='w-full'>
-          <SelectValue placeholder={isPending ? 'Yükleniyor…' : 'Kabin seçin'}>
-            {value ? (cabinets.find(c => c.id === value)?.name ?? (isPending ? 'Yükleniyor…' : 'Kabin bulunamadı')) : undefined}
-          </SelectValue>
-        </SelectTrigger>
-        <SelectContent>
-          {cabinets.map(cabinet => (
-            <SelectItem key={cabinet.id} value={cabinet.id}>
-              {cabinet.name}
-            </SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
-    </Field>
+    <div className='flex flex-col gap-1'>
+      <Link to='/signalization/cabinets' className='flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground'>
+        <ChevronLeftIcon className='size-3.5' />
+        Kabinlere dön
+      </Link>
+      {name === undefined ? <Skeleton className='h-6 w-48' /> : <span className='text-base font-semibold'>{name ?? 'Kabin'}</span>}
+    </div>
   );
 }
 
@@ -245,12 +217,12 @@ function CabinetConfigForm({
   cabinetId,
   config,
   options,
-  picker
+  heading
 }: {
   cabinetId: string;
   config: SignalCabinetDto;
   options: SignalCabinetOptionsDto;
-  picker: React.ReactNode;
+  heading: React.ReactNode;
 }) {
   const form = useForm<SignalCabinetFormValues>({
     resolver: zodResolver(signalCabinetFormSchema),
@@ -346,7 +318,7 @@ function CabinetConfigForm({
       <UnsavedChangesGuard isDirty={isDirty} />
 
       <div className='flex flex-wrap items-end justify-between gap-3'>
-        {picker}
+        {heading}
         <div className='flex flex-wrap items-center gap-1.5'>
           {!config.isConfigured && <Badge variant='outline'>Henüz yapılandırılmadı</Badge>}
           {config.isConfigured && <Badge variant={config.isEnabled ? 'default' : 'secondary'}>{config.isEnabled ? 'Etkin' : 'Kapalı'}</Badge>}

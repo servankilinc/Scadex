@@ -5,6 +5,7 @@ import {
   getSignalAuthorities,
   getSignalCabinet,
   getSignalCabinetOptions,
+  getSignalCabinetOverview,
   getSignalOperators,
   saveSignalAuthorities,
   saveSignalCabinet,
@@ -56,6 +57,11 @@ export function useSetSignalOperatorAuthority() {
   });
 }
 
+/** Kabin tablosu. Canlı yayın (`useSessionRealtime`) ve yapılandırma kaydı tazeler; ayrıca yoklanmaz. */
+export function useSignalCabinetOverview() {
+  return useQuery({ queryKey: signalizationKeys.cabinetOverview(), queryFn: getSignalCabinetOverview });
+}
+
 export function useSignalCabinet(cabinetId: string) {
   return useQuery({
     queryKey: signalizationKeys.cabinet(cabinetId),
@@ -81,6 +87,8 @@ export function useSaveSignalCabinet() {
       // Seçeneklerdeki "kullanımda" etiketleri kayıtlı yapılandırmadan türer.
       void queryClient.invalidateQueries({ queryKey: signalizationKeys.cabinet(cabinetId) });
       void queryClient.invalidateQueries({ queryKey: signalizationKeys.cabinetOptions(cabinetId) });
+      // Tablodaki kapı/kurum/ayar özeti ve "Yapılandırılmamış" rozeti.
+      void queryClient.invalidateQueries({ queryKey: signalizationKeys.cabinetOverview() });
       toast.success('Kabin yapılandırması kaydedildi.');
     }
   });

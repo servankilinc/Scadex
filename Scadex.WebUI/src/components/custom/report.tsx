@@ -1,6 +1,6 @@
 import { useState, type ReactNode } from 'react';
 import { toast } from 'sonner';
-import { DownloadIcon, LoaderCircleIcon, RotateCcwIcon } from 'lucide-react';
+import { DownloadIcon, LoaderCircleIcon, RotateCcwIcon, SearchIcon } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Field, FieldLabel } from '@/components/ui/field';
@@ -11,7 +11,7 @@ import { REPORT_ALL } from '@/lib/report-params';
 import { cn } from '@/lib/utils';
 
 /**
- * Rapor ekranlarının ortak iskeleti (Sinyalizasyon raporu, İzleme raporu). Sıra her raporda aynıdır: başlık + dışa aktar →
+ * Rapor ekranlarının ortak iskeleti (Sinyalizasyon raporu ve kabin tablosu, İzleme raporu). Sıra her raporda aynıdır: başlık + dışa aktar →
  * filtre şeridi → özet kartları → sekmeler → `DataTable` + alt şerit. Tablo da her yerde aynı bileşendir
  * (`@/components/custom/data-table`) ve sayfanın tam genişliğini alır — bir rapor kendi tablo görünümünü icat etmesin.
  */
@@ -90,6 +90,19 @@ export function ReportSelectFilter({
           ))}
         </SelectContent>
       </Select>
+    </Field>
+  );
+}
+
+/** Serbest metin araması (ad vb.). Eşleştirme sayfanındır — Türkçe harf duyarsızlığı için `toSearchKey`. */
+export function ReportSearchFilter({ id, label, value, onChange, placeholder }: { id: string; label: string; value: string; onChange: (value: string) => void; placeholder?: string }) {
+  return (
+    <Field className={FIELD_CLASS}>
+      <FieldLabel htmlFor={id}>{label}</FieldLabel>
+      <div className='relative'>
+        <SearchIcon className='pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground' />
+        <Input id={id} className='pl-8' placeholder={placeholder} value={value} onChange={e => onChange(e.target.value)} />
+      </div>
     </Field>
   );
 }

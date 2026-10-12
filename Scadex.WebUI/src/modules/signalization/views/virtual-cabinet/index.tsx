@@ -36,7 +36,7 @@ export default function VirtualCabinetPicker() {
       {data && data.outerDoors.length === 0 && (
         <p className='text-sm text-muted-foreground'>
           Bu kabinde tanımlı dış kapı yok.{' '}
-          <Link to={`/signalization/cabinets?cabinetId=${cabinetId}`} className='underline underline-offset-4'>
+          <Link to={`/signalization/cabinets/${cabinetId}`} className='underline underline-offset-4'>
             Kapı yapılandırmasından
           </Link>{' '}
           ekleyebilirsiniz.
