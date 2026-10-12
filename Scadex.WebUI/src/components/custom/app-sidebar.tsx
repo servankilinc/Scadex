@@ -7,6 +7,7 @@ import {
   ChevronsUpDown,
   CpuIcon,
   HistoryIcon,
+  HouseIcon,
   LogOut,
   MonitorIcon,
   MoonIcon,
@@ -66,6 +67,8 @@ type NavItem = ModuleNavItem;
  */
 
 const NAV_ITEMS: NavItem[] = [
+  // Logo da '/'a gider ama tek giriş noktası olarak yeterince görünür değil.
+  { title: 'Ana Sayfa', url: '/', icon: HouseIcon },
   { title: 'Kabinler', url: '/cabinets', icon: CpuIcon },
   { title: 'Olay Geçmişi', url: '/events', icon: HistoryIcon },
   // Canlı izleme kamera tanımını da (ekle/düzenle) kapsar — ayrı bir "Kameralar"

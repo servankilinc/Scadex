@@ -28,6 +28,8 @@ export const RemoteControlEndReasonLabels: Record<RemoteControlEndReason, string
 /** Ortak filtre — `POST .../reports/{views|controls|summary}` gövdesi. Tarih aralığı kaydın başlangıcına uygulanır. */
 export interface RemoteAccessReportQuery {
   deviceId: string | null;
+  /** PC'nin BUGÜN bağlı olduğu kabin — sunucu kabindeki cihazları çekirdekten çözer. */
+  cabinetId: string | null;
   userId: string | null;
   fromUtc: string | null;
   toUtc: string | null;
@@ -92,6 +94,8 @@ export interface RemoteAccessSummaryDto {
 export interface ReportPcOptionDto {
   deviceId: string;
   deviceName: string | null;
+  /** Kabin filtresinin seçenekleri buradan türetilir. `null` = cihaz çekirdekte artık yok. */
+  cabinetId: string | null;
   cabinetName: string | null;
 }
 

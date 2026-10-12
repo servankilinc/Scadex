@@ -29,6 +29,10 @@ export interface OperatorSessionSummaryRequest {
   fromUtc: string;
   toUtc: string;
   cabinetId?: string | null;
+  /** Bu operatörün katıldığı işlemler (işlem listesindeki filtreyle aynı anlam). */
+  userId?: string | null;
+  /** Operatörlerinden birinin kurum enstantanesi kurumun bugünkü adı olan işlemler. */
+  authorityId?: string | null;
 }
 
 export interface OperatorSessionOperatorDto {

@@ -639,12 +639,14 @@ değişikliği yoktur.
 | `GET /api/RemoteDesk/pcs/{deviceId}` | Aynısı + monitör listesi ve her monitörün yayın durumu |
 | `POST /api/RemoteDesk/pcs/{deviceId}/monitors/{index}/view` | İzlemeyi başlat ([§ 8.2](#82-başlatma)) |
 | `POST /api/RemoteDesk/views/{viewId}/renew` · `DELETE /api/RemoteDesk/views/{viewId}` | Kiralama |
-| `GET /api/RemoteDesk/reports/filters` | *(Audit)* Denetim tablolarında geçen PC'ler ve kullanıcılar (silinmiş/pasif dahil) |
-| `POST /api/RemoteDesk/reports/views` · `…/controls` | *(Audit)* `ScreenViewLog` / `RemoteControlSession`, sayfalı, yeniden eskiye; gövde `{ deviceId?, userId?, fromUtc?, toUtc?, page, pageSize ≤ 100 }`, tarih aralığı kaydın başlangıcına |
+| `GET /api/RemoteDesk/reports/filters` | *(Audit)* Üç denetim tablosunda geçen PC'ler (kabin kimliği ve adıyla) ve kullanıcılar (silinmiş/pasif dahil) |
+| `POST /api/RemoteDesk/reports/views` · `…/controls` · `…/transfers` | *(Audit)* `ScreenViewLog` / `RemoteControlSession` / `FileTransferLog`, sayfalı, yeniden eskiye; gövde `{ deviceId?, cabinetId?, userId?, fromUtc?, toUtc?, page, pageSize ≤ 100 }`, tarih aralığı kaydın başlangıcına. `cabinetId` PC'nin BUGÜNKÜ kabinidir (satır kabini taşımaz; kabindeki cihazlar çekirdekten okunur — taşınan PC'nin geçmişi yeni kabinde görünür, 2026-10-12) |
 | `POST /api/RemoteDesk/reports/summary` | *(Audit)* Aynı filtreyle oturum sayıları, toplam süreler, en çok izlenen PC, en çok izleyen kullanıcı |
 
 Rapor fare/klavye girdisi göstermez: girdi zaten saklanmıyor, `RemoteControlSession.InputEventCount` da raporda bilerek yok
 (kullanıcı kararı, 2026-10-05). Adlar çekirdekten projeksiyonla çözülür; çekirdekte artık olmayan kimlik `null` ad ile listelenir.
+Dışa aktarma (2026-10-12) sunucuda ayrı uç DEĞİLDİR: ekran etkin sekmenin listesini aynı uçtan 100'lük sayfalarla sonuna kadar çekip
+tarayıcıda CSV yazar (`lib/csv-export.ts`, 10.000 satır tavanı — aşılırsa uyarı, filtre daraltılır).
 
 Kurallar: `Result<T>` → çıplak DTO, hatalar ProblemDetails; controller'lar modülün temel sınıfından türer
 (`SignalizationControllerBase` kalıbı); rate limit takılmaz (modül kararı); hiçbir metot `companyId` almaz;

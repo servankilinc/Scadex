@@ -27,13 +27,7 @@ public partial class OperatorSessionService
         if (request.Status is OperatorSessionStatus status) query = query.Where(s => s.Status == status);
         if (request.Flags is SessionFlags flags && flags != SessionFlags.None) query = query.Where(s => (s.Flags & flags) != 0);
 
-        // Kurum filtresi operatorun kurum ENSTANTANESINE (ada) uygulanir ve kurumun BUGUNKU adiyla aranir:
-        // kurum sonradan yeniden adlandirildiysa eski addaki oturumlar bu filtreye takilmaz (bilinen sinir).
-        if (request.AuthorityId is Guid authorityId)
-        {
-            var authorityName = await _db.Authorities.AsNoTracking().Where(a => a.Id == authorityId).Select(a => a.Name).FirstOrDefaultAsync(cancellationToken);
-            query = authorityName == null ? query.Where(s => false) : query.Where(s => s.Operators!.Any(o => o.AuthorityNameSnapshot == authorityName));
-        }
+        if (request.AuthorityId is Guid authorityId) query = await FilterByAuthorityAsync(query, authorityId, cancellationToken);
 
         var page = await ProjectListItems(query.OrderByDescending(s => s.StartedAtUtc).ThenByDescending(s => s.Id))
             .AsSplitQuery()
@@ -155,6 +149,11 @@ public partial class OperatorSessionService
             .Where(s => s.EndedAtUtc != null && s.StartedAtUtc >= request.FromUtc && s.StartedAtUtc <= request.ToUtc);
         if (request.CabinetId is Guid cabinetId)
             query = query.Where(s => s.CabinetId == cabinetId);
+        // Operator/kurum secildiginde o operatorun (kurumun) KATILDIGI islemler ozetlenir; kirilimlarda yanindaki operatorler de gorunur.
+        if (request.UserId is Guid userId)
+            query = query.Where(s => s.Operators!.Any(o => o.UserId == userId));
+        if (request.AuthorityId is Guid authorityId)
+            query = await FilterByAuthorityAsync(query, authorityId, cancellationToken);
 
         var sessions = await query.Select(s => new { s.Id, s.CabinetId, Duration = s.DurationSec ?? 0, s.Flags }).ToListAsync(cancellationToken);
         var sessionIds = sessions.Select(s => s.Id).ToList();
@@ -204,6 +203,13 @@ public partial class OperatorSessionService
         };
 
         return Result<OperatorSessionSummaryDto>.Success(dto);
+    }
+
+    /// <summary> Kurum filtresi operatorun kurumunun BUGUNKU adıyla aranir  </summary>
+    private async Task<IQueryable<OperatorSession>> FilterByAuthorityAsync(IQueryable<OperatorSession> query, Guid authorityId, CancellationToken cancellationToken)
+    {
+        var authorityName = await _db.Authorities.AsNoTracking().Where(a => a.Id == authorityId).Select(a => a.Name).FirstOrDefaultAsync(cancellationToken);
+        return authorityName == null ? query.Where(s => false) : query.Where(s => s.Operators!.Any(o => o.AuthorityNameSnapshot == authorityName));
     }
 
     private static IQueryable<OperatorSessionListItemDto> ProjectListItems(IQueryable<OperatorSession> query) => query.Select(s => new OperatorSessionListItemDto

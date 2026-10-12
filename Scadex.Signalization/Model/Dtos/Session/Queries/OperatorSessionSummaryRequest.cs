@@ -8,6 +8,10 @@ public class OperatorSessionSummaryRequest : IDto
     public DateTime FromUtc { get; set; }
     public DateTime ToUtc { get; set; }
     public Guid? CabinetId { get; set; }
+    /// <summary> Bu operatörün katıldığı işlemler </summary>
+    public Guid? UserId { get; set; }
+    /// <summary> Operatörlerinden birinin kurumu </summary>
+    public Guid? AuthorityId { get; set; }
 }
 
 public class OperatorSessionSummaryRequestValidator : AbstractValidator<OperatorSessionSummaryRequest>

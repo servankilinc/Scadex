@@ -1,18 +1,28 @@
 import { useMemo, useState } from 'react';
 import { Bar, BarChart, CartesianGrid, XAxis, YAxis } from 'recharts';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { ChartContainer, ChartTooltip, ChartTooltipContent, type ChartConfig } from '@/components/ui/chart';
-import { Field, FieldLabel } from '@/components/ui/field';
-import { Input } from '@/components/ui/input';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { DataTable, type DataTableColumn } from '@/components/custom/data-table';
+import {
+  ReportDateFilter,
+  ReportExportButton,
+  ReportFilterBar,
+  ReportHeader,
+  ReportPage,
+  ReportSelectFilter,
+  ReportStat,
+  ReportStatGrid
+} from '@/components/custom/report';
 import { useCabinets } from '@/hooks/use-cabinets';
+import { downloadCsv } from '@/lib/csv-export';
+import { REPORT_ALL, toDateTimeLocal, useReportParams } from '@/lib/report-params';
 import { useSessionSummary } from '../../hooks/use-operator-sessions';
+import { useSignalAuthorities, useSignalOperators } from '../../hooks/use-signal-config';
 import { formatDuration } from '../../lib';
 import type { OperatorSessionSummaryRequest, OperatorSessionSummaryRowDto } from '../../models/session';
 
-const ALL = 'all';
 /** Sunucu kuralı: özet en fazla 366 günlük aralık için alınabilir. */
 const MAX_RANGE_DAYS = 366;
 /** Grafikte gösterilen satır üst sınırı; tablo hepsini gösterir. */
@@ -22,139 +32,173 @@ const chartConfig = {
   minutes: { label: 'Toplam süre (dk)', color: 'var(--chart-1)' }
 } satisfies ChartConfig;
 
+type BreakdownTab = 'operator' | 'authority' | 'cabinet';
+
+/** Sekme başına kırılım: başlık, açıklama ve dışa aktarılan dosyanın adı. */
+const BREAKDOWNS: Record<BreakdownTab, { label: string; nameHeader: string; description: string; fileName: string }> = {
+  operator: {
+    label: 'Operatör',
+    nameHeader: 'Operatör',
+    description: 'İşlem süresi, işlemdeki her operatöre ayrı ayrı sayılır — operatör toplamları genel toplamı aşabilir.',
+    fileName: 'operator'
+  },
+  authority: {
+    label: 'Kurum',
+    nameHeader: 'Kurum',
+    description: 'Kurum, işlem anındaki kurum adıdır (enstantane); sonradan yeniden adlandırma geçmişi değiştirmez.',
+    fileName: 'kurum'
+  },
+  cabinet: { label: 'Kabin', nameHeader: 'Kabin', description: 'Kartsız işlemler de sayılır.', fileName: 'kabin' }
+};
+
+/** URL'deki filtre anahtarları — "Filtreyi temizle" bunları siler. */
+const FILTER_KEYS = ['cabinetId', 'userId', 'authorityId', 'from', 'to'];
+
 /**
  * Operatör işlem raporu — `/signalization/report`.
  *
- * Seçilen dönemde BAŞLAMIŞ ve TAMAMLANMIŞ işlemlerin özeti (açık işlemin süresi henüz yok, sayılmaz).
- * Operatör kırılımında bir işlemin süresi o işlemdeki HER operatöre sayılır — aynı anda iki operatör
- * çalışabildiği için operatör toplamları genel toplamı aşabilir.
+ * Seçilen dönemde BAŞLAMIŞ ve TAMAMLANMIŞ işlemlerin özeti (açık işlemin süresi henüz yok, sayılmaz). Operatör/kurum seçilince
+ * o operatörün (kurumun) KATILDIĞI işlemler özetlenir; kırılımlarda aynı işlemdeki diğer operatörler de görünür.
  *
- * "Bayraklı" sütunu herhangi bir bayrağı olan işlemleri sayar (yalnızca güvenlik uyarılarını değil);
- * uyarıların kendisi işlem listesinde bayrak filtresiyle bulunur.
+ * "Bayraklı" sütunu herhangi bir bayrağı olan işlemleri sayar (yalnızca güvenlik uyarılarını değil); uyarıların kendisi
+ * işlem listesinde bayrak filtresiyle bulunur. Filtreler ve sekme URL'dedir (`useReportParams`), dönem yoksa son 30 gün.
  */
 export default function SessionReport() {
+  const params = useReportParams();
+  // Varsayılan dönem bir kez hesaplanır: render içinde `Date` okunmasın, saat ilerledikçe sorgu anahtarı kaymasın.
+  const [defaults] = useState(defaultRange);
+
+  const cabinetId = params.get('cabinetId');
+  const userId = params.get('userId');
+  const authorityId = params.get('authorityId');
+  const from = params.get('from', defaults.from);
+  const to = params.get('to', defaults.to);
+  const rawTab = params.get('tab', 'operator');
+  const tab: BreakdownTab = rawTab === 'authority' || rawTab === 'cabinet' ? rawTab : 'operator';
+  const isFiltered = FILTER_KEYS.some(key => params.has(key));
+
   const cabinets = useCabinets();
-  const [range, setRange] = useState(defaultRange);
-  const [cabinetId, setCabinetId] = useState(ALL);
+  const operators = useSignalOperators();
+  const authorities = useSignalAuthorities();
 
-  const cabinetOptions = useMemo(() => cabinets.data?.filter(c => c.isActive) ?? [], [cabinets.data]);
+  const cabinetOptions = useMemo(() => (cabinets.data ?? []).filter(c => c.isActive).map(c => ({ value: c.id, label: c.name })), [cabinets.data]);
+  const operatorOptions = useMemo(() => (operators.data ?? []).map(o => ({ value: o.userId, label: o.fullName })), [operators.data]);
+  const authorityOptions = useMemo(
+    () => (authorities.data ?? []).map(a => ({ value: a.id, label: a.isActive ? a.name : `${a.name} (pasif)` })),
+    [authorities.data]
+  );
 
-  const { request, rangeError } = buildRequest(range.from, range.to, cabinetId);
+  const { request, rangeError } = buildRequest({ from, to, cabinetId, userId, authorityId });
   const summary = useSessionSummary(request);
+  const data = request ? summary.data : undefined;
+
+  const breakdownRows = (key: BreakdownTab) =>
+    data ? (key === 'operator' ? data.byOperator : key === 'authority' ? data.byAuthority : data.byCabinet) : undefined;
+
+  const handleExport = () => {
+    const rows = breakdownRows(tab) ?? [];
+    downloadCsv(`islem-raporu-${BREAKDOWNS[tab].fileName}-${from.slice(0, 10)}_${to.slice(0, 10)}`, exportColumns(BREAKDOWNS[tab].nameHeader), rows);
+  };
 
   return (
-    <div className='flex flex-col gap-4 p-4'>
-      <div>
-        <h1 className='text-lg font-semibold'>Operatör İşlem Raporu</h1>
-        <p className='text-sm text-muted-foreground'>Seçilen dönemde başlamış ve tamamlanmış işlemler — operatör, kurum ve kabin kırılımında.</p>
-      </div>
+    <ReportPage>
+      <ReportHeader
+        title='Operatör İşlem Raporu'
+        description='Seçilen dönemde başlamış ve tamamlanmış işlemler — operatör, kurum ve kabin kırılımında.'
+        actions={
+          <ReportExportButton
+            onExport={handleExport}
+            disabled={!data || data.sessionCount === 0}
+            title={`${BREAKDOWNS[tab].label} kırılımını filtreyle birlikte CSV olarak indir`}
+          />
+        }
+      />
 
-      <div className='flex flex-wrap items-end gap-3'>
-        <Field className='w-full max-w-[11rem]'>
-          <FieldLabel htmlFor='report-from'>Başlangıç günü</FieldLabel>
-          <Input id='report-from' type='date' value={range.from} onChange={e => setRange(r => ({ ...r, from: e.target.value }))} />
-        </Field>
-        <Field className='w-full max-w-[11rem]'>
-          <FieldLabel htmlFor='report-to'>Bitiş günü</FieldLabel>
-          <Input id='report-to' type='date' value={range.to} onChange={e => setRange(r => ({ ...r, to: e.target.value }))} />
-        </Field>
-        <Field className='w-full max-w-xs'>
-          <FieldLabel htmlFor='report-cabinet'>Kabin</FieldLabel>
-          <Select value={cabinetId} onValueChange={value => setCabinetId(value ?? ALL)}>
-            <SelectTrigger id='report-cabinet' className='w-full'>
-              <SelectValue>{cabinetId === ALL ? 'Tüm kabinler' : (cabinetOptions.find(c => c.id === cabinetId)?.name ?? 'Kabin bulunamadı')}</SelectValue>
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value={ALL}>Tüm kabinler</SelectItem>
-              {cabinetOptions.map(cabinet => (
-                <SelectItem key={cabinet.id} value={cabinet.id}>
-                  {cabinet.name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </Field>
-      </div>
+      <ReportFilterBar isFiltered={isFiltered} onReset={() => params.update(Object.fromEntries(FILTER_KEYS.map(key => [key, null])))}>
+        <ReportSelectFilter
+          id='report-cabinet'
+          label='Kabin'
+          value={cabinetId}
+          onChange={value => params.update({ cabinetId: value })}
+          allLabel='Tüm kabinler'
+          options={cabinetOptions}
+        />
+        <ReportSelectFilter
+          id='report-operator'
+          label='Operatör'
+          value={userId}
+          onChange={value => params.update({ userId: value })}
+          allLabel='Tüm operatörler'
+          options={operatorOptions}
+        />
+        <ReportSelectFilter
+          id='report-authority'
+          label='Kurum'
+          value={authorityId}
+          onChange={value => params.update({ authorityId: value })}
+          allLabel='Tüm kurumlar'
+          options={authorityOptions}
+        />
+        <ReportDateFilter id='report-from' label='Başlangıç' value={from} onChange={value => params.update({ from: value })} />
+        <ReportDateFilter id='report-to' label='Bitiş' value={to} onChange={value => params.update({ to: value })} />
+      </ReportFilterBar>
 
       {rangeError && <p className='text-sm text-destructive'>{rangeError}</p>}
-      {summary.isError && <p className='text-sm text-destructive'>{summary.error.message}</p>}
-      {request && summary.isPending && <Skeleton className='h-80 w-full rounded-xl' />}
+      {request && summary.isError && <p className='text-sm text-destructive'>{summary.error.message}</p>}
 
-      {request && summary.data && (
-        <>
-          <div className='grid gap-3 sm:grid-cols-2 lg:grid-cols-4'>
-            <Kpi label='İşlem' value={summary.data.sessionCount.toLocaleString('tr-TR')} />
-            <Kpi label='Toplam süre' value={formatDuration(summary.data.totalDurationSec)} />
-            <Kpi
-              label='Ortalama süre'
-              value={summary.data.sessionCount === 0 ? '—' : formatDuration(summary.data.totalDurationSec / summary.data.sessionCount)}
-            />
-            <Kpi label='Bayraklı işlem' value={summary.data.warningCount.toLocaleString('tr-TR')} tone={summary.data.warningCount > 0 ? 'warning' : undefined} />
-          </div>
-
-          {summary.data.sessionCount === 0 ? (
-            <Card>
-              <CardContent className='py-8 text-center text-sm text-muted-foreground'>Bu dönemde tamamlanmış işlem yok.</CardContent>
-            </Card>
+      {request && (
+        <ReportStatGrid>
+          {data ? (
+            <>
+              <ReportStat title='İşlem' value={data.sessionCount.toLocaleString('tr-TR')} detail='Tamamlanmış' />
+              <ReportStat title='Toplam süre' value={formatDuration(data.totalDurationSec)} />
+              <ReportStat title='Ortalama süre' value={data.sessionCount === 0 ? '—' : formatDuration(data.totalDurationSec / data.sessionCount)} />
+              <ReportStat
+                title='Bayraklı işlem'
+                value={data.warningCount.toLocaleString('tr-TR')}
+                detail='Herhangi bir bayrağı olan'
+                tone={data.warningCount > 0 ? 'warning' : undefined}
+              />
+            </>
           ) : (
-            <Tabs defaultValue='operator'>
-              <TabsList>
-                <TabsTrigger value='operator'>Operatör</TabsTrigger>
-                <TabsTrigger value='authority'>Kurum</TabsTrigger>
-                <TabsTrigger value='cabinet'>Kabin</TabsTrigger>
-              </TabsList>
-              <TabsContent value='operator'>
-                <BreakdownCard
-                  title='Operatör kırılımı'
-                  description='İşlem süresi, işlemdeki her operatöre ayrı ayrı sayılır.'
-                  nameHeader='Operatör'
-                  rows={summary.data.byOperator}
-                />
-              </TabsContent>
-              <TabsContent value='authority'>
-                <BreakdownCard
-                  title='Kurum kırılımı'
-                  description='Kurum, işlem anındaki kurum adıdır (enstantane); sonradan yeniden adlandırma geçmişi değiştirmez.'
-                  nameHeader='Kurum'
-                  rows={summary.data.byAuthority}
-                />
-              </TabsContent>
-              <TabsContent value='cabinet'>
-                <BreakdownCard title='Kabin kırılımı' description='Kartsız işlemler de sayılır.' nameHeader='Kabin' rows={summary.data.byCabinet} />
-              </TabsContent>
-            </Tabs>
+            Array.from({ length: 4 }, (_, i) => <Skeleton key={i} className='h-20 w-full rounded-xl' />)
           )}
-        </>
+        </ReportStatGrid>
       )}
-    </div>
+
+      {request && (
+        <Tabs value={tab} onValueChange={value => params.update({ tab: value === 'operator' ? null : String(value) })}>
+          <TabsList>
+            {(Object.keys(BREAKDOWNS) as BreakdownTab[]).map(key => (
+              <TabsTrigger key={key} value={key}>
+                {BREAKDOWNS[key].label}
+              </TabsTrigger>
+            ))}
+          </TabsList>
+
+          {(Object.keys(BREAKDOWNS) as BreakdownTab[]).map(key => (
+            <TabsContent key={key} value={key} className='flex flex-col gap-3'>
+              <Breakdown tab={key} rows={breakdownRows(key)} isLoading={summary.isPending} isFiltered={isFiltered} />
+            </TabsContent>
+          ))}
+        </Tabs>
+      )}
+    </ReportPage>
   );
 }
 
-function Kpi({ label, value, tone }: { label: string; value: string; tone?: 'warning' }) {
-  return (
-    <div className='rounded-xl border p-3'>
-      <div className='text-xs text-muted-foreground'>{label}</div>
-      <div className={tone === 'warning' ? 'mt-1 font-mono text-xl font-semibold text-amber-600 tabular-nums dark:text-amber-400' : 'mt-1 font-mono text-xl font-semibold tabular-nums'}>
-        {value}
-      </div>
-    </div>
-  );
-}
-
-function BreakdownCard({ title, description, nameHeader, rows }: { title: string; description: string; nameHeader: string; rows: OperatorSessionSummaryRowDto[] }) {
-  const chartRows = rows.slice(0, CHART_ROWS).map(row => ({ name: row.name, minutes: Math.round((row.totalDurationSec / 60) * 10) / 10 }));
+function Breakdown({ tab, rows, isLoading, isFiltered }: { tab: BreakdownTab; rows: OperatorSessionSummaryRowDto[] | undefined; isLoading: boolean; isFiltered: boolean }) {
+  const { nameHeader, description } = BREAKDOWNS[tab];
+  const columns = useMemo(() => breakdownColumns(nameHeader), [nameHeader]);
+  const chartRows = (rows ?? []).slice(0, CHART_ROWS).map(row => ({ name: row.name, minutes: Math.round((row.totalDurationSec / 60) * 10) / 10 }));
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>{title}</CardTitle>
-        <CardDescription>{description}</CardDescription>
-      </CardHeader>
-      <CardContent className='flex flex-col gap-4'>
-        {rows.length === 0 ? (
-          <p className='text-sm text-muted-foreground'>Kayıt yok.</p>
-        ) : (
-          <>
+    <>
+      <p className='text-xs text-muted-foreground'>{description}</p>
+
+      {chartRows.length > 0 && (
+        <Card size='sm'>
+          <CardContent>
             <ChartContainer config={chartConfig} className='aspect-auto w-full' style={{ height: chartRows.length * 36 + 32 }}>
               <BarChart accessibilityLayer data={chartRows} layout='vertical' margin={{ left: 8, right: 16 }}>
                 <CartesianGrid horizontal={false} />
@@ -164,68 +208,88 @@ function BreakdownCard({ title, description, nameHeader, rows }: { title: string
                 <Bar dataKey='minutes' fill='var(--color-minutes)' radius={4} />
               </BarChart>
             </ChartContainer>
+          </CardContent>
+        </Card>
+      )}
 
-            <div className='scrollbar-thin overflow-x-auto rounded-lg border'>
-              <table className='w-full min-w-[32rem] text-sm'>
-                <thead className='bg-muted/50 text-muted-foreground'>
-                  <tr className='[&>th]:px-3 [&>th]:py-2 [&>th]:text-left [&>th]:font-medium'>
-                    <th>{nameHeader}</th>
-                    <th className='text-right'>İşlem</th>
-                    <th className='text-right'>Toplam</th>
-                    <th className='text-right'>Ortalama</th>
-                    <th className='text-right'>Bayraklı</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {rows.map(row => (
-                    <tr key={row.key} className='border-t [&>td]:px-3 [&>td]:py-2'>
-                      <td className='max-w-[18rem] truncate'>{row.name}</td>
-                      <td className='text-right font-mono tabular-nums'>{row.sessionCount}</td>
-                      <td className='text-right font-mono tabular-nums'>{formatDuration(row.totalDurationSec)}</td>
-                      <td className='text-right font-mono tabular-nums'>{formatDuration(row.averageDurationSec)}</td>
-                      <td className='text-right font-mono tabular-nums'>{row.warningCount}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </>
-        )}
-      </CardContent>
-    </Card>
+      <DataTable
+        columns={columns}
+        rows={rows}
+        getRowKey={row => row.key}
+        isLoading={isLoading}
+        emptyMessage={isFiltered ? 'Bu filtreye uyan tamamlanmış işlem yok.' : 'Bu dönemde tamamlanmış işlem yok.'}
+      />
+      {rows && <span className='text-sm text-muted-foreground'>{rows.length} kayıt</span>}
+    </>
   );
+}
+
+// ─────────────────────────────────────────────────────────── kolonlar
+
+const NUMERIC = 'w-28 text-right font-mono tabular-nums';
+
+function breakdownColumns(nameHeader: string): DataTableColumn<OperatorSessionSummaryRowDto>[] {
+  return [
+    { id: 'name', header: nameHeader, className: 'max-w-[18rem] truncate', cell: row => row.name },
+    { id: 'count', header: 'İşlem', className: NUMERIC, cell: row => row.sessionCount.toLocaleString('tr-TR') },
+    { id: 'total', header: 'Toplam', className: NUMERIC, cell: row => formatDuration(row.totalDurationSec) },
+    { id: 'average', header: 'Ortalama', className: NUMERIC, cell: row => formatDuration(row.averageDurationSec) },
+    { id: 'warning', header: 'Bayraklı', className: NUMERIC, cell: row => row.warningCount.toLocaleString('tr-TR') }
+  ];
+}
+
+/**
+ * Süreler SANİYE olarak sayı yazılır: `05:30` gibi bir metni Excel saat sanıp 5 sa 30 dk okurdu. Hesap yapılabilsin diye
+ * metin değil sayı.
+ */
+function exportColumns(nameHeader: string) {
+  return [
+    { header: nameHeader, value: (row: OperatorSessionSummaryRowDto) => row.name },
+    { header: 'İşlem', value: (row: OperatorSessionSummaryRowDto) => row.sessionCount },
+    { header: 'Toplam süre (sn)', value: (row: OperatorSessionSummaryRowDto) => row.totalDurationSec },
+    { header: 'Ortalama süre (sn)', value: (row: OperatorSessionSummaryRowDto) => row.averageDurationSec },
+    { header: 'Bayraklı işlem', value: (row: OperatorSessionSummaryRowDto) => row.warningCount }
+  ];
 }
 
 // ─────────────────────────────────────────────────────────── tarih aralığı
 
-/** Son 30 gün (bugün dahil), yerel takvim günleri olarak. Modül düzeyinde: render içinde `Date` çağrılmasın. */
+/** Son 30 gün (bugün dahil): başlangıç gününün 00:00'ı, bugünün 23:59'u — yerel saat. */
 function defaultRange(): { from: string; to: string } {
-  const today = new Date();
-  const start = new Date(today);
+  const end = new Date();
+  end.setHours(23, 59, 0, 0);
+  const start = new Date(end);
   start.setDate(start.getDate() - 29);
-  return { from: toDateInput(start), to: toDateInput(today) };
-}
-
-function toDateInput(date: Date): string {
-  const pad = (n: number) => n.toString().padStart(2, '0');
-  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
+  start.setHours(0, 0, 0, 0);
+  return { from: toDateTimeLocal(start), to: toDateTimeLocal(end) };
 }
 
 /**
- * Yerel takvim günleri → UTC aralık: başlangıç gününün 00:00'ı, bitiş gününün 23:59:59.999'u. Sunucu kurallarının
+ * Yerel tarih-saat → UTC aralık. Bitiş dakikasının sonuna kadar sayılır (`23:59` → `23:59:59.999`). Sunucu kurallarının
  * (bitiş > başlangıç, en fazla 366 gün) kopyası; ihlalde istek hiç atılmaz, mesaj gösterilir.
  */
-function buildRequest(from: string, to: string, cabinetId: string): { request: OperatorSessionSummaryRequest | null; rangeError: string | null } {
-  if (!from || !to) return { request: null, rangeError: 'Başlangıç ve bitiş günü seçin.' };
+function buildRequest(filter: { from: string; to: string; cabinetId: string; userId: string; authorityId: string }): {
+  request: OperatorSessionSummaryRequest | null;
+  rangeError: string | null;
+} {
+  if (!filter.from || !filter.to) return { request: null, rangeError: 'Başlangıç ve bitiş seçin — özet bir dönem için alınır.' };
 
-  const start = new Date(`${from}T00:00:00`);
-  const end = new Date(`${to}T23:59:59.999`);
+  const start = new Date(filter.from);
+  const end = new Date(filter.to);
   if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) return { request: null, rangeError: 'Geçersiz tarih.' };
-  if (end <= start) return { request: null, rangeError: 'Bitiş günü başlangıçtan önce olamaz.' };
+  end.setSeconds(59, 999);
+  if (end <= start) return { request: null, rangeError: 'Bitiş başlangıçtan önce olamaz.' };
   if ((end.getTime() - start.getTime()) / 86_400_000 > MAX_RANGE_DAYS) return { request: null, rangeError: `Özet en fazla ${MAX_RANGE_DAYS} günlük aralık için alınabilir.` };
 
+  const orNull = (value: string) => (value === REPORT_ALL ? null : value);
   return {
-    request: { fromUtc: start.toISOString(), toUtc: end.toISOString(), cabinetId: cabinetId === ALL ? null : cabinetId },
+    request: {
+      fromUtc: start.toISOString(),
+      toUtc: end.toISOString(),
+      cabinetId: orNull(filter.cabinetId),
+      userId: orNull(filter.userId),
+      authorityId: orNull(filter.authorityId)
+    },
     rangeError: null
   };
 }

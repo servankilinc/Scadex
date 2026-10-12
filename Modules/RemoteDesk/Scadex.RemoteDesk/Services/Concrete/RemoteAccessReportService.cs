@@ -27,22 +27,29 @@ public class RemoteAccessReportService : IRemoteAccessReportService
     /// <inheritdoc />
     public async Task<Result<RemoteAccessFilterOptionsDto>> GetFilterOptionsAsync(CancellationToken cancellationToken = default)
     {
-        // Union = DISTINCT; PC ve kullanıcı sayısı küçüktür, satır sayısı ne olursa olsun liste kısa kalır.
+        // Union = DISTINCT; PC ve kullanıcı sayısı küçüktür, satır sayısı ne olursa olsun liste kısa kalır. Üç denetim tablosu da
+        // katılır: yalnızca dosya aktaran kullanıcı/PC de Dosya transferi sekmesinde filtrelenebilmeli.
         var deviceIds = await _db.ScreenViewLogs.Select(v => v.DeviceId)
             .Union(_db.RemoteControlSessions.Select(c => c.DeviceId))
+            .Union(_db.FileTransferLogs.Select(f => f.DeviceId))
             .ToListAsync(cancellationToken);
         var userIds = await _db.ScreenViewLogs.Select(v => v.UserId)
             .Union(_db.RemoteControlSessions.Select(c => c.UserId))
+            .Union(_db.FileTransferLogs.Select(f => f.UserId))
             .ToListAsync(cancellationToken);
 
-        var devices = await LoadDevicesAsync(deviceIds, cancellationToken);
+        // Kabin kimliği de gerekir (kabin filtresinin seçenekleri) — bu yüzden ortak `LoadDevicesAsync` değil.
+        var devices = (await _unitOfWork.Devices.GetAllAsync(
+            select: d => new { d.Id, d.Name, d.CabinetId, CabinetName = d.Cabinet!.Name },
+            where: d => deviceIds.Contains(d.Id),
+            cancellationToken: cancellationToken) ?? []).ToDictionary(d => d.Id);
         var users = await LoadUsersAsync(userIds, cancellationToken);
 
         var options = new RemoteAccessFilterOptionsDto
         {
             Pcs = [.. deviceIds
                 .Select(id => devices.TryGetValue(id, out var d)
-                    ? new ReportPcOptionDto { DeviceId = id, DeviceName = d.Name, CabinetName = d.CabinetName }
+                    ? new ReportPcOptionDto { DeviceId = id, DeviceName = d.Name, CabinetId = d.CabinetId, CabinetName = d.CabinetName }
                     : new ReportPcOptionDto { DeviceId = id })
                 // Adı çözülemeyen (silinmiş) en sona.
                 .OrderBy(p => p.DeviceName is null)
@@ -65,7 +72,8 @@ public class RemoteAccessReportService : IRemoteAccessReportService
         if (Validate(query) is { } failures)
             return Result<PaginationResponse<ScreenViewReportItemDto>>.Validation(failures, description: "Validation failed for RemoteAccessReportQuery");
 
-        var page = await ApplyFilter(_db.ScreenViewLogs.AsNoTracking(), query)
+        var cabinetDeviceIds = await LoadCabinetDeviceIdsAsync(query, cancellationToken);
+        var page = await ApplyFilter(_db.ScreenViewLogs.AsNoTracking(), query, cabinetDeviceIds)
             .OrderByDescending(v => v.StartedUtc)
             .ThenByDescending(v => v.Id)
             .Select(v => new ScreenViewReportItemDto
@@ -98,7 +106,8 @@ public class RemoteAccessReportService : IRemoteAccessReportService
         if (Validate(query) is { } failures)
             return Result<PaginationResponse<RemoteControlReportItemDto>>.Validation(failures, description: "Validation failed for RemoteAccessReportQuery");
 
-        var page = await ApplyFilter(_db.RemoteControlSessions.AsNoTracking(), query)
+        var cabinetDeviceIds = await LoadCabinetDeviceIdsAsync(query, cancellationToken);
+        var page = await ApplyFilter(_db.RemoteControlSessions.AsNoTracking(), query, cabinetDeviceIds)
             .OrderByDescending(c => c.StartedUtc)
             .Select(c => new RemoteControlReportItemDto
             {
@@ -130,7 +139,8 @@ public class RemoteAccessReportService : IRemoteAccessReportService
         if (Validate(query) is { } failures)
             return Result<PaginationResponse<FileTransferReportItemDto>>.Validation(failures, description: "Validation failed for RemoteAccessReportQuery");
 
-        var page = await ApplyFilter(_db.FileTransferLogs.AsNoTracking(), query)
+        var cabinetDeviceIds = await LoadCabinetDeviceIdsAsync(query, cancellationToken);
+        var page = await ApplyFilter(_db.FileTransferLogs.AsNoTracking(), query, cabinetDeviceIds)
             .OrderByDescending(f => f.StartedUtc)
             .Select(f => new FileTransferReportItemDto
             {
@@ -169,8 +179,9 @@ public class RemoteAccessReportService : IRemoteAccessReportService
 
         // Açık kayıt (EndedUtc null) "şu ana kadar" sayılır; yetim kayıtlar açılışta kapandığı için null = gerçekten sürüyor.
         var now = DateTime.UtcNow;
-        var views = ApplyFilter(_db.ScreenViewLogs.AsNoTracking(), query);
-        var controls = ApplyFilter(_db.RemoteControlSessions.AsNoTracking(), query);
+        var cabinetDeviceIds = await LoadCabinetDeviceIdsAsync(query, cancellationToken);
+        var views = ApplyFilter(_db.ScreenViewLogs.AsNoTracking(), query, cabinetDeviceIds);
+        var controls = ApplyFilter(_db.RemoteControlSessions.AsNoTracking(), query, cabinetDeviceIds);
 
         var viewTotal = await TotalAsync(views, now, cancellationToken);
         var controlTotal = await TotalAsync(controls, now, cancellationToken);
@@ -214,11 +225,16 @@ public class RemoteAccessReportService : IRemoteAccessReportService
     }
 
     #region Helpers
-    /// <summary> Tarih aralığı kaydın BAŞLANGICINA uygulanır (indeks ekseni); iki uç da dahil. </summary>
-    private static IQueryable<T> ApplyFilter<T>(IQueryable<T> source, RemoteAccessReportQuery query) where T : class, IRemoteAccessRecord
+    /// <summary>
+    /// Tarih aralığı kaydın BAŞLANGICINA uygulanır (indeks ekseni); iki uç da dahil. <paramref name="cabinetDeviceIds"/>
+    /// <see cref="LoadCabinetDeviceIdsAsync"/>'ten gelir: kabin seçili değilse <c>null</c>.
+    /// </summary>
+    private static IQueryable<T> ApplyFilter<T>(IQueryable<T> source, RemoteAccessReportQuery query, IReadOnlyCollection<Guid>? cabinetDeviceIds) where T : class, IRemoteAccessRecord
     {
         if (query.DeviceId is { } deviceId)
             source = source.Where(r => r.DeviceId == deviceId);
+        if (cabinetDeviceIds is not null)
+            source = source.Where(r => cabinetDeviceIds.Contains(r.DeviceId));
         if (query.UserId is { } userId)
             source = source.Where(r => r.UserId == userId);
         if (query.FromUtc is { } from)
@@ -226,6 +242,19 @@ public class RemoteAccessReportService : IRemoteAccessReportService
         if (query.ToUtc is { } to)
             source = source.Where(r => r.StartedUtc <= to);
         return source;
+    }
+
+    /// <summary>
+    /// Kabin filtresi: denetim satırı kabini taşımadığı için kabindeki cihazlar (pasifler dahil) çekirdekten projeksiyonla okunur.
+    /// Kabin seçili değilse <c>null</c> (filtre yok); kabinde cihaz yoksa boş liste — hiçbir satır eşleşmez.
+    /// </summary>
+    private async Task<IReadOnlyCollection<Guid>?> LoadCabinetDeviceIdsAsync(RemoteAccessReportQuery query, CancellationToken cancellationToken)
+    {
+        if (query.CabinetId is not { } cabinetId)
+            return null;
+
+        var ids = await _unitOfWork.Devices.GetAllAsync(select: d => d.Id, where: d => d.CabinetId == cabinetId, cancellationToken: cancellationToken);
+        return ids?.ToList() ?? [];
     }
 
     private static async Task<(int Count, long Seconds)> TotalAsync<T>(IQueryable<T> source, DateTime now, CancellationToken cancellationToken)
