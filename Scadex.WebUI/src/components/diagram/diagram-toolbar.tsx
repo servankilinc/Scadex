@@ -202,7 +202,7 @@ export function CabinetStatusBadge({ statusId, className }: { statusId: DeviceSt
   }
 
   return (
-    <Badge variant={statusId === DeviceStatus.Online ? 'default' : statusId === DeviceStatus.Offline ? 'secondary' : 'destructive'} className={cn('shrink-0', className)}>
+    <Badge variant={statusId === DeviceStatus.Online ? 'default' : statusId === DeviceStatus.Offline ? 'destructive' : 'secondary'} className={cn('shrink-0', className)}>
       {deviceStatusLabel(statusId)}
     </Badge>
   );

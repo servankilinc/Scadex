@@ -35,7 +35,7 @@ const CABINET_LAYER_IDS = [POINT_LAYER_ID, LABEL_LAYER_ID];
 const ICON_BASES = ['idle', 'busy', 'alert'] as const;
 type IconBase = (typeof ICON_BASES)[number];
 
-type StatusKey = 'unknown' | 'online' | 'maintenance' | 'warning' | 'offline' | 'critical';
+type StatusKey = 'unknown' | 'online' | 'maintenance' | 'warning' | 'offline';
 
 /**
  * İsim kutusunun sol üstündeki kabin DURUMU noktası (kümede dairenin sağ üst kenarı). Renkler `StatusDot` (template-node.tsx) ve ana sayfa rozetlerinin
@@ -48,8 +48,8 @@ const STATUS_BADGES: Record<StatusKey, { color: string; rank: number }> = {
   online: { color: '#10b981', rank: 1 },
   maintenance: { color: '#0ea5e9', rank: 2 },
   warning: { color: '#f59e0b', rank: 3 },
-  offline: { color: '#64748b', rank: 4 },
-  critical: { color: '#ef4444', rank: 5 }
+  // En kötü durum (Critical 2026-10-12'de kaldırıldı) — kırmızı.
+  offline: { color: '#ef4444', rank: 4 }
 };
 
 /** `null` "Bilinmiyor"dur (canlılık kanıtı yok) — `Offline` (0) ile AYNI ŞEY DEĞİL; ayrı gri nokta alır. */
@@ -59,8 +59,6 @@ function statusKeyOf(statusId: DeviceStatus | null): StatusKey {
       return 'online';
     case DeviceStatus.Warning:
       return 'warning';
-    case DeviceStatus.Critical:
-      return 'critical';
     case DeviceStatus.Maintenance:
       return 'maintenance';
     case DeviceStatus.Offline:

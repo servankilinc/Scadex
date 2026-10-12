@@ -164,7 +164,7 @@ public partial class CabinetStatusService : ICabinetStatusService
     #region Kurallar
     /// <summary>
     /// Ulasildi: <c>LastSeen</c> ve hata tazelenir; <c>null</c>/<c>Offline</c> → <c>Online</c>.
-    /// Warning/Critical/Maintenance canliligin karari degildir, korunur.
+    /// Warning/Maintenance canliligin karari degildir, korunur.
     /// </summary>
     /// <returns> Durum degisti mi. </returns>
     private static bool MarkReachable(Device device, DateTime now)
@@ -179,7 +179,7 @@ public partial class CabinetStatusService : ICabinetStatusService
         return true;
     }
 
-    /// <summary> Ulasilamadi: <c>null</c>/<c>Online</c> → <c>Offline</c>. Warning/Critical/Maintenance korunur. </summary>
+    /// <summary> Ulasilamadi: <c>null</c>/<c>Online</c> → <c>Offline</c>. Warning/Maintenance korunur. </summary>
     private static bool MarkUnreachable(Device device)
     {
         if (device.DeviceStatusId is not (null or (int)DeviceStatus.Online))

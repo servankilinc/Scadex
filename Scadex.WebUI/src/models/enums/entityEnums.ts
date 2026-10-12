@@ -7,7 +7,7 @@ export const DeviceStatus = {
   Offline: 0,
   Online: 1,
   Warning: 2,
-  Critical: 3,
+  // 3 (Critical) 2026-10-12'de kaldırıldı — hiçbir kod üretmiyordu; numara sunucuda da boş bırakıldı.
   Maintenance: 4
 } as const;
 export type DeviceStatus = (typeof DeviceStatus)[keyof typeof DeviceStatus];
@@ -16,7 +16,6 @@ export const DeviceStatusLabels: Record<DeviceStatus, string> = {
   [DeviceStatus.Offline]: 'Çevrimdışı',
   [DeviceStatus.Online]: 'Çevrimiçi',
   [DeviceStatus.Warning]: 'Uyarı',
-  [DeviceStatus.Critical]: 'Kritik',
   [DeviceStatus.Maintenance]: 'Bakımda'
 };
 

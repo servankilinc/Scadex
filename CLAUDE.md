@@ -305,7 +305,8 @@ Bunlar tek bir dosyaya bakarak görülemez; gerekçeleri PROJECT_OVERVIEW.md §5
   ("Bilinmiyor") çekilir; boş `LastSeen` eski sayılmaz (hiç görülmemiş kartın `NoResponse` Offline'ı silinmesin)
   (izlenenleri katmayın: yoklamayla her turda Bilinmiyor ↔ Offline salınırlar),
   23 saat bilerek sabittir. Canlılık yalnızca Online/Offline/`null`'a karar verir,
-  Warning/Critical/Maintenance korunur. Sinyalizasyon modülü kabin durumuna **bilerek**
+  Warning/Maintenance korunur. **`Critical` yoktur (2026-10-12'de kaldırıldı, numara 3 boş — yeniden kullanmayın);
+  en kötü durum kırmızı Çevrimdışı'dır.** Sinyalizasyon modülü kabin durumuna **bilerek**
   yansımaz (alarm haritada ayrı ikon; `AppModule.alertCabinetsQuery`). **Kabinde `Maintenance` yapışkan bir
   operatör kararıdır (2026-09-28):** ayrı kolon yok, `Cabinet.DeviceStatusId` = Maintenance; kabin düzenleme ekranından
   `ICabinetStatusService.SetMaintenanceAsync` ile yazılır. Hesaplama ve tarama bakımdaki kabine dokunmaz, hesaplama da

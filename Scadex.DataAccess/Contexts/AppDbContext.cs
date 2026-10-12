@@ -299,7 +299,7 @@ public class AppDbContext : IdentityDbContext<User, Role, Guid>
             {
                 Id = (int)EntityEnums.DeviceStatus.Offline,
                 Name = nameof(EntityEnums.DeviceStatus.Offline),
-                Color = "#6B7280",
+                Color = "#EF4444",
                 Icon = "wifi-off",
                 Description = "Cihaza ulasilamiyor."
             },
@@ -318,14 +318,6 @@ public class AppDbContext : IdentityDbContext<User, Role, Guid>
                 Color = "#F59E0B",
                 Icon = "alert-triangle",
                 Description = "Cihaz calisiyor ancak dikkat gerektiren bir durum var."
-            },
-            new DeviceStatus
-            {
-                Id = (int)EntityEnums.DeviceStatus.Critical,
-                Name = nameof(EntityEnums.DeviceStatus.Critical),
-                Color = "#EF4444",
-                Icon = "alert-octagon",
-                Description = "Kritik ariza; mudahale gerekiyor."
             },
             new DeviceStatus
             {

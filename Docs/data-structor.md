@@ -557,7 +557,7 @@ string? LastConnectionError { get; set; }
 `Backend/CabinetOs.Model/Enums/EntityEnums.cs`. **Sayı olarak serileşirler** ve boşlukları vardır. TS aynası: `Frontend/src/models/enums/entityEnums.ts`.
 
 ```
-DeviceStatus        Offline=0, Online=1, Warning=2, Critical=3, Maintenance=4
+DeviceStatus        Offline=0, Online=1, Warning=2, Maintenance=4   (3 = Critical 2026-10-12 kaldırıldı, boş)
 DeviceType          ControlModule=1, InputModule=2, OutputModule=3, LedModule=4,
                     TerminalBlock=5, Sensor=6, Peripheral=7, PowerSupply=8,
                     MeasurementDevice=9, CardReader=10, Mains=11, CircuitBreaker=12   (0 YOK)

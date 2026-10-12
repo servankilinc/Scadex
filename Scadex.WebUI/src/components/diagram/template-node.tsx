@@ -197,11 +197,9 @@ export function StatusDot({ statusId }: { statusId: DeviceStatus | null }) {
       ? 'bg-emerald-500'
       : statusId === DeviceStatus.Warning
         ? 'bg-amber-500'
-        : statusId === DeviceStatus.Critical
-          ? 'bg-red-500'
-          : statusId === DeviceStatus.Maintenance
-            ? 'bg-sky-500'
-            : 'bg-slate-500';
+        : statusId === DeviceStatus.Maintenance
+          ? 'bg-sky-500'
+          : 'bg-red-500'; // Offline — en kötü durum kırmızıdır
 
   // Online'da hafif bir nabiz: sabit bir noktanin canli mi yoksa donmus mu
   // oldugu ancak baska bir seyle karsilastirilarak anlasilir.

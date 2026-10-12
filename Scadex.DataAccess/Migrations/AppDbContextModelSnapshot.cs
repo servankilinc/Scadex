@@ -3441,7 +3441,7 @@ namespace Scadex.DataAccess.Migrations
                         new
                         {
                             Id = 0,
-                            Color = "#6B7280",
+                            Color = "#EF4444",
                             Description = "Cihaza ulasilamiyor.",
                             Icon = "wifi-off",
                             Name = "Offline"
@@ -3461,14 +3461,6 @@ namespace Scadex.DataAccess.Migrations
                             Description = "Cihaz calisiyor ancak dikkat gerektiren bir durum var.",
                             Icon = "alert-triangle",
                             Name = "Warning"
-                        },
-                        new
-                        {
-                            Id = 3,
-                            Color = "#EF4444",
-                            Description = "Kritik ariza; mudahale gerekiyor.",
-                            Icon = "alert-octagon",
-                            Name = "Critical"
                         },
                         new
                         {

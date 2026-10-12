@@ -318,7 +318,7 @@ politikası ile.
 - **Her ingest bir SCADA temasıdır (2026-09-24)** — kanal tanımsız ya da cihaz bulunamasa bile:
   `ICabinetStatusService.RecordScadaContactAsync` kabinin **kontrol modülünün** (SCADA kartı)
   `LastSeen`'ini ve `Cabinet.LastSeen`'i tazeler, kontrol modülünü Offline/`null`'dan Online'a
-  çeker (Warning / Critical / Maintenance **korunur**). Canlılık artık kanalın sahibi modüle
+  çeker (Warning / Maintenance **korunur**). Canlılık artık kanalın sahibi modüle
   (giriş modülü) yazılmaz: kanıt kart başınadır, modül başına değil.
 - Sonuç olarak SignalR'a `ChannelValuesChanged`, `DeviceStatusChanged` (durum değiştiyse) ve
   `CabinetStatusChanged` yayınlanır.
@@ -396,11 +396,16 @@ kabini aynı servise yeniden hesaplatır.
 |---|---|---|
 | `null` | Bilinmiyor | Canlılık kanıtı yok (tek etiket kaynağı `models/enums > deviceStatusLabel`; sunucuda karşılık gelen enum değeri bilerek yok) |
 | `Online` (1) | Çevrimiçi | Ulaşıldı |
-| `Offline` (0) | Çevrimdışı | Denendi, ulaşılamadı |
+| `Offline` (0) | Çevrimdışı | Denendi, ulaşılamadı — en kötü durum, **kırmızı** |
 | `Warning` (2) | Uyarı | Kabinde bir kamera ya da kontrol kartı dışı bir cihaz ulaşılamıyor |
-| `Critical` (3) / `Maintenance` (4) | Kritik / Bakımda | Tanımlı, **üreten kod yok**; canlılık kuralları bunları korur |
+| `Maintenance` (4) | Bakımda | Kabinde elle verilen yapışkan karar; canlılık kuralları korur |
 
-Kabindeki öncelik: Critical > Offline > Warning > Maintenance > Online; hiç katkı yoksa `null`.
+**`Critical` (3) 2026-10-12'de kaldırıldı:** hiçbir kod üretmiyordu (yalnızca rozet/filtre olarak vardı). Seed satırı
+`RemoveCriticalDeviceStatus` migration'ıyla silindi, Çevrimdışı'nın rengi kırmızıya çekildi; **3 numarası boş bırakıldı,
+yeniden kullanmayın**. Sahadaki bir olay (yangın, su baskını…) için ayrı bir seviye gerekirse tetikleyicisiyle birlikte yeniden
+tasarlanmalı.
+
+Kabindeki öncelik: Offline > Warning > Maintenance > Online; hiç katkı yoksa `null`.
 
 *Bağlantı kontrolü — izlenen cihaz ve kamera* ("izleniyor" = `IsMonitoringEnabled`; cihazda ayrıca
 şablon `IsMonitorable`)

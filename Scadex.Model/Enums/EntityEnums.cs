@@ -8,13 +8,11 @@ public static class EntityEnums
         Offline = 0,
         Online = 1,
         Warning = 2,
-        Critical = 3,
+        // 3 (Critical) kaldirildi
         Maintenance = 4
     }
     public static int DeviceStatusSeverityRank(int status) => status switch
     {
-        (int)DeviceStatus.Critical => 4,
-        // Offline, Warning'den daha kotu
         (int)DeviceStatus.Offline => 3,
         (int)DeviceStatus.Warning => 2,
         // Bakım durumu BILEREK yapilir; alarm degildir ama her şey normal de deüildir.

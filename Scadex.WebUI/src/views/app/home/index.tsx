@@ -55,17 +55,16 @@ function cabinetBounds(cabinets: LocatedCabinet[]): LngLatBoundsLike | null {
 }
 
 /**
- * Harita üstü durum rozetlerinin sabit sırası: Online → Warning → Critical → Maintenance →
- * Offline, en sonda "Bilinmiyor" kovası. `statusId: null` Offline'dan (0) AYRI bir kovadır — "canlılık
+ * Harita üstü durum rozetlerinin sabit sırası: Online → Warning → Maintenance → Offline (kırmızı — en kötü durum;
+ * Critical 2026-10-12'de kaldırıldı), en sonda "Bilinmiyor" kovası. `statusId: null` Offline'dan (0) AYRI bir kovadır — "canlılık
  * kanıtı yok" demektir (bkz. `deviceStatusLabel`) — StatusDot ile aynı renk sözleşmesi
  * (bkz. `template-node.tsx`), yeni bir şema icat edilmedi.
  */
 const STATUS_CHIP_DEFS: { key: string; statusId: DeviceStatus | null; label: string; dotColor: string }[] = [
   { key: 'online', statusId: DeviceStatus.Online, label: deviceStatusLabel(DeviceStatus.Online), dotColor: 'bg-emerald-500' },
   { key: 'warning', statusId: DeviceStatus.Warning, label: deviceStatusLabel(DeviceStatus.Warning), dotColor: 'bg-amber-500' },
-  { key: 'critical', statusId: DeviceStatus.Critical, label: deviceStatusLabel(DeviceStatus.Critical), dotColor: 'bg-red-500' },
   { key: 'maintenance', statusId: DeviceStatus.Maintenance, label: deviceStatusLabel(DeviceStatus.Maintenance), dotColor: 'bg-sky-500' },
-  { key: 'offline', statusId: DeviceStatus.Offline, label: deviceStatusLabel(DeviceStatus.Offline), dotColor: 'bg-slate-500' },
+  { key: 'offline', statusId: DeviceStatus.Offline, label: deviceStatusLabel(DeviceStatus.Offline), dotColor: 'bg-red-500' },
   { key: 'none', statusId: null, label: deviceStatusLabel(null), dotColor: 'bg-gray-400' }
 ];
 

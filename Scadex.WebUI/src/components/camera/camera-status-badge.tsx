@@ -17,7 +17,7 @@ export function CameraStatusBadge({ camera }: { camera: CameraDto }) {
   }
 
   const status = camera.deviceStatusId as DeviceStatus;
-  const variant = status === DeviceStatus.Online ? 'default' : status === DeviceStatus.Offline || status === DeviceStatus.Critical ? 'destructive' : 'secondary';
+  const variant = status === DeviceStatus.Online ? 'default' : status === DeviceStatus.Offline ? 'destructive' : 'secondary';
 
   return (
     // Sunucu damgası `Z`'siz gelir; çıplak `new Date` onu yerel saat sayıp kaydırırdı.
