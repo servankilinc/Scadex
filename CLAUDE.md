@@ -283,8 +283,10 @@ Bunlar tek bir dosyaya bakarak görülemez; gerekçeleri PROJECT_OVERVIEW.md §5
 - **Yoklama (ayakta mı) akışının HTTP yüzeyi yoktur ve tipe özel değildir.**
   `MonitoredAssetProbeWorker` kayıtlı her `IMonitoredAssetProbeSource` üzerinden döner; yeni
   bir izlenen tip eklemek = yeni kaynak + tek satır DI kaydı, worker'a dokunulmaz. Sonda
-  **yalnızca TCP connect** yapar — ICMP dalı bilerek yoktur, `MonitoringPort` null ise varlık
-  atlanır. Buraya "şimdi dene" tarzı bir uç eklemeyin. Kaynaklar: `CameraProbeSource`,
+  `MonitoringPort` doluysa **TCP connect**, boşsa **ICMP ping** yapar (2026-10-12; eskiden ICMP dalı yoktu ve
+  portsuz varlık atlanırdı). Ping yalnızca "makine ağda" der — hizmetin ayakta olduğunu TCP kanıtlar; ICMP'si
+  kapalı hedef sağlamken Çevrimdışı görünür, ona port girilir. Kamerada boş port yine markanın RTSP portuyla
+  dolar (ping'e düşmez). Buraya "şimdi dene" tarzı bir uç eklemeyin. Kaynaklar: `CameraProbeSource`,
   `DeviceProbeSource` (2026-09-24 — `Device : IMonitoredAsset`; yalnızca izlemesi açık **ve**
   şablonu `ComponentTemplate.IsMonitorable` olan cihaz). Worker son sonda anı olarak sondanın
   bitişini yazar (bilinçli); `PingIntervalSec` tur aralığının tam katıysa hedef bir tur geç
@@ -308,6 +310,9 @@ Bunlar tek bir dosyaya bakarak görülemez; gerekçeleri PROJECT_OVERVIEW.md §5
   operatör kararıdır (2026-09-28):** ayrı kolon yok, `Cabinet.DeviceStatusId` = Maintenance; kabin düzenleme ekranından
   `ICabinetStatusService.SetMaintenanceAsync` ile yazılır. Hesaplama ve tarama bakımdaki kabine dokunmaz, hesaplama da
   hiçbir zaman Maintenance üretmez (cihazın Maintenance'ı kabine taşınmaz) — yoksa kabin kendiliğinden bakıma düşüp kalırdı.
+  **"Kabin neden bu renkte" dökümü (`GetBreakdownAsync`, 2026-10-12) katkıyı aynı `CabinetContribution` /
+  `CameraContribution` koduyla üretir;** ön yüz (harita panelindeki "Durum nedeni") kuralı kopyalamaz, `contribution`'ı okur.
+  Kuralı değiştirirseniz tek yer orasıdır.
 - **MediaMTX yol temizliği üç şeyi asla silmez:** bizim üretmediğimiz adlar (yalnızca `cam_`
   önekliler adaydır — `mediamtx.yml`'deki **`all_others`** silinseydi geçit
   yapılandırmasız kalırdı), `record: true` olan yollar ve `readers > 0` olan yollar. Bu kuralları
@@ -427,8 +432,8 @@ Bir şeyin çalıştığını varsaymadan önce doğrulayın:
   bu iki alanı taşır, `WriteDevice` yazar, editörde cihaz özellik panelinden girilir. Bunlar
   `DeviceStatusId` / `LastSeen` / `LastConnectionError` gibi telemetri alanı **değildir** — o
   üçü taslakta yok ve `WriteDevice`'ta dokunulmaz. İzleme ayarları (`MonitoringPort`,
-  `PingIntervalSec`, `IsMonitoringEnabled`, 2026-09-24) da deltayla yazılır; izleme açıkken IP ve
-  port zorunludur, izlenemeyen şablonda açmak 400'dür (`ValidateDeviceMonitoring`). Şablonların
+  `PingIntervalSec`, `IsMonitoringEnabled`, 2026-09-24) da deltayla yazılır; izleme açıkken IP
+  zorunludur (port değil — boşsa ping, 2026-10-12), izlenemeyen şablonda açmak 400'dür (`ValidateDeviceMonitoring`). Şablonların
   güncelleme ucu yoktur: `IsMonitorable` oluşturmada (ve sistem şablonlarında seed'de) belirlenir.
 
 ## Sormadan "düzeltmeyin"

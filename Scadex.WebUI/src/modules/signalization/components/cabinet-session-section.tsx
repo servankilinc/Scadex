@@ -3,6 +3,7 @@ import { CameraIcon, SirenIcon } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
+import { PanelSection } from '@/components/custom/panel-section';
 import { cn, formatUtcDateTime } from '@/lib/utils';
 import type { CabinetPanelSectionProps } from '../../types';
 import { useCabinetLatestSession } from '../hooks/use-operator-sessions';
@@ -30,35 +31,37 @@ export default function CabinetSessionSection({ cabinetId }: CabinetPanelSection
   // Yanıttan bu yana geçen yerel süre; sunucunun `elapsedSec`'ine eklenir — istemci saati kaymış olabilir.
   const sinceFetchSec = openUpdatedAt ? Math.max(0, Math.floor((now - openUpdatedAt) / 1000)) : 0;
 
-  return (
-    <section className='space-y-3 border-t pt-4'>
-      <div className='flex items-center gap-2'>
-        <p className='text-sm font-medium text-muted-foreground'>Operatör İşlemi</p>
-        {isLive && (
-          <>
-            <span className='relative flex size-2'>
-              <span className='absolute inline-flex size-full animate-ping rounded-full bg-emerald-500/60' />
-              <span className='relative inline-flex size-2 rounded-full bg-emerald-500' />
-            </span>
-            <span className='text-xs text-muted-foreground'>canlı</span>
-          </>
-        )}
-      </div>
+  // Başlık özeti bölüm KAPALIYKEN de okunur: devam eden işlem varsa "canlı", yoksa son işlemin sonucu.
+  const summary = isLive ? (
+    <>
+      <span className='relative flex size-2'>
+        <span className='absolute inline-flex size-full animate-ping rounded-full bg-emerald-500/60' />
+        <span className='relative inline-flex size-2 rounded-full bg-emerald-500' />
+      </span>
+      {openSessions.length > 1 ? `${openSessions.length} işlem sürüyor` : 'sürüyor'}
+    </>
+  ) : lastSession ? (
+    'son işlem'
+  ) : null;
 
+  return (
+    <PanelSection title='Operatör İşlemi' summary={summary}>
       {isPending ? (
-        <Skeleton className='h-28 w-full rounded-xl' />
+        <Skeleton className='h-28 w-full rounded-md' />
       ) : isError ? (
         <p className='text-xs text-destructive'>{error?.message ?? 'İşlem bilgisi alınamadı.'}</p>
       ) : isLive ? (
-        openSessions.map(session => (
-          <SessionBlock key={session.id} session={session} elapsedSec={session.elapsedSec + sinceFetchSec} />
-        ))
+        <div className='divide-y [&>*]:py-3 [&>*:first-child]:pt-0 [&>*:last-child]:pb-0'>
+          {openSessions.map(session => (
+            <SessionBlock key={session.id} session={session} elapsedSec={session.elapsedSec + sinceFetchSec} />
+          ))}
+        </div>
       ) : lastSession ? (
         <SessionBlock session={lastSession} />
       ) : (
         <p className='text-xs text-muted-foreground'>Bu kabinde kayıtlı operatör işlemi yok.</p>
       )}
-    </section>
+    </PanelSection>
   );
 }
 
@@ -72,7 +75,8 @@ function SessionBlock({ session, elapsedSec }: { session: OperatorSessionListIte
   const sirenOn = openSession?.sirenRequested && openSession.cabinetSirenIsOn;
 
   return (
-    <div className={cn('space-y-2.5 rounded-xl border p-3', session.hasAlert && 'ring-1 ring-destructive/50')}>
+    // Çerçevesiz: bölüm (`PanelSection`) zaten kart. Alarm, sol kenarda kırmızı şeritle işaretlenir.
+    <div className={cn('space-y-2.5', session.hasAlert && 'border-l-2 border-destructive pl-2.5')}>
       <div className='flex items-center justify-between gap-2'>
         <span className='font-mono text-lg font-medium tabular-nums'>
           {formatDuration(isLive ? elapsedSec : session.durationSec)}

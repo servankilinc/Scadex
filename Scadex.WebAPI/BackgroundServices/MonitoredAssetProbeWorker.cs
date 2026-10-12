@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Net.NetworkInformation;
 using System.Net.Sockets;
 using Scadex.Business.Utils.MonitoredAssetService;
 using Scadex.Model.Dtos.Monitoring.Commands;
@@ -6,7 +7,7 @@ using Scadex.Model.Dtos.Monitoring.Queries;
 
 namespace Scadex.WebAPI.BackgroundServices;
 
-/// <summary> <see cref="Scadex.Model.Entities.Abstract.IMonitoredAsset"/> uygulayan entitlerin TCP connect ile yoklar. </summary>
+/// <summary> <see cref="Scadex.Model.Entities.Abstract.IMonitoredAsset"/> uygulayan entityleri yoklar: izleme portu varsa TCP connect, yoksa ICMP ping. </summary>
 public class MonitoredAssetProbeWorker : BackgroundService
 {
     private readonly IServiceScopeFactory _scopeFactory;
@@ -72,15 +73,10 @@ public class MonitoredAssetProbeWorker : BackgroundService
                 alive.Add(target.Id);
                 if (!IsDue(target, now)) continue;
 
-                // Port yoksa atlanır.
-                if (target.MonitoringPort is not { } port)
-                {
-                    _logger.LogWarning("{Type} {Name} ({Id}) icin izleme portu tanimsiz; yoklama atlandi", source.AssetTypeName, target.Name, target.Id);
-                    _lastProbedAt[target.Id] = now;
-                    continue;
-                }
-
-                var result = await ProbeAsync(target.IpAddress, port, stoppingToken);
+                // Port varsa TCP connect (hizmet ayakta mi), yoksa ICMP ping (makine agda mi)
+                var result = target.MonitoringPort is { } port
+                    ? await ProbeTcpAsync(target.IpAddress, port, stoppingToken)
+                    : await ProbeIcmpAsync(target.IpAddress, stoppingToken);
                 _lastProbedAt[target.Id] = DateTime.UtcNow;
 
                 var writeResult = await source.RecordProbeResultAsync(target.Id, result, stoppingToken);
@@ -106,7 +102,33 @@ public class MonitoredAssetProbeWorker : BackgroundService
         return nowUtc - last >= period;
     }
 
-    private async Task<MonitoredAssetProbeResultDto> ProbeAsync(string ipAddress, int port, CancellationToken stoppingToken)
+    /// <summary> Izleme portu bos varlik icin ICMP echo </summary>
+    private async Task<MonitoredAssetProbeResultDto> ProbeIcmpAsync(string ipAddress, CancellationToken stoppingToken)
+    {
+        try
+        {
+            using var ping = new Ping();
+            var reply = await ping.SendPingAsync(ipAddress, _probeTimeout, cancellationToken: stoppingToken);
+
+            return reply.Status == IPStatus.Success
+                ? new MonitoredAssetProbeResultDto { Reachable = true, RttMs = (int)reply.RoundtripTime }
+                : Unreachable($"Ping basarisiz ({reply.Status}): {ipAddress}");
+        }
+        catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (PingException exception)
+        {
+            return Unreachable($"Ping basarisiz: {exception.InnerException?.Message ?? exception.Message} ({ipAddress})");
+        }
+        catch (Exception exception)
+        {
+            return Unreachable($"Ping basarisiz: {exception.Message}");
+        }
+    }
+
+    private async Task<MonitoredAssetProbeResultDto> ProbeTcpAsync(string ipAddress, int port, CancellationToken stoppingToken)
     {
         using var timeoutSource = CancellationTokenSource.CreateLinkedTokenSource(stoppingToken);
         timeoutSource.CancelAfter(_probeTimeout);

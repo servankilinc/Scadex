@@ -4,11 +4,11 @@ import { Button } from '@/components/ui/button';
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useMediaQuery } from '@/hooks/use-media-query';
-import { StatusDot } from '@/components/diagram/template-node';
+import { PanelField, PanelSection } from '@/components/custom/panel-section';
 import type { CabinetDetailDto } from '@/models/cabinet';
-import { deviceStatusLabel } from '@/models/enums';
 import { cabinetPanelSections, cabinetPanelTopActions } from '@/modules';
 import { formatUtcDateTime } from '@/lib/utils';
+import { CabinetStatusSection } from './cabinet-status-section';
 
 /**
  * Tailwind `lg`. Altında panel haritanın yanına sığmaz — yüzde genişlikle 375 piksellik ekranda 86 piksele
@@ -58,67 +58,50 @@ export function CabinetDetailPanel({ cabinet, onClose }: CabinetDetailPanelProps
   );
 }
 
+/**
+ * Panel gövdesi: en üstte modül kısayolları, altında açılır-kapanır bölümler (`PanelSection`) — Durum, modül bölümleri
+ * (örn. Operatör İşlemi), Kabin bilgileri. Her bölüm kapalıyken de başlığında özetini gösterir; içerikler ayrı çerçeve açmaz.
+ */
 function CabinetDetailBody({ cabinet }: { cabinet: CabinetDetailDto }) {
   return (
-    <div className="flex-1 space-y-4 overflow-y-auto scrollbar-thin p-4">
-      {/* Açık modüllerin panel EN ÜST eylemleri (bkz. `AppModule.CabinetPanelTopAction`); künyeden
-          önce gelir — modül yoksa liste boştur ve panel doğrudan "Firma"yla başlar. */}
+    <div className="flex-1 space-y-3 overflow-y-auto scrollbar-thin p-4">
+      {/* Açık modüllerin panel EN ÜST eylemleri (bkz. `AppModule.CabinetPanelTopAction`); bölümlerden önce gelir. */}
       {cabinetPanelTopActions.map(({ key, Component }) => (
         <Suspense key={key} fallback={<Skeleton className="h-12 w-full rounded-lg" />}>
           <Component cabinetId={cabinet.id} />
         </Suspense>
       ))}
 
-      <div className="space-y-1">
-        <p className="text-sm font-medium text-muted-foreground">Firma</p>
-        <p className="text-sm">{cabinet.companyName}</p>
-      </div>
+      {/* Kabin neden bu renkte: hangi cihaz/kamera ne katkı veriyor (sunucunun kuralıyla). Kabin değişince yeni abonelik. */}
+      <CabinetStatusSection key={cabinet.id} cabinetId={cabinet.id} statusId={cabinet.deviceStatusId} />
 
-      <div className="space-y-1">
-        <p className="text-sm font-medium text-muted-foreground">Durum</p>
-        {/* Nokta DURUMUN rengidir (eskiden `isActive`'i gösteriyordu ve başlıkla çelişiyordu); etiket DB'deki
-            İngilizce lookup adı değil, arayüzün tek etiket kaynağı. */}
-        <p className="flex items-center gap-2 text-sm">
-          <StatusDot statusId={cabinet.deviceStatusId} />
-          {deviceStatusLabel(cabinet.deviceStatusId)}
-        </p>
-      </div>
-
-      <div className="space-y-1">
-        <p className="text-sm font-medium text-muted-foreground">Ağ İP</p>
-        <p className="text-sm">{cabinet.networkIp || '-'}</p>
-      </div>
-
-      <div className="space-y-1">
-        <p className="text-sm font-medium text-muted-foreground">GSM İP</p>
-        <p className="text-sm">{cabinet.gsmIp || '-'}</p>
-      </div>
-
-      <div className="space-y-1">
-        <p className="text-sm font-medium text-muted-foreground">Lokasyon</p>
-        <p className="flex items-start gap-1.5 text-sm">
-          <MapPin className="mt-0.5 size-3.5 shrink-0" />
-          <span>{cabinet.locationDescription || '-'}</span>
-        </p>
-      </div>
-
-      {cabinet.updateDateUtc && (
-        <div className="space-y-1 border-t pt-4">
-          <p className="text-sm font-medium text-muted-foreground">Son Güncelleme</p>
-          <p className="flex items-center gap-1.5 text-sm">
-            <Clock className="size-3.5" />
-            {formatUtcDateTime(cabinet.updateDateUtc)}
-          </p>
-        </div>
-      )}
-
-      {/* Açık modüllerin bu kabine dair bölümleri (bkz. `AppModule.CabinetPanelSection`);
-          modül yoksa liste boştur ve panel yalnızca künyeden ibaret kalır. */}
+      {/* Açık modüllerin bu kabine dair bölümleri (bkz. `AppModule.CabinetPanelSection`); onlar da `PanelSection` kullanır. */}
       {cabinetPanelSections.map(({ key, Component }) => (
-        <Suspense key={key} fallback={<Skeleton className="h-28 w-full rounded-lg" />}>
+        <Suspense key={key} fallback={<Skeleton className="h-11 w-full rounded-lg" />}>
           <Component cabinetId={cabinet.id} />
         </Suspense>
       ))}
+
+      {/* Künye nadiren okunur: kapalı başlar, başlıkta firma görünür. */}
+      <PanelSection title="Kabin bilgileri" summary={<span className="max-w-32 truncate">{cabinet.companyName}</span>} defaultOpen={false}>
+        <PanelField label="Firma">{cabinet.companyName}</PanelField>
+        <PanelField label="Ağ IP">{cabinet.networkIp || '—'}</PanelField>
+        <PanelField label="GSM IP">{cabinet.gsmIp || '—'}</PanelField>
+        <PanelField label="Lokasyon">
+          <span className="flex items-start gap-1.5">
+            <MapPin className="mt-0.5 size-3.5 shrink-0 text-muted-foreground" />
+            {cabinet.locationDescription || '—'}
+          </span>
+        </PanelField>
+        {cabinet.updateDateUtc && (
+          <PanelField label="Son güncelleme">
+            <span className="flex items-center gap-1.5">
+              <Clock className="size-3.5 text-muted-foreground" />
+              {formatUtcDateTime(cabinet.updateDateUtc)}
+            </span>
+          </PanelField>
+        )}
+      </PanelSection>
     </div>
   );
 }

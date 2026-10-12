@@ -59,7 +59,7 @@ public class DeviceDraftValidator : AbstractValidator<DeviceDraft>
         RuleFor(v => v.PingIntervalSec).InclusiveBetween(5, 86400).WithMessage("Yoklama aralığı 5 saniye ile 24 saat(86400sn) arasında olmalı");
         // Izleme özelliği açık ama Ip eksikse worker her turda uyari loglar bu nedenle reddedilir
         RuleFor(v => v.IpAddress).NotEmpty().When(v => v.IsMonitoringEnabled).WithMessage("İzleme açıkken IP adresi zorunlu");
-        RuleFor(v => v.MonitoringPort).NotNull().When(v => v.IsMonitoringEnabled).WithMessage("İzleme açıkken izleme portu zorunlu");
+        // Port bilerek zorunlu DEGIL boşsa worker ICMP ping atar, doluysa o porta TCP connect.
 
         RuleFor(v => v.Width).GreaterThan(0).When(v => v.Width.HasValue).WithMessage("Genislik sifirdan buyuk olmali");
         RuleFor(v => v.Height).GreaterThan(0).When(v => v.Height.HasValue).WithMessage("Yukseklik sifirdan buyuk olmali");

@@ -208,7 +208,7 @@ export function CameraFormDialog(props: Props) {
                   />
                 </Field>
                 <FieldDescription className='mt-2'>
-                  Kapalıyken kamera hiç yoklanmaz ve durumu olduğu yerde donar. İzleme portu boşsa da atlanır.
+                  Kapalıyken kamera hiç yoklanmaz ve durumu olduğu yerde donar. İzleme portu boş bırakılırsa markanın RTSP portu kullanılır.
                 </FieldDescription>
 
                 {isEdit && (

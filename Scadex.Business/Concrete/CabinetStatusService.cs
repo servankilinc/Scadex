@@ -220,8 +220,14 @@ public partial class CabinetStatusService : ICabinetStatusService
     }
 
     /// <summary>
+    /// IZLENEN bir kameranin kabin durumuna katkisi: Offline'i kabine <c>Warning</c> olarak katilir, digerleri hic katilmaz
+    /// (Online kamera SCADA'si bilinmeyen kabini "Online" gostermemeli). Izlemesi kapali kamera katki vermez.
+    /// </summary>
+    private static int? CameraContribution(int? status) => status == (int)DeviceStatus.Offline ? (int)DeviceStatus.Warning : null;
+
+    /// <summary>
     /// Kabin durumu = cihaz katkilarinin (<see cref="CabinetContribution"/>) en kotusu; izlenen bir kamera Offline ise
-    /// <c>Warning</c> katkisi. <see cref="RecalculateAsync"/> ve tarama uzlastirmasi AYNI kurali kullanir.
+    /// <see cref="CameraContribution"/> katkisi. <see cref="RecalculateAsync"/> ve tarama uzlastirmasi AYNI kurali kullanir.
     /// Hesaplama HICBIR ZAMAN <c>Maintenance</c> uretmez: kabinde <c>Maintenance</c> yalnizca operatorun elle verdigi
     /// yapiskan karardir (<see cref="SetMaintenanceAsync"/>, 2026-09-28). Bir cihazin Maintenance'i kabine tasinsaydi
     /// kabin kendiliginden bakima duser ve hesaplama ona bir daha dokunmazdi.
@@ -232,7 +238,7 @@ public partial class CabinetStatusService : ICabinetStatusService
         int worstRank = -1;
 
         // Online kamera katki VERMEZ: SCADA'dan hic ses gelmemis kabin yalnizca kamerayla "Online" gorunmemeli.
-        var candidates = hasOfflineCamera ? deviceContributions.Append((int)DeviceStatus.Warning) : deviceContributions;
+        var candidates = hasOfflineCamera ? deviceContributions.Append(CameraContribution((int)DeviceStatus.Offline)) : deviceContributions;
 
         foreach (var candidate in candidates)
         {

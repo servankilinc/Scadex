@@ -1,6 +1,6 @@
 import http from '@/lib/axios-helper';
 import type { CreatedDto } from '@/models/common/createdDto';
-import type { CabinetCreateRequest, CabinetDetailDto, CabinetUpdateRequest } from '@/models/cabinet';
+import type { CabinetCreateRequest, CabinetDetailDto, CabinetStatusBreakdownDto, CabinetUpdateRequest } from '@/models/cabinet';
 
 const CABINET_ROUTE = '/api/Cabinet';
 
@@ -30,4 +30,9 @@ export async function getCabinetUpdateModel(id: string): Promise<CabinetUpdateRe
 /** Başarıda gövdesiz 200 döner (`Result.Success()`). */
 export async function updateCabinet(request: CabinetUpdateRequest): Promise<void> {
   return http.put(CABINET_ROUTE, request);
+}
+
+/** Kabin durumunun dökümü: hangi cihaz/kamera kabine ne katkı veriyor. Pasif ya da olmayan kabinde 404. */
+export async function getCabinetStatusBreakdown(id: string): Promise<CabinetStatusBreakdownDto> {
+  return http.get<CabinetStatusBreakdownDto>(`${CABINET_ROUTE}/${id}/status-breakdown`);
 }

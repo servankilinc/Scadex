@@ -12,9 +12,11 @@ namespace Scadex.WebAPI.Controllers;
 public class CabinetController : BaseController
 {
     private readonly ICabinetService _cabinetService;
-    public CabinetController(ILogger<CabinetController> logger, ICabinetService cabinetService) : base(logger)
+    private readonly ICabinetStatusService _cabinetStatusService;
+    public CabinetController(ILogger<CabinetController> logger, ICabinetService cabinetService, ICabinetStatusService cabinetStatusService) : base(logger)
     {
         _cabinetService = cabinetService;
+        _cabinetStatusService = cabinetStatusService;
     }
 
     #region Get
@@ -29,6 +31,14 @@ public class CabinetController : BaseController
     public async Task<IActionResult> GetBase(Guid id)
     {
         var result = await _cabinetService.GetBaseAsync(id: id);
+        return ToAction(result);
+    }
+
+    /// <summary> Kabin durumunun dökümü (salt okunur): hangi cihaz/kamera kabine ne katkı veriyor. </summary>
+    [HttpGet("{id:guid}/status-breakdown")]
+    public async Task<IActionResult> GetStatusBreakdown(Guid id, CancellationToken cancellationToken)
+    {
+        var result = await _cabinetStatusService.GetBreakdownAsync(id, cancellationToken);
         return ToAction(result);
     }
 

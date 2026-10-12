@@ -48,7 +48,8 @@ export interface AppModule {
   /**
    * Ana sayfa haritasındaki kabin detay panelinin altına eklenen bölüm (örn. o kabinde devam eden
    * operatör işlemi). `React.lazy` ile verilmeli; çekirdek onu `Suspense` içinde render eder.
-   * Üst ayırıcısını (`border-t`) bölümün kendisi çizer — çekirdek içeriği bilmez.
+   * Bölüm kendini `@/components/custom/panel-section > PanelSection` ile çizer (açılır-kapanır kart, başlıkta özet) —
+   * panel tek tip görünsün; çekirdek içeriği bilmez.
    */
   CabinetPanelSection?: ComponentType<CabinetPanelSectionProps>;
   /**

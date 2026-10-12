@@ -127,7 +127,7 @@ içindeki `ApplyDeletions` dağıtıcısında yaşar.
   kontrol modülünün MAC'inden, kanal kabin içi adresten (`IN3`/`OUT1`) çözülür — eski `ExternalCode`
   adreslemede kullanılmadığı için 2026-09-27'de kaldırıldı (`RemoveDeviceExternalCode`).
   2026-09-24'ten beri `IMonitoredAsset`'tir: şablonu izlenebilirse
-  IP + `MonitoringPort` ile TCP'den yoklanabilir (SCADA kartı, POS, bilgisayar…).
+  IP + `MonitoringPort` ile TCP'den, port boşsa IP'ye ICMP ping ile yoklanabilir (SCADA kartı, POS, bilgisayar…).
 - **`Pin`** — kutunun bir bacağı. `RelativeX/Y` şablonun genişlik/yüksekliğinin **0..1
   normalize kesridir** (veritabanında `CHECK` ile zorlanır), böylece şablon yeniden
   boyutlandığında pinler bozulmaz. `Device.CoordinateX/Y`, açıklama koordinatları ve kablo
@@ -408,8 +408,8 @@ Kabindeki öncelik: Critical > Offline > Warning > Maintenance > Online; hiç ka
 | | Cihaz (`DeviceProbeSource`) | Kamera (`CameraProbeSource`) |
 |---|---|---|
 | Yoklanma şartı | Aktif, izleme açık, şablon izlenebilir, IP dolu, kabin aktif | Aktif, izleme açık, kabin aktif |
-| Port / periyot | `MonitoringPort` (izleme açıkken zorunlu), `PingIntervalSec` (varsayılan 300) | `MonitoringPort` (boşsa RTSP portu), `PingIntervalSec` (varsayılan 300) |
-| Yöntem | TCP connect, 3 sn zaman aşımı, `MonitoredAssetProbeWorker` 30 sn'de bir tur | Aynı |
+| Port / periyot | `MonitoringPort` (isteğe bağlı; boşsa ping), `PingIntervalSec` (varsayılan 300) | `MonitoringPort` (boşsa RTSP portu), `PingIntervalSec` (varsayılan 300) |
+| Yöntem | Port varsa TCP connect, yoksa ICMP ping (2026-10-12); 3 sn zaman aşımı, `MonitoredAssetProbeWorker` 30 sn'de bir tur | TCP connect (port hep dolu), aynı ayarlar |
 | Başarılı | `LastSeen`, hata temizlenir; `null`/Offline → **Online** | `LastSeen`, hata temizlenir → **Online** |
 | Başarısız | Hata yazılır; **ilk** denemede `null`/Online → **Offline** | Hata yazılır; **ilk** denemede → **Offline** |
 | Başka kanıt | Yalnızca **kontrol kartı**: ingest (tanımsız kanal dahil), kart okuma, başarılı komut → Online; komut `NoResponse` → **anında** Offline (`Failed` dokunmaz) | Yok |
@@ -441,6 +441,14 @@ edilseydi 23 saattir ulaşılamayan izlenen cihaz her turda Bilinmiyor ↔ Offli
 Kabin her durum değişikliğinde tüm cihaz ve kameraların **o anki** durumundan sıfırdan hesaplanır;
 "başarılı yoklama" için ayrı kural yoktur, Warning son düşük varlık düzelince kendiliğinden kalkar.
 Kontrol kartı olmayan kabinin tabanı `null`'dır (en iyi hâli Bilinmiyor).
+
+**Durum dökümü — "kabin neden bu renkte" (2026-10-12).** `GET /api/Cabinet/{id}/status-breakdown`
+(`ICabinetStatusService.GetBreakdownAsync`, `CabinetStatusService.Breakdown.cs`) hesaplamanın gördüğü her kaydı
+(kontrol kartı, izlemesi açık ya da durumu dolu aktif cihaz, izlemesi açık kamera) kendi durumu, son görülme, son hata
+ve **kabine yansıyan katkısıyla** döner. Katkı yukarıdaki tablonun AYNI kodudur (`CabinetContribution` /
+`CameraContribution`); ön yüz kuralı kopyalamaz, yalnızca `contribution`'ı okur. Ana sayfa haritasındaki kabin
+panelinde "Durum nedeni" bölümü olarak görünür; panel açıkken kabinin hub grubuna abone olur, kamera değişimi
+yayınlanmadığı için 30 sn yedek yoklama yapar. Salt okunurdur; durum geçmişi tutulmaz (yalnızca şu anki neden).
 
 | Olay | Kontrol kartı | POS | Kamera | Kabin |
 |---|---|---|---|---|
@@ -875,9 +883,11 @@ ve şablonu `IsMonitorable` olan diyagram cihazları; sonucu `ICabinetStatusServ
 
 Alınan kararlar:
 
-- **ICMP dalı yok** — sonda yalnızca TCP connect yapar. `MonitoringPort` null ise varlık
-  atlanır ve bir `Warning` loglanır; `IMonitoredAsset.MonitoringPort` doc'u buna göre
-  düzeltildi. Kamerada boş bırakılan izleme portunu `CameraService` (Create/Update) markanın
+- ~~**ICMP dalı yok**~~ — **2026-10-12'de değişti:** `MonitoringPort` doluysa TCP connect, boşsa ICMP
+  ping (`System.Net.NetworkInformation.Ping`, aynı `ProbeTimeoutMs`); port artık zorunlu değil
+  (`DeviceDraftValidator`). Ping yalnızca "makine ağda" der, hizmetin ayakta olduğunu kanıtlamaz; ICMP'si
+  güvenlik duvarında kapalı hedef sağlamken Çevrimdışı görünür — öyle bir cihaza port girilir. Eskiden
+  portsuz varlık atlanıp `Warning` loglanırdı. Kamerada boş bırakılan izleme portunu `CameraService` (Create/Update) markanın
   RTSP portuyla doldurur (`ICameraProtocolProfile.RtspPort`, 2026-09-25), dolayısıyla API
   üzerinden oluşturulan kamerada alan hiç null olmuyor.
 - **Periyot varlık başınadır** (`PingIntervalSec`); worker `Monitoring:SweepIntervalSeconds`

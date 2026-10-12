@@ -96,7 +96,8 @@ export interface DeviceDraft {
   ipAddress: string | null;
   /**
    * İzleme ayarları. Sunucu kuralları (`DeviceDraftValidator`): port 1..65535, periyot 5..86400 sn; izleme açıkken
-   * `ipAddress` ve `monitoringPort` zorunlu. `lastConnectionError` taslakta YOKTUR — onu yalnızca yoklama yazar.
+   * `ipAddress` zorunlu. `monitoringPort` boş bırakılabilir — boşsa ICMP ping, doluysa TCP connect. `lastConnectionError`
+   * taslakta YOKTUR — onu yalnızca yoklama yazar.
    */
   monitoringPort: number | null;
   pingIntervalSec: number;

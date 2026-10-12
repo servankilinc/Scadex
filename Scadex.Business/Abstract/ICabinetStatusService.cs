@@ -1,4 +1,5 @@
 using Scadex.Core.Utils.ResultPattern;
+using Scadex.Model.Dtos.Cabinet.Queries;
 using Scadex.Model.Dtos.Monitoring.Commands;
 
 namespace Scadex.Business.Abstract;
@@ -21,6 +22,12 @@ public interface ICabinetStatusService
 
     /// <summary> Kabin durumunu yeniden hesaplar; değiştiyse yazar ve yayınlar (örn. kamera durumu değişince). Bakımdaki kabine dokunmaz. </summary>
     Task RecalculateAsync(Guid cabinetId, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Kabin durumunun dökümü (salt okunur): hesaplamanın gördüğü her cihaz/kamera ve kabine yansıyan katkısı — durumu hesaplayan
+    /// kuralın AYNISIYLA. Kabin yoksa ya da pasifse 404.
+    /// </summary>
+    Task<Result<CabinetStatusBreakdownDto>> GetBreakdownAsync(Guid cabinetId, CancellationToken cancellationToken = default);
 
     /// <summary> Kabini bakıma alır (<c>DeviceStatusId = Maintenance</c>) ya da bakımdan çıkarır. </summary>
     Task SetMaintenanceAsync(Guid cabinetId, bool underMaintenance, CancellationToken cancellationToken = default);

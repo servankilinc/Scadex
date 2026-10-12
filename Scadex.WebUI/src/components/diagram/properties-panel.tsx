@@ -320,15 +320,16 @@ function DeviceForm({ node, editor }: { node: Extract<DiagramNode, { type: 'temp
 }
 
 /**
- * İzleme (sunucuda `IMonitoredAsset`): açıksa cihaz `IP:port`'a TCP ile yoklanır ve sonuç hem cihazın hem kabinin
- * durumuna yansır — SCADA kartı, POS, makbuz yazıcı… hangisi olduğu fark etmez.
+ * İzleme (sunucuda `IMonitoredAsset`): açıksa cihaz `IP:port`'a TCP ile, port boşsa IP'ye ICMP ping ile yoklanır ve sonuç
+ * hem cihazın hem kabinin durumuna yansır — SCADA kartı, POS, makbuz yazıcı… hangisi olduğu fark etmez.
  *
- * Kurallar sunucudaki `DeviceDraftValidator`'ın ELLE tutulan aynasıdır: port 1..65535, periyot 5..86400 sn, izleme
- * açıkken IP ve port zorunlu. Eksik hedef burada engellenmez, yalnızca işaretlenir: IP alanı yukarıda ve kullanıcı
+ * Kurallar sunucudaki `DeviceDraftValidator`'ın ELLE tutulan aynasıdır: port 1..65535 (boş bırakılabilir), periyot
+ * 5..86400 sn, izleme açıkken IP zorunlu. Eksik IP burada engellenmez, yalnızca işaretlenir: IP alanı yukarıda ve kullanıcı
  * sırayla dolduruyor olabilir — son söz kaydetmede sunucunundur.
  */
 function MonitoringFields({ device, onChange }: { device: DiagramDeviceDto; onChange: (patch: Partial<DiagramDeviceDto>) => void }) {
-  const missingTarget = device.isMonitoringEnabled && (!device.ipAddress || device.monitoringPort == null);
+  const missingTarget = device.isMonitoringEnabled && !device.ipAddress;
+  const usesPing = device.monitoringPort == null;
 
   return (
     <div className='flex flex-col gap-3 border-t pt-3'>
@@ -342,7 +343,7 @@ function MonitoringFields({ device, onChange }: { device: DiagramDeviceDto; onCh
       {device.isMonitoringEnabled && (
         <>
           <div className='grid grid-cols-2 gap-2'>
-            <Field label='Port' htmlFor='device-monitoring-port'>
+            <Field label='Port (boş = ping)' htmlFor='device-monitoring-port'>
               <OptionalNumberInput
                 id='device-monitoring-port'
                 value={device.monitoringPort}
@@ -356,11 +357,13 @@ function MonitoringFields({ device, onChange }: { device: DiagramDeviceDto; onCh
             </Field>
           </div>
           {missingTarget ? (
-            <p className='text-destructive text-[10px]'>İzleme için IP adresi ve port gerekli; eksikse kaydetme reddedilir.</p>
+            <p className='text-destructive text-[10px]'>İzleme için IP adresi gerekli; eksikse kaydetme reddedilir.</p>
           ) : (
             <p className='text-muted-foreground text-[10px]'>
-              Cihaz bu adrese TCP ile yoklanır. Yoklama başarısız olursa cihaz Çevrimdışı sayılır; kabin Uyarı'ya geçer (kontrol
-              modülünde Çevrimdışı).
+              {usesPing
+                ? "Port boş: cihaza ping (ICMP) atılır — yalnızca ağda olduğunu gösterir; ICMP kapalıysa sağlamken Çevrimdışı görünür. "
+                : 'Cihaz bu porta TCP ile yoklanır. '}
+              Yoklama başarısız olursa cihaz Çevrimdışı sayılır; kabin Uyarı'ya geçer (kontrol modülünde Çevrimdışı).
             </p>
           )}
         </>

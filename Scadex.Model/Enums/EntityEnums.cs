@@ -22,6 +22,13 @@ public static class EntityEnums
         _ => 0
     };
 
+    /// <summary> Kabin durum dökümündeki kaydın cinsi (<c>CabinetStatusContributorDto.Kind</c>). </summary>
+    public enum CabinetStatusContributorKind
+    {
+        Device = 1,
+        Camera = 2
+    }
+
     /// <summary>
     /// Diyagram üzerinde yer alan cihazların kategorisi.
     /// DİKKAT: Ağ üzerinden izlenen 3. parti cihazlar (kamera, UPS, switch) bu enum'da DEĞİLDİR 

@@ -30,7 +30,9 @@ export const cabinetKeys = {
   list: () => [...cabinetKeys.all, 'list'] as const,
   detail: (id: string) => [...cabinetKeys.all, 'detail', id] as const,
   /** Düzenleme formunun kaynağı (`GET /{id}/update`) — SCADA alanları yalnızca burada. */
-  updateModel: (id: string) => [...cabinetKeys.all, 'update-model', id] as const
+  updateModel: (id: string) => [...cabinetKeys.all, 'update-model', id] as const,
+  /** Kabin durumunun dökümü (harita paneli). Canlı yayın + yedek yoklama tazeler. */
+  statusBreakdown: (id: string) => [...cabinetKeys.all, 'status-breakdown', id] as const
 };
 
 export const companyKeys = {
