@@ -60,7 +60,7 @@ public partial class OperatorSessionEngine
                     await AutoLockInnerDoorsAsync(session, outer, cancellationToken);
 
                 await _db.SaveChangesAsync(cancellationToken);
-                await CloseSessionAsync(session, now, timedOut: true, cancellationToken);
+                await CloseSessionAsync(session, now, SessionCloseKind.TimedOut, cancellationToken);
                 await _db.SaveChangesAsync(cancellationToken);
                 await ReconcileSirenAsync(cabinet, session, sirenEvent, cancellationToken);
                 break;

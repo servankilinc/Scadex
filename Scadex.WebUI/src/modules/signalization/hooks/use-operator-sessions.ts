@@ -1,11 +1,13 @@
 import { useMemo } from 'react';
-import { keepPreviousData, useQuery } from '@tanstack/react-query';
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { usePermission } from '@/lib/auth-session';
 import { ApiError } from '@/lib/axios-helper';
 import { toUtcDate } from '@/lib/utils';
+import type { Permission } from '@/models/enums/entityEnums';
 import type { CabinetIdsQueryOptions } from '../../types';
-import { getOpenSessions, getSessionDetail, getSessionList, getSessionSummary } from '../api/signalization';
+import { closeOperatorSession, getOpenSessions, getSessionDetail, getSessionList, getSessionSummary } from '../api/signalization';
 import { signalizationKeys } from '../api/query-keys';
-import type { OperatorSessionOpenDto, OperatorSessionQueryRequest, OperatorSessionSummaryRequest } from '../models/session';
+import type { OperatorSessionCloseRequest, OperatorSessionOpenDto, OperatorSessionQueryRequest, OperatorSessionSummaryRequest } from '../models/session';
 
 /**
  * Açık oturum yoklamasının aralığı. Anlık güncelleme canlı yayından gelir (`use-session-realtime.ts`, `/hubs/signalization`);
@@ -130,6 +132,32 @@ export function useCabinetLatestSession(cabinetId: string) {
     /** Backend'de modül kapalı (404): bölüm hiç çizilmemeli. */
     moduleOff: isModuleOff(open.error) || isModuleOff(history.error)
   };
+}
+
+/** Sunucudaki `SignalizationModule.SessionClosePolicy` ile aynı izin kodu — yoksa kapatma ucu 403 döner. */
+const SESSION_CLOSE_PERMISSION: keyof typeof Permission = 'SignalSessionClose';
+
+/** Elle kapatma izni; kapatma düğmeleri bu izin yoksa hiç çizilmez. */
+export function useCanCloseSession(): boolean {
+  const can = usePermission();
+  return can(SESSION_CLOSE_PERMISSION);
+}
+
+/**
+ * Açık işlemi elle kapatma (`SignalSessionClose`). Canlı yayın (`OperatorSessionChanged`) değişimi zaten getirir; buradaki
+ * invalidation yayın kopmuşsa diye bir güvencedir. Hata gösterimi çağıranındır (diyalog içinde kalır).
+ */
+export function useCloseSession() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({ id, request }: { id: number; request: OperatorSessionCloseRequest }) => closeOperatorSession(id, request),
+    onSuccess: (_, { id }) => {
+      void queryClient.invalidateQueries({ queryKey: signalizationKeys.sessionDetail(id) });
+      void queryClient.invalidateQueries({ queryKey: signalizationKeys.openSessionsAll() });
+      void queryClient.invalidateQueries({ queryKey: signalizationKeys.sessionLists() });
+    }
+  });
 }
 
 export function useSessionSummary(request: OperatorSessionSummaryRequest | null) {

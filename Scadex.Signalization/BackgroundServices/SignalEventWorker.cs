@@ -1,6 +1,7 @@
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+using Scadex.Core.Utils.ResultPattern;
 using Scadex.Signalization.Engine;
 using Scadex.Signalization.Model.Utils;
 using Scadex.Signalization.Queue;
@@ -95,6 +96,10 @@ public sealed class SignalEventWorker : BackgroundService
                 {
                     if (item is TimerWork timer)
                         _queue.CompleteTimer(timer);
+
+                    // Hata/kapanışta elle kapatma isteği asılı kalmasın; başarıyla tamamlandıysa no-op.
+                    if (item is ManualCloseWork close)
+                        close.Completion.TrySetResult(Result.Failure("İşlem kapatılamadı."));
                 }
             }
         }

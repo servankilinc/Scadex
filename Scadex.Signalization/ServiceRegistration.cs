@@ -6,6 +6,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Scadex.Business.Utils.ScadaObserver;
+using Scadex.Core.Utils.Auth;
 using Scadex.DataAccess.Interceptors;
 using Scadex.Signalization.BackgroundServices;
 using Scadex.Signalization.DataAccess;
@@ -17,6 +18,7 @@ using Scadex.Signalization.Runtime;
 using Scadex.Signalization.ScadaHook;
 using Scadex.Signalization.Services.Abstract;
 using Scadex.Signalization.Services.Concrete;
+using static Scadex.Model.Enums.EntityEnums;
 
 namespace Scadex.Signalization;
 
@@ -25,6 +27,13 @@ public static class SignalizationModule
     public const string AppSettingsEnabledKey = "Modules:Signalization:Enabled";
 
     public static bool IsEnabled(IConfiguration configuration) => configuration.GetValue<bool>(AppSettingsEnabledKey);
+
+    /// <summary>
+    /// Açık işlemi elle kapatma izni (<c>Permission.SignalSessionClose</c>) — policy adı izin koduyla aynıdır. Token'daki
+    /// <c>permission</c> claim'inden okunur; rol izni değişince kullanıcı yeniden giriş yapmalı (claim'ler token'a girişte yazılır).
+    /// Modülün diğer uçları yalnızca kimlik ister.
+    /// </summary>
+    public const string SessionClosePolicy = nameof(Permission.SignalSessionClose);
 }
 
 public static class ServiceRegistration
@@ -68,6 +77,12 @@ public static class ServiceRegistration
 
     private static IServiceCollection AddSignalizationServices(this IServiceCollection services, IConfiguration configuration)
     {
+        #region YETKI
+        // Policy modülün kaydında tanımlanır: modül kapalıyken controller'lar da çıkarıldığı için tanımsız policy'ye çarpan uç kalmaz.
+        services.AddAuthorizationBuilder()
+            .AddPolicy(SignalizationModule.SessionClosePolicy, policy => policy.RequireClaim(AppClaimTypes.Permission, SignalizationModule.SessionClosePolicy));
+        #endregion
+
         #region DB CONTEXT
         string connectionString = configuration.GetConnectionString("Database") ?? 
             throw new InvalidOperationException("ConnectionStrings:Signalization ya da ConnectionStrings:Database tanimli degil.");

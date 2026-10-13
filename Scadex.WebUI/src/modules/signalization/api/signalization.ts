@@ -11,6 +11,7 @@ import type { SignalCabinetDto, SignalCabinetOptionsDto, SignalCabinetOverviewDt
 import type { SignalOperatorAuthorityRequest, SignalOperatorDto } from '../models/operator';
 import type { SignalCabinetCommandRequest, SignalCabinetCommandResultDto, SignalCabinetLiveDto } from '../models/virtual-cabinet';
 import type {
+  OperatorSessionCloseRequest,
   OperatorSessionDetailDto,
   OperatorSessionListItemDto,
   OperatorSessionOpenDto,
@@ -100,6 +101,14 @@ export async function getSessionList(request: OperatorSessionQueryRequest): Prom
 
 export async function getSessionDetail(id: number): Promise<OperatorSessionDetailDto> {
   return http.get<OperatorSessionDetailDto>(`${SESSION_ROUTE}/${id}`);
+}
+
+/**
+ * Açık işlemi elle kapatır (`SignalSessionClose` izni, yoksa 403). Motor bitirene kadar bloklar: siren talebi bırakılır,
+ * iç kapılara otomatik kilitleme denenir (SCADA'yı bekleyebilir).
+ */
+export async function closeOperatorSession(id: number, request: OperatorSessionCloseRequest): Promise<void> {
+  await http.post<void>(`${SESSION_ROUTE}/${id}/close`, request);
 }
 
 export async function getSessionSummary(request: OperatorSessionSummaryRequest): Promise<OperatorSessionSummaryDto> {

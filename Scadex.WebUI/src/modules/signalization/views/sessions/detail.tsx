@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Link, useParams } from 'react-router';
-import { ArrowLeftIcon, ChevronLeftIcon, ChevronRightIcon, ImageOffIcon, LoaderIcon, ShieldAlertIcon, SirenIcon } from 'lucide-react';
+import { ArrowLeftIcon, ChevronLeftIcon, ChevronRightIcon, CircleStopIcon, ImageOffIcon, LoaderIcon, ShieldAlertIcon, SirenIcon } from 'lucide-react';
 import { captureFileUrl } from '@/api/camera-stream';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -9,9 +9,10 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { Skeleton } from '@/components/ui/skeleton';
 import { cn, formatUtcDateTime, toUtcDate } from '@/lib/utils';
 import { CaptureStatus } from '@/models/enums/entityEnums';
+import { CloseSessionDialog } from '../../components/close-session-dialog';
 import { OperatorIdCard } from '../../components/operator-id-card';
 import { SessionFlagBadges, SessionStatusBadge } from '../../components/session-badges';
-import { useSessionDetail } from '../../hooks/use-operator-sessions';
+import { useCanCloseSession, useSessionDetail } from '../../hooks/use-operator-sessions';
 import { formatDuration, formatUtcTime } from '../../lib';
 import { OperatorSessionStatus, SessionEventType, SessionEventTypeLabels, eventTone, formatEventDetail, type EventTone } from '../../models/enums';
 import type { OperatorSessionCaptureDto, OperatorSessionDetailDto, OperatorSessionEventDto } from '../../models/session';
@@ -20,7 +21,8 @@ import type { OperatorSessionCaptureDto, OperatorSessionDetailDto, OperatorSessi
  * İşlem detayı — `/signalization/sessions/:sessionId`.
  *
  * Kareler, iç kapı özeti ve olayların zaman çizelgesi. Oturum açıkken sayfa kendini 3 sn'de bir yoklar
- * (`useSessionDetail`), kapanınca durur. Salt okunur.
+ * (`useSessionDetail`), kapanınca durur. Tek eylem, `SignalSessionClose` iznine sahip kullanıcının açık işlemi
+ * elle kapatmasıdır (gerekçeli; kaydı motor yazar).
  */
 export default function OperatorSessionDetail() {
   const { sessionId } = useParams();
@@ -55,6 +57,8 @@ export default function OperatorSessionDetail() {
 
 function SessionDetailContent({ session }: { session: OperatorSessionDetailDto }) {
   const isOpen = session.status === OperatorSessionStatus.Open;
+  const canClose = useCanCloseSession();
+  const [closing, setClosing] = useState(false);
 
   return (
     <>
@@ -68,8 +72,18 @@ function SessionDetailContent({ session }: { session: OperatorSessionDetailDto }
           </h1>
           <p className='text-sm text-muted-foreground'>{session.cabinetName ?? 'Silinmiş kabin'}</p>
         </div>
-        <SessionFlagBadges flags={session.flags} />
+        <div className='flex flex-wrap items-center gap-2'>
+          <SessionFlagBadges flags={session.flags} />
+          {isOpen && canClose && (
+            <Button size='sm' variant='destructive' onClick={() => setClosing(true)}>
+              <CircleStopIcon />
+              İşlemi kapat
+            </Button>
+          )}
+        </div>
       </div>
+
+      <CloseSessionDialog session={closing ? session : null} onClose={() => setClosing(false)} />
 
       {session.hasAlert && (
         <div className='flex items-start gap-2 rounded-xl border border-destructive/40 bg-destructive/5 p-3 text-sm'>

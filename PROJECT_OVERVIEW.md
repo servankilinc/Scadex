@@ -1330,6 +1330,14 @@ ekranlarını ayrı parçalara böler.
   eklenmedi; bedeli, açık bırakılmış bir iç kapının ya da başarısız kilit komutunun oturumu bu süre
   boyunca açık tutmasıdır. Bir oturum birden fazla aç/kapa çifti içerebilir; `DurationSec` aradaki
   kapalı süreyi de sayar.
+- **Elle kapatma (2026-10-13).** `SignalSessionClose` (14) iznine sahip kullanıcı açık işlemi zorunlu bir gerekçeyle
+  kapatabilir (`POST /api/OperatorSession/{id}/close`; policy `SignalizationModule.SessionClosePolicy`, modülün tek
+  zorlanan izni). Servis yalnızca doğrular ve `ManualCloseWork`'ü **kabin şeridine** bırakır, sonucu bekler; kapatmayı motor
+  yazar (`OperatorSessionEngine.ManualClose.cs`) — SCADA olaylarıyla yarış olmaz. Akış zaman aşımının aynasıdır:
+  `ManuallyClosed` (23) olayı (`UserId` = kapatan, `Detail` = gerekçe, serbest metin) → siren talebi bırakılır
+  (`SirenReleased`, `ManuallyClosed`) → otomatik kilitleme → durum `ManuallyClosed` (5). Bayrak eklenmez; mevcut
+  bayraklar korunur. Kabin `IsEnabled = false` olsa da çalışır. Otomatik kilitleme SCADA'yı beklediği için uç, elle komut
+  ucu gibi bloklar.
 - **Kartsız giriş:** `AwaitingCardTimeoutSec` içinde yetkili kart okutulmazsa `UnauthorizedEntry`
   bayrağı; oturum kapanmaz. `UnauthorizedEntry` ve `ForcedOpen` **güvenlik uyarısıdır**
   (`AlertFlags`, DTO'da `hasAlert`): canlı panelde vurgulanır. **Onay akışı yoktur**
@@ -1390,6 +1398,7 @@ ekranlarını ayrı parçalara böler.
 | `POST /api/SignalCabinet/{cabinetId}/command` | Elle komut: `{ target, targetId, turnOn }`. **200 ≠ başarı** — sonuç gövdedeki `status`'tedir (çekirdeğin komut ucuyla aynı); SCADA cevaplayana kadar bloklar |
 | `GET /api/OperatorSession/open` | Canlı panel: yalnızca açık oturumlar; aşama türetilir, `hasAlert` güvenlik uyarısını gösterir |
 | `POST /api/OperatorSession/list` · `GET /{id}` · `POST /summary` | Rapor: sayfalı liste, detay (zaman çizelgesi, kapı özeti, kareler), operatör/kurum/kabin özeti |
+| `POST /api/OperatorSession/{id}/close` | Elle kapatma: `{ reason }` (zorunlu, ≤ 500). `SignalSessionClose` izni yoksa 403; kapalı işlem 400. Motor bitirene kadar bloklar |
 
 ### Bilinen sonuçlar
 
@@ -1397,7 +1406,7 @@ ekranlarını ayrı parçalara böler.
   (satır kalır). Kanıt kalıcı olsun isteniyorsa ayar 0 yapılmalı.
 - Aynı kurumdan iki operatör aynı kapıda çalışırsa, kapı kapalıyken okutulan ikinci kart kilitler
   (kapı ilk açılıştan sonra hiç açılmadıysa kilidi yeniden açar — `UnlockNotEffective`).
-- **Zaman aşımıyla kapanan oturumdan sonra gelen olaylar o oturumu bulamaz** (bütün aramalar
+- **Zaman aşımıyla ya da elle kapanan oturumdan sonra gelen olaylar o oturumu bulamaz** (bütün aramalar
   `EndedAtUtc == null` ile yapılır). Sonuçları: iç kapı kapanışı düşer; dış kapı kapanışı yalnızca
   loglanır ve **otomatik kilitleme çalışmaz**; kart okutma örtük yeni oturum açar ve "kapı açılmış mı"
   kanıtı oturum olaylarında arandığı için yeni oturumun geçmişi boş görünür — kilidi açık, fiilen

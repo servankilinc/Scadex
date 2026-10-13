@@ -303,6 +303,12 @@ public static class EntityEnums
         RemotePcAudit = 12,
 
         /// <summary> Uzak PC ile dosya transferi yapabilir (gez/indir/yükle) — RemoteDesk modülü; kontrolü elinde tutana açıktır, ayrı ve en hassas izin </summary>
-        RemotePcFileTransfer = 13
+        RemotePcFileTransfer = 13,
+
+        /// <summary>
+        /// Devam eden operatör işlemini elle kapatabilir (Sinyalizasyon modülü). Kapatma sahaya dokunur: siren talebi bırakılır,
+        /// iç kapılara otomatik kilitleme denenir — bu yüzden ayrı izindir.
+        /// </summary>
+        SignalSessionClose = 14
     }
 }

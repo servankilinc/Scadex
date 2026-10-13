@@ -1,12 +1,15 @@
+using System.Security.Claims;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Logging;
 using Scadex.Signalization.Controllers.Base;
+using Scadex.Signalization.Model.Dtos.Session.Commands;
 using Scadex.Signalization.Model.Dtos.Session.Queries;
 using Scadex.Signalization.Services.Abstract;
 
 namespace Scadex.Signalization.Controllers;
 
-/// <summary> Operator islemleri: canli panel ve rapor (salt okunur). </summary>
+/// <summary> Operator islemleri: canli panel ve rapor (okuma) + yetkili kullanicinin elle kapatmasi. </summary>
 public class OperatorSessionController : SignalizationControllerBase
 {
     private readonly IOperatorSessionService _service;
@@ -38,6 +41,18 @@ public class OperatorSessionController : SignalizationControllerBase
     public async Task<IActionResult> Summary(OperatorSessionSummaryRequest request, CancellationToken cancellationToken)
     {
         var result = await _service.GetSummaryAsync(request, cancellationToken);
+        return ToAction(result);
+    }
+
+    /// <summary> Açık işlemi elle kapatır; gerekçe zorunlu. Yalnızca <c>SignalSessionClose</c> iznine açık (yoksa 403). </summary>
+    [HttpPost("{id:long}/close")]
+    [Authorize(Policy = SignalizationModule.SessionClosePolicy)]
+    public async Task<IActionResult> Close(long id, OperatorSessionCloseRequest request, CancellationToken cancellationToken)
+    {
+        if (!Guid.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier), out var userId))
+            return Unauthorized();
+
+        var result = await _service.CloseAsync(id, userId, request, cancellationToken);
         return ToAction(result);
     }
 

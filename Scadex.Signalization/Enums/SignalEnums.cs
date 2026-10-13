@@ -11,7 +11,12 @@ public static class SignalEnums
         /// <summary> Is bitti ve dis kapi kapandi ama en az bir uyari bayragi var (<see cref="SessionFlags"/>). </summary>
         CompletedWithWarning = 3,
         /// <summary> Dış kapı kapanmadan <c>SessionMaxDurationMin</c> doldu; oturumu zamanlayici kapatti. </summary>
-        TimedOut = 4
+        TimedOut = 4,
+        /// <summary>
+        /// Yetkili bir kullanıcı (<c>Permission.SignalSessionClose</c>) işlemi elle kapattı; kapatan ve gerekçe
+        /// <see cref="SessionEventType.ManuallyClosed"/> olayındadır. Bayraklar korunur, durum sonradan eklenen bayrakla değişmez.
+        /// </summary>
+        ManuallyClosed = 5
     }
 
     /// <summary> 
@@ -108,7 +113,13 @@ public static class SignalEnums
         ManualCommand = 21,
 
         /// <summary> <see cref="ManualCommand"/> ile aynı, komut başarısız oldu. <c>Detail</c>: <c>"eylem: durum: mesaj"</c>. İşleme bayrak eklemez. </summary>
-        ManualCommandFailed = 22
+        ManualCommandFailed = 22,
+
+        /// <summary>
+        /// Yetkili bir kullanıcı işlemi elle kapattı. Kapatan <c>UserId</c>'de, zorunlu gerekçe <c>Detail</c>'de (serbest metin, anahtar değil).
+        /// Ardından zaman aşımındaki gibi siren talebi bırakılır ve iç kapılara son bir otomatik kilitleme denenir.
+        /// </summary>
+        ManuallyClosed = 23
     }
 
     /// <summary>
@@ -176,6 +187,7 @@ public static class SessionEventDetail
     public const string OuterClosed = "OuterClosed";
     public const string Timeout = "Timeout";
     public const string SessionTimedOut = "SessionTimedOut";
+    public const string ManuallyClosed = "ManuallyClosed";
 
     // OuterClosed gerekcesi: kapi kapandi ama is bitmemisti (oturum acik birakildi)
     public const string Unfinished = "Unfinished";

@@ -10,9 +10,10 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Skeleton } from '@/components/ui/skeleton';
 import { useCabinets } from '@/hooks/use-cabinets';
 import { cn, formatUtcDateTime } from '@/lib/utils';
+import { CloseSessionDialog } from '../../components/close-session-dialog';
 import { SessionFlagBadges, SessionOperatorList, SessionPhaseBadge, SessionStatusBadge } from '../../components/session-badges';
 import { useNow } from '../../hooks/use-now';
-import { useOpenSessions, useSessionList } from '../../hooks/use-operator-sessions';
+import { useCanCloseSession, useOpenSessions, useSessionList } from '../../hooks/use-operator-sessions';
 import { useSignalAuthorities, useSignalOperators } from '../../hooks/use-signal-config';
 import { formatDuration, localToUtcIso } from '../../lib';
 import { ALERT_FLAGS, OperatorSessionStatus, OperatorSessionStatusLabels, SESSION_FLAG_LIST } from '../../models/enums';
@@ -30,7 +31,8 @@ const STATUS_OPTIONS: OperatorSessionStatus[] = [
   OperatorSessionStatus.Open,
   OperatorSessionStatus.Completed,
   OperatorSessionStatus.CompletedWithWarning,
-  OperatorSessionStatus.TimedOut
+  OperatorSessionStatus.TimedOut,
+  OperatorSessionStatus.ManuallyClosed
 ];
 
 /**
@@ -39,7 +41,8 @@ const STATUS_OPTIONS: OperatorSessionStatus[] = [
  * Üstte CANLI panel (açık oturumlar, 5 sn yoklama), altta filtreli GEÇMİŞ (sayfalı, yoklamasız). İkisi ayrı
  * uçlardan beslenir: canlı liste yalnızca dış kapısı kapanmamış oturumları taşır.
  *
- * Ekran salt okunurdur — oturumu yalnızca motor yazar; onay/kapama gibi bir eylem bilerek yoktur.
+ * Oturumu yalnızca motor yazar; uyarı onayı bilerek yoktur. Tek eylem, `SignalSessionClose` iznine sahip kullanıcının
+ * açık işlemi gerekçeyle elle kapatmasıdır (canlı kartta "Kapat"; talebi motor işler).
  */
 export default function OperatorSessions() {
   return (
@@ -47,7 +50,8 @@ export default function OperatorSessions() {
       <div>
         <h1 className='text-lg font-semibold'>Operatör İşlemleri</h1>
         <p className='text-sm text-muted-foreground'>
-          Dış kapının açılmasıyla başlayıp kapanmasıyla biten işlemler. Kayıtları yalnızca SCADA olayları üretir; buradan değiştirilemez.
+          Dış kapının açılmasıyla başlayıp kapanmasıyla biten işlemler. Kayıtları SCADA olayları üretir; yetkili kullanıcı devam eden
+          bir işlemi gerekçeyle elle kapatabilir.
         </p>
       </div>
 
@@ -62,6 +66,8 @@ export default function OperatorSessions() {
 function LivePanel() {
   const open = useOpenSessions(LIVE_PANEL_POLL_MS);
   const now = useNow();
+  const canClose = useCanCloseSession();
+  const [closing, setClosing] = useState<OperatorSessionOpenDto | null>(null);
 
   // Yanıttan bu yana geçen yerel süre; sunucunun `elapsedSec`'ine eklenir.
   const sinceFetchSec = open.dataUpdatedAt ? Math.max(0, Math.floor((now - open.dataUpdatedAt) / 1000)) : 0;
@@ -97,15 +103,22 @@ function LivePanel() {
       {open.data && open.data.length > 0 && (
         <div className='grid gap-3 sm:grid-cols-2 xl:grid-cols-3'>
           {open.data.map(session => (
-            <LiveSessionCard key={session.id} session={session} elapsedSec={session.elapsedSec + sinceFetchSec} />
+            <LiveSessionCard
+              key={session.id}
+              session={session}
+              elapsedSec={session.elapsedSec + sinceFetchSec}
+              onClose={canClose ? () => setClosing(session) : undefined}
+            />
           ))}
         </div>
       )}
+
+      <CloseSessionDialog session={closing} onClose={() => setClosing(null)} />
     </section>
   );
 }
 
-function LiveSessionCard({ session, elapsedSec }: { session: OperatorSessionOpenDto; elapsedSec: number }) {
+function LiveSessionCard({ session, elapsedSec, onClose }: { session: OperatorSessionOpenDto; elapsedSec: number; onClose?: () => void }) {
   const sirenOn = session.sirenRequested && session.cabinetSirenIsOn;
 
   return (
@@ -149,9 +162,16 @@ function LiveSessionCard({ session, elapsedSec }: { session: OperatorSessionOpen
 
         <div className='flex items-center justify-between gap-2 text-xs text-muted-foreground'>
           <span>Başlangıç: {formatUtcDateTime(session.startedAtUtc)}</span>
-          <Button size='xs' variant='outline' nativeButton={false} render={<Link to={`/signalization/sessions/${session.id}`} />}>
-            Detay
-          </Button>
+          <div className='flex items-center gap-1.5'>
+            {onClose && (
+              <Button size='xs' variant='destructive' onClick={onClose}>
+                Kapat
+              </Button>
+            )}
+            <Button size='xs' variant='outline' nativeButton={false} render={<Link to={`/signalization/sessions/${session.id}`} />}>
+              Detay
+            </Button>
+          </div>
         </div>
       </CardContent>
     </Card>

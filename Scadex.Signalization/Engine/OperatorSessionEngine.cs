@@ -62,6 +62,10 @@ public partial class OperatorSessionEngine
             case ManualCommandWork manualWork:
                 await HandleManualCommandAsync(cabinet, manualWork.Notification, cancellationToken);
                 break;
+            case ManualCloseWork closeWork:
+                // IsEnabled bakılmaz: pasife alınmış kabinin açık işlemi de elle kapatılabilmeli.
+                closeWork.Completion.TrySetResult(await HandleManualCloseAsync(cabinet, closeWork, cancellationToken));
+                break;
         }
     }
 
@@ -126,8 +130,8 @@ public partial class OperatorSessionEngine
     }
 
 
-    /// <summary> Oturumu kapatır. </summary>
-    private async Task CloseSessionAsync(OperatorSession session, DateTime endedAtUtc, bool timedOut, CancellationToken cancellationToken)
+    /// <summary> Oturumu kapatır; son durum <paramref name="kind"/>'a ve bayraklara göre belirlenir. </summary>
+    private async Task CloseSessionAsync(OperatorSession session, DateTime endedAtUtc, SessionCloseKind kind, CancellationToken cancellationToken)
     {
         bool hasOperator = await _db.OperatorSessionOperators.AnyAsync(o => o.SessionId == session.Id, cancellationToken);
         if (!hasOperator)
@@ -143,15 +147,30 @@ public partial class OperatorSessionEngine
         session.AwaitingCardDueAtUtc = null;
         session.MaxDurationDueAtUtc = null; 
 
-        if (timedOut)
+        switch (kind)
         {
-            MarkFlag(session, SessionFlags.TimedOut);
-            session.Status = OperatorSessionStatus.TimedOut;
+            case SessionCloseKind.TimedOut:
+                MarkFlag(session, SessionFlags.TimedOut);
+                session.Status = OperatorSessionStatus.TimedOut;
+                break;
+            case SessionCloseKind.Manual:
+                session.Status = OperatorSessionStatus.ManuallyClosed;
+                break;
+            default:
+                session.Status = session.Flags == SessionFlags.None ? OperatorSessionStatus.Completed : OperatorSessionStatus.CompletedWithWarning;
+                break;
         }
-        else
-        {
-            session.Status = session.Flags == SessionFlags.None ? OperatorSessionStatus.Completed : OperatorSessionStatus.CompletedWithWarning;
-        }
+    }
+
+    /// <summary> Oturumu kapatan yol. </summary>
+    private enum SessionCloseKind
+    {
+        /// <summary> İş bitti, dış kapı kapandı. </summary>
+        Finished,
+        /// <summary> <c>SessionMaxDurationMin</c> doldu. </summary>
+        TimedOut,
+        /// <summary> Yetkili kullanıcı elle kapattı. </summary>
+        Manual
     }
     #endregion
 

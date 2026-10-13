@@ -443,8 +443,9 @@ Bir şeyin çalıştığını varsaymadan önce doğrulayın:
 ## Sormadan "düzeltmeyin"
 
 PROJECT_OVERVIEW.md §7'deki **bilinçli boşluklar** unutulmuş değil, sıraya alınmıştır. Talep
-edilmeden bunlara girmeyin: yetki zorlaması yok (`permission` claim'i üretilir ama okunmaz; tek istisna RemoteDesk'in
-`RemotePcView` / `RemotePcControl` / `RemotePcAudit` policy'leri, 2026-09-30 / 2026-10-05),
+edilmeden bunlara girmeyin: yetki zorlaması yok (`permission` claim'i üretilir ama okunmaz; istisnalar RemoteDesk'in
+`RemotePcView` / `RemotePcControl` / `RemotePcAudit` policy'leri, 2026-09-30 / 2026-10-05, ve Sinyalizasyon'un işlemi elle
+kapatma ucundaki `SignalSessionClose`, 2026-10-13 — policy modül kaydında, yalnızca o uçta),
 kiracı izolasyonu yok, SCADA komutlarında retry/kuyruk yok (tekrarlanan röle darbesi başarısız
 komuttan kötüdür), kamera parolası düz metin saklanır, saklama/temizlik işleri yok,
 `ChannelEvent` bir değişim günlüğüdür — zaman serisi değildir.

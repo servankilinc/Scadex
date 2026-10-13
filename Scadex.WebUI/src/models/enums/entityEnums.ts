@@ -462,7 +462,9 @@ export const Permission = {
   /** PC izleme/kontrol denetim raporu (RemoteDesk) — rapor enpointleri ister; izlemeden ayrıdır. */
   RemotePcAudit: 12,
   /** Uzak PC ile dosya transferi (RemoteDesk) — kontrolü elinde tutana açık, ayrı izin. */
-  RemotePcFileTransfer: 13
+  RemotePcFileTransfer: 13,
+  /** Devam eden operatör işlemini elle kapatma (Sinyalizasyon) — sunucuda zorlanır, yoksa 403. */
+  SignalSessionClose: 14
 } as const;
 export type Permission = (typeof Permission)[keyof typeof Permission];
 
@@ -480,5 +482,6 @@ export const PermissionLabels: Record<Permission, string> = {
   [Permission.RemotePcView]: 'PC Ekranı İzleme',
   [Permission.RemotePcControl]: 'PC Uzaktan Kontrol',
   [Permission.RemotePcAudit]: 'PC İzleme Raporu',
-  [Permission.RemotePcFileTransfer]: 'PC Dosya Transferi'
+  [Permission.RemotePcFileTransfer]: 'PC Dosya Transferi',
+  [Permission.SignalSessionClose]: 'Operatör İşlemini Kapatma'
 };

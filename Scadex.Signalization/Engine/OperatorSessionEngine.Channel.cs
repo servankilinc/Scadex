@@ -120,7 +120,7 @@ public partial class OperatorSessionEngine
             //    (alet almaya çıkmış olabilir) geri dönebilsin diye oturum AÇIK kalır ve yeniden açılış
             //    aynı oturuma yazılır. Dönmezse oturumu SessionMaxDurationMin zamanlayıcısı kapatır.
             if (finished)
-                await CloseSessionAsync(session, occurredAtUtc, timedOut: false, cancellationToken);
+                await CloseSessionAsync(session, occurredAtUtc, SessionCloseKind.Finished, cancellationToken);
 
             await _db.SaveChangesAsync(cancellationToken);
             await ReconcileSirenAsync(cabinet, session, sirenEvent, cancellationToken);

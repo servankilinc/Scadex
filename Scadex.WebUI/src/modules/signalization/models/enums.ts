@@ -15,7 +15,9 @@ export const OperatorSessionStatus = {
   /** İş bitti ve dış kapı kapandı ama en az bir bayrak var. */
   CompletedWithWarning: 3,
   /** Dış kapı kapanmadan azami süre doldu; oturumu zamanlayıcı kapattı. */
-  TimedOut: 4
+  TimedOut: 4,
+  /** Yetkili bir kullanıcı (`SignalSessionClose`) elle kapattı; kapatan ve gerekçe `ManuallyClosed` olayındadır. */
+  ManuallyClosed: 5
 } as const;
 export type OperatorSessionStatus = (typeof OperatorSessionStatus)[keyof typeof OperatorSessionStatus];
 
@@ -23,7 +25,8 @@ export const OperatorSessionStatusLabels: Record<OperatorSessionStatus, string> 
   [OperatorSessionStatus.Open]: 'Sürüyor',
   [OperatorSessionStatus.Completed]: 'Tamamlandı',
   [OperatorSessionStatus.CompletedWithWarning]: 'Uyarıyla tamamlandı',
-  [OperatorSessionStatus.TimedOut]: 'Zaman aşımı'
+  [OperatorSessionStatus.TimedOut]: 'Zaman aşımı',
+  [OperatorSessionStatus.ManuallyClosed]: 'Elle kapatıldı'
 };
 
 // ─────────────────────────────────────────────────────────── bayraklar
@@ -113,7 +116,9 @@ export const SessionEventType = {
   LightOff: 20,
   /** İşlem açıkken bir kullanıcının elle gönderdiği komut (sanal kabin / diyagram); eylem `detail`'de, gönderen `userFullName`'de. */
   ManualCommand: 21,
-  ManualCommandFailed: 22
+  ManualCommandFailed: 22,
+  /** Yetkili kullanıcı işlemi elle kapattı; kapatan `userFullName`'de, gerekçe `detail`'de (serbest metin, çevrilmez). */
+  ManuallyClosed: 23
 } as const;
 export type SessionEventType = (typeof SessionEventType)[keyof typeof SessionEventType];
 
@@ -142,7 +147,8 @@ export const SessionEventTypeLabels: Record<number, string> = {
   [SessionEventType.LightOn]: 'Aydınlatma yakıldı',
   [SessionEventType.LightOff]: 'Aydınlatma söndürüldü',
   [SessionEventType.ManualCommand]: 'Elle komut',
-  [SessionEventType.ManualCommandFailed]: 'Elle komut başarısız'
+  [SessionEventType.ManualCommandFailed]: 'Elle komut başarısız',
+  [SessionEventType.ManuallyClosed]: 'Elle kapatıldı'
 };
 
 export type EventTone = 'default' | 'success' | 'warning' | 'danger' | 'muted';
@@ -160,6 +166,7 @@ export function eventTone(type: number): EventTone {
     case SessionEventType.SnapshotFailed:
     case SessionEventType.SirenRequested:
     case SessionEventType.ManualCommand:
+    case SessionEventType.ManuallyClosed:
       return 'warning';
     case SessionEventType.Unlocked:
     case SessionEventType.Locked:
@@ -186,6 +193,7 @@ const SessionEventDetailLabels: Record<string, string> = {
   OuterClosed: 'Dış kapı kapandı',
   Timeout: 'Siren süresi doldu',
   SessionTimedOut: 'Oturum zaman aşımı',
+  ManuallyClosed: 'İşlem elle kapatıldı',
   // OuterClosed gerekçesi
   Unfinished: 'İş bitmeden kapandı',
   // Unlocked gerekçesi: kayıt "kilit açık" diyordu ama kapı hiç açılmadı, kilit yeniden açıldı
@@ -216,6 +224,8 @@ export function formatEventDetail(type: number, detail: string | null): string |
   if (!detail) return null;
 
   if (type === SessionEventType.SnapshotTaken || type === SessionEventType.SnapshotFailed) return `Kare ${detail}`;
+  // Kullanıcının yazdığı gerekçe: bir anahtarla çakışsa bile çevrilmez.
+  if (type === SessionEventType.ManuallyClosed) return detail;
 
   const direct = SessionEventDetailLabels[detail];
   if (direct) return direct;

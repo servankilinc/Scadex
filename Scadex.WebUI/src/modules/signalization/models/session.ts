@@ -1,9 +1,10 @@
 /**
  * Ayna: Scadex.Signalization/Dtos/Session/OperatorSessionDtos.cs
  *
- * Oturum tabloları SALT OKUNURDUR: yalnızca motor yazar, HTTP üzerinden yazım yolu yoktur (uyarı onayı
- * da yok — bayrak kalıcıdır). `...Utc` damgalarında `Z` soneki YOKTUR; `toUtcDate` / `formatUtcDateTime`.
+ * Oturum tablolarını yalnızca motor yazar. HTTP'den tek talep elle kapatmadır (`OperatorSessionCloseRequest`, motor işler);
+ * uyarı onayı yok — bayrak kalıcıdır. `...Utc` damgalarında `Z` soneki YOKTUR; `toUtcDate` / `formatUtcDateTime`.
  */
+import { z } from 'zod';
 import type { CaptureStatus } from '@/models/enums/entityEnums';
 import type { OperatorSessionStatus, SessionPhase } from './enums';
 
@@ -168,3 +169,22 @@ export interface OperatorSessionSummaryRowDto {
   /** Herhangi bir bayrağı olan oturum sayısı (yalnızca güvenlik uyarıları değil). */
   warningCount: number;
 }
+
+// ─────────────────────────────────────────────────────────── elle kapatma
+
+/** Ayna: `Scadex.Signalization/Model/Dtos/Session/Commands/OperatorSessionCloseRequest.cs` (`SignalSessionClose` izni). */
+export interface OperatorSessionCloseRequest {
+  reason: string;
+}
+
+/** Sunucudaki `OperatorSessionCloseRequestValidator.ReasonMaxLength` — **sunucudaki kural değişirse burası da elle değişmeli.** */
+export const CLOSE_REASON_MAX_LENGTH = 500;
+
+/** Sunucudaki `OperatorSessionCloseRequestValidator`'ın kopyası. */
+export const operatorSessionCloseSchema = z.object({
+  reason: z
+    .string()
+    .trim()
+    .min(1, 'Kapatma gerekçesi zorunlu')
+    .max(CLOSE_REASON_MAX_LENGTH, `Gerekçe en fazla ${CLOSE_REASON_MAX_LENGTH} karakter olabilir`)
+});

@@ -4,25 +4,31 @@ using Scadex.Core.Utils.Validation;
 using Scadex.DataAccess.UoW;
 using Scadex.Signalization.DataAccess;
 using Scadex.Signalization.Model.Dtos.Session.Queries;
+using Scadex.Signalization.Queue;
 using Scadex.Signalization.Services.Abstract;
 using static Scadex.Signalization.Enums.SignalEnums;
 
 namespace Scadex.Signalization.Services.Concrete;
 
-/// <summary> Operator islemlerinin okuma yuzu. Oturumlari yalnizca motor yazar; bu servis hicbir satir yazmaz. </summary>
+/// <summary>
+/// Operator islemlerinin okuma yuzu ve elle kapatma talebi. Oturumlari yalnizca motor yazar; bu servis hicbir satir yazmaz,
+/// kapatma talebini kabin seridine birakir (<c>.Close</c>).
+/// </summary>
 public partial class OperatorSessionService : IOperatorSessionService
 {
     private readonly SignalizationDbContext _db;
     private readonly IUnitOfWork _unitOfWork;
     private readonly IValidationService _validationService;
     private readonly ISignalChannelStateService _signalizationChannelState;
+    private readonly SignalEventQueue _queue;
 
-    public OperatorSessionService(SignalizationDbContext db, IUnitOfWork unitOfWork, IValidationService validationService, ISignalChannelStateService signalizationChannelState)
+    public OperatorSessionService(SignalizationDbContext db, IUnitOfWork unitOfWork, IValidationService validationService, ISignalChannelStateService signalizationChannelState, SignalEventQueue queue)
     {
         _db = db;
         _unitOfWork = unitOfWork;
         _validationService = validationService;
         _signalizationChannelState = signalizationChannelState;
+        _queue = queue;
     }
 
     /// <inheritdoc />
