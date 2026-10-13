@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { userKeys } from '@/api/query-keys';
 import {
+  assignSignalOperatorCard,
   getSignalAuthorities,
   getSignalCabinet,
   getSignalCabinetOptions,
@@ -14,6 +15,7 @@ import {
 import { signalizationKeys } from '../api/query-keys';
 import type { SignalAuthoritySaveRequest } from '../models/authority';
 import type { SignalCabinetSaveRequest } from '../models/cabinet';
+import type { AssignOperatorCardRequest } from '../models/operator';
 
 /**
  * Yapılandırma hook'ları: kurumlar, operatörler, kabin ağacı.
@@ -53,6 +55,20 @@ export function useSetSignalOperatorAuthority() {
       // Kurum bir ROLDÜR: /admin/users'taki Roller dialogu da eskidi.
       void queryClient.invalidateQueries({ queryKey: userKeys.roles(userId) });
       toast.success('Kurum atandı.');
+    }
+  });
+}
+
+/** Okutulan kartı kullanıcıya atar (kabin raporu → "Kart tanımlama"). Hata/başarı bildirimi ekrandadır. */
+export function useAssignSignalOperatorCard() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({ userId, request }: { userId: string; request: AssignOperatorCardRequest }) => assignSignalOperatorCard(userId, request),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: signalizationKeys.operators() });
+      // Kart numarası /admin/users tablosunda da görünür.
+      void queryClient.invalidateQueries({ queryKey: userKeys.all });
     }
   });
 }

@@ -1,7 +1,9 @@
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 using Scadex.Business.Abstract;
 using Scadex.Core.Utils.ResultPattern;
 using Scadex.DataAccess.UoW;
+using Scadex.Model.Dtos.User.Commands;
 using Scadex.Signalization.DataAccess;
 using Scadex.Signalization.Model.Dtos.Operator.Commands;
 using Scadex.Signalization.Model.Dtos.Operator.Queries;
@@ -11,19 +13,23 @@ namespace Scadex.Signalization.Services.Concrete;
 
 /// <summary>
 /// Operator = mevcut <c>User</c>. Ayri bir operator tablosu ve ayri bir yetki yapisi yoktur: kurum bir roldur,
-/// kart numarasi <c>User.IdentityCardId</c>'dir (cekirdek kullanici ekraninda yazilir).
+/// kart numarasi <c>User.IdentityCardId</c>'dir (cekirdek kullanici ekraninda ya da kabin raporundaki "Kart tanimlama" ile yazilir).
 /// </summary>
 public class SignalOperatorService : ISignalOperatorService
 {
     private readonly SignalizationDbContext _db;
     private readonly IUnitOfWork _unitOfWork;
     private readonly IUserRoleService _userRoleService;
+    private readonly IUserService _userService;
+    private readonly ILogger<SignalOperatorService> _logger;
 
-    public SignalOperatorService(SignalizationDbContext db, IUnitOfWork unitOfWork, IUserRoleService userRoleService)
+    public SignalOperatorService(SignalizationDbContext db, IUnitOfWork unitOfWork, IUserRoleService userRoleService, IUserService userService, ILogger<SignalOperatorService> logger)
     {
         _db = db;
         _unitOfWork = unitOfWork;
         _userRoleService = userRoleService;
+        _userService = userService;
+        _logger = logger;
     }
 
     /// <inheritdoc />
@@ -112,6 +118,19 @@ public class SignalOperatorService : ISignalOperatorService
             next.Add(targetRoleName);
 
         return await _userRoleService.SyncAsync(userId, next, cancellationToken);
+    }
+
+    /// <inheritdoc />
+    public async Task<Result> AssignCardAsync(Guid userId, UserIdentityCardAssignDto request, CancellationToken cancellationToken = default)
+    {
+        // Eski kart yalnızca log için okunur: çekirdek servis ezdiği kartı geri döndürmez.
+        var previous = await _unitOfWork.Users.GetAsync(select: u => new { u.IdentityCardId }, where: u => u.Id == userId, cancellationToken: cancellationToken);
+
+        var result = await _userService.AssignIdentityCardAsync(userId, request, cancellationToken);
+        if (result.IsSuccess)
+            _logger.LogInformation("Kart tanimlama: kullanici {UserId} karti {PreviousCardId} -> {CardId}", userId, previous?.IdentityCardId ?? "(yok)", request.IdentityCardId);
+
+        return result;
     }
 
     private async Task<Dictionary<Guid, string>> LoadRoleNamesAsync(IEnumerable<Guid> roleIds, CancellationToken cancellationToken)

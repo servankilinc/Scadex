@@ -1,6 +1,6 @@
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { Link } from 'react-router';
-import { MonitorIcon, SirenIcon, SlidersHorizontalIcon } from 'lucide-react';
+import { IdCardIcon, MonitorIcon, SirenIcon, SlidersHorizontalIcon } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -18,6 +18,7 @@ import {
 import { downloadCsv, exportDateStamp, type CsvColumn } from '@/lib/csv-export';
 import { REPORT_ALL, useReportParams } from '@/lib/report-params';
 import { cn, formatUtcDateTime, toSearchKey } from '@/lib/utils';
+import { CardEnrollmentDialog } from '../../components/card-enrollment-dialog';
 import { useOpenSessions } from '../../hooks/use-operator-sessions';
 import { useSignalCabinetOverview } from '../../hooks/use-signal-config';
 import type { SignalCabinetOverviewDto } from '../../models/cabinet';
@@ -62,6 +63,8 @@ export default function SignalCabinets() {
   const isFiltered = FILTER_KEYS.some(key => params.has(key));
 
   const overview = useSignalCabinetOverview();
+  /** Kart tanımlama penceresi açık kabin. */
+  const [enrollCabinet, setEnrollCabinet] = useState<Row | null>(null);
   const openSessions = useOpenSessions();
 
   const rows = useMemo<Row[] | undefined>(() => {
@@ -185,6 +188,13 @@ export default function SignalCabinets() {
         emptyMessage={rows?.length ? 'Bu filtreye uyan kabin yok.' : 'Henüz kabin yok — kabinler çekirdeğin Kabinler ekranında oluşturulur.'}
         actions={row => (
           <>
+            {/* Motor yalnızca yapılandırılmış ve etkin kabinin okumasını yayınlar; başka kabinde pencere hiç kart görmezdi. */}
+            {row.cabinetIsActive && row.isConfigured && row.isEnabled && (
+              <Button size='sm' variant='outline' onClick={() => setEnrollCabinet(row)} title='Kabinin kart okuyucusunda okutulan kartı bir kullanıcıya tanımla'>
+                <IdCardIcon />
+                Kart tanımlama
+              </Button>
+            )}
             {row.isConfigured && (
               <Button size='sm' variant='outline' nativeButton={false} render={<Link to={`/signalization/virtual-cabinet/${row.cabinetId}`} />}>
                 <MonitorIcon />
@@ -199,6 +209,15 @@ export default function SignalCabinets() {
         )}
       />
       {visibleRows && <span className='text-sm text-muted-foreground'>{visibleRows.length} kabin</span>}
+
+      {enrollCabinet && (
+        <CardEnrollmentDialog
+          key={enrollCabinet.cabinetId}
+          cabinetId={enrollCabinet.cabinetId}
+          cabinetName={enrollCabinet.cabinetName}
+          onClose={() => setEnrollCabinet(null)}
+        />
+      )}
     </ReportPage>
   );
 }

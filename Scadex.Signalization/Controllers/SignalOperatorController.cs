@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Logging;
+using Scadex.Model.Dtos.User.Commands;
 using Scadex.Signalization.Controllers.Base;
 using Scadex.Signalization.Model.Dtos.Operator.Commands;
 using Scadex.Signalization.Services.Abstract;
@@ -24,6 +25,14 @@ public class SignalOperatorController : SignalizationControllerBase
     public async Task<IActionResult> SetAuthority(Guid userId, SignalOperatorAuthorityRequest request, CancellationToken cancellationToken)
     {
         var result = await _service.SetAuthorityAsync(userId, request, cancellationToken);
+        return ToAction(result);
+    }
+
+    /// <summary> Sahada okutulan kartı kullanıcıya atar. </summary>
+    [HttpPut("{userId:guid}/identity-card")]
+    public async Task<IActionResult> AssignCard(Guid userId, UserIdentityCardAssignDto request, CancellationToken cancellationToken)
+    {
+        var result = await _service.AssignCardAsync(userId, request, cancellationToken);
         return ToAction(result);
     }
 }

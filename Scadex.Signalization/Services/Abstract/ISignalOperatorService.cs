@@ -1,4 +1,5 @@
 using Scadex.Core.Utils.ResultPattern;
+using Scadex.Model.Dtos.User.Commands;
 using Scadex.Signalization.Model.Dtos.Operator.Commands;
 using Scadex.Signalization.Model.Dtos.Operator.Queries;
 
@@ -14,4 +15,7 @@ public interface ISignalOperatorService
     /// Yazim cekirdegin rol sync'i uzerinden gider (<c>IUserRoleService.SyncAsync</c>) — UserRoles'a ikinci yazim yolu acilmaz.
     /// </summary>
     Task<Result> SetAuthorityAsync(Guid userId, SignalOperatorAuthorityRequest request, CancellationToken cancellationToken = default);
+
+    /// <summary> Sahada okutulan kartı kullanıcıya tanıtır. Scadex çekirdeğin  <c>IUserService.AssignIdentityCardAsync</c>'i üzerinden gider </summary>
+    Task<Result> AssignCardAsync(Guid userId, UserIdentityCardAssignDto request, CancellationToken cancellationToken = default);
 }

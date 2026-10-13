@@ -202,6 +202,9 @@ durur. Ayrıntı: PROJECT_OVERVIEW.md § 10.
   çağırır. Gözlemci **sıcak yoldadır — yalnızca kuyruğa bırakır**; içinde SCADA'ya komut göndermek,
   kart isteğini bekleyen SCADA kartıyla kilitlenme demektir (çıkış bildirimi, modül motorunun
   beklediği `SendAsync`'in içinden de gelir).
+- **Kart tanımlama penceresi (kabin raporu, 2026-10-13) motoru baypas ETMEZ — bilinçli kullanıcı kararı.** Pencere yalnızca
+  `SignalCardPresented` yayınını dinler (mesaj kart no + sahibi taşır); okuma motora normal gider. "Pencere açıkken motoru durdur" için
+  ayrı mod/kayıt eklemeyin. Kart atama `IUserService.AssignIdentityCardAsync` üzerinden; `PUT /api/User` tüm alanları ezdiği için kullanılmaz.
 - **Modül durum TUTMAZ (2026-09-21).** Kapı/siren/aydınlatma/kilit durumu yalnızca çekirdekteki kanalın
   son değerinden `ISignalChannelStateService` ile okunur; `Signal*State` tabloları kaldırıldı, geri
   eklemeyin. Çıkışta `IoChannel.CurrentValue` son BAŞARILI komutun **fiziksel** değeridir (NC'de

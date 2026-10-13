@@ -33,6 +33,7 @@ public interface IUserService
     // Update
     Task<Result<UserUpdateDto>> GetUpdateModelAsync(Guid id, CancellationToken cancellationToken = default);
     Task<Result> UpdateAsync(UserUpdateDto request, CancellationToken cancellationToken = default);
+    Task<Result> AssignIdentityCardAsync(Guid userId, UserIdentityCardAssignDto request, CancellationToken cancellationToken = default);
 
     // Pagination / Datatable
     Task<Result<PaginationResponse<UserDetailDto>>> PaginationAsync(DynamicPaginationRequest request, CancellationToken cancellationToken = default);

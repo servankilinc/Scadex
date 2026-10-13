@@ -76,11 +76,19 @@ export interface SignalDoorSwitchChangedMessage {
 /**
  * Kabinin kart okuyucusuna kart okutuldu ve motor sonucu belirledi. Yalnızca o kabinin grubuna gelir.
  *
- * Bilerek İNCEDİR (kart no / kişi taşımaz): okuyucu efekti için sonuç yeter, liste `card-reads` ucundan yeniden okunur. Açık
- * oturum yokken reddedilen kart da yayınlanır ama DB'ye yazılmadığı için listede görünmez.
+ * Sanal kabinin okuyucu efekti yalnızca sonucu kullanır, liste `card-reads` ucundan yeniden okunur. Açık oturum yokken reddedilen
+ * kart da yayınlanır ama DB'ye yazılmadığı için listede görünmez.
+ *
+ * Kart no + sahibi kabin raporundaki "Kart tanımlama" penceresi içindir (2026-10-13). Sahip çekirdekte okuma anında çözülür,
+ * motorun kabul/red kararından bağımsızdır. Yapılandırılmamış ya da devre dışı kabinde motor okumayı yayınlamaz.
  */
 export interface SignalCardPresentedMessage {
   cabinetId: string;
   isAccepted: boolean;
+  /** Z'siz olabilir — `formatUtcDateTime` ile gösterilir. */
   occurredAtUtc: string;
+  cardIdRaw: string;
+  /** Kart aktif bir kullanıcıya tanımlıysa sahibi; değilse `null`. */
+  userId: string | null;
+  userFullName: string | null;
 }

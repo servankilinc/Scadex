@@ -190,6 +190,47 @@ public class UserService : IUserService
 
         return Result.Success();
     }
+
+    /// <summary>
+    /// Kullanıcıya yalnızca kart numarası yazar (sahada okutulan kartı tanıtma). Kart başka bir aktif kullanıcıdaysa 400;
+    /// kullanıcının FARKLI bir kartı varsa <see cref="UserIdentityCardAssignDto.ReplaceExisting"/> olmadan 400 — eski kart sessizce ezilmesin.
+    /// </summary>
+    public async Task<Result> AssignIdentityCardAsync(Guid userId, UserIdentityCardAssignDto request, CancellationToken cancellationToken = default)
+    {
+        var validationResult = await _validationService.ValidateAsync(request, cancellationToken);
+        if (!validationResult.IsValid)
+            return Result.Validation(validationResult.Failures);
+
+        var identityCardId = NormalizeIdentityCardId(request.IdentityCardId);
+        if (identityCardId == null)
+        {
+            const string message = "Kart numarası boş olamaz.";
+            return Result.Validation(new Dictionary<string, string[]> { [nameof(request.IdentityCardId)] = new[] { message } }, message: message);
+        }
+
+        // Pasif kullanıcının kartı index filtresi dışında kalır ve kart okumasında eşleşmez; atamak anlamsızdır.
+        var entity = await _unitOfWork.Users.GetAsync(where: (f) => f.Id == userId && f.IsActive, cancellationToken: cancellationToken);
+        if (entity == null)
+            return Result.NotFound(message: "Kullanıcı bulunamadı veya pasif durumda.");
+
+        if (entity.IdentityCardId == identityCardId)
+            return Result.Success();
+
+        var cardConflict = await ValidateIdentityCardIdAsync(identityCardId, excludeUserId: userId, cancellationToken);
+        if (cardConflict != null)
+            return cardConflict;
+
+        if (entity.IdentityCardId != null && !request.ReplaceExisting)
+        {
+            string message = $"{entity.FullName} kullanıcısının zaten tanımlı bir kartı var ({entity.IdentityCardId}).";
+            return Result.Validation(new Dictionary<string, string[]> { [nameof(request.ReplaceExisting)] = new[] { message } }, message: message);
+        }
+
+        entity.IdentityCardId = identityCardId;
+        await _unitOfWork.Users.UpdateAndSaveAsync(entity, cancellationToken);
+
+        return Result.Success();
+    }
     #endregion
 
     #region Pagination / Datatable
