@@ -1,5 +1,5 @@
 import http from '@/lib/axios-helper';
-import type { UserCreateRequest, UserDetailDto, UserUpdateRequest } from '@/models/user';
+import type { UserCreateRequest, UserDetailDto, UserIdentityCardAssignRequest, UserUpdateRequest } from '@/models/user';
 
 const USER_ROUTE = '/api/User';
 const USER_ROLE_ROUTE = '/api/UserRole';
@@ -47,6 +47,11 @@ export async function updateUser(request: UserUpdateRequest): Promise<void> {
     // Boş gönderim kartı KALDIRIR (sunucu "" → null yapar); alan her zaman gönderilir.
     identityCardId: emptyToNull(request.identityCardId)
   });
+}
+
+/** Okutulan kartı kullanıcıya yazar — YALNIZCA kart alanı (Kabinler → "Kart tanımlama"). Başarıda gövdesiz 200. */
+export async function assignUserIdentityCard(userId: string, request: UserIdentityCardAssignRequest): Promise<void> {
+  return http.put(`${USER_ROUTE}/${userId}/identity-card`, request);
 }
 
 /** Kullanıcının rol ADLARI — Identity kimlik değil ad döndürür. */

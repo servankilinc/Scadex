@@ -24,14 +24,3 @@ export interface SignalOperatorDto {
 export interface SignalOperatorAuthorityRequest {
   authorityId: string | null;
 }
-
-/**
- * Ayna: Scadex.Model/Dtos/User/Commands/UserIdentityCardAssignDto.cs — sahada okutulan kartı kullanıcıya atar ("Kart tanımlama").
- *
- * Kart başka bir aktif kullanıcıdaysa 400 (`errors.identityCardId`). Kullanıcının FARKLI bir kartı varsa `replaceExisting: false`
- * ile 400 (`errors.replaceExisting`) — ekran önce onay sorar, sonra `true` gönderir.
- */
-export interface AssignOperatorCardRequest {
-  identityCardId: string;
-  replaceExisting: boolean;
-}

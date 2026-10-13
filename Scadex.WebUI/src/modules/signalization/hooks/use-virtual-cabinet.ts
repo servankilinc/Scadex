@@ -5,7 +5,7 @@ import { toApiError } from '@/lib/axios-helper';
 import { CommandStatus, CommandStatusLabels } from '@/models/enums';
 import { getCabinetCardReads, getSignalCabinetLive, sendSignalCabinetCommand } from '../api/signalization';
 import { signalizationKeys } from '../api/query-keys';
-import { SignalDoorKind, type SignalCabinetStateChangedMessage, type SignalDoorSwitchChangedMessage } from '../models/realtime';
+import { SignalDoorKind, type SignalCabinetStateChangedMessage, type SignalCardPresentedMessage, type SignalDoorSwitchChangedMessage } from '../models/realtime';
 import { subscribeToCabinetState, useSignalizationHubStatus } from '../signalr/signalization-hub';
 import { SignalCabinetOutput, SignalCabinetOutputLabels, type SignalCabinetCommandRequest, type SignalCabinetLiveDto } from '../models/virtual-cabinet';
 
@@ -74,16 +74,18 @@ export function useSignalCabinetCommand(cabinetId: string) {
  *
  * Durum olayları VERİYİ taşır; önbellekteki ilgili alan `setQueryData` ile yamalanır, HTTP isteği atılmaz.
  *
- * Kart okuması ise bildirimdir: son okumalar anahtarı invalidate edilir ve okuyucu efekti için geçici bir durum döner
- * (`CARD_FLASH_MS` sonra `null`). Her okuma yeni bir `key` üretir — üst üste gelen okumada efekt baştan başlar.
+ * Kart okumasında son okumalar anahtarı invalidate edilir (liste kurum / iç kapı adını da taşır) ve iki şey döner: okuyucu efekti
+ * için geçici `cardFlash` (`CARD_FLASH_MS` sonra `null`; her okuma yeni `key` — üst üste gelen okumada efekt baştan başlar) ve
+ * kalıcı `lastCardRead` (son mesaj: kart, sahibi, gerekçe — kabin değişene kadar durur).
  *
  * Yeniden bağlanmada (ilk bağlantı hariç) tazeleme yapılır: kopukluk sırasında kaçan olayların tek telafisi budur.
  */
-export function useVirtualCabinetLive(cabinetId: string): CardFlash | null {
+export function useVirtualCabinetLive(cabinetId: string): { cardFlash: CardFlash | null; lastCardRead: SignalCardPresentedMessage | null } {
   const queryClient = useQueryClient();
   const status = useSignalizationHubStatus();
   const hasConnectedBefore = useRef(false);
   const [cardFlash, setCardFlash] = useState<(CardFlash & { cabinetId: string }) | null>(null);
+  const [lastCardRead, setLastCardRead] = useState<SignalCardPresentedMessage | null>(null);
 
   useEffect(() => {
     if (!cabinetId) return;
@@ -96,6 +98,7 @@ export function useVirtualCabinetLive(cabinetId: string): CardFlash | null {
       onCardPresented: message => {
         void queryClient.invalidateQueries({ queryKey: signalizationKeys.cabinetCardReads(cabinetId) });
 
+        setLastCardRead(message);
         window.clearTimeout(flashTimer);
         setCardFlash({ cabinetId, isAccepted: message.isAccepted, key: Date.now() });
         flashTimer = window.setTimeout(() => setCardFlash(null), CARD_FLASH_MS);
@@ -122,8 +125,11 @@ export function useVirtualCabinetLive(cabinetId: string): CardFlash | null {
     void queryClient.invalidateQueries({ queryKey: signalizationKeys.cabinetCardReads(cabinetId) });
   }, [status, cabinetId, queryClient]);
 
-  // Kabin değişince önceki kabinin efekti taşınmaz (zamanlayıcısı aboneliğiyle birlikte temizlendi).
-  return cardFlash?.cabinetId === cabinetId ? cardFlash : null;
+  // Kabin değişince önceki kabinin efekti ve son okuması taşınmaz (zamanlayıcı aboneliğiyle birlikte temizlendi).
+  return {
+    cardFlash: cardFlash?.cabinetId === cabinetId ? cardFlash : null,
+    lastCardRead: lastCardRead?.cabinetId === cabinetId ? lastCardRead : null
+  };
 }
 
 /** Kart okuyucu efektinin süresi. */

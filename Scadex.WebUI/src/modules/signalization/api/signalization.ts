@@ -8,7 +8,7 @@ import http from '@/lib/axios-helper';
 import type { PaginationResponse } from '@/models/channelEvent';
 import type { SignalAuthorityDto, SignalAuthoritySaveRequest } from '../models/authority';
 import type { SignalCabinetDto, SignalCabinetOptionsDto, SignalCabinetOverviewDto, SignalCabinetSaveRequest } from '../models/cabinet';
-import type { AssignOperatorCardRequest, SignalOperatorAuthorityRequest, SignalOperatorDto } from '../models/operator';
+import type { SignalOperatorAuthorityRequest, SignalOperatorDto } from '../models/operator';
 import type { SignalCabinetCommandRequest, SignalCabinetCommandResultDto, SignalCabinetLiveDto } from '../models/virtual-cabinet';
 import type {
   OperatorSessionDetailDto,
@@ -49,11 +49,6 @@ export async function getSignalOperators(): Promise<SignalOperatorDto[]> {
 /** Kullanıcının TÜM kurum rollerini çıkarır, (varsa) seçileni ekler; kurum dışı roller korunur. */
 export async function setSignalOperatorAuthority(userId: string, request: SignalOperatorAuthorityRequest): Promise<void> {
   return http.put(`${OPERATOR_ROUTE}/${userId}/authority`, request);
-}
-
-/** Okutulan kartı kullanıcıya yazar (yalnızca kart alanı). Başarıda gövdesiz 200. */
-export async function assignSignalOperatorCard(userId: string, request: AssignOperatorCardRequest): Promise<void> {
-  return http.put(`${OPERATOR_ROUTE}/${userId}/identity-card`, request);
 }
 
 // ─────────────────────────────────────────────────────────── kabin yapılandırması

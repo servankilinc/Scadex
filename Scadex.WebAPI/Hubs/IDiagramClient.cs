@@ -12,4 +12,6 @@ public interface IDiagramHubClientContract
     Task CabinetStatusChanged(CabinetStatusChange change);
 
     Task CommandCompleted(Guid cabinetId, CommandCompleted change);
+
+    Task CardRead(Guid cabinetId, CardRead change);
 }

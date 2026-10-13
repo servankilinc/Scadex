@@ -28,6 +28,8 @@ import { SirenFigure } from '../../components/virtual-cabinet/siren-figure';
 import { useNow } from '../../hooks/use-now';
 import { useSignalCabinetCommand, useSignalCabinetLive, useVirtualCabinetLive } from '../../hooks/use-virtual-cabinet';
 import { formatDuration } from '../../lib';
+import { SessionEventType, formatEventDetail } from '../../models/enums';
+import type { SignalCardPresentedMessage } from '../../models/realtime';
 import { SignalCabinetOutput, type SignalInnerDoorLiveDto, type SignalOuterDoorLiveDto } from '../../models/virtual-cabinet';
 
 /**
@@ -46,7 +48,7 @@ export default function VirtualCabinetDetail() {
   const { cabinetId = '', outerDoorId = '' } = useParams<{ cabinetId: string; outerDoorId: string }>();
 
   const { data, isPending, error } = useSignalCabinetLive(cabinetId);
-  const cardFlash = useVirtualCabinetLive(cabinetId);
+  const { cardFlash, lastCardRead } = useVirtualCabinetLive(cabinetId);
   const command = useSignalCabinetCommand(cabinetId);
 
   const [target, setTarget] = useState<CommandTarget | null>(null);
@@ -156,7 +158,7 @@ export default function VirtualCabinetDetail() {
             <LedFigure isOn={outer.lightIsOn === true} onActivate={outer.lightIoChannelId ? selectLight : undefined} />
             <SirenFigure isOn={data.sirenIsOn === true} onActivate={data.sirenIoChannelId ? selectSiren : undefined} />
             <IndoorGrid doors={outer.innerDoors} onSelect={selectInnerDoor} />
-            <CardReaderFigure flash={cardFlash} onActivate={() => setCardReadsOpen(true)} />
+            <CardReaderFigure flash={cardFlash} lastRead={lastCardRead} onActivate={() => setCardReadsOpen(true)} />
           </CabinetArtwork>
         </div>
 
@@ -194,7 +196,9 @@ export default function VirtualCabinetDetail() {
           <StateRow
             icon={<CreditCardIcon className={cn('size-4', cardFlash && (cardFlash.isAccepted ? 'text-emerald-600' : 'text-destructive'))} />}
             title='Kart okuyucu'
-            value={cardFlash ? (cardFlash.isAccepted ? 'Kart kabul edildi' : 'Kart reddedildi') : 'Bekliyor'}
+            value={lastCardRead ? cardReadSummary(lastCardRead) : 'Bekliyor'}
+            hint={lastCardRead ? cardReadHint(lastCardRead) : undefined}
+            changedAtUtc={lastCardRead ? lastCardRead.occurredAtUtc : undefined}
             emphasize={cardFlash?.isAccepted === false}
             action={
               <Button size='xs' variant='outline' onClick={() => setCardReadsOpen(true)}>
@@ -335,6 +339,17 @@ function StateLine({ icon, label, changedAtUtc }: { icon: ReactNode; label: stri
  * `toUtcDate` zorunlu: sunucunun `...Utc` damgalarında `Z` soneki yok, çıplak `new Date(damga)` değeri saat farkı
  * kadar kaydırırdı.
  */
+/** "Kabul — Ahmet Yılmaz" / "Red — Tanımsız kart". Kurum ve iç kapı "Son okumalar" listesindedir. */
+function cardReadSummary(read: SignalCardPresentedMessage): string {
+  return `${read.isAccepted ? 'Kabul' : 'Red'} — ${read.userFullName ?? 'Tanımsız kart'}`;
+}
+
+/** Gerekçe (redde ya da kabuldeki uyarı) + kart numarası. */
+function cardReadHint(read: SignalCardPresentedMessage): string {
+  const reason = formatEventDetail(read.isAccepted ? SessionEventType.CardPresented : SessionEventType.AccessDenied, read.detail);
+  return [reason, `Kart ${read.cardId}`].filter(Boolean).join(' · ');
+}
+
 function Since({ changedAtUtc }: { changedAtUtc: string | null }) {
   const now = useNow();
   const date = toUtcDate(changedAtUtc);

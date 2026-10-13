@@ -1,6 +1,7 @@
 using AutoMapper;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 using Scadex.Business.Abstract;
 using Scadex.Core.BaseRequestModels;
 using Scadex.Core.Utils;
@@ -25,13 +26,15 @@ public class UserService : IUserService
     private readonly UserManager<User> _userManager;
     private readonly IMapper _mapper;
     private readonly IHttpContextManager _httpContextManager;
-    public UserService(IUnitOfWork unitOfWork, IValidationService validationService, UserManager<User> userManager, IMapper mapper, IHttpContextManager httpContextManager)
+    private readonly ILogger<UserService> _logger;
+    public UserService(IUnitOfWork unitOfWork, IValidationService validationService, UserManager<User> userManager, IMapper mapper, IHttpContextManager httpContextManager, ILogger<UserService> logger)
     {
         _unitOfWork = unitOfWork;
         _validationService = validationService;
         _userManager = userManager;
         _mapper = mapper;
         _httpContextManager = httpContextManager;
+        _logger = logger;
     }
 
     #region Get
@@ -226,9 +229,11 @@ public class UserService : IUserService
             return Result.Validation(new Dictionary<string, string[]> { [nameof(request.ReplaceExisting)] = new[] { message } }, message: message);
         }
 
+        var previousCardId = entity.IdentityCardId;
         entity.IdentityCardId = identityCardId;
         await _unitOfWork.Users.UpdateAndSaveAsync(entity, cancellationToken);
 
+        _logger.LogInformation("Kart tanimlama: kullanici {UserId} karti {PreviousCardId} -> {CardId}", userId, previousCardId ?? "(yok)", identityCardId);
         return Result.Success();
     }
     #endregion

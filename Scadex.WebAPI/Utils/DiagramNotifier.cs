@@ -79,4 +79,17 @@ public class DiagramNotifier : IDiagramNotifier
             _logger.LogWarning(exception, $"Canli yayin basarisiz: CommandCompletedAsync, kabin {cabinetId}");
         }
     }
+
+    public async Task CardReadAsync(Guid cabinetId, CardRead change, CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            string groupName = DiagramHub.GroupName(cabinetId);
+            await _hub.Clients.Group(groupName).CardRead(cabinetId, change);
+        }
+        catch (Exception exception)
+        {
+            _logger.LogWarning(exception, $"Canli yayin basarisiz: CardReadAsync, kabin {cabinetId}");
+        }
+    }
 }

@@ -59,6 +59,21 @@ export interface CommandCompleted {
 }
 
 /**
+ * Kabinin kart okuyucusunda kart okutuldu (`POST /api/Scada/card`). Kabinler ekranındaki "Kart tanımlama" penceresi bunu
+ * dinler. Kart tanımsız da olsa gelir; modüllerin okumayı nasıl işlediğinden bağımsızdır.
+ */
+export interface CardRead {
+  cabinetId: string;
+  /** SCADA'nın gönderdiği ham kart numarası. */
+  cardId: string;
+  /** Kart aktif bir kullanıcıya tanımlıysa sahibi; değilse `null`. */
+  userId: string | null;
+  userFullName: string | null;
+  /** Z'siz olabilir — `formatUtcDateTime` ile gösterilir. */
+  occurredAtUtc: string;
+}
+
+/**
  * Sunucunun çağırdığı metot ADLARI. Sözleşmenin en kırılgan parçası: yanlış
  * yazılan bir ad hiçbir hata üretmez, olay sessizce hiçbir yere gitmez ve sorun
  * ancak arayüzde "canlı veri gelmiyor" olarak fark edilir.
@@ -70,7 +85,8 @@ export const DiagramHubEvents = {
   channelValuesChanged: 'ChannelValuesChanged',
   deviceStatusChanged: 'DeviceStatusChanged',
   cabinetStatusChanged: 'CabinetStatusChanged',
-  commandCompleted: 'CommandCompleted'
+  commandCompleted: 'CommandCompleted',
+  cardRead: 'CardRead'
 } as const;
 
 /** İstemcinin çağırdığı hub metotları. */

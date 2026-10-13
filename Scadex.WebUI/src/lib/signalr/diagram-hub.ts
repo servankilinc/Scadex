@@ -6,6 +6,7 @@ import {
   DiagramHubEvents,
   DiagramHubMethods,
   type CabinetStatusChange,
+  type CardRead,
   type ChannelValueChange,
   type CommandCompleted,
   type DeviceStatusChange
@@ -30,6 +31,8 @@ export interface DiagramHubHandlers {
   onDeviceStatus: (changes: DeviceStatusChange[]) => void;
   onCabinetStatus: (change: CabinetStatusChange) => void;
   onCommandCompleted: (change: CommandCompleted) => void;
+  /** Opsiyonel: yalnızca Kabinler → "Kart tanımlama" penceresi dinler. */
+  onCardRead?: (change: CardRead) => void;
 }
 
 /**
@@ -117,6 +120,11 @@ function build(): HubConnection {
 
   built.on(DiagramHubEvents.commandCompleted, (_cabinetId: string, change: CommandCompleted) => {
     for (const handlers of handlerSets) handlers.onCommandCompleted(change);
+  });
+
+  // Diğer olaylar gibi kabine göre dağıtılmaz: dinleyen `change.cabinetId`'ye bakar.
+  built.on(DiagramHubEvents.cardRead, (_cabinetId: string, change: CardRead) => {
+    for (const handlers of handlerSets) handlers.onCardRead?.(change);
   });
 
   built.onreconnecting(() => setStatus('reconnecting'));

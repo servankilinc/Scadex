@@ -76,19 +76,20 @@ export interface SignalDoorSwitchChangedMessage {
 /**
  * Kabinin kart okuyucusuna kart okutuldu ve motor sonucu belirledi. Yalnızca o kabinin grubuna gelir.
  *
- * Sanal kabinin okuyucu efekti yalnızca sonucu kullanır, liste `card-reads` ucundan yeniden okunur. Açık oturum yokken reddedilen
+ * Kartı ve sahibini taşır (2026-10-13; alan adları çekirdeğin `CardRead`'iyle aynı): sanal kabinin "Kart okuyucu" satırı kimin
+ * okuttuğunu listeyi açmadan gösterir. Kurum / iç kapı adı için liste yine `card-reads` ucundan okunur. Açık oturum yokken reddedilen
  * kart da yayınlanır ama DB'ye yazılmadığı için listede görünmez.
- *
- * Kart no + sahibi kabin raporundaki "Kart tanımlama" penceresi içindir (2026-10-13). Sahip çekirdekte okuma anında çözülür,
- * motorun kabul/red kararından bağımsızdır. Yapılandırılmamış ya da devre dışı kabinde motor okumayı yayınlamaz.
  */
 export interface SignalCardPresentedMessage {
   cabinetId: string;
   isAccepted: boolean;
   /** Z'siz olabilir — `formatUtcDateTime` ile gösterilir. */
   occurredAtUtc: string;
-  cardIdRaw: string;
+  /** SCADA'nın gönderdiği ham kart numarası. */
+  cardId: string;
   /** Kart aktif bir kullanıcıya tanımlıysa sahibi; değilse `null`. */
   userId: string | null;
   userFullName: string | null;
+  /** Olay satırıyla aynı `SessionEventDetail` kodu (redde gerekçe) — `formatEventDetail` ile çevrilir. */
+  detail: string | null;
 }

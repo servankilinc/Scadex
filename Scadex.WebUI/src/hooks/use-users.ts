@@ -1,8 +1,8 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
-import { createUser, getUserList, getUserRoles, syncUserRoles, updateUser } from '@/api/user';
+import { assignUserIdentityCard, createUser, getUserList, getUserRoles, syncUserRoles, updateUser } from '@/api/user';
 import { userKeys } from '@/api/query-keys';
-import type { UserCreateRequest, UserUpdateRequest } from '@/models/user';
+import type { UserCreateRequest, UserIdentityCardAssignRequest, UserUpdateRequest } from '@/models/user';
 
 /** Kullanıcı kartları — pasifler DAHİL (geri alınabilmeleri için). */
 export function useUsers() {
@@ -48,6 +48,18 @@ export function useUpdateUser() {
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: userKeys.all });
       toast.success('Kullanıcı güncellendi.');
+    }
+  });
+}
+
+/** Okutulan kartı kullanıcıya atar (Kabinler → "Kart tanımlama"). Başarı/hata bildirimi pencerededir. */
+export function useAssignUserIdentityCard() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({ userId, request }: { userId: string; request: UserIdentityCardAssignRequest }) => assignUserIdentityCard(userId, request),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: userKeys.all });
     }
   });
 }

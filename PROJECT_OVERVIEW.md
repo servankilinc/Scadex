@@ -340,7 +340,15 @@ politikası ile.
 - `User.IdentityCardId`: aktif kullanıcılar arasında tekil (`IX_User_IdentityCardId`, filtre
   `IdentityCardId IS NOT NULL AND IsActive = 1`), pasif kullanıcının kartı devredilebilir. Servis
   `""`'ı `null`'a çeker ve çakışmayı DB kısıtından önce 400 ile yakalar (`errors.IdentityCardId`).
-  Kullanıcı ekranında (`/admin/users`) yazılır.
+  Kullanıcı ekranında (`/admin/users`) ya da Kabinler → "Kart tanımlama" ile yazılır.
+- **Kart tanımlama (2026-10-13, çekirdek).** Her okuma, gözlemcilerden bağımsız ve onlardan ÖNCE `DiagramHub` kabin grubuna
+  `CardRead(cabinetId, { cabinetId, cardId, userId, userFullName, occurredAtUtc })` olarak yayınlanır (`IDiagramNotifier.CardReadAsync`).
+  Kabinler ekranındaki (`/cabinets`) "Kart tanımlama" penceresi bunu dinler: tanımlı kartta sahibini gösterir, tanımsız kartı aranabilir
+  listeden aktif bir kullanıcıya atar. Atama `PUT /api/User/{id}/identity-card` `{ identityCardId, replaceExisting }` →
+  `IUserService.AssignIdentityCardAsync`: yalnızca kart alanını yazar (`PUT /api/User` tüm alanları ezer), tekillik kontrolü aynı;
+  kullanıcının FARKLI kartı varsa `replaceExisting` olmadan 400 (`errors.ReplaceExisting`) — ekran önce onay sorar. Pencere okumayı
+  **engellemez**: modüller (sinyalizasyon motoru) okumayı her zamanki gibi işler (kullanıcı kararı). Kart numarası kabini izleyen
+  herkese gider (diyagram ekranı da aynı gruptadır).
 
 **Gözlemci kancası — `IScadaEventObserver` (2026-09-11).** Çekirdek dışı modüllerin SCADA
 olaylarını dinlediği tek nokta (Business/Utils/ScadaEvents). Ingest, değer **gerçekten
@@ -1361,13 +1369,6 @@ ekranlarını ayrı parçalara böler.
   değeri değişmez, `CommandFailed` olayı ve bayrağı yazılır. Çıkış durumu komutsuz **hiçbir yoldan**
   değişmez.
 - `SignalRealtimeWorker` sanal kabin yayınını şeridin **dışında** yapar (bkz. Arayüz > Kabin olayları).
-- **Kart tanımlama (2026-10-13).** Kabin raporundaki "Kart tanımlama" penceresi kabinin `SignalCardPresented` yayınını
-  dinler; mesaj bu iş için kart no + sahibini taşır (sahip çekirdekte okuma anında çözülür, `CardPresentedNotification.UserId`).
-  Okuma motora **normal** gider — baypas bilerek yok (kullanıcı kararı): okuyucu dış kapının arkasında olduğundan işlem zaten
-  açıktır; tanımlı kart o işleme operatör olarak eklenir, tanımsız kart red satırı yazar. Motor yalnızca yapılandırılmış ve etkin
-  kabinde yayınladığı için düğme yalnızca orada görünür. Atama `PUT /api/SignalOperator/{userId}/identity-card` → çekirdeğin
-  `IUserService.AssignIdentityCardAsync`'i (yalnızca kart alanı; tekillik kontrolü aynı, kullanıcının FARKLI kartı varsa
-  `replaceExisting` olmadan 400 — ekran önce onay sorar).
 
 ### Uçlar
 
@@ -1375,7 +1376,6 @@ ekranlarını ayrı parçalara böler.
 |---|---|
 | `GET` · `PUT /api/SignalAuthority` | Kurum ↔ rol; PUT tam liste, aktif iç kapıda kullanılan kurum pasife alınamaz |
 | `GET /api/SignalOperator` · `PUT /api/SignalOperator/{userId}/authority` | Tek kurum seçimi, çekirdeğin rol sync'iyle yazılır |
-| `PUT /api/SignalOperator/{userId}/identity-card` | Kart tanımlama: `{ identityCardId, replaceExisting }`, çekirdeğin `AssignIdentityCardAsync`'iyle yazılır. Kart başka aktif kullanıcıdaysa 400 (`errors.IdentityCardId`); kullanıcının farklı kartı varsa ve `replaceExisting` yoksa 400 (`errors.ReplaceExisting`) |
 | `GET /api/SignalCabinet/overview` | Kabin tablosu: çekirdekteki her kabin (pasif dahil) + `isConfigured`, aktif kapı/kamera sayıları, kurumlar, siren (toplu `ReadOutputsAsync`), zamanlama ayarları (yapılandırılmamışta `null`), son işlem ve son 30 gün sayıları. Açık işlem/alarm taşımaz — ekran `/open`'dan türetir |
 | `GET` · `PUT /api/SignalCabinet/{cabinetId}` · `GET …/options` | Yapılandırma ağacı (tam ağaç, Guid'i istemci üretir, çıkan kapı pasife); seçenekler kanalları kullanım bilgisi ve kablo etiketiyle verir |
 | `GET /api/SignalCabinet/{cabinetId}/live` | Sanal kabinin tek okuması: kapı açık mı + siren / aydınlatma / kilit durumu ve `ChangedAtUtc`'leri — hepsi çekirdeğin `IoChannel.CurrentValue`'sundan (`ISignalChannelStateService`); durum alanlarında `null` = bilinmiyor |

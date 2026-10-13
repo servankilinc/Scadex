@@ -5,5 +5,6 @@ export {
   type ChannelValueChange,
   type DeviceStatusChange,
   type CabinetStatusChange,
-  type CommandCompleted
+  type CommandCompleted,
+  type CardRead
 } from './queries/realtimeEvents';

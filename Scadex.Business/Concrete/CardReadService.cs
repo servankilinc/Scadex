@@ -1,9 +1,11 @@
 using Microsoft.Extensions.Logging;
 using Scadex.Business.Abstract;
+using Scadex.Business.Utils.DiagramNotifier;
 using Scadex.Business.Utils.ScadaObserver;
 using Scadex.Core.Utils.ResultPattern;
 using Scadex.Core.Utils.Validation;
 using Scadex.DataAccess.UoW;
+using Scadex.Model.Dtos.Realtime.Queries;
 using Scadex.Model.Dtos.Scada.Commands;
 using Scadex.Model.Dtos.Scada.Events;
 
@@ -15,14 +17,16 @@ public class CardReadService : ICardReadService
     private readonly IValidationService _validationService;
     private readonly IEnumerable<IScadaEventObserver> _observers;
     private readonly ICabinetStatusService _cabinetStatusService;
+    private readonly IDiagramNotifier _diagramNotifier;
     private readonly ILogger<CardReadService> _logger;
 
-    public CardReadService(IUnitOfWork unitOfWork, IValidationService validationService, IEnumerable<IScadaEventObserver> observers, ICabinetStatusService cabinetStatusService, ILogger<CardReadService> logger)
+    public CardReadService(IUnitOfWork unitOfWork, IValidationService validationService, IEnumerable<IScadaEventObserver> observers, ICabinetStatusService cabinetStatusService, IDiagramNotifier diagramNotifier, ILogger<CardReadService> logger)
     {
         _unitOfWork = unitOfWork;
         _validationService = validationService;
         _observers = observers;
         _cabinetStatusService = cabinetStatusService;
+        _diagramNotifier = diagramNotifier;
         _logger = logger;
     }
 
@@ -67,6 +71,20 @@ public class CardReadService : ICardReadService
         );
 
 
+        var now = DateTime.UtcNow;
+        var occurredAtUtc = request.TimestampUtc ?? now;
+
+        // 4.1) Kabini izleyen ekranlara yayınlanır (Kart tanımlama için kullanılır)
+        await _diagramNotifier.CardReadAsync(cabinet.Id, new CardRead
+        {
+            CabinetId = cabinet.Id,
+            CardId = request.CardId,
+            UserId = user?.Id,
+            UserFullName = user?.FullName,
+            OccurredAtUtc = occurredAtUtc
+        }, cancellationToken);
+
+
         // 5) Dinleyicilere yayınlanır. Dinleyen yoksa kart bilgisi — sessiz kalmasın diye loglanır
         if (!_observers.Any())
         {
@@ -74,14 +92,13 @@ public class CardReadService : ICardReadService
             return Result.Success();
         }
 
-        var now = DateTime.UtcNow;
         var notification = new CardPresentedNotification
         {
             CabinetId = cabinet.Id,
             CardIdRaw = request.CardId,
             UserId = user?.Id,
             UserFullName = user?.FullName,
-            OccurredAtUtc = request.TimestampUtc ?? now,
+            OccurredAtUtc = occurredAtUtc,
             ReceivedAtUtc = now
         };
 

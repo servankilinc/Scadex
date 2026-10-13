@@ -1,11 +1,12 @@
 import { useMemo, useState } from 'react';
 import { Link } from 'react-router';
-import { PencilIcon, PlusIcon, SearchIcon, WorkflowIcon } from 'lucide-react';
+import { IdCardIcon, PencilIcon, PlusIcon, SearchIcon, WorkflowIcon } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { StatusDot } from '@/components/diagram/template-node';
 import { CabinetFormDialog } from '@/components/cabinet/cabinet-form-dialog';
+import { CardEnrollmentDialog } from '@/components/cabinet/card-enrollment-dialog';
 import { DataTable, type DataTableColumn } from '@/components/custom/data-table';
 import type { CabinetDetailDto } from '@/models/cabinet';
 import { deviceStatusLabel } from '@/models/enums';
@@ -53,6 +54,8 @@ export default function Cabinets() {
   useCabinetOverviewLive();
   const [isCreating, setIsCreating] = useState(false);
   const [editing, setEditing] = useState<CabinetDetailDto | null>(null);
+  /** Kart tanımlama penceresi açık kabin. */
+  const [enrollCabinet, setEnrollCabinet] = useState<CabinetDetailDto | null>(null);
 
   // Arama yalnızca kabin ADINA bakar (firma dahil değil); Türkçe büyük/küçük harf.
   const [search, setSearch] = useState('');
@@ -95,6 +98,12 @@ export default function Cabinets() {
               <WorkflowIcon />
               Diyagramı aç
             </Button>
+            {cabinet.isActive && (
+              <Button size='sm' variant='outline' onClick={() => setEnrollCabinet(cabinet)} title='Kabinin kart okuyucusunda okutulan kartı bir kullanıcıya tanımla'>
+                <IdCardIcon />
+                Kart tanımlama
+              </Button>
+            )}
             <Button size='sm' variant='outline' onClick={() => setEditing(cabinet)}>
               <PencilIcon />
               Düzenle
@@ -108,6 +117,9 @@ export default function Cabinets() {
           kabinden taşınmasın diye. */}
       {editing && (
         <CabinetFormDialog key={editing.id} open onOpenChange={open => !open && setEditing(null)} cabinet={editing} />
+      )}
+      {enrollCabinet && (
+        <CardEnrollmentDialog key={enrollCabinet.id} cabinetId={enrollCabinet.id} cabinetName={enrollCabinet.name} onClose={() => setEnrollCabinet(null)} />
       )}
     </div>
   );

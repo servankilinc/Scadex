@@ -1,5 +1,6 @@
 import { createPortal } from 'react-dom';
 import type { CardFlash } from '../../hooks/use-virtual-cabinet';
+import type { SignalCardPresentedMessage } from '../../models/realtime';
 import { useArtwork } from './artwork';
 import { SymbolUse } from './symbol-use';
 import { useSvgDevice } from './use-svg-device';
@@ -11,16 +12,18 @@ import { useSvgDevice } from './use-svg-device';
  */
 interface CardReaderFigureProps {
   flash: CardFlash | null;
+  /** Son okuma — etiket kimin okuttuğunu da söylesin. */
+  lastRead: SignalCardPresentedMessage | null;
   onActivate: () => void;
 }
 
 /** Parlamanın okuyucu kenarından taşma payı (SVG birimi). */
 const GLOW_SPREAD = 18;
 
-export function CardReaderFigure({ flash, onActivate }: CardReaderFigureProps) {
+export function CardReaderFigure({ flash, lastRead, onActivate }: CardReaderFigureProps) {
   const { anchors, slots } = useArtwork();
   const label = flash
-    ? `Kart okuyucu: kart ${flash.isAccepted ? 'kabul edildi' : 'reddedildi'} — son okumalar için tıklayın`
+    ? `Kart okuyucu: ${lastRead?.userFullName ?? 'tanımsız kart'} — kart ${flash.isAccepted ? 'kabul edildi' : 'reddedildi'}; son okumalar için tıklayın`
     : 'Kart okuyucu — son okumalar için tıklayın';
 
   useSvgDevice(anchors.cardReader, { label, onActivate });

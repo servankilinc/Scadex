@@ -15,4 +15,7 @@ public interface IDiagramNotifier
 
     /// <summary>Bir komutun sonuclandigini ayni kabini izleyen DIGER kullanicilara bildirir. Komutu gonderen sonucu zaten HTTP yanitinda alir. </summary>
     Task CommandCompletedAsync(Guid cabinetId, CommandCompleted change, CancellationToken cancellationToken = default);
+
+    /// <summary> Kabinin kart okuyucusunda kart okutuldu; kabini izleyenlere  bildirir. </summary>
+    Task CardReadAsync(Guid cabinetId, CardRead change, CancellationToken cancellationToken = default);
 }

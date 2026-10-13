@@ -202,9 +202,6 @@ durur. Ayrıntı: PROJECT_OVERVIEW.md § 10.
   çağırır. Gözlemci **sıcak yoldadır — yalnızca kuyruğa bırakır**; içinde SCADA'ya komut göndermek,
   kart isteğini bekleyen SCADA kartıyla kilitlenme demektir (çıkış bildirimi, modül motorunun
   beklediği `SendAsync`'in içinden de gelir).
-- **Kart tanımlama penceresi (kabin raporu, 2026-10-13) motoru baypas ETMEZ — bilinçli kullanıcı kararı.** Pencere yalnızca
-  `SignalCardPresented` yayınını dinler (mesaj kart no + sahibi taşır); okuma motora normal gider. "Pencere açıkken motoru durdur" için
-  ayrı mod/kayıt eklemeyin. Kart atama `IUserService.AssignIdentityCardAsync` üzerinden; `PUT /api/User` tüm alanları ezdiği için kullanılmaz.
 - **Modül durum TUTMAZ (2026-09-21).** Kapı/siren/aydınlatma/kilit durumu yalnızca çekirdekteki kanalın
   son değerinden `ISignalChannelStateService` ile okunur; `Signal*State` tabloları kaldırıldı, geri
   eklemeyin. Çıkışta `IoChannel.CurrentValue` son BAŞARILI komutun **fiziksel** değeridir (NC'de
@@ -431,7 +428,9 @@ Bir şeyin çalıştığını varsaymadan önce doğrulayın:
   `User.IdentityCardId`'siyle ham string olarak eşlenir ve sonuç gözlemcilere iletilir. Tanımsız
   kart SCADA için hata değildir (200). `IdentityCardId` aktif kullanıcılar arasında tekildir
   (`IX_User_IdentityCardId`, filtreli); `""` sunucuda `null`'a çekilir — çekmezseniz ikinci boş
-  kart 500 üretir.
+  kart 500 üretir. **Kart tanımlama (2026-10-13) çekirdektedir:** her okuma gözlemcilerden önce `DiagramHub`'a `CardRead` olarak
+  yayınlanır, Kabinler → "Kart tanımlama" penceresi dinler; atama `PUT /api/User/{id}/identity-card` (`AssignIdentityCardAsync`, yalnızca
+  kart alanı — `PUT /api/User` tüm alanları ezer). Pencere okumayı modüllerden **bilerek** saklamaz/baypas etmez (kullanıcı kararı).
 - **`MacAddress` / `IpAddress` artık diyagram deltasıyla yazılır (2026-09-10).** `DeviceDraft`
   bu iki alanı taşır, `WriteDevice` yazar, editörde cihaz özellik panelinden girilir. Bunlar
   `DeviceStatusId` / `LastSeen` / `LastConnectionError` gibi telemetri alanı **değildir** — o

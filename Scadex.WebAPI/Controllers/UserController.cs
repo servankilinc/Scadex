@@ -84,6 +84,14 @@ public class UserController : BaseController
         var result = await _userService.UpdateAsync(request);
         return ToAction(result);
     }
+
+    /// <summary> Sahada okutulan kartı kullanıcıya atar (Kabinler → "Kart tanımlama"); yalnızca kart alanını yazar. </summary>
+    [HttpPut("{id:guid}/identity-card")]
+    public async Task<IActionResult> AssignIdentityCard(Guid id, UserIdentityCardAssignDto request)
+    {
+        var result = await _userService.AssignIdentityCardAsync(id, request);
+        return ToAction(result);
+    }
     #endregion
 
     #region Selectlist
