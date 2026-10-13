@@ -192,6 +192,21 @@ public partial class DeviceCommandService
         if (observerNotification != null)
             await _observers.PublishAsync(o => o.OnChannelChangedAsync(observerNotification, CancellationToken.None), _logger, nameof(IScadaEventObserver.OnChannelChangedAsync));
 
+        // 12) Komutun kendisi (başarılı/başarısız, gönderenle) dış modüllere yayınlanır — ör. elle manuel gönderilen komutun o an açık operatör işlemine yazılması
+        var commandNotification = new OutputCommandNotification
+        {
+            CabinetId = cabinet.Id,
+            DeviceId = device.Id,
+            IoChannelId = channel.Id,
+            CommandId = command.Id,
+            TurnOn = request.TurnOn!.Value,
+            Status = command.Status,
+            ResultMessage = command.ResultMessage,
+            RequestedByUserId = requestedByUserId,
+            OccurredAtUtc = command.RespondedAt!.Value
+        };
+        await _observers.PublishAsync(o => o.OnOutputCommandCompletedAsync(commandNotification, CancellationToken.None), _logger, nameof(IScadaEventObserver.OnOutputCommandCompletedAsync));
+
         return Result<DeviceCommandResultDto>.Success(command.ToResultDto(channel.ChannelNumber, requestedByName));
     }
 

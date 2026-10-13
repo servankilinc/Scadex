@@ -99,7 +99,16 @@ public static class SignalEnums
         LightOn = 19,
 
         /// <summary> Dış kapı aydınlatması söndürüldü (kapı kapandı). </summary>
-        LightOff = 20
+        LightOff = 20,
+
+        /// <summary>
+        /// İşlem açıkken bir kullanıcı bu kabine elle output komutu gönderdi ve komut başarılı oldu (sanal kabin ya da diyagram).
+        /// Eylem <c>Detail</c>'de (<see cref="SessionEventDetail.ManualUnlock"/> vb.), gönderen <c>UserId</c>'de, komut <c>DeviceCommandId</c>'de.
+        /// </summary>
+        ManualCommand = 21,
+
+        /// <summary> <see cref="ManualCommand"/> ile aynı, komut başarısız oldu. <c>Detail</c>: <c>"eylem: durum: mesaj"</c>. İşleme bayrak eklemez. </summary>
+        ManualCommandFailed = 22
     }
 
     /// <summary>
@@ -187,4 +196,12 @@ public static class SessionEventDetail
     public const string Lock = "Lock";
     public const string Siren = "Siren";
     public const string Light = "Light";
+
+    // ManualCommand / ManualCommandFailed eylemleri
+    public const string ManualUnlock = "ManualUnlock";
+    public const string ManualLock = "ManualLock";
+    public const string ManualSirenOn = "ManualSirenOn";
+    public const string ManualSirenOff = "ManualSirenOff";
+    public const string ManualLightOn = "ManualLightOn";
+    public const string ManualLightOff = "ManualLightOff";
 }

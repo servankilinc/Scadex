@@ -356,7 +356,9 @@ değişince** `OnChannelChangedAsync`, kart ucu `OnCardPresentedAsync` çağır�
 yazıldıktan ve SignalR yayınından **sonra**. **Başarılı çıkış komutu da (2026-09-21)** kanalın değerini
 değiştirdiyse aynı `OnChannelChangedAsync`'i `Direction = Output` ile çağırır; bildirim bu durumda
 komutun mantıksal değerini (`TurnOn`, NO/NC çevrilmeden önce) de taşır. Komutu kimin gönderdiği fark
-etmez — çekirdek diyagramından verilen komut da modüle ulaşır. Kayıtlı gözlemci yoksa maliyet sıfırdır; bir
+etmez — çekirdek diyagramından verilen komut da modüle ulaşır. **Her çıkış komutunun sonucu da (2026-10-13)**
+— başarılı/başarısız, değer değişsin değişmesin — `OnOutputCommandCompletedAsync(OutputCommandNotification)` ile gönderenle
+(`RequestedByUserId`) birlikte yayınlanır; gönderen HttpContext'ten okunur, arka plan işinin (motorun) komutunda `null`'dır. Kayıtlı gözlemci yoksa maliyet sıfırdır; bir
 gözlemcinin istisnası loglanır ve isteği düşürmez. **Sözleşme:** gözlemci sıcak yoldadır, yalnızca
 kendi kuyruğuna bırakıp döner. İçinde SCADA'ya komut göndermek yasaktır: SCADA kartı bizim
 yanıtımızı beklerken aynı kartın web sunucusunu çağırmak tek iş parçacıklı firmware'de kilitlenmedir.
@@ -1340,7 +1342,13 @@ ekranlarını ayrı parçalara böler.
   bir sonraki uzlaştırmada (açık oturum talebi yoksa) susabilir, manuel yakılan LED dış kapı kapanınca söner.
   Manuel komut "şu an sahaya git" demektir, kalıcı bir talep değil. Motorun "istenen durum zaten sağlanmış,
   komut gönderme" kısayolu manuel yolda **uygulanmaz** (röle tutmamış olabilir; yeniden denemek operatörün
-  elindeki tek araç). Komut `OperatorSessionEvent` **yazmaz** — izi çekirdeğin `DeviceCommand` tablosundadır.
+  elindeki tek araç). Komutun izi çekirdeğin `DeviceCommand` tablosundadır; **o kanalı kullanan kapının açık işlemi varsa
+  (2026-10-13) işlemin zaman çizelgesine de yazılır:** `ManualCommand` (21) / `ManualCommandFailed` (22), `Detail` = eylem
+  (`ManualUnlock|ManualLock|ManualSirenOn|ManualSirenOff|ManualLightOn|ManualLightOff`; başarısızda `"eylem: durum: mesaj"`), `UserId` =
+  gönderen, `DeviceCommandId` = komut. Sanal kabin ve çekirdek diyagramı yolları dahildir (`OnOutputCommandCompletedAsync` → kabin şeridi →
+  `OperatorSessionEngine.ManualCommand.cs`). Siren kabindeki tüm açık işlemlere, aydınlatma dış kapının, kilit iç kapının dış kapısının
+  işlemine yazılır; modülü ilgilendirmeyen çıkış yok sayılır. Motorun kendi komutları (gönderen `null`) buraya girmez — onlar kendi
+  `Unlocked/Locked/Siren*/Light*/CommandFailed` olaylarını yazar. Yalnızca kayıttır: bayrak eklemez, motor durumunu değiştirmez.
   Motorun "açık kapıya kilit komutu gönderme" kuralı da manuel yolda **engel değildir**; onay diyaloğu yalnızca
   uyarır.
 

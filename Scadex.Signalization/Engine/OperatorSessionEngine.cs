@@ -59,6 +59,9 @@ public partial class OperatorSessionEngine
                 if (cabinet.IsEnabled)
                     await HandleCardAsync(cabinet, cardWork.Notification, cancellationToken);
                 break;
+            case ManualCommandWork manualWork:
+                await HandleManualCommandAsync(cabinet, manualWork.Notification, cancellationToken);
+                break;
         }
     }
 

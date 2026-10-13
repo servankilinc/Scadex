@@ -198,8 +198,9 @@ durur. Ayrıntı: PROJECT_OVERVIEW.md § 10.
 
 - **Çekirdek modülü bilmez.** Tek temas noktası `IScadaEventObserver` (Business/Utils/ScadaEvents):
   ingest (değer gerçekten değişince), **başarılı çıkış komutu** (kanal değeri değişince, `Direction =
-  Output` + mantıksal `TurnOn`; 2026-09-21) ve `POST /api/Scada/card` gözlemcileri yazımdan SONRA
-  çağırır. Gözlemci **sıcak yoldadır — yalnızca kuyruğa bırakır**; içinde SCADA'ya komut göndermek,
+  Output` + mantıksal `TurnOn`; 2026-09-21), **her çıkış komutunun sonucu** (`OnOutputCommandCompletedAsync`, başarılı/başarısız,
+  gönderenle — motorun komutunda `RequestedByUserId == null`; 2026-10-13, elle komutun işleme yazılması için) ve `POST /api/Scada/card`
+  gözlemcileri yazımdan SONRA çağırır. Gözlemci **sıcak yoldadır — yalnızca kuyruğa bırakır**; içinde SCADA'ya komut göndermek,
   kart isteğini bekleyen SCADA kartıyla kilitlenme demektir (çıkış bildirimi, modül motorunun
   beklediği `SendAsync`'in içinden de gelir).
 - **Modül durum TUTMAZ (2026-09-21).** Kapı/siren/aydınlatma/kilit durumu yalnızca çekirdekteki kanalın

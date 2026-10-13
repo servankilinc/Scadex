@@ -110,7 +110,10 @@ export const SessionEventType = {
   SirenRequested: 17,
   SirenReleased: 18,
   LightOn: 19,
-  LightOff: 20
+  LightOff: 20,
+  /** İşlem açıkken bir kullanıcının elle gönderdiği komut (sanal kabin / diyagram); eylem `detail`'de, gönderen `userFullName`'de. */
+  ManualCommand: 21,
+  ManualCommandFailed: 22
 } as const;
 export type SessionEventType = (typeof SessionEventType)[keyof typeof SessionEventType];
 
@@ -137,7 +140,9 @@ export const SessionEventTypeLabels: Record<number, string> = {
   [SessionEventType.SirenRequested]: 'Siren talep edildi',
   [SessionEventType.SirenReleased]: 'Siren bırakıldı',
   [SessionEventType.LightOn]: 'Aydınlatma yakıldı',
-  [SessionEventType.LightOff]: 'Aydınlatma söndürüldü'
+  [SessionEventType.LightOff]: 'Aydınlatma söndürüldü',
+  [SessionEventType.ManualCommand]: 'Elle komut',
+  [SessionEventType.ManualCommandFailed]: 'Elle komut başarısız'
 };
 
 export type EventTone = 'default' | 'success' | 'warning' | 'danger' | 'muted';
@@ -149,10 +154,12 @@ export function eventTone(type: number): EventTone {
     case SessionEventType.ForcedOpen:
     case SessionEventType.CommandFailed:
     case SessionEventType.AwaitingCardTimedOut:
+    case SessionEventType.ManualCommandFailed:
       return 'danger';
     case SessionEventType.LockSkippedDoorOpen:
     case SessionEventType.SnapshotFailed:
     case SessionEventType.SirenRequested:
+    case SessionEventType.ManualCommand:
       return 'warning';
     case SessionEventType.Unlocked:
     case SessionEventType.Locked:
@@ -191,7 +198,14 @@ const SessionEventDetailLabels: Record<string, string> = {
   // CommandFailed hedefleri
   Lock: 'Kilit',
   Siren: 'Siren',
-  Light: 'Aydınlatma'
+  Light: 'Aydınlatma',
+  // ManualCommand / ManualCommandFailed eylemleri
+  ManualUnlock: 'Kilit açıldı',
+  ManualLock: 'Kilitlendi',
+  ManualSirenOn: 'Siren çalıştırıldı',
+  ManualSirenOff: 'Siren susturuldu',
+  ManualLightOn: 'Aydınlatma yakıldı',
+  ManualLightOff: 'Aydınlatma söndürüldü'
 };
 
 /**

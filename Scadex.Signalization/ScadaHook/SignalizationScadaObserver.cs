@@ -44,4 +44,14 @@ public sealed class SignalizationScadaObserver : IScadaEventObserver
         _queue.Enqueue(new CardPresentedWork(notification));
         return Task.CompletedTask;
     }
+
+    public Task OnOutputCommandCompletedAsync(OutputCommandNotification notification, CancellationToken cancellationToken = default)
+    {
+        // Göndereni olmayan komut motorun kendisidir (arka plan işinde HttpContext yok); motor o komutların olayını zaten yazıyor.
+        // Kullanıcının gönderdiği (sanal kabin / diyagram) komut kabin şeridine girer: açık işlem varsa zaman çizelgesine yazılır.
+        if (notification.RequestedByUserId != null)
+            _queue.Enqueue(new ManualCommandWork(notification));
+
+        return Task.CompletedTask;
+    }
 }

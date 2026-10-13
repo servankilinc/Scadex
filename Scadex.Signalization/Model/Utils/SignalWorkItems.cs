@@ -43,3 +43,12 @@ public sealed class TimerWork : SignalWorkItem
     public long SessionId { get; set; }
     public SignalTimerKind Kind { get; set; }
 }
+
+
+/// <summary> Bir kullanıcının bu kabine gönderdiği elle output komutu sonuçlandı — açık işlemin zaman çizelgesine yazılır. </summary>
+public sealed class ManualCommandWork : SignalWorkItem
+{
+    public ManualCommandWork(OutputCommandNotification notification) : base(notification.CabinetId) => Notification = notification;
+
+    public OutputCommandNotification Notification { get; set; }
+}

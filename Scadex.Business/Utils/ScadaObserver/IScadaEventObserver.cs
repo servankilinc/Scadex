@@ -23,4 +23,11 @@ public interface IScadaEventObserver
 
     /// <summary> Kabinde ki bir kart okuyucuya kart okutuldu (kart ve kullanıcı tanımsız olsa da çağırılır zaten nullable yaptık). </summary>
     Task OnCardPresentedAsync(CardPresentedNotification notification, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Bir çıkış komutu sonuçlandı — başarılı ya da başarısız, değer değişsin değişmesin; komutu gönderen kullanıcıyla
+    /// (<see cref="OutputCommandNotification.RequestedByUserId"/>, arka plan işinde <c>null</c>). Komutu bekleyen <c>SendAsync</c>'in
+    /// İÇİNDEN çağrılır: gözlemci burada komut göndermemeli, yalnızca kuyruğa bırakmalı.
+    /// </summary>
+    Task OnOutputCommandCompletedAsync(OutputCommandNotification notification, CancellationToken cancellationToken = default);
 }
