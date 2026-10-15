@@ -1,6 +1,7 @@
 import { Link } from 'react-router';
 import { ChevronRightIcon, MonitorIcon } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { usePermission } from '@/lib/auth-session';
 import type { CabinetPanelSectionProps } from '../../types';
 import { isModuleOff, useOpenSessions } from '../hooks/use-operator-sessions';
 
@@ -17,9 +18,10 @@ import { isModuleOff, useOpenSessions } from '../hooks/use-operator-sessions';
  */
 export default function CabinetVirtualLink({ cabinetId }: CabinetPanelSectionProps) {
   const { error } = useOpenSessions();
+  const canOpen = usePermission()('SignalVirtualCabinet');
 
-  // Backend'de modül kapalı: eylem hiç görünmemeli (`VITE_MODULES` ayrı ayarlanır).
-  if (isModuleOff(error)) return null;
+  // Backend'de modül kapalı ya da sanal kabin izni yok: eylem hiç görünmemeli (`VITE_MODULES` ayrı ayarlanır).
+  if (isModuleOff(error) || !canOpen) return null;
 
   return (
     <Button

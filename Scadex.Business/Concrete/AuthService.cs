@@ -12,7 +12,6 @@ using Scadex.DataAccess.UoW;
 using Scadex.Model.Auth.Login;
 using Scadex.Model.Auth.Logout;
 using Scadex.Model.Auth.Refresh;
-using Scadex.Model.Auth.SignUp;
 using Scadex.Model.Dtos.User.Queries;
 using Scadex.Model.Entities;
 using System.Security.Claims;
@@ -24,17 +23,15 @@ public class AuthService : IAuthService
     private readonly IUnitOfWork _unitOfWork;
     private readonly ITokenService _tokenService;
     private readonly UserManager<User> _userManager;
-    private readonly RoleManager<Role> _roleManager;
     private readonly SignInManager<User> _signInManager;
     private readonly IHttpContextManager _httpContextManager;
     private readonly IValidationService _validationService;
     private readonly IMapper _mapper;
-    public AuthService(IUnitOfWork unitOfWork, ITokenService tokenService, UserManager<User> userManager, RoleManager<Role> roleManager, SignInManager<User> signInManager, IHttpContextManager httpContextManager, IValidationService validationService, IMapper mapper)
+    public AuthService(IUnitOfWork unitOfWork, ITokenService tokenService, UserManager<User> userManager, SignInManager<User> signInManager, IHttpContextManager httpContextManager, IValidationService validationService, IMapper mapper)
     {
         _unitOfWork = unitOfWork;
         _tokenService = tokenService;
         _userManager = userManager;
-        _roleManager = roleManager;
         _signInManager = signInManager;
         _httpContextManager = httpContextManager;
         _validationService = validationService;
@@ -78,7 +75,6 @@ public class AuthService : IAuthService
             return Result<LoginResponse>.Forbidden(message: "You are not allowed to login.", metadata: GlobalExtensions.Meta("User", user));
         }
 
-        // IsActive projeye ozgu bir bayraktir; SignInManager onu bilmez. Burada acikca
         // kontrol edilmezse "kullaniciyi pasife al" islemi hicbir sey yapmamis olur.
         if (!user.IsActive)
         {
@@ -128,110 +124,6 @@ public class AuthService : IAuthService
                 Roles = roles,
                 Permissions = await GetPermissionCodesAsync(roles, cancellationToken)
             });
-        }
-    }
-
-    public async Task<Result<SignUpResponse>> SignUpAsync(SignUpRequest signUpRequest, CancellationToken cancellationToken = default)
-    {
-        try
-        {
-            var validationResult = await _validationService.ValidateAsync(signUpRequest, cancellationToken);
-            if (!validationResult.IsValid)
-                return Result<SignUpResponse>.Validation(validationResult.Failures);
-            // 1) Check if user already exists
-            var userExist = await _userManager.FindByEmailAsync(signUpRequest.Email);
-            if (userExist != null)
-                return Result<SignUpResponse>.Validation(new Dictionary<string, string[]> { [nameof(signUpRequest.Email)] = new[] { "The email address is already in use." } }, message: "The email address is already in use.");
-            userExist = await _userManager.FindByNameAsync(signUpRequest.UserName);
-            if (userExist != null)
-                return Result<SignUpResponse>.Validation(new Dictionary<string, string[]> { [nameof(signUpRequest.UserName)] = new[] { "The user name is already in use." } }, message: "The user name is already in use.");
-
-            // User.CompanyId zorunlu bir FK'dir. Sirket dogrulanmazsa insert veritabani
-            // seviyesinde FK ihlaliyle patlar ve istemciye 500 doner; burada 400 uretilir.
-            var companyExists = await _unitOfWork.Companies.IsExistAsync(where: f => f.Id == signUpRequest.CompanyId, cancellationToken: cancellationToken);
-            if (!companyExists)
-                return Result<SignUpResponse>.Validation(new Dictionary<string, string[]> { [nameof(signUpRequest.CompanyId)] = new[] { "The specified company was not found." } }, message: "The specified company was not found.");
-
-            // Varsayilan rol seed edilmedigi icin varligi burada kontrol edilir; aksi halde
-            // asagidaki AddToRoleAsync anlasilmaz bir Identity hatasiyla dusuyordu.
-            string defaultRoleName = RoleType.User.GetDescription();
-            if (!await _roleManager.RoleExistsAsync(defaultRoleName))
-                return Result<SignUpResponse>.Failure(message: "Kayit su anda tamamlanamiyor.", description: $"Varsayilan '{defaultRoleName}' rolu tanimli degil. Role API'sinden olusturulmalidir.", metadata: GlobalExtensions.Meta("Missing Role", defaultRoleName));
-
-            await _unitOfWork.BeginTransactionAsync(cancellationToken);
-
-            // 2) Create new user
-            var user = _mapper.Map<User>(signUpRequest);
-            // bool varsayilani false oldugu icin acikca set edilir; aksi halde her yeni
-            // kullanici pasif dogar ve LoginAsync'teki IsActive kontrolune takilir.
-            user.IsActive = true;
-            var result = await _userManager.CreateAsync(user, signUpRequest.Password);
-            if (!result.Succeeded)
-            {
-                await _unitOfWork.RollbackTransactionAsync(cancellationToken);
-                return Result<SignUpResponse>.Failure(description: $"User cannot be created.", metadata: GlobalExtensions.Meta(("Requester Email", signUpRequest.Email), ("Identity Service Errors", result)));
-            }
-
-            // 3) Assign "User" role to the new user
-            var roleResult = await _userManager.AddToRoleAsync(user, defaultRoleName);
-            if (!roleResult.Succeeded)
-            {
-                await _unitOfWork.RollbackTransactionAsync(cancellationToken);
-                return Result<SignUpResponse>.Failure(description: $"Failed to assign role", metadata: GlobalExtensions.Meta(("Requester Email", signUpRequest.Email), ("Identity Service Errors", roleResult)));
-            }
-
-            // 4) Get user roles and claims
-            IList<string> roles = await _userManager.GetRolesAsync(user);
-            IList<Claim> claims = await GetClaimsAsync(user, roles);
-            // 5) Generate Access Token and Refresh Token
-            Result<AccessToken> accessToken = _tokenService.GenerateAccessToken(claims);
-            if (!accessToken.IsSuccess)
-            {
-                await _unitOfWork.RollbackTransactionAsync(cancellationToken);
-                return Result<SignUpResponse>.Failure(description: "Access token could not generated", metadata: GlobalExtensions.Meta("Access Token Result", accessToken));
-            }
-
-            string tokenValue = _tokenService.GenerateRandomNumber();
-            Result<RefreshToken> refreshToken = _tokenService.GenerateRefreshToken(user, tokenValue, signUpRequest.ClientType, signUpRequest.DeviceId);
-            if (!refreshToken.IsSuccess)
-            {
-                await _unitOfWork.RollbackTransactionAsync(cancellationToken);
-                return Result<SignUpResponse>.Failure(description: "Refresh token could not generated", metadata: GlobalExtensions.Meta("Refresh Token Result", refreshToken));
-            }
-
-            // 6) Save Refresh Token and Revoke old ones if deviceId is provided
-            if (signUpRequest.DeviceId != null && signUpRequest.DeviceId.HasValue)
-            {
-                await _unitOfWork.RefreshTokens.RevokeDeviceRefreshTokensAsync(f => f.DeviceId == signUpRequest.DeviceId.Value && f.IsRevoked == false);
-            }
-
-            await _unitOfWork.RefreshTokens.AddAndSaveAsync(refreshToken.Data, cancellationToken);
-            await _unitOfWork.CommitTransactionAsync(cancellationToken);
-            if (signUpRequest.ClientType != ClientType.Web)
-            {
-                return Result<SignUpResponse>.Success(new SignUpTrustedResponse
-                {
-                    AccessToken = accessToken.Data,
-                    RefreshToken = tokenValue,
-                    DeviceId = refreshToken.Data.DeviceId, //User = user,
-                    Roles = roles,
-                });
-            }
-            else
-            {
-                _httpContextManager.AddRefreshTokenToCookie(tokenValue, refreshToken.Data.ExpirationUtc);
-                return Result<SignUpResponse>.Success(new SignUpResponse
-                {
-                    AccessToken = accessToken.Data,
-                    DeviceId = refreshToken.Data.DeviceId, //User = user,
-                    Roles = roles,
-                });
-            }
-        }
-        catch (Exception)
-        {
-            await _unitOfWork.RollbackTransactionAsync(cancellationToken);
-            throw;
         }
     }
 
@@ -382,7 +274,6 @@ public class AuthService : IAuthService
         {
             new Claim(ClaimTypes.NameIdentifier, user.Id.ToString()),
             new Claim(ClaimTypes.Name, displayName),
-            // Multi-tenant izolasyonun kaynagi. Token'a yazilir ki her istekte
             // veritabanina gitmeden kullanicinin sirketi bilinsin.
             new Claim(AppClaimTypes.CompanyId, user.CompanyId.ToString())
         };

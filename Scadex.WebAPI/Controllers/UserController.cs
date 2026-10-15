@@ -1,13 +1,19 @@
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
 using Scadex.Business.Abstract;
+using Scadex.Business.Utils.Auth;
 using Scadex.Core.BaseRequestModels;
 using Scadex.Model.Dtos.User.Commands;
 using Scadex.WebAPI.Controllers.Base;
 using Scadex.WebAPI.Tools;
+using static Scadex.Model.Enums.EntityEnums;
 
 namespace Scadex.WebAPI.Controllers;
 
+/// <summary>
+/// Kullanıcı yönetimi. Kullanıcı bilgilerini okumak da yazmak da <c>ManageUsers</c> ister; 
+/// kart tanımlama yalnızca kullanıcıları ilgili istek ile çekebilmeyi ve kart atama isteğini görür (<c>ManageAccessCards</c>).
+/// </summary>
 [EnableRateLimiting(RateLimiterKey.Default)]
 public class UserController : BaseController
 {
@@ -15,54 +21,28 @@ public class UserController : BaseController
     public UserController(ILogger<UserController> logger, IUserService userService) : base(logger)
         => _userService = userService;
 
-    #region Get
-    [HttpGet("{id:guid}")]
-    public async Task<IActionResult> Get(Guid id)
-    {
-        var result = await _userService.GetDetailAsync(id: id);
-        return ToAction(result);
-    }
-
-    [HttpGet("{id:guid}/base")]
-    public async Task<IActionResult> GetBase(Guid id)
-    {
-        var result = await _userService.GetBaseAsync(id: id);
-        return ToAction(result);
-    }
-
-    [HttpGet("{id:guid}/detail")]
-    public async Task<IActionResult> GetDetail(Guid id)
-    {
-        var result = await _userService.GetDetailAsync(id: id);
-        return ToAction(result);
-    }
-    #endregion
-
     #region List
-    [HttpPost("list")]
-    public async Task<IActionResult> GetList(DynamicRequest? request = default)
-    {
-        var result = await _userService.GetDetailListAsync(request);
-        return ToAction(result);
-    }
-
-    [HttpPost("list/base")]
-    public async Task<IActionResult> GetBaseList(DynamicRequest? request = default)
-    {
-        var result = await _userService.GetBaseListAsync(request);
-        return ToAction(result);
-    }
-
     [HttpPost("list/detail")]
+    [RequirePermission(Permission.ManageUsers)]
     public async Task<IActionResult> GetDetailList(DynamicRequest? request = default)
     {
         var result = await _userService.GetDetailListAsync(request);
+        return ToAction(result);
+    }
+
+    /// <summary> Kart tanımlama penceresinin listesi: aktif kullanıcılar, yalnızca ad / kullanıcı adı / kart. </summary>
+    [HttpGet("card-holders")]
+    [RequirePermission(Permission.ManageAccessCards)]
+    public async Task<IActionResult> GetCardHolders(CancellationToken cancellationToken)
+    {
+        var result = await _userService.GetCardHoldersAsync(cancellationToken);
         return ToAction(result);
     }
     #endregion
 
     #region Create
     [HttpPost]
+    [RequirePermission(Permission.ManageUsers)]
     public async Task<IActionResult> Create(UserCreateDto request)
     {
         var result = await _userService.CreateAsync(request);
@@ -71,57 +51,32 @@ public class UserController : BaseController
     #endregion
 
     #region Update
-    [HttpGet("{id:guid}/update")]
-    public async Task<IActionResult> Update(Guid id)
-    {
-        var result = await _userService.GetUpdateModelAsync(id: id);
-        return ToAction(result);
-    }
-
     [HttpPut]
+    [RequirePermission(Permission.ManageUsers)]
     public async Task<IActionResult> Update(UserUpdateDto request)
     {
         var result = await _userService.UpdateAsync(request);
         return ToAction(result);
     }
 
-    /// <summary> Sahada okutulan kartı kullanıcıya atar (Kabinler → "Kart tanımlama"); yalnızca kart alanını yazar. </summary>
+    /// <summary> Parolayı eskisini sormadan değiştirir (yönetici işlemi); kullanıcının açık oturumları yeniden giriş ister. </summary>
+    [HttpPut("{id:guid}/password")]
+    [RequirePermission(Permission.ManageUsers)]
+    public async Task<IActionResult> ChangePassword(Guid id, UserPasswordChangeDto request, CancellationToken cancellationToken)
+    {
+        var result = await _userService.ChangePasswordAsync(id, request, cancellationToken);
+        return ToAction(result);
+    }
+
+    /// <summary>
+    /// Sahada okutulan kartı kullanıcıya atar (Kabinler → "Kart tanımlama"); yalnızca kart alanını yazar. Kullanıcı yönetiminden
+    /// ayrı izindir: kartı tanımlayan kişinin kullanıcı oluşturması/rol vermesi gerekmez.
+    /// </summary>
     [HttpPut("{id:guid}/identity-card")]
+    [RequirePermission(Permission.ManageAccessCards)]
     public async Task<IActionResult> AssignIdentityCard(Guid id, UserIdentityCardAssignDto request)
     {
         var result = await _userService.AssignIdentityCardAsync(id, request);
-        return ToAction(result);
-    }
-    #endregion
-
-    #region Selectlist
-    [HttpGet("selectlist")]
-    public async Task<IActionResult> SelectList()
-    {
-        var result = await _userService.SelectListAsync();
-        return ToAction(result);
-    }
-    #endregion
-
-    #region Pagination / Datatable
-    [HttpPost("pagination")]
-    public async Task<IActionResult> Pagination(DynamicPaginationRequest request)
-    {
-        var result = await _userService.PaginationAsync(request);
-        return ToAction(result);
-    }
-
-    [HttpPost("datatable/client")]
-    public async Task<IActionResult> DatatableClientSide(DynamicDatatableRequest request)
-    {
-        var result = await _userService.DatatableClientSideAsync(request);
-        return ToAction(result);
-    }
-
-    [HttpPost("datatable/server")]
-    public async Task<IActionResult> DatatableServerSide(DynamicDatatableRequest request)
-    {
-        var result = await _userService.DatatableServerSideAsync(request);
         return ToAction(result);
     }
     #endregion

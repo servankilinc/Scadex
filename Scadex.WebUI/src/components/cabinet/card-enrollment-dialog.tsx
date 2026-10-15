@@ -15,10 +15,10 @@ import { Button } from '@/components/ui/button';
 import { Combobox, ComboboxContent, ComboboxEmpty, ComboboxInput, ComboboxItem, ComboboxList } from '@/components/ui/combobox';
 import { Dialog, DialogClose, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { useCardEnrollment, type EnrollmentRead } from '@/hooks/use-card-enrollment';
-import { useAssignUserIdentityCard, useUsers } from '@/hooks/use-users';
+import { useAssignUserIdentityCard, useCardHolders } from '@/hooks/use-users';
 import { toApiError } from '@/lib/axios-helper';
 import { formatUtcDateTime, toSearchKey } from '@/lib/utils';
-import type { UserDetailDto } from '@/models/user';
+import type { UserCardHolderDto } from '@/models/user';
 
 /**
  * Kabinler → "Kart tanımlama" — sahada bir kişinin kartını sisteme tanıtmak için.
@@ -100,18 +100,19 @@ function CardReadPanel({ read, onAssigned }: { read: EnrollmentRead; onAssigned:
 }
 
 function AssignCardForm({ cardId, onAssigned }: { cardId: string; onAssigned: (userId: string, userFullName: string) => void }) {
-  const users = useUsers();
+  // Dar liste (`ManageAccessCards`): yalnızca aktif kullanıcılar gelir, tam kullanıcı listesi `ManageUsers` ister.
+  const users = useCardHolders();
   const assign = useAssignUserIdentityCard();
-  const [selected, setSelected] = useState<UserDetailDto | null>(null);
+  const [selected, setSelected] = useState<UserCardHolderDto | null>(null);
   const [confirmOpen, setConfirmOpen] = useState(false);
 
-  // Liste pasifleri de taşır; pasif kullanıcının kartı okumada eşleşmez, sunucu da atamayı reddeder.
+  // Sunucu yalnızca aktifleri döndürür (pasif kullanıcının kartı okumada eşleşmez, atama da reddedilir); burada yalnızca sıralanır.
   const activeUsers = useMemo(
-    () => (users.data ?? []).filter(user => user.isActive).sort((a, b) => a.fullName.localeCompare(b.fullName, 'tr')),
+    () => [...(users.data ?? [])].sort((a, b) => a.fullName.localeCompare(b.fullName, 'tr')),
     [users.data]
   );
 
-  const submit = (user: UserDetailDto, replaceExisting: boolean) => {
+  const submit = (user: UserCardHolderDto, replaceExisting: boolean) => {
     assign.mutate(
       { userId: user.id, request: { identityCardId: cardId, replaceExisting } },
       {
@@ -137,7 +138,7 @@ function AssignCardForm({ cardId, onAssigned }: { cardId: string; onAssigned: (u
 
   // Base UI'ın varsayılan filtresi (`Intl.Collator`) "ilker" yazınca "İlker"i bulmuyor — `toSearchKey` (home ekranıyla aynı).
   // Kutuda seçili kullanıcının adı dururken liste yalnızca ona daralmasın.
-  const matchesUserQuery = (user: UserDetailDto, query: string) =>
+  const matchesUserQuery = (user: UserCardHolderDto, query: string) =>
     query === selected?.fullName || toSearchKey(`${user.fullName} ${user.userName ?? ''}`).includes(toSearchKey(query));
 
   if (users.isError) return <p className='text-sm text-destructive'>Kullanıcılar alınamadı: {users.error.message}</p>;
@@ -164,7 +165,7 @@ function AssignCardForm({ cardId, onAssigned }: { cardId: string; onAssigned: (u
           <ComboboxContent>
             <ComboboxEmpty>Kullanıcı bulunamadı.</ComboboxEmpty>
             <ComboboxList className='scrollbar-thin'>
-              {(user: UserDetailDto) => (
+              {(user: UserCardHolderDto) => (
                 <ComboboxItem key={user.id} value={user}>
                   <div className='flex min-w-0 flex-col'>
                     <span className='truncate'>{user.fullName}</span>

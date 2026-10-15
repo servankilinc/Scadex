@@ -79,7 +79,9 @@ export const userKeys = {
   /** Pasifler DAHİL — geri alınabilsinler diye. */
   list: () => [...userKeys.all, 'list'] as const,
   /** Kullanıcının rol ADLARI (Identity adla döner) — Roller dialogunun kaynağı. */
-  roles: (userId: string) => [...userKeys.all, 'roles', userId] as const
+  roles: (userId: string) => [...userKeys.all, 'roles', userId] as const,
+  /** Kart tanımlama penceresinin dar listesi (aktifler) — `ManageAccessCards`. `all` altında: kart atanınca birlikte tazelenir. */
+  cardHolders: () => [...userKeys.all, 'card-holders'] as const
 };
 
 export const roleKeys = {

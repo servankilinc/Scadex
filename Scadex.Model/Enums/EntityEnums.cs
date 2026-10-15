@@ -260,13 +260,16 @@ public static class EntityEnums
     /// <summary> Kullanıcı izin türleri. </summary>
     public enum Permission
     {
-        /// <summary> Kabin diyagramını açıp okuyabilir </summary>
+        /// <summary> Kabin diyagramını açıp izleyebilir (canlı değerler, komut geçmişi). </summary>
         ViewDiagram = 0,
 
-        /// <summary> Diyagramı düzenleyip kaydedebilir </summary>
+        /// <summary> Diyagramı düzenleyip kaydedebilir (cihaz, kablo, not, tuval ayarı). İzlemeden ve komuttan ayrıdır. </summary>
         EditDiagram = 1,
 
-        /// <summary> Output kanalı sürebilir — röle, kilit, siren Sahaya fiziksel etki eden tek izin budur. </summary>
+        /// <summary>
+        /// Çekirdek diyagram üzerinden output kanalına komut gönderebilir — röle, kilit, siren. Uç ayrıca <see cref="ViewDiagram"/>
+        /// ister (görmeden komut yok). Sinyalizasyonun sanal kabini bu izni KULLANMAZ: <see cref="SignalVirtualCabinet"/> (2026-10-14).
+        /// </summary>
         ControlOutput = 2,
 
         /// <summary> Alarmı görüp kabul edebilir </summary>
@@ -309,6 +312,13 @@ public static class EntityEnums
         /// Devam eden operatör işlemini elle kapatabilir (Sinyalizasyon modülü). Kapatma sahaya dokunur: siren talebi bırakılır,
         /// iç kapılara otomatik kilitleme denenir — bu yüzden ayrı izindir.
         /// </summary>
-        SignalSessionClose = 14
+        SignalSessionClose = 14,
+
+        /// <summary>
+        /// Sinyalizasyonun sanal kabinini açar ve oradan komut gönderir (siren, aydınlatma, iç kapı kilidi) + kart okuma listesi.
+        /// Çekirdeğin <see cref="ControlOutput"/>'undan ayrıdır: sanal kabini yöneten operatör diyagrama komut gönderemez, tersi de.
+        /// Kapı yapılandırması (<see cref="ConfigureSystem"/>) ve operatör kurumu (<see cref="ManageAccessCards"/>) bu izne dahil değildir.
+        /// </summary>
+        SignalVirtualCabinet = 15
     }
 }

@@ -1,8 +1,10 @@
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
 using Scadex.Business.Abstract;
+using Scadex.Business.Utils.Auth;
 using Scadex.WebAPI.Controllers.Base;
 using Scadex.WebAPI.Tools;
+using static Scadex.Model.Enums.EntityEnums;
 
 namespace Scadex.WebAPI.Controllers;
 
@@ -15,41 +17,16 @@ public class UserRoleController : BaseController
 
 
     [HttpGet("user/{userId:guid}")]
+    [RequirePermission(Permission.ManageUsers)]
     public async Task<IActionResult> GetRolesOfUser(Guid userId)
     {
         var result = await _userRoleService.GetRolesOfUserAsync(userId);
         return ToAction(result);
     }
 
-    [HttpGet("role/{roleName}")]
-    public async Task<IActionResult> GetUsersInRole(string roleName)
-    {
-        var result = await _userRoleService.GetUsersInRoleAsync(roleName);
-        return ToAction(result);
-    }
-
-    [HttpGet("user/{userId:guid}/has/{roleName}")]
-    public async Task<IActionResult> IsInRole(Guid userId, string roleName)
-    {
-        var result = await _userRoleService.IsInRoleAsync(userId, roleName);
-        return ToAction(result);
-    }
-
-    [HttpPost("user/{userId:guid}/role/{roleName}")]
-    public async Task<IActionResult> Assign(Guid userId, string roleName)
-    {
-        var result = await _userRoleService.AssignAsync(userId, roleName);
-        return ToAction(result);
-    }
-
-    [HttpDelete("user/{userId:guid}/role/{roleName}")]
-    public async Task<IActionResult> Remove(Guid userId, string roleName)
-    {
-        var result = await _userRoleService.RemoveAsync(userId, roleName);
-        return ToAction(result);
-    }
-
+    /// <summary> Kullanıcının rollerini tek istekte eşitler (gövde rol adları). </summary>
     [HttpPut("user/{userId:guid}/sync")]
+    [RequirePermission(Permission.ManageUsers)]
     public async Task<IActionResult> Sync(Guid userId, [FromBody] ICollection<string> roleNames, CancellationToken cancellationToken)
     {
         var result = await _userRoleService.SyncAsync(userId, roleNames, cancellationToken);

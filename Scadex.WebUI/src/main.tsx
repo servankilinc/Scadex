@@ -22,6 +22,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { ReactQueryDevtools } from '@tanstack/react-query-devtools';
 import { ApiError } from '@/lib/axios-helper.ts';
 import RequireAuth from '@/components/custom/require-auth.tsx';
+import { requirePermission } from '@/lib/route-guards.ts';
 import { enabledModules } from '@/modules';
 
 const queryClient = new QueryClient({
@@ -73,6 +74,7 @@ const router = createBrowserRouter([
                     // bolunmezse editore hic girmeyen kullanici da onu indirir.
                     path: ':cabinetId/diagram',
                     handle: { crumb: 'Diyagram' },
+                    loader: requirePermission('ViewDiagram'),
                     lazy: async () => ({ Component: (await import('./views/app/diagram')).default })
                   }
                 ]
@@ -89,6 +91,8 @@ const router = createBrowserRouter([
                 // ana paketine girmemeli.
                 path: 'cameras',
                 handle: { crumb: 'Kameralar' },
+                // Kamera listesi/detayı da görüntüyle aynı izni ister (sunucuda `ViewCamera`).
+                loader: requirePermission('ViewCamera'),
                 children: [
                   {
                     index: true,
@@ -122,11 +126,12 @@ const router = createBrowserRouter([
                 handle: { crumb: 'Yönetim' },
                 children: [
                   { index: true, Component: AdminViews.Home },
-                  { path: 'companies', Component: AdminViews.Companies, handle: { crumb: 'Firmalar' } },
-                  { path: 'users', Component: AdminViews.Users, handle: { crumb: 'Kullanıcılar' } },
-                  { path: 'roles', Component: AdminViews.Roles, handle: { crumb: 'Roller' } },
-                  { path: 'templates', Component: AdminViews.ComponentTemplates, handle: { crumb: 'Şablonlar' } },
-                  { path: 'settings', Component: AdminViews.Settings, handle: { crumb: 'Ayarlar' } }
+                  // Her ekran yazdığı uçların izniyle korunur (sunucu aynı izni 403 ile zorlar).
+                  { path: 'companies', Component: AdminViews.Companies, handle: { crumb: 'Firmalar' }, loader: requirePermission('ConfigureSystem') },
+                  { path: 'users', Component: AdminViews.Users, handle: { crumb: 'Kullanıcılar' }, loader: requirePermission('ManageUsers') },
+                  { path: 'roles', Component: AdminViews.Roles, handle: { crumb: 'Roller' }, loader: requirePermission('ManageUsers') },
+                  { path: 'templates', Component: AdminViews.ComponentTemplates, handle: { crumb: 'Şablonlar' }, loader: requirePermission('ConfigureSystem') },
+                  { path: 'settings', Component: AdminViews.Settings, handle: { crumb: 'Ayarlar' }, loader: requirePermission('ConfigureSystem') }
                 ]
               }
               // #endregion
@@ -135,9 +140,8 @@ const router = createBrowserRouter([
         ]
       },
 
-      // #region (3) Auth-Layer (acik)
-      { path: '/login', Component: AuthViews.Login },
-      { path: '/signup', Component: AuthViews.Signup }
+      // #region (3) Auth-Layer (acik) — anonim kayıt (/signup) bilerek yok: kullanıcıyı yönetici açar.
+      { path: '/login', Component: AuthViews.Login }
       // #endregion
     ]
   },

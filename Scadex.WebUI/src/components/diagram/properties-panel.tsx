@@ -50,7 +50,11 @@ import { DeleteButton } from './confirm-delete';
  * ikisini birleştirir; yazma her zaman `editor` üzerinden gider ki değişiklik
  * günlüğe düşsün.
  */
-export function PropertiesPanel({ editor }: { editor: DiagramEditor }) {
+/**
+ * `readOnly` (`EditDiagram` izni yok): alanlar yerel `fieldset disabled` ile kilitlenir, okuma ve kumanda geçmişi kalır.
+ * Çağıran ayrıca yazan fonksiyonları etkisiz bir editör verir (bkz. `views/app/diagram`).
+ */
+export function PropertiesPanel({ editor, readOnly = false }: { editor: DiagramEditor; readOnly?: boolean }) {
   const selectedNodeIds = useAppSelector(s => s.diagram.selectedNodeIds);
   const selectedEdgeIds = useAppSelector(s => s.diagram.selectedEdgeIds);
 
@@ -60,10 +64,13 @@ export function PropertiesPanel({ editor }: { editor: DiagramEditor }) {
     <aside className='bg-sidebar flex w-72 shrink-0 flex-col border-l'>
       <header className='border-b px-3 py-2'>
         <h2 className='text-sm font-semibold'>Özellikler</h2>
+        {readOnly && <p className='text-muted-foreground text-xs'>Salt okunur — diyagramı düzenleme yetkiniz yok.</p>}
       </header>
 
       <ScrollArea className='flex-1'>
-        <div className='p-3'>{renderBody()}</div>
+        <fieldset disabled={readOnly} className='min-w-0 p-3'>
+          {renderBody()}
+        </fieldset>
       </ScrollArea>
     </aside>
   );

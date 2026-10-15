@@ -12,6 +12,7 @@ import { UnsavedChangesBlocker } from '@/components/diagram/unsaved-changes-bloc
 import { useDiagramEditor, type DiagramEditor } from '@/hooks/use-diagram-editor';
 import { useDiagramGraph } from '@/hooks/use-diagram-graph';
 import { useDiagramLive } from '@/hooks/use-diagram-live';
+import { usePermission } from '@/lib/auth-session';
 import { DiagramCanvasProvider } from '@/lib/diagram/canvas-context';
 import type { AnnotationShape } from '@/models/enums';
 import type { DiagramDto, PointDto } from '@/models/diagram';
@@ -72,6 +73,12 @@ export default function Diagram() {
 function DiagramEditorShell({ cabinetId, graph }: { cabinetId: string; graph: DiagramDto }) {
   const editor = useDiagramEditor(cabinetId, graph);
 
+  // Rota `ViewDiagram` ister; düzenleme ve kumanda ayrı izinlerdir (sunucu ikisini de 403 ile zorlar).
+  // `EditDiagram` yoksa editör salt okunur: palet yok, tuval sürükleme/bağlama/silme kabul etmez, kaydetme çizilmez.
+  const can = usePermission();
+  const canEdit = can('EditDiagram');
+  const canControl = can('ControlOutput');
+
   // Canlı yayın. Hook telemetriyi harici store'a yazar ve BURAYA HİÇBİR ŞEY
   // döndürmez (durum dışında) — değerleri prop olarak aşağı taşımak, her tick'te
   // tüm ağacı yeniden çizdirirdi. `TemplateNode` onları kendi kimliğiyle okur.
@@ -89,11 +96,13 @@ function DiagramEditorShell({ cabinetId, graph }: { cabinetId: string; graph: Di
     () => ({
       cabinetId,
       scadaIsEnabled: graph.cabinet.scadaIsEnabled,
+      canEdit,
+      canControl,
       onDelete: (deviceId: string) => deleteElements([deviceId], []),
       onDuplicate: duplicateDevice,
       onWaypointsChange: (connectionId: string, waypoints: PointDto[]) => updateConnection(connectionId, { waypoints })
     }),
-    [cabinetId, graph.cabinet.scadaIsEnabled, deleteElements, duplicateDevice, updateConnection]
+    [cabinetId, graph.cabinet.scadaIsEnabled, canEdit, canControl, deleteElements, duplicateDevice, updateConnection]
   );
 
   return (
@@ -103,11 +112,18 @@ function DiagramEditorShell({ cabinetId, graph }: { cabinetId: string; graph: Di
     <ReactFlowProvider>
       <DiagramCanvasProvider value={canvasContext}>
         <div className={shellClass}>
-          <DiagramToolbar cabinet={graph.cabinet} settings={graph.canvasSettings} save={editor.save} isDirty={editor.isDirty} hubStatus={hubStatus} />
+          <DiagramToolbar
+            cabinet={graph.cabinet}
+            settings={graph.canvasSettings}
+            save={editor.save}
+            isDirty={editor.isDirty}
+            hubStatus={hubStatus}
+            readOnly={!canEdit}
+          />
 
           {graph.cabinet.scadaIsEnabled && <LiveDisconnectedBanner status={hubStatus} />}
 
-          <EditorBody editor={editor} graph={graph} />
+          <EditorBody editor={editor} graph={graph} readOnly={!canEdit} />
         </div>
 
         <UnsavedChangesBlocker isDirty={editor.isDirty} saveNow={editor.save.saveNow} />
@@ -124,10 +140,31 @@ function DiagramEditorShell({ cabinetId, graph }: { cabinetId: string; graph: Di
  * `DiagramEditorShell`'in kendi gövdesi hâlâ dışarıdadır. Not ekleme "görünen
  * alanın ortasına" koyduğu için o dönüşüme ihtiyaç duyuyor.
  */
-function EditorBody({ editor, graph }: { editor: DiagramEditor; graph: DiagramDto }) {
+function EditorBody({ editor, graph, readOnly }: { editor: DiagramEditor; graph: DiagramDto; readOnly: boolean }) {
   const { screenToFlowPosition } = useReactFlow();
   const canvasRef = useRef<HTMLDivElement>(null);
   const { addAnnotation } = editor;
+
+  // Salt okunur kipte özellikler paneli bilgi (ve kumanda geçmişi) için kalır; yazan fonksiyonları etkisizleştirilmiş bir
+  // kopya alır. Panelin alanları kontrollü olduğu için değer değişmez — `fieldset disabled`'ın yerini tutmayan Base UI
+  // bileşenlerine karşı ikinci güvence.
+  const panelEditor = useMemo<DiagramEditor>(
+    () =>
+      readOnly
+        ? {
+            ...editor,
+            addDeviceFromTemplate: () => {},
+            updateDevice: () => {},
+            updateConnection: () => {},
+            deleteElements: () => {},
+            duplicateDevice: () => {},
+            moveNodes: () => {},
+            addAnnotation: () => {},
+            updateAnnotation: () => {}
+          }
+        : editor,
+    [editor, readOnly]
+  );
 
   const addAnnotationAtCenter = useCallback(
     (shape: AnnotationShape) => {
@@ -145,11 +182,11 @@ function EditorBody({ editor, graph }: { editor: DiagramEditor; graph: DiagramDt
 
   return (
     <div className='flex min-h-0 flex-1'>
-      <PalettePanel onAddAnnotation={addAnnotationAtCenter} />
+      {!readOnly && <PalettePanel onAddAnnotation={addAnnotationAtCenter} />}
       <div ref={canvasRef} className='min-w-0 flex-1'>
-        <DiagramCanvas editor={editor} settings={graph.canvasSettings} devices={graph.devices} />
+        <DiagramCanvas editor={editor} settings={graph.canvasSettings} devices={graph.devices} readOnly={readOnly} />
       </div>
-      <PropertiesPanel editor={editor} />
+      <PropertiesPanel editor={panelEditor} readOnly={readOnly} />
     </div>
   );
 }

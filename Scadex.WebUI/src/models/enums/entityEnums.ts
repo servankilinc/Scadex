@@ -464,14 +464,22 @@ export const Permission = {
   /** Uzak PC ile dosya transferi (RemoteDesk) — kontrolü elinde tutana açık, ayrı izin. */
   RemotePcFileTransfer: 13,
   /** Devam eden operatör işlemini elle kapatma (Sinyalizasyon) — sunucuda zorlanır, yoksa 403. */
-  SignalSessionClose: 14
+  SignalSessionClose: 14,
+  /** Sanal kabini açma + oradan komut + kart okumaları (Sinyalizasyon). Çekirdeğin `ControlOutput`'undan ayrıdır. */
+  SignalVirtualCabinet: 15
 } as const;
 export type Permission = (typeof Permission)[keyof typeof Permission];
 
+/**
+ * Token'daki `permission` claim'i ve sunucudaki policy adı: enum'un ADI (`'ControlOutput'`), sayısı değil. Sunucu bunu
+ * `[RequirePermission(Permission.X)]` ile zorlar; istemcideki kontroller (`usePermission`, `requirePermission`) yalnızca UX'tir.
+ */
+export type PermissionCode = keyof typeof Permission;
+
 export const PermissionLabels: Record<Permission, string> = {
-  [Permission.ViewDiagram]: 'Diyagram Görüntüleme',
+  [Permission.ViewDiagram]: 'Diyagramı İzleme',
   [Permission.EditDiagram]: 'Diyagram Düzenleme',
-  [Permission.ControlOutput]: 'Çıkış Kumandası',
+  [Permission.ControlOutput]: 'Diyagramdan Komut Gönderme',
   [Permission.AcknowledgeAlarm]: 'Alarm Onaylama',
   [Permission.ManageUsers]: 'Kullanıcı Yönetimi',
   [Permission.ConfigureSystem]: 'Sistem Ayarları',
@@ -483,5 +491,6 @@ export const PermissionLabels: Record<Permission, string> = {
   [Permission.RemotePcControl]: 'PC Uzaktan Kontrol',
   [Permission.RemotePcAudit]: 'PC İzleme Raporu',
   [Permission.RemotePcFileTransfer]: 'PC Dosya Transferi',
-  [Permission.SignalSessionClose]: 'Operatör İşlemini Kapatma'
+  [Permission.SignalSessionClose]: 'Operatör İşlemini Kapatma',
+  [Permission.SignalVirtualCabinet]: 'Sanal Kabin (Açma ve Komut)'
 };

@@ -8,6 +8,7 @@ using Microsoft.IdentityModel.Tokens;
 using Scadex.Business;
 using Scadex.Business.Mappings;
 using Scadex.Business.Settings;
+using Scadex.Business.Utils.Auth;
 using Scadex.Business.Utils.CameraCaptureGateway;
 using Scadex.Business.Utils.CaptureFileStore;
 using Scadex.Business.Utils.DiagramNotifier;
@@ -153,13 +154,14 @@ builder.Services
         options.Password.RequireLowercase = false;
         options.Password.RequireUppercase = false;
 
-        options.User.RequireUniqueEmail = true;
+        options.User.RequireUniqueEmail = false;
         options.User.AllowedUserNameCharacters = "abcçdefgğhiıjklmnoöpqrsştuüvwxyzABCÇDEFGĞHIİJKLMNOÖPQRSŞTUÜVWXYZ0123456789-._@+/*|!,;:()&#?[] ";
     })
     .AddEntityFrameworkStores<AppDbContext>()
     .AddDefaultTokenProviders();
 
-builder.Services.AddAuthorization();
+// Her Permission için aynı adlı policy ([RequirePermission(...)]); modüller de bu adları kullanır, kendileri tanımlamaz.
+builder.Services.AddPermissionPolicies();
 #endregion
 
 

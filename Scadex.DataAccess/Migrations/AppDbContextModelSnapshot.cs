@@ -3765,21 +3765,21 @@ namespace Scadex.DataAccess.Migrations
                             Id = 0,
                             Category = "Diagram",
                             Code = "ViewDiagram",
-                            DisplayName = "Diyagrami goruntule"
+                            DisplayName = "Diyagramı izle"
                         },
                         new
                         {
                             Id = 1,
                             Category = "Diagram",
                             Code = "EditDiagram",
-                            DisplayName = "Diyagrami duzenle"
+                            DisplayName = "Diyagramı düzenle"
                         },
                         new
                         {
                             Id = 2,
-                            Category = "Control",
+                            Category = "Diagram",
                             Code = "ControlOutput",
-                            DisplayName = "Cikis sur (role / kilit / siren)"
+                            DisplayName = "Diyagramdan komut gönder (röle / kilit / siren)"
                         },
                         new
                         {
@@ -3864,6 +3864,13 @@ namespace Scadex.DataAccess.Migrations
                             Category = "Signalization",
                             Code = "SignalSessionClose",
                             DisplayName = "Operatör işlemini elle kapatma"
+                        },
+                        new
+                        {
+                            Id = 15,
+                            Category = "Signalization",
+                            Code = "SignalVirtualCabinet",
+                            DisplayName = "Sanal kabini aç ve komut gönder"
                         });
                 });
 
@@ -4160,6 +4167,11 @@ namespace Scadex.DataAccess.Migrations
                         {
                             RoleId = new Guid("7138ec51-4f9e-4afd-b61b-5a9a4584f5da"),
                             PermissionId = 14
+                        },
+                        new
+                        {
+                            RoleId = new Guid("7138ec51-4f9e-4afd-b61b-5a9a4584f5da"),
+                            PermissionId = 15
                         });
                 });
 

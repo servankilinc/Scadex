@@ -1,7 +1,7 @@
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useMutation } from '@tanstack/react-query';
-import { useLocation, useNavigate, Link } from 'react-router';
+import { useLocation, useNavigate } from 'react-router';
 
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -57,12 +57,8 @@ export default function Login() {
           </FieldGroup>
         </form>
 
-        <p className='mt-6 text-center text-sm text-muted-foreground'>
-          Hesabiniz yok mu?{' '}
-          <Link to='/signup' className='font-medium text-foreground underline underline-offset-4'>
-            Kayit olun
-          </Link>
-        </p>
+        {/* Anonim kayıt yoktur: hesabı yönetici açar (Kullanıcılar ekranı, `ManageUsers`). */}
+        <p className='mt-6 text-center text-sm text-muted-foreground'>Hesabınız yoksa sistem yöneticinize başvurun.</p>
       </div>
     </div>
   );

@@ -2,10 +2,12 @@ using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Logging;
+using Scadex.Business.Utils.Auth;
 using Scadex.Signalization.Controllers.Base;
 using Scadex.Signalization.Model.Dtos.Session.Commands;
 using Scadex.Signalization.Model.Dtos.Session.Queries;
 using Scadex.Signalization.Services.Abstract;
+using static Scadex.Model.Enums.EntityEnums;
 
 namespace Scadex.Signalization.Controllers;
 
@@ -56,8 +58,9 @@ public class OperatorSessionController : SignalizationControllerBase
         return ToAction(result);
     }
 
-    /// <summary> Kabinin son kart okumalari. </summary>
+    /// <summary> Kabinin son kart okumalari — sanal kabinin kart okuyucusu (sanal kabin izni). </summary>
     [HttpGet("cabinet/{cabinetId:guid}/card-reads")]
+    [RequirePermission(Permission.SignalVirtualCabinet)]
     public async Task<IActionResult> GetRecentCardReads(Guid cabinetId, CancellationToken cancellationToken)
     {
         var result = await _service.GetRecentCardReadsAsync(cabinetId, cancellationToken);

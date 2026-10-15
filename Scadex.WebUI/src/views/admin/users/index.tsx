@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Controller, useForm, type UseFormRegisterReturn } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { PencilIcon, PlusIcon, ShieldIcon } from 'lucide-react';
+import { KeyRoundIcon, PencilIcon, PlusIcon, ShieldIcon } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -15,18 +15,27 @@ import { ActiveBadge, DataTable, type DataTableColumn } from '@/components/custo
 import { handleFormApiError } from '@/lib/axios-helper';
 import { useCurrentUser } from '@/lib/auth-session';
 import type { RoleDto } from '@/models/role';
-import { userCreateRequestSchema, userUpdateRequestSchema, type UserCreateRequest, type UserDetailDto, type UserUpdateRequest } from '@/models/user';
+import {
+  userCreateRequestSchema,
+  userPasswordChangeSchema,
+  userUpdateRequestSchema,
+  type UserCreateRequest,
+  type UserDetailDto,
+  type UserPasswordChangeForm,
+  type UserUpdateRequest
+} from '@/models/user';
 import { useCompanies } from '@/hooks/use-companies';
 import { useRoles } from '@/hooks/use-roles';
-import { useCreateUser, useSyncUserRoles, useUpdateUser, useUserRoles, useUsers } from '@/hooks/use-users';
+import { useChangeUserPassword, useCreateUser, useSyncUserRoles, useUpdateUser, useUserRoles, useUsers } from '@/hooks/use-users';
 
 /**
- * Kullanıcı yönetimi.
+ * Kullanıcı yönetimi — okuma da yazma da `ManageUsers` ister (rota ve sunucu). Anonim kayıt yoktur: hesapları burada
+ * yönetici açar.
  *
  * Silme YOK: `User` bir `IActivatableEntity`, fiziksel silme interceptor'da istisna
  * atar. Pasife alma tek yol — pasif kullanıcı giriş yapamaz, oturumunu yenileyemez.
  *
- * Parola yalnızca oluştururken verilir; yöneticinin parola sıfırlama ucu bilerek yok.
+ * Parolayı yönetici değiştirir ("Parola değiştir", eski parola sorulmaz); kullanıcının açık oturumları yeniden giriş ister.
  */
 export default function Users() {
   const { data, isPending, isError, error } = useUsers();
@@ -34,6 +43,7 @@ export default function Users() {
   const [isCreating, setIsCreating] = useState(false);
   const [editing, setEditing] = useState<UserDetailDto | null>(null);
   const [assigning, setAssigning] = useState<UserDetailDto | null>(null);
+  const [changingPassword, setChangingPassword] = useState<UserDetailDto | null>(null);
 
   return (
     <div className='flex flex-col gap-4 p-4'>
@@ -63,6 +73,10 @@ export default function Users() {
               <PencilIcon />
               Düzenle
             </Button>
+            <Button size='sm' variant='outline' onClick={() => setChangingPassword(user)}>
+              <KeyRoundIcon />
+              Parola değiştir
+            </Button>
             <Button size='sm' variant='outline' onClick={() => setAssigning(user)}>
               <ShieldIcon />
               Roller
@@ -78,6 +92,9 @@ export default function Users() {
         <UserEditDialog key={editing.id} user={editing} isSelf={editing.id === currentUser?.id} onClose={() => setEditing(null)} />
       )}
       {assigning && <UserRolesDialog key={assigning.id} user={assigning} onClose={() => setAssigning(null)} />}
+      {changingPassword && (
+        <UserPasswordDialog key={changingPassword.id} user={changingPassword} onClose={() => setChangingPassword(null)} />
+      )}
     </div>
   );
 }
@@ -304,6 +321,65 @@ function UserEditDialog({ user, isSelf, onClose }: { user: UserDetailDto; isSelf
             </Button>
             <Button type='submit' disabled={mutation.isPending}>
               {mutation.isPending ? 'Kaydediliyor…' : 'Kaydet'}
+            </Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+// ─────────────────────────────────────────────────────────── parola değiştir
+
+/** Eski parola sorulmaz (yönetici işlemi). Değişince kullanıcının refresh token'ları iptal edilir, kilidi sıfırlanır. */
+function UserPasswordDialog({ user, onClose }: { user: UserDetailDto; onClose: () => void }) {
+  const form = useForm<UserPasswordChangeForm>({
+    resolver: zodResolver(userPasswordChangeSchema),
+    defaultValues: { newPassword: '', confirmPassword: '' }
+  });
+
+  const mutation = useChangeUserPassword();
+  const errors = form.formState.errors;
+
+  return (
+    <Dialog open onOpenChange={open => !open && onClose()}>
+      <DialogContent className='gap-0 p-0'>
+        <DialogHeader className='p-4 pb-3'>
+          <DialogTitle>Parola değiştir</DialogTitle>
+          <DialogDescription>
+            {user.fullName} ({user.userName ?? '—'}) — yeni parola hemen geçerli olur; kullanıcının açık oturumları yeniden giriş
+            ister.
+          </DialogDescription>
+        </DialogHeader>
+
+        <form
+          onSubmit={form.handleSubmit(values =>
+            mutation.mutate(
+              { userId: user.id, request: { newPassword: values.newPassword } },
+              { onSuccess: onClose, onError: error => handleFormApiError(error, form.setError) }
+            )
+          )}
+          noValidate>
+          <FieldGroup className='p-4'>
+            <Field>
+              <FieldLabel htmlFor='user-new-password'>Yeni parola</FieldLabel>
+              <Input id='user-new-password' type='password' autoComplete='new-password' autoFocus {...form.register('newPassword')} />
+              {errors.newPassword && <FieldError>{errors.newPassword.message}</FieldError>}
+            </Field>
+
+            <Field>
+              <FieldLabel htmlFor='user-confirm-password'>Yeni parola (tekrar)</FieldLabel>
+              <Input id='user-confirm-password' type='password' autoComplete='new-password' {...form.register('confirmPassword')} />
+              {errors.confirmPassword && <FieldError>{errors.confirmPassword.message}</FieldError>}
+            </Field>
+          </FieldGroup>
+
+          <DialogFooter className='mx-0 mb-0'>
+            <Button type='button' variant='outline' onClick={onClose} disabled={mutation.isPending}>
+              Vazgeç
+            </Button>
+            <Button type='submit' disabled={mutation.isPending}>
+              {mutation.isPending ? 'Kaydediliyor…' : 'Parolayı değiştir'}
             </Button>
           </DialogFooter>
         </form>

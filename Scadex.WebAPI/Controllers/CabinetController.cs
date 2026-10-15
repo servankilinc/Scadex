@@ -1,10 +1,12 @@
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
 using Scadex.Business.Abstract;
+using Scadex.Business.Utils.Auth;
 using Scadex.Core.BaseRequestModels;
 using Scadex.Model.Dtos.Cabinet.Commands;
 using Scadex.WebAPI.Controllers.Base;
 using Scadex.WebAPI.Tools;
+using static Scadex.Model.Enums.EntityEnums;
 
 namespace Scadex.WebAPI.Controllers;
 
@@ -20,32 +22,11 @@ public class CabinetController : BaseController
     }
 
     #region Get
-    [HttpGet("{id:guid}")]
-    public async Task<IActionResult> Get(Guid id)
-    {
-        var result = await _cabinetService.GetDetailAsync(id: id);
-        return ToAction(result);
-    }
-
-    [HttpGet("{id:guid}/base")]
-    public async Task<IActionResult> GetBase(Guid id)
-    {
-        var result = await _cabinetService.GetBaseAsync(id: id);
-        return ToAction(result);
-    }
-
     /// <summary> Kabin durumunun dökümü (salt okunur): hangi cihaz/kamera kabine ne katkı veriyor. </summary>
     [HttpGet("{id:guid}/status-breakdown")]
     public async Task<IActionResult> GetStatusBreakdown(Guid id, CancellationToken cancellationToken)
     {
         var result = await _cabinetStatusService.GetBreakdownAsync(id, cancellationToken);
-        return ToAction(result);
-    }
-
-    [HttpGet("{id:guid}/detail")]
-    public async Task<IActionResult> GetDetail(Guid id)
-    {
-        var result = await _cabinetService.GetDetailAsync(id: id);
         return ToAction(result);
     }
     #endregion
@@ -57,24 +38,12 @@ public class CabinetController : BaseController
         var result = await _cabinetService.GetDetailListAsync(request);
         return ToAction(result);
     }
-
-    [HttpPost("list/base")]
-    public async Task<IActionResult> GetBaseList(DynamicRequest? request = default)
-    {
-        var result = await _cabinetService.GetBaseListAsync(request);
-        return ToAction(result);
-    }
-
-    [HttpPost("list/detail")]
-    public async Task<IActionResult> GetDetailList(DynamicRequest? request = default)
-    {
-        var result = await _cabinetService.GetDetailListAsync(request);
-        return ToAction(result);
-    }
     #endregion
 
     #region Create
+    /// <summary> <c>ConfigureSystem</c>: kabin SCADA adresini taşır — tüm telemetri ve kumanda o adrese gider. </summary>
     [HttpPost]
+    [RequirePermission(Permission.ConfigureSystem)]
     public async Task<IActionResult> Create(CabinetCreateDto request)
     {
         var result = await _cabinetService.CreateAsync(request);
@@ -83,49 +52,21 @@ public class CabinetController : BaseController
     #endregion
 
     #region Update
+    /// <summary> Düzenleme formunun modeli (SCADA adresi dahil); yalnızca düzenleyebilene açık. </summary>
     [HttpGet("{id:guid}/update")]
+    [RequirePermission(Permission.ConfigureSystem)]
     public async Task<IActionResult> Update(Guid id)
     {
         var result = await _cabinetService.GetUpdateModelAsync(id: id);
         return ToAction(result);
     }
 
+    /// <summary> SCADA adresi ve bakım kararı da buradan yazılır. </summary>
     [HttpPut]
+    [RequirePermission(Permission.ConfigureSystem)]
     public async Task<IActionResult> Update(CabinetUpdateDto request)
     {
         var result = await _cabinetService.UpdateAsync(request);
-        return ToAction(result);
-    }
-    #endregion
-
-    #region Selectlist
-    [HttpGet("selectlist")]
-    public async Task<IActionResult> SelectList()
-    {
-        var result = await _cabinetService.SelectListAsync();
-        return ToAction(result);
-    }
-    #endregion
-
-    #region Pagination / Datatable
-    [HttpPost("pagination")]
-    public async Task<IActionResult> Pagination(DynamicPaginationRequest request)
-    {
-        var result = await _cabinetService.PaginationAsync(request);
-        return ToAction(result);
-    }
-
-    [HttpPost("datatable/client")]
-    public async Task<IActionResult> DatatableClientSide(DynamicDatatableRequest request)
-    {
-        var result = await _cabinetService.DatatableClientSideAsync(request);
-        return ToAction(result);
-    }
-
-    [HttpPost("datatable/server")]
-    public async Task<IActionResult> DatatableServerSide(DynamicDatatableRequest request)
-    {
-        var result = await _cabinetService.DatatableServerSideAsync(request);
         return ToAction(result);
     }
     #endregion

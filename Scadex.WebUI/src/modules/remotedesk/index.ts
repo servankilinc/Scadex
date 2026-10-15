@@ -1,7 +1,7 @@
 import { redirect, type RouteObject } from 'react-router';
 import { ClipboardListIcon, MonitorIcon } from 'lucide-react';
 import { hasPermission } from '@/lib/auth-session';
-import type { Permission } from '@/models/enums/entityEnums';
+import { requirePermission, type PermissionCode } from '@/lib/route-guards';
 import type { AppModule } from '../types';
 
 /**
@@ -11,14 +11,11 @@ import type { AppModule } from '../types';
  * kullanıcı bu kodun hiçbirini indirmez. Rotalar `/remote-desk` altında.
  */
 /** Sunucudaki policy adlarıyla aynı izin kodları: izleme uçları VIEW, rapor uçları AUDIT ister (yoksa 403). */
-const VIEW_PERMISSION: keyof typeof Permission = 'RemotePcView';
-const AUDIT_PERMISSION: keyof typeof Permission = 'RemotePcAudit';
+const VIEW_PERMISSION: PermissionCode = 'RemotePcView';
+const AUDIT_PERMISSION: PermissionCode = 'RemotePcAudit';
 
-/**
- * İzni olmayan adresi elle yazsa da ana sayfaya döner (menü maddesi zaten gizli). Asıl denetim sunucudadır. Üst rotada DEĞİL,
- * her çocukta ayrı: izleme ve rapor ayrı izinlerdir, yalnızca rapor izni olan kullanıcı PC listesine düşmemeli.
- */
-const requirePermission = (permission: string) => () => (hasPermission(permission) ? null : redirect('/'));
+// `requirePermission` üst rotada DEĞİL, her çocukta ayrı: izleme ve rapor ayrı izinlerdir, yalnızca rapor izni olan
+// kullanıcı PC listesine düşmemeli.
 
 const routes: RouteObject[] = [
   {

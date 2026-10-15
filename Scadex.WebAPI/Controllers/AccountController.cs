@@ -5,7 +5,6 @@ using Scadex.Business.Abstract;
 using Scadex.Model.Auth.Login;
 using Scadex.Model.Auth.Logout;
 using Scadex.Model.Auth.Refresh;
-using Scadex.Model.Auth.SignUp;
 using Scadex.WebAPI.Controllers.Base;
 using Scadex.WebAPI.Tools;
 using System.Security.Claims;
@@ -18,7 +17,6 @@ public class AccountController : BaseController
     private readonly IAuthService _authService;
     public AccountController(IAuthService authService, ILogger<AccountController> logger) : base(logger) => _authService = authService;
 
-
     [AllowAnonymous]
     [HttpPost("Login")]
     public async Task<IActionResult> Login(LoginRequest request)
@@ -28,14 +26,6 @@ public class AccountController : BaseController
         return ToAction(result);
     }
 
-    [AllowAnonymous]
-    [HttpPost("SignUp")]
-    public async Task<IActionResult> SignUp(SignUpRequest request)
-    {
-        var result = await _authService.SignUpAsync(request);
-
-        return ToAction(result);
-    }
 
     [AllowAnonymous]
     [HttpPost("RefreshAuth")]

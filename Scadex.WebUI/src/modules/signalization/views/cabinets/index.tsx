@@ -15,6 +15,7 @@ import {
   ReportStat,
   ReportStatGrid
 } from '@/components/custom/report';
+import { usePermission } from '@/lib/auth-session';
 import { downloadCsv, exportDateStamp, type CsvColumn } from '@/lib/csv-export';
 import { REPORT_ALL, useReportParams } from '@/lib/report-params';
 import { cn, formatUtcDateTime, toSearchKey } from '@/lib/utils';
@@ -62,6 +63,11 @@ export default function SignalCabinets() {
   const isFiltered = FILTER_KEYS.some(key => params.has(key));
 
   const overview = useSignalCabinetOverview();
+  // Kapı yapılandırması sistem yapılandırmasıdır (sunucuda `ConfigureSystem`); sanal kabin ayrı izindir
+  // (`SignalVirtualCabinet`). Tablo herkese açık.
+  const can = usePermission();
+  const canConfigure = can('ConfigureSystem');
+  const canOpenVirtual = can('SignalVirtualCabinet');
   const openSessions = useOpenSessions();
 
   const rows = useMemo<Row[] | undefined>(() => {
@@ -185,16 +191,18 @@ export default function SignalCabinets() {
         emptyMessage={rows?.length ? 'Bu filtreye uyan kabin yok.' : 'Henüz kabin yok — kabinler çekirdeğin Kabinler ekranında oluşturulur.'}
         actions={row => (
           <>
-            {row.isConfigured && (
+            {row.isConfigured && canOpenVirtual && (
               <Button size='sm' variant='outline' nativeButton={false} render={<Link to={`/signalization/virtual-cabinet/${row.cabinetId}`} />}>
                 <MonitorIcon />
                 Sanal kabin
               </Button>
             )}
-            <Button size='sm' variant='outline' nativeButton={false} render={<Link to={`/signalization/cabinets/${row.cabinetId}`} />}>
-              <SlidersHorizontalIcon />
-              Yapılandır
-            </Button>
+            {canConfigure && (
+              <Button size='sm' variant='outline' nativeButton={false} render={<Link to={`/signalization/cabinets/${row.cabinetId}`} />}>
+                <SlidersHorizontalIcon />
+                Yapılandır
+              </Button>
+            )}
           </>
         )}
       />

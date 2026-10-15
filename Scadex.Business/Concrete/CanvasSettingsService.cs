@@ -1,14 +1,11 @@
 using AutoMapper;
 using Scadex.Business.Abstract;
-using Scadex.Core.BaseRequestModels;
 using Scadex.Core.Utils.ResultPattern;
 using Scadex.Core.Utils.Validation;
 using Scadex.DataAccess.UoW;
 using Scadex.Model.Dtos.CanvasSettings.Commands;
-using Scadex.Model.Dtos.CanvasSettings.Queries;
 using Scadex.Model.Dtos.Diagram.Queries.Items;
 using Scadex.Model.Entities;
-using System.Linq.Expressions;
 
 namespace Scadex.Business.Concrete;
 
@@ -23,59 +20,6 @@ public class CanvasSettingsService : ICanvasSettingsService
         _mapper = mapper;
         _validationService = validationService;
     }
-
-    #region Get
-    public async Task<Result<CanvasSettings>> GetAsync(Expression<Func<CanvasSettings, bool>> where, CancellationToken cancellationToken = default)
-    {
-        var result = await _unitOfWork.CanvasSettings.GetAsync(where: where, cancellationToken: cancellationToken);
-        if (result == null)
-            return Result<CanvasSettings>.NotFound();
-        return Result<CanvasSettings>.Success(result);
-    }
-
-    public async Task<Result<CanvasSettings>> GetAsync(Guid id, CancellationToken cancellationToken = default)
-    {
-        var result = await _unitOfWork.CanvasSettings.GetAsync(where: (f) => f.Id == id, cancellationToken: cancellationToken);
-        if (result == null)
-            return Result<CanvasSettings>.NotFound();
-        return Result<CanvasSettings>.Success(result);
-    }
-
-    public async Task<Result<CanvasSettingsDto>> GetBaseAsync(Guid id, CancellationToken cancellationToken = default)
-    {
-        var result = await _unitOfWork.CanvasSettings.GetAsync<CanvasSettingsDto>(configurationProvider: _mapper.ConfigurationProvider, where: (f) => f.Id == id, cancellationToken: cancellationToken);
-        if (result == null)
-            return Result<CanvasSettingsDto>.NotFound();
-        return Result<CanvasSettingsDto>.Success(result);
-    }
-    #endregion
-
-    #region List
-    public async Task<Result<ICollection<CanvasSettings>>> GetListAsync(Expression<Func<CanvasSettings, bool>>? where = default, CancellationToken cancellationToken = default)
-    {
-        var result = await _unitOfWork.CanvasSettings.GetAllAsync(where: where, cancellationToken: cancellationToken);
-        if (result == null)
-            return Result<ICollection<CanvasSettings>>.NotFound();
-        return Result<ICollection<CanvasSettings>>.Success(result);
-    }
-
-    public async Task<Result<ICollection<CanvasSettings>>> GetListAsync(DynamicRequest? request = default, CancellationToken cancellationToken = default)
-    {
-        var result = await _unitOfWork.CanvasSettings.GetAllAsync(filter: request?.Filter, sorts: request?.Sorts, tracking: false, cancellationToken: cancellationToken);
-        if (result == null)
-            return Result<ICollection<CanvasSettings>>.NotFound();
-        return Result<ICollection<CanvasSettings>>.Success(result);
-    }
-
-    public async Task<Result<ICollection<CanvasSettingsDto>>> GetBaseListAsync(DynamicRequest? request = default, CancellationToken cancellationToken = default)
-    {
-        var result = await _unitOfWork.CanvasSettings.GetAllAsync<CanvasSettingsDto>(configurationProvider: _mapper.ConfigurationProvider, filter: request?.Filter, sorts: request?.Sorts, cancellationToken: cancellationToken);
-        if (result == null)
-            return Result<ICollection<CanvasSettingsDto>>.NotFound();
-        return Result<ICollection<CanvasSettingsDto>>.Success(result);
-    }
-    #endregion
-
 
     /// <inheritdoc />
     public async Task<Result<DiagramCanvasSettingsDto>> UpsertAsync(Guid cabinetId, CanvasSettingsUpsertDto request, CancellationToken cancellationToken = default)

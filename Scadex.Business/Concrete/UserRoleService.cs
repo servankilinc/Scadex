@@ -43,50 +43,6 @@ public class UserRoleService : IUserRoleService
         return Result<ICollection<SelectItemDto>>.Success(items);
     }
 
-    public async Task<Result<bool>> IsInRoleAsync(Guid userId, string roleName, CancellationToken cancellationToken = default)
-    {
-        var user = await _userManager.FindByIdAsync(userId.ToString());
-        if (user == null)
-            return Result<bool>.NotFound();
-
-        return Result<bool>.Success(await _userManager.IsInRoleAsync(user, roleName));
-    }
-
-    public async Task<Result> AssignAsync(Guid userId, string roleName, CancellationToken cancellationToken = default)
-    {
-        var user = await _userManager.FindByIdAsync(userId.ToString());
-        if (user == null)
-            return Result.NotFound(message: "Kullanici bulunamadi.");
-
-        if (!await _roleManager.RoleExistsAsync(roleName))
-            return Result.Failure($"'{roleName}' rolu tanimli degil.");
-
-        if (await _userManager.IsInRoleAsync(user, roleName))
-            return Result.Success(message: "Kullanici zaten bu role sahip.");
-
-        var identityResult = await _userManager.AddToRoleAsync(user, roleName);
-        if (!identityResult.Succeeded)
-            return Result.Failure(description: "Role cannot be assigned.", metadata: GlobalExtensions.Meta("Identity Service Errors", identityResult.Errors));
-
-        return Result.Success();
-    }
-
-    public async Task<Result> RemoveAsync(Guid userId, string roleName, CancellationToken cancellationToken = default)
-    {
-        var user = await _userManager.FindByIdAsync(userId.ToString());
-        if (user == null)
-            return Result.NotFound(message: "Kullanici bulunamadi.");
-
-        if (!await _userManager.IsInRoleAsync(user, roleName))
-            return Result.NotFound(message: "Kullanicinin boyle bir rolu yok.");
-
-        var identityResult = await _userManager.RemoveFromRoleAsync(user, roleName);
-        if (!identityResult.Succeeded)
-            return Result.Failure(description: "Role cannot be removed.", metadata: GlobalExtensions.Meta("Identity Service Errors", identityResult.Errors));
-
-        return Result.Success();
-    }
-
     public async Task<Result> SyncAsync(Guid userId, ICollection<string> roleNames, CancellationToken cancellationToken = default)
     {
         var user = await _userManager.FindByIdAsync(userId.ToString());

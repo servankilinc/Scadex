@@ -1,8 +1,10 @@
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Logging;
+using Scadex.Business.Utils.Auth;
 using Scadex.Signalization.Controllers.Base;
 using Scadex.Signalization.Model.Dtos.Authority.Commands;
 using Scadex.Signalization.Services.Abstract;
+using static Scadex.Model.Enums.EntityEnums;
 
 namespace Scadex.Signalization.Controllers;
 
@@ -20,8 +22,9 @@ public class SignalAuthorityController : SignalizationControllerBase
         return ToAction(result);
     }
 
-    /// <summary> Tam liste; gövdede olmayan kurum pasife alinir. </summary>
+    /// <summary> Tam liste; gövdede olmayan kurum pasife alinir. Kurum ↔ rol eşlemesi sistem yapılandırmasıdır. </summary>
     [HttpPut]
+    [RequirePermission(Permission.ConfigureSystem)]
     public async Task<IActionResult> Save(SignalAuthoritySaveRequest request, CancellationToken cancellationToken)
     {
         var result = await _service.SaveAsync(request, cancellationToken);

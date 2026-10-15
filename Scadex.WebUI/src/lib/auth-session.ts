@@ -1,4 +1,5 @@
 import { useCallback, useSyncExternalStore } from 'react';
+import type { PermissionCode } from '@/models/enums/entityEnums';
 import type { UserBaseDto } from '@/models/user';
 
 /**
@@ -174,7 +175,7 @@ export function setCurrentUser(user: UserBaseDto, roles: string[], permissions: 
 // --- Rol ve izin kontrolu (YALNIZCA UX) ---
 
 /** React disindan cagrilabilir; reaktif degildir. Hook'lu surumu: usePermission. */
-export function hasPermission(permission: string): boolean {
+export function hasPermission(permission: PermissionCode): boolean {
   return cache.permissions?.includes(permission) ?? false;
 }
 
@@ -197,10 +198,10 @@ export function useRoles(): string[] {
   return useAuthSession().roles ?? EMPTY;
 }
 
-/** Kullanim: const can = usePermission(); ... can('Cabinet.Read') */
-export function usePermission(): (permission: string) => boolean {
+/** Kullanim: const can = usePermission(); ... can('ControlOutput') — kod enum adıdır, yazım hatası derlemede yakalanır. */
+export function usePermission(): (permission: PermissionCode) => boolean {
   const permissions = useAuthSession().permissions;
-  return useCallback((permission: string) => permissions?.includes(permission) ?? false, [permissions]);
+  return useCallback((permission: PermissionCode) => permissions?.includes(permission) ?? false, [permissions]);
 }
 
 /** useRoles bos dizide her render yeni referans uretmesin diye sabit. */

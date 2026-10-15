@@ -1,5 +1,12 @@
 import http from '@/lib/axios-helper';
-import type { UserCreateRequest, UserDetailDto, UserIdentityCardAssignRequest, UserUpdateRequest } from '@/models/user';
+import type {
+  UserCardHolderDto,
+  UserCreateRequest,
+  UserDetailDto,
+  UserIdentityCardAssignRequest,
+  UserPasswordChangeRequest,
+  UserUpdateRequest
+} from '@/models/user';
 
 const USER_ROUTE = '/api/User';
 const USER_ROLE_ROUTE = '/api/UserRole';
@@ -47,6 +54,19 @@ export async function updateUser(request: UserUpdateRequest): Promise<void> {
     // Boş gönderim kartı KALDIRIR (sunucu "" → null yapar); alan her zaman gönderilir.
     identityCardId: emptyToNull(request.identityCardId)
   });
+}
+
+/**
+ * Parolayı eskisini sormadan değiştirir (`ManageUsers`). Kullanıcının refresh token'ları iptal edilir ve kilidi sıfırlanır.
+ * Parola kuralı ihlali 400 (`errors.NewPassword`). Başarıda gövdesiz 200.
+ */
+export async function changeUserPassword(userId: string, request: UserPasswordChangeRequest): Promise<void> {
+  return http.put(`${USER_ROUTE}/${userId}/password`, request);
+}
+
+/** Kart tanımlama penceresinin listesi: AKTİF kullanıcılar, yalnızca ad / kullanıcı adı / kart (`ManageAccessCards`). */
+export async function getCardHolders(): Promise<UserCardHolderDto[]> {
+  return http.get<UserCardHolderDto[]>(`${USER_ROUTE}/card-holders`);
 }
 
 /** Okutulan kartı kullanıcıya yazar — YALNIZCA kart alanı (Kabinler → "Kart tanımlama"). Başarıda gövdesiz 200. */

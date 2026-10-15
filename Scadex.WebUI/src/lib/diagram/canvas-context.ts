@@ -19,6 +19,10 @@ export interface DiagramCanvasContextValue {
   cabinetId: string;
   /** False ise kumanda ucu 400 döner; menü bunu ÖNCEDEN söyler. */
   scadaIsEnabled: boolean;
+  /** `EditDiagram` izni. Yoksa editör salt okunurdur: menüde düzenleme bölümü, kabloda kırılma noktası tutamaçları çizilmez. */
+  canEdit: boolean;
+  /** `ControlOutput` izni. Yoksa menüde kumanda bölümü çizilmez (sunucu da 403 döner). */
+  canControl: boolean;
   /**
    * Cihazı ve kablolarını siler.
    *

@@ -187,14 +187,36 @@ her derlemede yeni migration istemesine yol açar):
 
 ### 5.1 Kimlik ve yetki
 
-`POST /api/Account/Login | SignUp | RefreshAuth | Logout | RevokeAll`
+`POST /api/Account/Login | RefreshAuth | Logout | RevokeAll`
 
+- **Anonim kayıt yoktur (2026-10-14).** `SignUp` ucu, servisi, DTO'ları ve `/signup` ekranı kaldırıldı. Kurulumda seed'le gelen
+  yönetici (`admin`) — ve `ManageUsers` iznine sahip herkes — kullanıcıları `/admin/users`'tan açar, düzenler ve parolalarını
+  değiştirir (`PUT /api/User/{id}/password`, eski parola sorulmaz; refresh token'lar iptal edilir, kilit sıfırlanır).
+- **E-posta isteğe bağlıdır (2026-10-14).** Identity `RequireUniqueEmail = false` (true iken e-postasız kullanıcı 500 dönüyordu);
+  doluysa biçimi validator'da, benzersizliği `UserService.CreateAsync`'te denetlenir (e-postayla giriş tekil eşleşmeye dayanır).
 - Identity + JWT. Access token 24 saat, refresh token 7 gün (`TokenSettings`).
 - `Logout` ve `RevokeAll` kullanıcı kimliğini **gövdeden değil, token'dan** okur.
 - Login yanıtı ve token, kullanıcının rollerinden hesaplanan `permission` claim'lerini taşır.
-- **Ama çekirdekte hiçbir uç bu claim'i okumaz** — bkz. § 6. Tek istisna RemoteDesk modülüdür: uçları
-  `RemotePcView` iznini ister (policy, yoksa 403; 2026-09-30), uzaktan kontrol hub'ı `RemotePcControl`'ü, denetim raporu
-  uçları `RemotePcAudit`'i (2026-10-05).
+- **İzinler zorlanır (2026-10-14).** `AddPermissionPolicies()` `Permission` enum'unun her değeri için aynı adlı bir policy
+  kaydeder (çekirdek ve modüller ortak; modüller kendi `AddPolicy`'sini artık tanımlamaz). Uç `[RequirePermission(Permission.X)]`
+  ile işaretlenir; izin yoksa 403. Claim'ler token'a girişte yazıldığı için rol izni değişince kullanıcı yeniden giriş yapmalı.
+
+  | İzin | Uçlar |
+  |---|---|
+  | `ViewDiagram` ("Diyagramı izle") | `GET Diagram/cabinet/{id}`, `GET Device/{id}/commands` |
+  | `ControlOutput` ("Diyagramdan komut gönder") | `POST Device/{id}/command` — `ViewDiagram` ile BİRLİKTE (VE) |
+  | `EditDiagram` ("Diyagramı düzenle") | `POST Diagram/cabinet/{id}/save`, `PUT CanvasSettings/cabinet/{id}` |
+  | `SignalVirtualCabinet` ("Sanal kabini aç ve komut gönder", 15) | `GET SignalCabinet/{id}/live`, `POST SignalCabinet/{id}/command`, `GET OperatorSession/cabinet/{id}/card-reads` |
+  | `ViewCamera` | `Camera`: kabin listesi, `{id}`, `stream-ticket`, `snapshot`, `capture`, `captures` (DTO kamera parolasını taşır) |
+  | `ConfigureSystem` | `Cabinet` POST/PUT/`{id}/update`, `Company` POST/PUT, `Camera` POST/PUT, `ComponentTemplate` POST/`image`, `CameraCaptureSetting` PUT, `PUT SignalCabinet/{id}`, `PUT SignalAuthority` |
+  | `ManageUsers` | `User` `list/detail`/POST/PUT/`{id}/password`, `Role` POST/PUT, `RolePermission` sync, `UserRole` okuma + sync |
+  | `ManageAccessCards` | `GET User/card-holders` (aktifler; yalnızca ad/kullanıcı adı/kart), `PUT User/{id}/identity-card`, `PUT SignalOperator/{id}/authority` |
+  | `SignalSessionClose` / `RemotePc*` | modül uçları (§ 10, RemoteDesk.md) |
+
+  Çekirdek diyagram komutu ile sanal kabin komutu **bilerek ayrı izinlerdir** (2026-10-14): sanal kabini yöneten operatör diyagrama
+  komut gönderemez, diyagramdan komut gönderen sanal kabini açamaz. Diğer okuma/liste uçları yalnızca giriş ister. `AcknowledgeAlarm`, `ExportData`, `ManageWorkflow`'un henüz ucu yok. Ön yüz
+  aynı izinlerle menü maddesini, rotayı (`requirePermission` loader) ve düğmeyi gizler; diyagram editörü `EditDiagram` yoksa
+  salt okunurdur. Doğrulama (2026-10-14): izinsiz kullanıcıda korunan 23 uç 403, okuma uçları 200; admin'de iş kuralına ulaşır.
 
 `TokenSettings:SecurityKey` yoksa uygulama açılışta istisna atar (dev anahtarı
 `appsettings.json` içinde duruyor).
@@ -691,13 +713,18 @@ yazar (§ 7 (d)); istemci durumu `CameraDto.deviceStatusId` üzerinden okur. İz
 `Offline`'ı **kabine `Warning` olarak yansır** (2026-09-24; § 5.3 "Canlılık") — kamera arızası SCADA
 arızasıyla aynı renge boyanmasın diye `Offline` değil.
 
-### 5.5 Generic CRUD tarafı
+### 5.5 Yönetim uçları (eski "generic CRUD")
 
-`Cabinet`, `Company`, `User`, `Role`, `RolePermission`, `DeviceCommand` controller'ları tam
-CRUD + `selectlist` / `pagination` / `datatable/{client,server}` uçlarını taşır.
-`DeviceStatus`, `DeviceType`, `Permission` lookup'ları salt okunurdur.
-`Pin`, `IoChannel`, `Connection`, `DiagramAnnotation`, `ComponentTemplatePin` § 5.2'deki
-gerekçeyle salt okunurdur.
+**2026-10-14'te istemcinin çağırmadığı bütün uçlar kaldırıldı:** `{id}`, `{id}/base`, `list/base`, `selectlist`,
+`pagination`, `datatable/{client,server}` ve `DeviceCommand`, `DeviceStatus`, `DeviceType`, `Pin`, `IoChannel`,
+`Connection`, `DiagramAnnotation`, `ComponentTemplatePin` controller'ları; yalnızca onlara hizmet eden servis
+metotları, 7 servis (`Device`, `DeviceStatus`, `DeviceType`, `Pin`, `Connection`, `DiagramAnnotation`,
+`ComponentTemplatePin`), 18 DTO ve AutoMapper eşlemeleri de gitti. Ölçüt: ön yüz, SCADA (`Scada`), MediaMTX
+(`MediaGateway/auth`) ve WPF istemcisi dışında HTTP istemcisi yok. `Account` uçları (kimlik protokolü) olduğu gibi kaldı.
+Kalanlar ekranların kullandıklarıdır — `Cabinet` (`list`, `{id}/status-breakdown`, `{id}/update`, POST, PUT), `Company`/`Role`
+(`list`, POST, PUT), `User` (`list/detail`, POST, PUT, `{id}/identity-card`), `Permission/list`, `RolePermission`
+(`role/{id}`, sync), `UserRole` (`user/{id}`, sync), `Device` (`{id}/command`, `{id}/commands`). Repository'ler ve Core'un
+dinamik filtre/sayfalama motoru genel altyapı olarak durur.
 
 **Kullanıcı / rol / izin yönetimi (2026-09-11).** Ekranlar `/admin/users` ve `/admin/roles`.
 Silme yoktur (`IActivatableEntity`); pasife alma tek yoldur.
@@ -714,8 +741,9 @@ Silme yoktur (`IActivatableEntity`); pasife alma tek yoldur.
 - Sistem rolleri (`IsImmutable` — seed'deki dördünün hepsi) yeniden adlandırılamaz ve pasife
   alınamaz (`403`), ama **izinleri düzenlenebilir**; kilitlenseydi izin ekranı seed rolleri için
   işe yaramazdı.
-- `UserDetailDto` artık `UserName`, `RoleDto` artık `IsImmutable` taşır. Parola sıfırlama ucu
-  bilinçli olarak yoktur; parola yalnızca oluştururken verilir.
+- `UserDetailDto` artık `UserName`, `RoleDto` artık `IsImmutable` taşır. ~~Parola sıfırlama ucu bilinçli olarak yoktur~~ —
+  **2026-10-14:** yönetici parolayı Kullanıcılar tablosundaki "Parola değiştir" ile değiştirir (`PUT /api/User/{id}/password`,
+  `ManageUsers`; sıfırlama token'ıyla, eski parola sorulmaz). Kullanıcının kendi parolasını değiştirdiği bir ekran yoktur.
 
 ---
 
@@ -748,7 +776,7 @@ Silme yoktur (`IActivatableEntity`); pasife alma tek yoldur.
   atar ve o uç HER istekte 500 döner** — politika adı silmeden/yeniden adlandırmadan önce
   `RateLimiterKey`'e bakın. **İstisna:** Sinyalizasyon modülünün uçlarına (§ 10) bilinçli olarak
   politika takılmaz (2026-09-11 kararı); `Program.cs`'te genel bir limit olmadığı için bu uçlar
-  sınırsızdır, yalnızca `[Authorize]` arkasındadır.
+  sınırsızdır; kimlik (ve yazan uçlarda § 5.1'deki izin) arkasındadır.
 - `AddJwtBearer`'ın `OnMessageReceived`'ı token'ı query string'den okur, ama **yalnızca
   `/hubs` yolları için** (WebSocket el sıkışması Authorization header taşıyamaz). Bunu
   normal uçlara genişletmeyin.
@@ -780,14 +808,11 @@ değil, bilinçli bir karardır; `dotnet build` çıktısındaki 5 uyarı bu yü
 
 ### Bilinçli boşluklar (unutulmadı, sıraya alındı)
 
-- **Yetki zorlanmıyor.** `permission` claim'i üretilip token'a konuyor, ama hiçbir
-  `[Authorize(Policy = …)]` ya da handler onu okumuyor. `ControlOutput` dahil. (İstisna: RemoteDesk modülünün
-  `RemotePcView` policy'si — modül kendi kaydında tanımlar; çekirdeğe policy altyapısı gelirken örnek alınabilir.)
-  **Eklenirken dikkat (2026-09-11):** denetim **controller/policy katmanında** yapılmalı,
-  `DeviceCommandService.SendAsync` içinde değil. Sinyalizasyon motoru (§ 10) kilit ve siren
-  komutlarını HTTP kullanıcısı olmadan bu servisten gönderir; servis içi bir izin kontrolü onu
-  bloke ederdi. Cihaz bazlı izin (kullanıcı şu cihaza komut gönderebilir) ile fiziksel geçiş
-  yetkisi (operatör hangi kapıyı açabilir) farklı sorulardır ve çakışmaz.
+- ~~**Yetki zorlanmıyor.**~~ **Kapandı (2026-10-14)** — § 5.1. Denetim **controller/policy katmanındadır**,
+  `DeviceCommandService.SendAsync` içinde değil: Sinyalizasyon motoru (§ 10) kilit ve siren komutlarını HTTP kullanıcısı
+  olmadan bu servisten gönderir; servis içi bir izin kontrolü onu bloke ederdi. Hâlâ açık: **cihaz/kabin bazlı izin yok**
+  (`ControlOutput` olan her kabine komut gönderir) — fiziksel geçiş yetkisinden (operatör hangi kapıyı açabilir) farklı bir
+  sorudur ve çakışmaz.
 - **Pasife alınan kullanıcının access token'ı süresi dolana kadar (24 sa) geçerlidir.** İstek
   başına `IsActive` kontrolü yok; pasife alma yalnızca yeni girişi ve `RefreshAuth`'u keser.
   Rol / izin değişikliği de aynı sebeple kullanıcının **bir sonraki** giriş ya da yenilemesinde
@@ -835,8 +860,8 @@ değil, bilinçli bir karardır; `dotnet build` çıktısındaki 5 uyarı bu yü
   **Açık uç:** `Status` `Available` olarak kalıyor; süresi dolmuş bir çekim ancak
   `RelativePath == null` **ve** `ExpiresAt` geçmişte olmasından anlaşılıyor. Ayrı bir
   `CaptureStatus.Expired` değeri eklenmedi (sözleşme değişikliği olurdu).
-- `DeviceCommandController` generic Create/Update/Delete/Restore uçlarını taşıyor; bu,
-  § 5.2'deki "tek yazım yolu" ilkesiyle gözden geçirilmesi gereken bir istisna.
+- ~~`DeviceCommandController` generic Create/Update/Delete/Restore uçlarını taşıyor~~ — **kaldırıldı (2026-10-14)**, § 5.5.
+- ~~E-postasız kullanıcı oluşturmak 500 dönüyor~~ — **düzeltildi (2026-10-14)**, § 5.1.
 - **Test paketi yok.** Otomatik kontroller yalnızca `dotnet build` ve frontend tarafında
   `typecheck` / `lint` / `build`. Davranış, uygulamayı çalıştırarak doğrulanır.
 - **`docs/api-contract/` karşılığı bu depoda henüz yok.** Sözleşme dokümanı taşınana kadar
@@ -856,8 +881,9 @@ değil, bilinçli bir karardır; `dotnet build` çıktısındaki 5 uyarı bu yü
 şablon), kabin oluşturma, diyagram delta kaydı (10 pin + 8 kanal şablondan türetildi) ve
 `POST /api/Scada/ingest` → `ChannelEvent` üretimi uçtan uca çalışıyor.
 
-**(b)** İzin zorlaması: `permission` claim'ini okuyan policy/handler + kritik uçların
-işaretlenmesi (özellikle `ControlOutput` ve diyagram kaydetme).
+**(b)** ~~İzin zorlaması~~ **TAMAMLANDI (2026-10-14)** — § 5.1: merkezi policy kaydı + `[RequirePermission]`, ön yüzde
+menü/rota/düğme gizleme, diyagramda salt okunur kip; aynı iş kapsamında istemcinin kullanmadığı uçlar kaldırıldı (§ 5.5).
+Açık kalan: cihaz/kabin bazlı izin.
 
 **(c) `Scadex.WebUI` — büyük kısmı yazıldı.** Diyagram editörü (React Flow; palet, ortogonal
 kablo, hizalama, özellik paneli, kaydedilmemiş değişiklik koruması), SignalR üzerinden canlı
@@ -1331,8 +1357,8 @@ ekranlarını ayrı parçalara böler.
   boyunca açık tutmasıdır. Bir oturum birden fazla aç/kapa çifti içerebilir; `DurationSec` aradaki
   kapalı süreyi de sayar.
 - **Elle kapatma (2026-10-13).** `SignalSessionClose` (14) iznine sahip kullanıcı açık işlemi zorunlu bir gerekçeyle
-  kapatabilir (`POST /api/OperatorSession/{id}/close`; policy `SignalizationModule.SessionClosePolicy`, modülün tek
-  zorlanan izni). Servis yalnızca doğrular ve `ManualCloseWork`'ü **kabin şeridine** bırakır, sonucu bekler; kapatmayı motor
+  kapatabilir (`POST /api/OperatorSession/{id}/close`; policy `SignalizationModule.SessionClosePolicy`, çekirdekteki merkezi
+  kayıttan gelir — § 5.1). Servis yalnızca doğrular ve `ManualCloseWork`'ü **kabin şeridine** bırakır, sonucu bekler; kapatmayı motor
   yazar (`OperatorSessionEngine.ManualClose.cs`) — SCADA olaylarıyla yarış olmaz. Akış zaman aşımının aynasıdır:
   `ManuallyClosed` (23) olayı (`UserId` = kapatan, `Detail` = gerekçe, serbest metin) → siren talebi bırakılır
   (`SirenReleased`, `ManuallyClosed`) → otomatik kilitleme → durum `ManuallyClosed` (5). Bayrak eklenmez; mevcut

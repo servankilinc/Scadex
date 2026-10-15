@@ -1,7 +1,6 @@
 using AutoMapper;
 using Microsoft.EntityFrameworkCore;
 using Scadex.Business.Abstract;
-using Scadex.Core.BaseRequestModels;
 using Scadex.Core.Utils.ResultPattern;
 using Scadex.Core.Utils.Validation;
 using Scadex.DataAccess.UoW;
@@ -9,7 +8,6 @@ using Scadex.Model.Dtos.Common;
 using Scadex.Model.Dtos.ComponentTemplate.Commands;
 using Scadex.Model.Dtos.ComponentTemplate.Queries;
 using Scadex.Model.Entities;
-using System.Linq.Expressions;
 
 namespace Scadex.Business.Concrete;
 
@@ -24,74 +22,6 @@ public partial class ComponentTemplateService : IComponentTemplateService
         _mapper = mapper;
         _validationService = validationService;
     }
-     
-    #region Get
-    public async Task<Result<ComponentTemplate>> GetAsync(Expression<Func<ComponentTemplate, bool>> where, CancellationToken cancellationToken = default)
-    {
-        var result = await _unitOfWork.ComponentTemplates.GetAsync(where: where, cancellationToken: cancellationToken);
-        if (result == null)
-            return Result<ComponentTemplate>.NotFound();
-        return Result<ComponentTemplate>.Success(result);
-    }
-
-    public async Task<Result<ComponentTemplate>> GetAsync(Guid id, CancellationToken cancellationToken = default)
-    {
-        var result = await _unitOfWork.ComponentTemplates.GetAsync(where: (f) => f.Id == id, cancellationToken: cancellationToken);
-        if (result == null)
-            return Result<ComponentTemplate>.NotFound();
-        return Result<ComponentTemplate>.Success(result);
-    }
-
-    public async Task<Result<ComponentTemplateBaseDto>> GetBaseAsync(Guid id, CancellationToken cancellationToken = default)
-    {
-        var result = await _unitOfWork.ComponentTemplates.GetAsync<ComponentTemplateBaseDto>(configurationProvider: _mapper.ConfigurationProvider, where: (f) => f.Id == id, cancellationToken: cancellationToken);
-        if (result == null)
-            return Result<ComponentTemplateBaseDto>.NotFound();
-        return Result<ComponentTemplateBaseDto>.Success(result);
-    }
-
-    public async Task<Result<ComponentTemplateDetailDto>> GetComponentTemplateDetailDtoAsync(Guid id, CancellationToken cancellationToken = default)
-    {
-        var result = await _unitOfWork.ComponentTemplates.GetAsync<ComponentTemplateDetailDto>(configurationProvider: _mapper.ConfigurationProvider, where: (f) => f.Id == id, cancellationToken: cancellationToken);
-        if (result == null)
-            return Result<ComponentTemplateDetailDto>.NotFound();
-        return Result<ComponentTemplateDetailDto>.Success(result);
-    }
-    #endregion
-
-    #region List
-    public async Task<Result<ICollection<ComponentTemplate>>> GetListAsync(Expression<Func<ComponentTemplate, bool>>? where = default, CancellationToken cancellationToken = default)
-    {
-        var result = await _unitOfWork.ComponentTemplates.GetAllAsync(where: where, cancellationToken: cancellationToken);
-        if (result == null)
-            return Result<ICollection<ComponentTemplate>>.NotFound();
-        return Result<ICollection<ComponentTemplate>>.Success(result);
-    }
-
-    public async Task<Result<ICollection<ComponentTemplate>>> GetListAsync(DynamicRequest? request = default, CancellationToken cancellationToken = default)
-    {
-        var result = await _unitOfWork.ComponentTemplates.GetAllAsync(filter: request?.Filter, sorts: request?.Sorts, tracking: false, cancellationToken: cancellationToken);
-        if (result == null)
-            return Result<ICollection<ComponentTemplate>>.NotFound();
-        return Result<ICollection<ComponentTemplate>>.Success(result);
-    }
-
-    public async Task<Result<ICollection<ComponentTemplateBaseDto>>> GetBaseListAsync(DynamicRequest? request = default, CancellationToken cancellationToken = default)
-    {
-        var result = await _unitOfWork.ComponentTemplates.GetAllAsync<ComponentTemplateBaseDto>(configurationProvider: _mapper.ConfigurationProvider, filter: request?.Filter, sorts: request?.Sorts, cancellationToken: cancellationToken);
-        if (result == null)
-            return Result<ICollection<ComponentTemplateBaseDto>>.NotFound();
-        return Result<ICollection<ComponentTemplateBaseDto>>.Success(result);
-    }
-
-    public async Task<Result<ICollection<ComponentTemplateDetailDto>>> GetComponentTemplateDetailDtoListAsync(DynamicRequest? request = default, CancellationToken cancellationToken = default)
-    {
-        var result = await _unitOfWork.ComponentTemplates.GetAllAsync<ComponentTemplateDetailDto>(configurationProvider: _mapper.ConfigurationProvider, filter: request?.Filter, sorts: request?.Sorts, cancellationToken: cancellationToken);
-        if (result == null)
-            return Result<ICollection<ComponentTemplateDetailDto>>.NotFound();
-        return Result<ICollection<ComponentTemplateDetailDto>>.Success(result);
-    }
-    #endregion
      
     public async Task<Result<ICollection<ComponentTemplatePaletteDto>>> GetPaletteAsync(CancellationToken cancellationToken = default)
     {
@@ -133,7 +63,6 @@ public partial class ComponentTemplateService : IComponentTemplateService
 
     public async Task<Result<ICollection<ComponentTemplateTypeCountDto>>> GetTypeCountsAsync(CancellationToken cancellationToken = default)
     {
-        // Yalnızca tip kolonu okunur ve bellekte gruplanır: şablon kütüphanesi küçüktür ve
         // RepositoryBase GroupBy sunmuyor — bunun için repository'ye özel metot açmaya değmez.
         var deviceTypeIds = await _unitOfWork.ComponentTemplates.GetAllAsync(
             select: t => t.DeviceTypeId,

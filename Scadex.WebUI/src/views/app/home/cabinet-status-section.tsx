@@ -5,6 +5,7 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/component
 import { PanelSection } from '@/components/custom/panel-section';
 import { StatusDot } from '@/components/diagram/template-node';
 import { useCabinetStatusBreakdown } from '@/hooks/use-cabinet-status-breakdown';
+import { usePermission } from '@/lib/auth-session';
 import type { CabinetStatusBreakdownDto, CabinetStatusContributorDto } from '@/models/cabinet';
 import { CabinetStatusContributorKind, DeviceStatus, deviceStatusLabel } from '@/models/enums';
 import { cn, formatUtcDateTime } from '@/lib/utils';
@@ -64,6 +65,8 @@ export function CabinetStatusSection({ cabinetId, statusId }: { cabinetId: strin
 function ContributorRow({ cabinetId, item }: { cabinetId: string; item: CabinetStatusContributorDto }) {
   const degrades = isDegrading(item);
   const isCamera = item.kind === CabinetStatusContributorKind.Camera;
+  // Bağlantı hedef ekranın izni yoksa çizilmez (rota zaten ana sayfaya döndürürdü).
+  const canOpen = usePermission()(isCamera ? 'ViewCamera' : 'ViewDiagram');
 
   return (
     <li className={cn(degrades && (item.contribution === DeviceStatus.Warning ? 'bg-amber-500/5' : 'bg-destructive/5'))}>
@@ -99,14 +102,16 @@ function ContributorRow({ cabinetId, item }: { cabinetId: string; item: CabinetS
                 <dd className='break-words text-destructive'>{item.lastConnectionError}</dd>
               </>
             )}
-            <dd className='col-start-2'>
-              <Link
-                to={isCamera ? `/cameras/${item.id}` : `/cabinets/${cabinetId}/diagram`}
-                className='inline-flex items-center gap-1 text-primary underline-offset-4 hover:underline'>
-                {isCamera ? 'Kamerayı aç' : 'Diyagramda aç'}
-                <ExternalLinkIcon className='size-3' />
-              </Link>
-            </dd>
+            {canOpen && (
+              <dd className='col-start-2'>
+                <Link
+                  to={isCamera ? `/cameras/${item.id}` : `/cabinets/${cabinetId}/diagram`}
+                  className='inline-flex items-center gap-1 text-primary underline-offset-4 hover:underline'>
+                  {isCamera ? 'Kamerayı aç' : 'Diyagramda aç'}
+                  <ExternalLinkIcon className='size-3' />
+                </Link>
+              </dd>
+            )}
           </dl>
         </CollapsibleContent>
       </Collapsible>

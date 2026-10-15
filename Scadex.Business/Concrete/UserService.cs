@@ -1,21 +1,16 @@
 using AutoMapper;
 using Microsoft.AspNetCore.Identity;
-using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using Scadex.Business.Abstract;
 using Scadex.Core.BaseRequestModels;
 using Scadex.Core.Utils;
-using Scadex.Core.Utils.Datatable;
 using Scadex.Core.Utils.HttpContextManager;
-using Scadex.Core.Utils.Pagination;
 using Scadex.Core.Utils.ResultPattern;
 using Scadex.Core.Utils.Validation;
 using Scadex.DataAccess.UoW;
-using Scadex.Model.Dtos.Common;
 using Scadex.Model.Dtos.User.Commands;
 using Scadex.Model.Dtos.User.Queries;
 using Scadex.Model.Entities;
-using System.Linq.Expressions;
 
 namespace Scadex.Business.Concrete;
 
@@ -37,65 +32,7 @@ public class UserService : IUserService
         _logger = logger;
     }
 
-    #region Get
-    public async Task<Result<User>> GetAsync(Expression<Func<User, bool>> where, CancellationToken cancellationToken = default)
-    {
-        var result = await _unitOfWork.Users.GetAsync(where: where, cancellationToken: cancellationToken);
-        if (result == null)
-            return Result<User>.NotFound();
-        return Result<User>.Success(result);
-    }
-
-    public async Task<Result<User>> GetAsync(Guid id, CancellationToken cancellationToken = default)
-    {
-        var result = await _unitOfWork.Users.GetAsync(where: (f) => f.Id == id, cancellationToken: cancellationToken);
-        if (result == null)
-            return Result<User>.NotFound();
-        return Result<User>.Success(result);
-    }
-
-    public async Task<Result<UserBaseDto>> GetBaseAsync(Guid id, CancellationToken cancellationToken = default)
-    {
-        var result = await _unitOfWork.Users.GetAsync<UserBaseDto>(configurationProvider: _mapper.ConfigurationProvider, where: (f) => f.Id == id, cancellationToken: cancellationToken);
-        if (result == null)
-            return Result<UserBaseDto>.NotFound();
-        return Result<UserBaseDto>.Success(result);
-    }
-
-    public async Task<Result<UserDetailDto>> GetDetailAsync(Guid id, CancellationToken cancellationToken = default)
-    {
-        var result = await _unitOfWork.Users.GetAsync<UserDetailDto>(configurationProvider: _mapper.ConfigurationProvider, where: (f) => f.Id == id, cancellationToken: cancellationToken);
-        if (result == null)
-            return Result<UserDetailDto>.NotFound();
-        return Result<UserDetailDto>.Success(result);
-    }
-    #endregion
-
     #region List
-    public async Task<Result<ICollection<User>>> GetListAsync(Expression<Func<User, bool>>? where = default, CancellationToken cancellationToken = default)
-    {
-        var result = await _unitOfWork.Users.GetAllAsync(where: where, cancellationToken: cancellationToken);
-        if (result == null)
-            return Result<ICollection<User>>.NotFound();
-        return Result<ICollection<User>>.Success(result);
-    }
-
-    public async Task<Result<ICollection<User>>> GetListAsync(DynamicRequest? request = default, CancellationToken cancellationToken = default)
-    {
-        var result = await _unitOfWork.Users.GetAllAsync(filter: request?.Filter, sorts: request?.Sorts, tracking: false, cancellationToken: cancellationToken);
-        if (result == null)
-            return Result<ICollection<User>>.NotFound();
-        return Result<ICollection<User>>.Success(result);
-    }
-
-    public async Task<Result<ICollection<UserBaseDto>>> GetBaseListAsync(DynamicRequest? request = default, CancellationToken cancellationToken = default)
-    {
-        var result = await _unitOfWork.Users.GetAllAsync<UserBaseDto>(configurationProvider: _mapper.ConfigurationProvider, filter: request?.Filter, sorts: request?.Sorts, cancellationToken: cancellationToken);
-        if (result == null)
-            return Result<ICollection<UserBaseDto>>.NotFound();
-        return Result<ICollection<UserBaseDto>>.Success(result);
-    }
-
     public async Task<Result<ICollection<UserDetailDto>>> GetDetailListAsync(DynamicRequest? request = default, CancellationToken cancellationToken = default)
     {
         var result = await _unitOfWork.Users.GetAllAsync<UserDetailDto>(configurationProvider: _mapper.ConfigurationProvider, filter: request?.Filter, sorts: request?.Sorts, cancellationToken: cancellationToken);
@@ -103,14 +40,16 @@ public class UserService : IUserService
             return Result<ICollection<UserDetailDto>>.NotFound();
         return Result<ICollection<UserDetailDto>>.Success(result);
     }
-    #endregion
 
-    #region SelectList
-    public async Task<Result<ICollection<SelectItemDto>>> SelectListAsync(Expression<Func<User, bool>>? where = default, CancellationToken cancellationToken = default)
+    public async Task<Result<ICollection<UserCardHolderDto>>> GetCardHoldersAsync(CancellationToken cancellationToken = default)
     {
-        var list = await _unitOfWork.Users.GetAllAsync<SelectItemDto>(select: s => new SelectItemDto { Value = s.Id.ToString(), Text = s.UserName ?? string.Empty }, where: where, cancellationToken: cancellationToken);
-        var selectList = list ?? new List<SelectItemDto>();
-        return Result<ICollection<SelectItemDto>>.Success(selectList);
+        // Pasif kullanıcıya kart atanamaz (AssignIdentityCardAsync 404 döner); listede de yer almaz.
+        var users = await _unitOfWork.Users.GetAllAsync(
+            select: u => new UserCardHolderDto { Id = u.Id, UserName = u.UserName, FullName = u.FullName, IdentityCardId = u.IdentityCardId },
+            where: u => u.IsActive,
+            cancellationToken: cancellationToken) ?? [];
+
+        return Result<ICollection<UserCardHolderDto>>.Success(users.OrderBy(u => u.FullName).ToList());
     }
     #endregion
 
@@ -128,7 +67,10 @@ public class UserService : IUserService
         if (await _userManager.FindByNameAsync(request.UserName) != null)
             return Result.Validation(new Dictionary<string, string[]> { [nameof(request.UserName)] = new[] { "Bu kullanici adi zaten kullaniliyor." } }, message: "Bu kullanici adi zaten kullaniliyor.");
 
-        if (!string.IsNullOrWhiteSpace(request.Email) && await _userManager.FindByEmailAsync(request.Email) != null)
+        // E-posta isteğe bağlı: boş metin null'a çekilir. Doluysa benzersiz olmalı — Identity bunu artık denetlemiyor
+        // (`RequireUniqueEmail = false`, Program.cs) ve e-postayla giriş tekil eşleşmeye dayanır.
+        request.Email = string.IsNullOrWhiteSpace(request.Email) ? null : request.Email.Trim();
+        if (request.Email != null && await _userManager.FindByEmailAsync(request.Email) != null)
             return Result.Validation(new Dictionary<string, string[]> { [nameof(request.Email)] = new[] { "Bu e-posta adresi zaten kullaniliyor." } }, message: "Bu e-posta adresi zaten kullaniliyor.");
 
         // Kullanıcı kartı normalize edilir ve benzersiz olmalı
@@ -148,14 +90,6 @@ public class UserService : IUserService
     #endregion
 
     #region Update
-    public async Task<Result<UserUpdateDto>> GetUpdateModelAsync(Guid id, CancellationToken cancellationToken = default)
-    {
-        var result = await _unitOfWork.Users.GetAsync<UserUpdateDto>(configurationProvider: _mapper.ConfigurationProvider, where: (f) => f.Id == id, cancellationToken: cancellationToken);
-        if (result == null)
-            return Result<UserUpdateDto>.NotFound();
-        return Result<UserUpdateDto>.Success(result);
-    }
-
     public async Task<Result> UpdateAsync(UserUpdateDto request, CancellationToken cancellationToken = default)
     {
         var validationResult = await _validationService.ValidateAsync(request, cancellationToken);
@@ -186,7 +120,6 @@ public class UserService : IUserService
         bool isDeactivated = entity.IsActive && !request.IsActive;
         await _unitOfWork.Users.UpdateAndSaveAsync(_mapper.Map(request, entity), cancellationToken);
 
-        // Pasife alinan kullanicinin refresh token'lari iptal edilir: yeniden aktiflestirildiginde eski oturumla geri donmesin.
         // Access token (24 sa) suresi dolana kadar gecerli kalir — istek basina IsActive kontrolu bilerek yok.
         if (isDeactivated)
             await _unitOfWork.RefreshTokens.RevokeDeviceRefreshTokensAsync(f => f.UserId == request.Id && f.IsRevoked == false, cancellationToken);
@@ -236,25 +169,36 @@ public class UserService : IUserService
         _logger.LogInformation("Kart tanimlama: kullanici {UserId} karti {PreviousCardId} -> {CardId}", userId, previousCardId ?? "(yok)", identityCardId);
         return Result.Success();
     }
-    #endregion
 
-    #region Pagination / Datatable
-    public async Task<Result<PaginationResponse<UserDetailDto>>> PaginationAsync(DynamicPaginationRequest request, CancellationToken cancellationToken = default)
+    public async Task<Result> ChangePasswordAsync(Guid userId, UserPasswordChangeDto request, CancellationToken cancellationToken = default)
     {
-        var result = await _unitOfWork.Users.PaginationAsync<UserDetailDto>(configurationProvider: _mapper.ConfigurationProvider, paginationRequest: request, include: i => i.Include(x => x.Company), cancellationToken: cancellationToken);
-        return Result<PaginationResponse<UserDetailDto>>.Success(result);
-    }
+        var validationResult = await _validationService.ValidateAsync(request, cancellationToken);
+        if (!validationResult.IsValid)
+            return Result.Validation(validationResult.Failures);
 
-    public async Task<Result<DatatableResponseClientSide<UserDetailDto>>> DatatableClientSideAsync(DynamicDatatableRequest request, CancellationToken cancellationToken = default)
-    {
-        var result = await _unitOfWork.Users.DatatableClientSideAsync<UserDetailDto>(configurationProvider: _mapper.ConfigurationProvider, datatableRequest: request, include: i => i.Include(x => x.Company), cancellationToken: cancellationToken);
-        return Result<DatatableResponseClientSide<UserDetailDto>>.Success(result);
-    }
+        var user = await _userManager.FindByIdAsync(userId.ToString());
+        if (user == null)
+            return Result.NotFound(message: "Kullanıcı bulunamadı.");
 
-    public async Task<Result<DatatableResponseServerSide<UserDetailDto>>> DatatableServerSideAsync(DynamicDatatableRequest request, CancellationToken cancellationToken = default)
-    {
-        var result = await _unitOfWork.Users.DatatableServerSideAsync<UserDetailDto>(configurationProvider: _mapper.ConfigurationProvider, datatableRequest: request, include: i => i.Include(x => x.Company), cancellationToken: cancellationToken);
-        return Result<DatatableResponseServerSide<UserDetailDto>>.Success(result);
+        // Sıfırlama token'ı ile: eski parola sorulmaz ve güvenlik damgası (SecurityStamp) yenilenir.
+        var resetToken = await _userManager.GeneratePasswordResetTokenAsync(user);
+        var identityResult = await _userManager.ResetPasswordAsync(user, resetToken, request.NewPassword);
+        if (!identityResult.Succeeded)
+        {
+            // Parola kuralı ihlali istemci hatasıdır (400), sunucu hatası değil.
+            var messages = identityResult.Errors.Select(e => e.Description).ToArray();
+            return Result.Validation(new Dictionary<string, string[]> { [nameof(request.NewPassword)] = messages }, message: messages.FirstOrDefault());
+        }
+
+        // Yanlış denemelerle kilitlenmiş kullanıcı yeni parolayla hemen girebilsin.
+        await _userManager.SetLockoutEndDateAsync(user, null);
+        await _userManager.ResetAccessFailedCountAsync(user);
+
+        // Açık oturumlar yeni parolayla yeniden girmeli; access token (24 sa) süresi dolana kadar geçerli kalır.
+        await _unitOfWork.RefreshTokens.RevokeDeviceRefreshTokensAsync(f => f.UserId == userId && f.IsRevoked == false, cancellationToken);
+
+        _logger.LogInformation("Parola degistirildi: kullanici {UserId}", userId);
+        return Result.Success();
     }
     #endregion
 

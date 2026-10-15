@@ -1,9 +1,10 @@
 import { Navigate, Outlet, useLocation } from 'react-router';
 import { useAccessToken, useCurrentUser, usePermission } from '@/lib/auth-session';
+import type { PermissionCode } from '@/models/enums/entityEnums';
 
 interface RequireAuthProps {
-  /** Verilirse kullanicinin bu izne de sahip olmasi gerekir (Faz 2). */
-  permission?: string;
+  /** Verilirse kullanicinin bu izne de sahip olmasi gerekir. Rotalarda bunun yerine `requirePermission` loader'ı kullanılır. */
+  permission?: PermissionCode;
 }
 
 export default function RequireAuth({ permission }: RequireAuthProps) {

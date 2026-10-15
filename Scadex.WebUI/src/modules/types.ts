@@ -2,6 +2,7 @@ import type { ComponentType } from 'react';
 import type { UseQueryOptions } from '@tanstack/react-query';
 import type { LucideIcon } from 'lucide-react';
 import type { RouteObject } from 'react-router';
+import type { PermissionCode } from '@/models/enums/entityEnums';
 
 /** Kenar çubuğu maddesi — çekirdek menüsüyle aynı biçim. */
 export interface ModuleNavItem {
@@ -9,7 +10,7 @@ export interface ModuleNavItem {
   url: string;
   icon: LucideIcon;
   /** Verilirse madde yalnızca bu izin koduna (`Permission.Code`) sahip kullanıcıya gösterilir. Rotayı ayrıca korumak modülün işidir. */
-  permission?: string;
+  permission?: PermissionCode;
 }
 
 /** Ana sayfa haritasındaki kabin detay paneline modülün eklediği bölümün aldığı tek bilgi. */

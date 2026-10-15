@@ -25,9 +25,11 @@ interface DiagramToolbarProps {
   save: SaveController;
   isDirty: boolean;
   hubStatus: HubStatus;
+  /** `EditDiagram` izni yok: kaydetme göstergesi ve tuval ayarları çizilmez (ikisi de yazar). */
+  readOnly?: boolean;
 }
 
-export function DiagramToolbar({ cabinet, settings, save, isDirty, hubStatus }: DiagramToolbarProps) {
+export function DiagramToolbar({ cabinet, settings, save, isDirty, hubStatus, readOnly = false }: DiagramToolbarProps) {
   // Canlı değerler sunucu anlık görüntüsünü EZER: snapshot grafın çekildiği andaki
   // durumu taşır, store ondan sonrasını.
   const live = useLiveCabinet(cabinet.id);
@@ -56,12 +58,18 @@ export function DiagramToolbar({ cabinet, settings, save, isDirty, hubStatus }: 
         {/* SCADA'si kapali kabinde canli gosterge YANILTICI olurdu: hicbir zaman
             veri gelmeyecek, "baglanti yok" ise yanlis teshise goturur. */}
         {cabinet.scadaIsEnabled && <LiveIndicator status={hubStatus} lastIngestAt={lastIngestAt} />}
-        <SaveIndicator save={save} isDirty={isDirty} />
+        {readOnly ? (
+          <Badge variant='outline' className='shrink-0'>
+            Salt okunur
+          </Badge>
+        ) : (
+          <SaveIndicator save={save} isDirty={isDirty} />
+        )}
         <span className='text-muted-foreground hidden items-center gap-1 text-xs sm:flex'>
           <Grid2X2Icon className='size-3.5' />
           {settings.gridSize}px
         </span>
-        <CanvasSettingsPopover cabinetId={cabinet.id} settings={settings} />
+        {!readOnly && <CanvasSettingsPopover cabinetId={cabinet.id} settings={settings} />}
       </div>
     </header>
   );

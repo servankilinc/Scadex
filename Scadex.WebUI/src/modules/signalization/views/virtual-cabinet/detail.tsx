@@ -16,6 +16,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { CameraViewerDialog } from '@/components/camera/camera-viewer-dialog';
 import { Skeleton } from '@/components/ui/skeleton';
+import { usePermission } from '@/lib/auth-session';
 import { cn, formatUtcDateTime, toUtcDate } from '@/lib/utils';
 import { CabinetArtwork } from '../../components/virtual-cabinet/cabinet-artwork';
 import { CameraFigure } from '../../components/virtual-cabinet/camera-figure';
@@ -56,6 +57,9 @@ export default function VirtualCabinetDetail() {
   // açılır — operatör bu kabin görünümünden ayrılmadan izler, gride "dönmesi" gerekmez.
   const [activeCameraId, setActiveCameraId] = useState<string | null>(null);
   const [cardReadsOpen, setCardReadsOpen] = useState(false);
+  // Ekranı açmak ve komut göndermek TEK izindir (`SignalVirtualCabinet`, rota onu ister). Kamera görüntüsü ayrı izindir
+  // (`ViewCamera`): yoksa kamera kutusu ve "Canlı izle" tıklanamaz.
+  const canViewCamera = usePermission()('ViewCamera');
 
   const outer = data?.outerDoors.find(door => door.id === outerDoorId);
 
@@ -154,7 +158,7 @@ export default function VirtualCabinetDetail() {
       <div className='flex flex-col gap-4 lg:flex-row'>
         <div className='mx-auto aspect-square w-full max-w-[min(100%,calc(100vh-14rem))] lg:mx-0'>
           <CabinetArtwork className='h-full w-full'>
-            <CameraFigure cameraName={outer.cameraName} onOpen={outer.cameraId ? () => setActiveCameraId(outer.cameraId) : undefined} />
+            <CameraFigure cameraName={outer.cameraName} onOpen={outer.cameraId && canViewCamera ? () => setActiveCameraId(outer.cameraId) : undefined} />
             <LedFigure isOn={outer.lightIsOn === true} onActivate={outer.lightIoChannelId ? selectLight : undefined} />
             <SirenFigure isOn={data.sirenIsOn === true} onActivate={data.sirenIoChannelId ? selectSiren : undefined} />
             <IndoorGrid doors={outer.innerDoors} onSelect={selectInnerDoor} />
@@ -185,7 +189,7 @@ export default function VirtualCabinetDetail() {
             title='Kamera'
             value={outer.cameraName ?? 'Tanımlı değil'}
             action={
-              outer.cameraId ? (
+              outer.cameraId && canViewCamera ? (
                 <Button size='xs' variant='outline' onClick={() => setActiveCameraId(outer.cameraId)}>
                   Canlı izle
                 </Button>

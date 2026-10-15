@@ -1,4 +1,4 @@
-import { useCallback, type CSSProperties, type DragEvent } from 'react';
+import { useCallback, useMemo, type CSSProperties, type DragEvent } from 'react';
 import {
   Background,
   BackgroundVariant as RfBackgroundVariant,
@@ -66,9 +66,11 @@ interface DiagramCanvasProps {
   settings: DiagramCanvasSettingsDto;
   /** Yalnızca minimap renkleri için: cihazlar kendi şablon renginde görünsün. */
   devices: DiagramDto['devices'];
+  /** `EditDiagram` izni yok: sürükleme, bağlama, silme ve paletten bırakma kapalı; seçim ve gezinme açık. */
+  readOnly?: boolean;
 }
 
-export function DiagramCanvas({ editor, settings, devices }: DiagramCanvasProps) {
+export function DiagramCanvas({ editor, settings, devices, readOnly = false }: DiagramCanvasProps) {
   // RF kendi tema sinifini kendi yonetir; uygulamanin temasiyla ayni kaynaktan
   // beslenmezse kontrol butonlari acik temada beyaz uzerine beyaz kalir.
   const theme = useAppSelector(s => s.theme.activeTheme);
@@ -80,6 +82,14 @@ export function DiagramCanvas({ editor, settings, devices }: DiagramCanvasProps)
 
   const variant = VARIANT_MAP[settings.backgroundVariant];
   const gridGap = adaptiveGridGap(settings.gridSize, zoom);
+
+  // Düğümler kendi `draggable`'ını taşır (`!isLocked`) ve bu, `nodesDraggable`'ı EZER; salt okunur kipte sürükleme,
+  // bağlama ve silme düğüm/kablo düzeyinde de kapatılmalı. Yeni dizi yalnızca graf değişince üretilir.
+  const nodes = useMemo(
+    () => (readOnly ? editor.nodes.map(node => ({ ...node, draggable: false, connectable: false, deletable: false })) : editor.nodes),
+    [editor.nodes, readOnly]
+  );
+  const edges = useMemo(() => (readOnly ? editor.edges.map(edge => ({ ...edge, deletable: false })) : editor.edges), [editor.edges, readOnly]);
 
   const onDragOver = useCallback((event: DragEvent) => {
     // preventDefault ÇAĞRILMAZSA tarayıcı drop'u hiç tetiklemez.
@@ -109,24 +119,24 @@ export function DiagramCanvas({ editor, settings, devices }: DiagramCanvasProps)
 
   return (
     <ReactFlow
-      nodes={editor.nodes}
-      edges={editor.edges}
+      nodes={nodes}
+      edges={edges}
       nodeTypes={nodeTypes}
       edgeTypes={edgeTypes}
       onNodesChange={editor.onNodesChange}
       onEdgesChange={editor.onEdgesChange}
       onNodeDragStop={editor.onNodeDragStop}
-      onConnect={editor.onConnect}
+      onConnect={readOnly ? undefined : editor.onConnect}
       isValidConnection={editor.isValidConnection}
       onSelectionChange={editor.onSelectionChange}
-      onDragOver={onDragOver}
-      onDrop={onDrop}
+      onDragOver={readOnly ? undefined : onDragOver}
+      onDrop={readOnly ? undefined : onDrop}
       // Loose: baglanti herhangi bir handle'da baslayip bitebilir. Her pin
       // type="source" render edildigi icin sart — bkz. template-node.tsx.
       connectionMode={ConnectionMode.Loose}
       colorMode={theme}
-      nodesDraggable
-      nodesConnectable
+      nodesDraggable={!readOnly}
+      nodesConnectable={!readOnly}
       elementsSelectable
       // "Seç" modunda boş alanı sürüklemek KUTU SEÇİMİ yapar. RF'in varsayılanı
       // kaydırmaktır ve çoklu seçim ancak Shift ile olur; bu, çoklu seçimi (ve
@@ -143,7 +153,7 @@ export function DiagramCanvas({ editor, settings, devices }: DiagramCanvasProps)
       // Backspace'i de kabul etmek metin yazarken node silmez. Bu kısayol tek
       // silme yolu DEĞİL — aynı iş özellikler panelinden ve sağ tık menüsünden
       // de yapılabiliyor (bkz. `confirm-delete.tsx`).
-      deleteKeyCode={['Delete', 'Backspace']}
+      deleteKeyCode={readOnly ? null : ['Delete', 'Backspace']}
       minZoom={settings.minZoom}
       maxZoom={settings.maxZoom}
       snapToGrid={settings.snapToGrid}

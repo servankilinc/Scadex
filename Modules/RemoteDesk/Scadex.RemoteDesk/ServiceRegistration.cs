@@ -5,7 +5,6 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Scadex.Business.Utils.MediaGateway;
-using Scadex.Core.Utils.Auth;
 using Scadex.RemoteDesk.BackgroundServices;
 using Scadex.RemoteDesk.Contracts.Hub;
 using Scadex.RemoteDesk.Control;
@@ -27,8 +26,8 @@ public static class RemoteDeskModule
     public static bool IsEnabled(IConfiguration configuration) => configuration.GetValue<bool>(AppSettingsEnabledKey);
 
     /// <summary>
-    /// PC izleme izni (<c>Permission.RemotePcView</c>) — policy adı izin koduyla aynıdır. Token'daki <c>permission</c> claim'inden okunur;
-    /// rol izni değişince kullanıcı yeniden giriş yapmalı ya da token'ı tazelenmeli (claim'ler token'a girişte yazılır).
+    /// PC izleme izni (<c>Permission.RemotePcView</c>) — policy adı izin koduyla aynıdır. Policy'ler çekirdekte <c>AddPermissionPolicies</c>
+    /// ile her izin için kaydedilir; modül ayrıca tanımlamaz. Rol izni değişince kullanıcı yeniden giriş yapmalı ya da token'ı tazelenmeli.
     /// </summary>
     public const string ViewPolicy = nameof(Permission.RemotePcView);
 
@@ -88,15 +87,6 @@ public static class ServiceRegistration
     private static IServiceCollection AddRemoteDeskServices(this IServiceCollection services, IConfiguration configuration)
     {
         services.AddOptions<RemoteDeskOptions>().Bind(configuration.GetSection(RemoteDeskOptions.SectionName));
-
-        #region YETKI
-        // Policy modülün kaydında tanımlanır: modül kapalıyken controller'lar da çıkarıldığı için tanımsız policy'ye çarpan uç kalmaz.
-        services.AddAuthorizationBuilder()
-            .AddPolicy(RemoteDeskModule.ViewPolicy, policy => policy.RequireClaim(AppClaimTypes.Permission, RemoteDeskModule.ViewPolicy))
-            .AddPolicy(RemoteDeskModule.ControlPolicy, policy => policy.RequireClaim(AppClaimTypes.Permission, RemoteDeskModule.ControlPolicy))
-            .AddPolicy(RemoteDeskModule.AuditPolicy, policy => policy.RequireClaim(AppClaimTypes.Permission, RemoteDeskModule.AuditPolicy))
-            .AddPolicy(RemoteDeskModule.FileTransferPolicy, policy => policy.RequireClaim(AppClaimTypes.Permission, RemoteDeskModule.FileTransferPolicy));
-        #endregion
 
         #region DB CONTEXT
         string connectionString = configuration.GetConnectionString("Database") ??

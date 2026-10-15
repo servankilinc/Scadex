@@ -154,9 +154,9 @@ durur. Ayrıntı: PROJECT_OVERVIEW.md § 10.
   yapılandırma yoktur, yayıncıyı/oturumu modülün kiralama mekanizması durdurur.
   **PC istemcisinin bağlı olup olmadığı kabin durumuna bilerek yansımaz (2026-09-30):** yalnızca bellekte (`PcConnectionRegistry`);
   `ICabinetStatusService`'e kanıt olarak vermeyin — uygulama kapanınca kabin `Warning`'e düşerdi. İzlendiğine dair onay da
-  bilerek yoktur (gösterge + `ScreenViewLog`). **Modülün HTTP uçları `RemotePcView` iznini ister** (projede zorlanan ilk izin,
-  aşağıdaki "yetki zorlaması yok" kuralının tek istisnası): policy modülün kaydında (`RemoteDeskModule.ViewPolicy`), izin kodu
-  `Permission.RemotePcView` adıyla aynı — enum'u yeniden adlandırmayın. `PcHub` anonim kalır.
+  bilerek yoktur (gösterge + `ScreenViewLog`). **Modülün HTTP uçları `RemotePcView` iznini ister:** policy adı
+  `RemoteDeskModule.ViewPolicy` = izin kodu `Permission.RemotePcView` — enum'u yeniden adlandırmayın. Policy'ler 2026-10-14'ten beri
+  modülde değil çekirdekte tek yerde kaydedilir (aşağıdaki "İzin zorlaması"). `PcHub` anonim kalır.
   **Denetim raporu (`/remote-desk/reports`, 2026-10-05) ayrı izindir: `RemotePcAudit`** (`RemoteDeskModule.AuditPolicy`) — izleyen
   operatör başkalarının geçmişini görmesin diye. Policy bu yüzden **controller başınadır**, `RemoteDeskControllerBase` yalnızca kimlik ister:
   tabana policy koymayın (`[Authorize]`'lar VE ile birleşir, rapor izleme iznini de isterdi). Raporda girdi sayısı bilerek yok.
@@ -243,8 +243,28 @@ Bunlar tek bir dosyaya bakarak görülemez; gerekçeleri PROJECT_OVERVIEW.md §5
   `Pin`, `IoChannel`, `ComponentTemplatePin` yalnızca `POST /api/Diagram/cabinet/{id}/save`
   deltası üzerinden yazılır; `CanvasSettings` yalnızca
   `PUT /api/CanvasSettings/cabinet/{cabinetId}` üzerinden. Bu tabloların generic
-  controller'ları **bilerek salt okunurdur** — oraya Create/Update/Delete geri eklemeyin.
+  controller'ları **2026-10-14'te kaldırıldı** (okuma diyagram ucundan gelir) — geri eklemeyin.
   İhtiyaç varsa sahibinin controller'ına ekran bazlı bir uç ekleyin.
+- **Generic CRUD yüzeyi yoktur (2026-10-14).** İstemcinin çağırmadığı uçlar (`{id}/base`, `list/base`, `selectlist`,
+  `pagination`, `datatable/*`, `DeviceCommand`/`Pin`/`DeviceStatus`… controller'ları) ve yalnızca onlara hizmet eden servis
+  metotları/DTO'lar silindi. "İleride lazım olur" diye uç eklemeyin; bir ekran istediğinde, o ekranın uçu eklenir.
+  Core'daki dinamik filtre/sayfalama/datatable motoru ve repository'ler genel altyapı olarak durur.
+- **İzin zorlaması (2026-10-14).** Policy'ler `AddPermissionPolicies()` (`Scadex.Business/Utils/Auth/PermissionAuthorization.cs`,
+  `Program.cs`) ile `Permission` enum'unun HER değeri için **tek yerde** kaydedilir; policy adı = izin kodu = enum adı. Ucu
+  `[RequirePermission(Permission.X)]` ile işaretleyin — modül kaydına `AddPolicy` eklemeyin. Kural: **sahaya etki eden ve veri
+  yazan her uç bir izin ister** (`EditDiagram` diyagram/tuval yazımı, `ConfigureSystem` kabin/firma/kamera/şablon/ayar/sinyalizasyon
+  yapılandırması, `ManageUsers` kullanıcı/rol/izin + parola, `ManageAccessCards` kart ataması + operatör kurumu),
+  hassas okumalar da (`ViewCamera` kamera listesi/detayı/bilet/kare — DTO parolayı taşır; `ViewDiagram` diyagram okuma + komut geçmişi;
+  `ManageUsers` kullanıcı listesi ve rolleri — kart tanımlama kendi dar listesini `GET User/card-holders` ile `ManageAccessCards`'la okur);
+  diğer okuma uçları yalnızca giriş ister. **Komut izinleri ayrıdır (2026-10-14):** çekirdek diyagram komutu `ViewDiagram` + `ControlOutput`
+  (ikisi birden), sinyalizasyonun sanal kabini (okuma + komut + kart okumaları) TEK izin `SignalVirtualCabinet` — `ControlOutput`
+  sanal kabinde, `SignalVirtualCabinet` diyagramda geçmez; birini diğerine bağlamayın. **Anonim kayıt yoktur** (SignUp kaldırıldı):
+  kullanıcıyı `ManageUsers` açar; e-posta isteğe bağlıdır (`RequireUniqueEmail = false`, benzersizliği `UserService` denetler). `[Authorize]`'lar VE ile birleşir — izni sınıfa değil aksiyona koyun (RemoteDesk'teki gibi, sınıfa
+  konan izin okumaları da kilitler). Denetim servis içinde değil **controller'da**: motor (Sinyalizasyon) komutları HTTP kullanıcısı
+  olmadan `IDeviceCommandService.SendAsync`'ten gönderir. Ön yüz aynası: `PermissionCode` (`models/enums/entityEnums.ts`),
+  rotada `requirePermission(...)` loader'ı (`lib/route-guards.ts`), menüde `permission`, düğmede `usePermission()` — bunlar yalnızca
+  UX'tir. Diyagram editörü `EditDiagram` yoksa **salt okunurdur** (palet/kaydet/tuval ayarı yok, düğümler `draggable/connectable:
+  false` — düğüm düzeyindeki `draggable` tuvalin `nodesDraggable`'ını ezdiği için orada da kapatılır).
 - **Kaydetme sözleşmesinde `created`/`updated` ayrımı yoktur.** Gövde
   `{ upserted: [...], deleted: [ids] }`; **Guid'i istemci üretir**, sunucu kimliği arar.
   Pin ve kanal kimlikleri salt-oluşturmadır; mevcut cihaza `pins`/`ioChannels` göndermek 400'dür.
@@ -443,10 +463,7 @@ Bir şeyin çalıştığını varsaymadan önce doğrulayın:
 ## Sormadan "düzeltmeyin"
 
 PROJECT_OVERVIEW.md §7'deki **bilinçli boşluklar** unutulmuş değil, sıraya alınmıştır. Talep
-edilmeden bunlara girmeyin: yetki zorlaması yok (`permission` claim'i üretilir ama okunmaz; istisnalar RemoteDesk'in
-`RemotePcView` / `RemotePcControl` / `RemotePcAudit` policy'leri, 2026-09-30 / 2026-10-05, ve Sinyalizasyon'un işlemi elle
-kapatma ucundaki `SignalSessionClose`, 2026-10-13 — policy modül kaydında, yalnızca o uçta),
-kiracı izolasyonu yok, SCADA komutlarında retry/kuyruk yok (tekrarlanan röle darbesi başarısız
+edilmeden bunlara girmeyin: kiracı izolasyonu yok, SCADA komutlarında retry/kuyruk yok (tekrarlanan röle darbesi başarısız
 komuttan kötüdür), kamera parolası düz metin saklanır, saklama/temizlik işleri yok,
 `ChannelEvent` bir değişim günlüğüdür — zaman serisi değildir.
 

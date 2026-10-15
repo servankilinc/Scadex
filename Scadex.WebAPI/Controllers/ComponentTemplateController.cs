@@ -1,12 +1,13 @@
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
 using Scadex.Business.Abstract;
-using Scadex.Core.BaseRequestModels;
+using Scadex.Business.Utils.Auth;
 using Scadex.Core.Utils.ResultPattern;
 using Scadex.Model.Dtos.ComponentTemplate.Commands;
 using Scadex.Model.Dtos.ComponentTemplate.Queries;
 using Scadex.WebAPI.Controllers.Base;
 using Scadex.WebAPI.Tools;
+using static Scadex.Model.Enums.EntityEnums;
 
 namespace Scadex.WebAPI.Controllers;
 
@@ -24,7 +25,7 @@ public class ComponentTemplateController : BaseController
         [".webp"] = "image/webp",
         [".svg"] = "image/svg+xml"
     };
-    private static string AllowedExtensionList => string.Join(", ", AllowedTypes.Keys); 
+    private static string AllowedExtensionList => string.Join(", ", AllowedTypes.Keys);
     #endregion
 
     private readonly IComponentTemplateService _componentTemplateService;
@@ -50,11 +51,7 @@ public class ComponentTemplateController : BaseController
         var result = await _componentTemplateService.GetTypeCountsAsync(cancellationToken);
         return ToAction(result);
     }
-/*
 
-/// <summary> </summary>
-/// <summary> </summary>
-*/
     /// <summary> Seçili DeviceTypeId'nin aktif ComponentTemplate listesi, pin şeması olmadan. </summary>
     [HttpGet("by-type/{deviceTypeId:int}")]
     public async Task<IActionResult> GetListByDeviceType(int deviceTypeId, CancellationToken cancellationToken)
@@ -63,8 +60,9 @@ public class ComponentTemplateController : BaseController
         return ToAction(result);
     }
 
-    /// <summary> Sablonu ve pin semasini TEK transaction'da olusturur. </summary>
+    /// <summary> Sablonu ve pin semasini TEK transaction'da olusturur. Şablon kütüphanesi sistem yapılandırmasıdır. </summary>
     [HttpPost]
+    [RequirePermission(Permission.ConfigureSystem)]
     public async Task<IActionResult> Create(ComponentTemplateCreateRequest request, CancellationToken cancellationToken)
     {
         var result = await _componentTemplateService.CreateAsync(request, cancellationToken);
@@ -73,61 +71,19 @@ public class ComponentTemplateController : BaseController
 
     /// <summary> Sablon arka plan gorselini yukler ve goreli URL'sini doner. Yuklenen dosya <c>wwwroot/uploads/templates</c> altina yazilir </summary>
     [HttpPost("image")]
+    [RequirePermission(Permission.ConfigureSystem)]
     public async Task<IActionResult> UploadImage(IFormFile? file, CancellationToken cancellationToken)
     {
         var result = await SaveTemplateFileAsync(file, cancellationToken);
         return ToAction(result);
     }
 
-    #region Get
-    [HttpGet("{id:guid}")]
-    public async Task<IActionResult> Get(Guid id)
-    {
-        var result = await _componentTemplateService.GetComponentTemplateDetailDtoAsync(id: id);
-        return ToAction(result);
-    }
-
-    [HttpGet("{id:guid}/base")]
-    public async Task<IActionResult> GetBase(Guid id)
-    {
-        var result = await _componentTemplateService.GetBaseAsync(id: id);
-        return ToAction(result);
-    }
-
-    [HttpGet("{id:guid}/componentTemplateDetailDto")]
-    public async Task<IActionResult> GetComponentTemplateDetailDto(Guid id)
-    {
-        var result = await _componentTemplateService.GetComponentTemplateDetailDtoAsync(id: id);
-        return ToAction(result);
-    }
-    #endregion
-
-    #region List
-    [HttpPost("list")]
-    public async Task<IActionResult> GetList(DynamicRequest? request = default)
-    {
-        var result = await _componentTemplateService.GetComponentTemplateDetailDtoListAsync(request);
-        return ToAction(result);
-    }
-
-    [HttpPost("list/base")]
-    public async Task<IActionResult> GetBaseList(DynamicRequest? request = default)
-    {
-        var result = await _componentTemplateService.GetBaseListAsync(request);
-        return ToAction(result);
-    }
-
-    [HttpPost("list/componentTemplateDetailDto")]
-    public async Task<IActionResult> GetComponentTemplateDetailDtoList(DynamicRequest? request = default)
-    {
-        var result = await _componentTemplateService.GetComponentTemplateDetailDtoListAsync(request);
-        return ToAction(result);
-    } 
-    #endregion
-
     #region Helpers
-    /// <summary> Dosyayi yazar ve istemcinin kullanacagi GOreli URL'yi doner. </summary>
-    public async Task<Result<TemplateImageDto>> SaveTemplateFileAsync(IFormFile? file, CancellationToken cancellationToken = default)
+    /// <summary>
+    /// Dosyayi yazar ve istemcinin kullanacagi göreli URL'yi doner. <c>private</c>: public kalsaydı MVC onu route'suz bir
+    /// aksiyon sayardı.
+    /// </summary>
+    private async Task<Result<TemplateImageDto>> SaveTemplateFileAsync(IFormFile? file, CancellationToken cancellationToken = default)
     {
         if (file is null || file.Length == 0)
             return Result<TemplateImageDto>.Failure("Dosya boş gönderildi.");

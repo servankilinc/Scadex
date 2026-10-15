@@ -12,6 +12,7 @@ import { CameraStatusBadge } from '@/components/camera/camera-status-badge';
 import { CameraTile } from '@/components/camera/camera-tile';
 import { useCabinets } from '@/hooks/use-cabinets';
 import { useCameras } from '@/hooks/use-cameras';
+import { usePermission } from '@/lib/auth-session';
 import { cn } from '@/lib/utils';
 import type { CameraDto } from '@/models/camera';
 import { CameraBrandLabels } from '@/models/enums/entityEnums';
@@ -33,6 +34,8 @@ export default function CabinetCameras() {
   const [includePassive, setIncludePassive] = useState(false);
   const [isCreating, setIsCreating] = useState(false);
   const [editing, setEditing] = useState<CameraDto | null>(null);
+  // Kamera tanımı (adres, parola) sistem yapılandırmasıdır; izlemek için `ViewCamera` yeter (rota onu ister).
+  const canConfigure = usePermission()('ConfigureSystem');
 
   // Seçim sayfası yalnızca aktif kabinleri listeler; doğrudan URL ile pasif kabine gelinirse de aynı kural.
   const cabinet = cabinets.data?.find(c => c.id === cabinetId && c.isActive);
@@ -79,10 +82,12 @@ export default function CabinetCameras() {
             Kabindeki kameraların tali akımı. Tek kamerayı ana akımla izlemek için kutucuğa girin.
           </p>
         </div>
-        <Button size='sm' onClick={() => setIsCreating(true)}>
-          <PlusIcon />
-          Yeni kamera
-        </Button>
+        {canConfigure && (
+          <Button size='sm' onClick={() => setIsCreating(true)}>
+            <PlusIcon />
+            Yeni kamera
+          </Button>
+        )}
       </div>
 
       <Field orientation='horizontal' className='w-auto self-start'>
@@ -104,7 +109,7 @@ export default function CabinetCameras() {
             ) : (
               <PassiveCameraPlaceholder camera={camera} />
             )}
-            <CameraFacts camera={camera} onEdit={() => setEditing(camera)} />
+            <CameraFacts camera={camera} onEdit={canConfigure ? () => setEditing(camera) : undefined} />
           </Card>
         ))}
       </div>
@@ -134,8 +139,8 @@ function PassiveCameraPlaceholder({ camera }: { camera: CameraDto }) {
   );
 }
 
-/** Kartın alt şeridi: yoklama durumu, uyarı rozetleri, adres ve düzenleme. */
-function CameraFacts({ camera, onEdit }: { camera: CameraDto; onEdit: () => void }) {
+/** Kartın alt şeridi: yoklama durumu, uyarı rozetleri, adres ve düzenleme (`onEdit` yoksa — izin yok — düğme çizilmez). */
+function CameraFacts({ camera, onEdit }: { camera: CameraDto; onEdit?: () => void }) {
   return (
     <div className='flex flex-col gap-1.5 border-t p-3'>
       <div className='flex items-start gap-2'>
@@ -146,9 +151,11 @@ function CameraFacts({ camera, onEdit }: { camera: CameraDto; onEdit: () => void
           {!camera.isMonitoringEnabled && <Badge variant='outline'>İzleme kapalı</Badge>}
           {!camera.password && <Badge variant='outline'>Parola yok</Badge>}
         </div>
-        <Button size='icon-sm' variant='outline' onClick={onEdit} aria-label={`${camera.name} kamerasını düzenle`} title='Düzenle'>
-          <PencilIcon />
-        </Button>
+        {onEdit && (
+          <Button size='icon-sm' variant='outline' onClick={onEdit} aria-label={`${camera.name} kamerasını düzenle`} title='Düzenle'>
+            <PencilIcon />
+          </Button>
+        )}
       </div>
 
       <p className='truncate text-xs text-muted-foreground'>

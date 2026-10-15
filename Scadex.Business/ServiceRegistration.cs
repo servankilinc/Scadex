@@ -29,16 +29,9 @@ public static class ServiceRegistration
         services.AddScoped<IPermissionService, PermissionService>();
         services.AddScoped<IUserRoleService, UserRoleService>();
         services.AddScoped<IDeviceCommandService, DeviceCommandService>();
-        services.AddScoped<IConnectionService, ConnectionService>();
         services.AddScoped<IIoChannelService, IoChannelService>();
-        services.AddScoped<IPinService, PinService>();
         services.AddScoped<ICanvasSettingsService, CanvasSettingsService>();
         services.AddScoped<IComponentTemplateService, ComponentTemplateService>();
-        services.AddScoped<IComponentTemplatePinService, ComponentTemplatePinService>();
-        services.AddScoped<IDeviceService, DeviceService>();
-        services.AddScoped<IDiagramAnnotationService, DiagramAnnotationService>();
-        services.AddScoped<IDeviceStatusService, DeviceStatusService>();
-        services.AddScoped<IDeviceTypeService, DeviceTypeService>();
         services.AddScoped<ICameraCaptureSettingService, CameraCaptureSettingService>();
         #endregion
 

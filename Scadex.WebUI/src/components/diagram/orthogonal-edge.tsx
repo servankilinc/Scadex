@@ -85,7 +85,8 @@ export function OrthogonalEdge({
     [screenToFlowPosition, snapGrid, snapToGrid]
   );
 
-  const editable = selected === true && context != null && data != null;
+  // `canEdit`: düzenleme izni yoksa kırılma noktası tutamaçları hiç çizilmez (editör salt okunur).
+  const editable = selected === true && context != null && context.canEdit && data != null;
 
   return (
     <>

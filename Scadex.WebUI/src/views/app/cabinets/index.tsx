@@ -12,6 +12,7 @@ import type { CabinetDetailDto } from '@/models/cabinet';
 import { deviceStatusLabel } from '@/models/enums';
 import { useCabinets } from '@/hooks/use-cabinets';
 import { useCabinetOverviewLive } from '@/hooks/use-cabinet-overview-live';
+import { usePermission } from '@/lib/auth-session';
 
 const COLUMNS: DataTableColumn<CabinetDetailDto>[] = [
   {
@@ -52,6 +53,9 @@ const COLUMNS: DataTableColumn<CabinetDetailDto>[] = [
 export default function Cabinets() {
   const { data, isPending, isError, error } = useCabinets();
   useCabinetOverviewLive();
+  // Düğmeler sunucunun zorladığı izinlerle gizlenir: kabin yazımı SCADA adresini taşır, kart tanımlama geçiş yetkisidir.
+  const can = usePermission();
+  const canConfigure = can('ConfigureSystem');
   const [isCreating, setIsCreating] = useState(false);
   const [editing, setEditing] = useState<CabinetDetailDto | null>(null);
   /** Kart tanımlama penceresi açık kabin. */
@@ -72,10 +76,12 @@ export default function Cabinets() {
           <h1 className='text-lg font-semibold'>Kabinler</h1>
           <p className='text-sm text-muted-foreground'>Diyagramını açmak için bir kabin seçin.</p>
         </div>
-        <Button size='sm' onClick={() => setIsCreating(true)}>
-          <PlusIcon />
-          Yeni kabin
-        </Button>
+        {canConfigure && (
+          <Button size='sm' onClick={() => setIsCreating(true)}>
+            <PlusIcon />
+            Yeni kabin
+          </Button>
+        )}
       </div>
 
       <div className='relative w-full max-w-xs'>
@@ -94,20 +100,24 @@ export default function Cabinets() {
         emptyMessage={data?.length ? 'Aramaya uyan kabin yok.' : 'Henüz kabin yok.'}
         actions={cabinet => (
           <>
-            <Button size='sm' variant='outline' nativeButton={false} render={<Link to={`/cabinets/${cabinet.id}/diagram`} />}>
-              <WorkflowIcon />
-              Diyagramı aç
-            </Button>
-            {cabinet.isActive && (
+            {can('ViewDiagram') && (
+              <Button size='sm' variant='outline' nativeButton={false} render={<Link to={`/cabinets/${cabinet.id}/diagram`} />}>
+                <WorkflowIcon />
+                Diyagramı aç
+              </Button>
+            )}
+            {cabinet.isActive && can('ManageAccessCards') && (
               <Button size='sm' variant='outline' onClick={() => setEnrollCabinet(cabinet)} title='Kabinin kart okuyucusunda okutulan kartı bir kullanıcıya tanımla'>
                 <IdCardIcon />
                 Kart tanımlama
               </Button>
             )}
-            <Button size='sm' variant='outline' onClick={() => setEditing(cabinet)}>
-              <PencilIcon />
-              Düzenle
-            </Button>
+            {canConfigure && (
+              <Button size='sm' variant='outline' onClick={() => setEditing(cabinet)}>
+                <PencilIcon />
+                Düzenle
+              </Button>
+            )}
           </>
         )}
       />

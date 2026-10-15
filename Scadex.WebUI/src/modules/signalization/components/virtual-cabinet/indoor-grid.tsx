@@ -11,8 +11,11 @@ import { IndoorFigure } from './indoor-figure';
  */
 interface IndoorGridProps {
   doors: SignalInnerDoorLiveDto[];
-  /** Kapının anlık anahtar durumu `door.isOpen`'dadır: komut diyaloğu "kapı açıkken kilitleme" uyarısını buna bakarak gösterir. */
-  onSelect: (door: SignalInnerDoorLiveDto) => void;
+  /**
+   * Kapının anlık anahtar durumu `door.isOpen`'dadır: komut diyaloğu "kapı açıkken kilitleme" uyarısını buna bakarak gösterir.
+   * Verilmezse (komut izni yok) kapılar tıklanamaz.
+   */
+  onSelect?: (door: SignalInnerDoorLiveDto) => void;
 }
 
 /** Hücrede gövdenin altındaki ad satırı ve hücreler arası boşluk (SVG birimi). */
@@ -53,7 +56,7 @@ export function IndoorGrid({ doors, onSelect }: IndoorGridProps) {
             isOpen={door.isOpen}
             isUnlocked={door.isUnlocked}
             size={body}
-            onActivate={() => onSelect(door)}
+            onActivate={onSelect ? () => onSelect(door) : undefined}
           />
           <text x={body.width / 2} y={body.height + NAME_ROW_HEIGHT - 4} textAnchor='middle' fontSize='13' fill='#E2E8F0'>
             {door.name}

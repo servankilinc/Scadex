@@ -25,7 +25,7 @@ import { DeviceNodeMenu } from './node-menu';
  * tetiklenmez ve bir kanal değiştiğinde yalnızca o değeri okuyan küçük bileşen
  * yeniden render olur — 500 kanallı bir kabinde tüm graf değil.
  */
-export function TemplateNode({ data, selected }: NodeProps<DeviceNode>) {
+export function TemplateNode({ data, selected, isConnectable }: NodeProps<DeviceNode>) {
   const { device } = data;
   const background = safeCssColor(device.template.backgroundColor);
   const foreground = readableTextColor(device.template.backgroundColor);
@@ -99,7 +99,7 @@ export function TemplateNode({ data, selected }: NodeProps<DeviceNode>) {
         )}
 
         {device.pins.map(pin => (
-          <PinHandle key={pin.id} pin={pin} />
+          <PinHandle key={pin.id} pin={pin} isConnectable={isConnectable} />
         ))}
       </div>
     </DeviceNodeMenu>
@@ -114,7 +114,7 @@ export function TemplateNode({ data, selected }: NodeProps<DeviceNode>) {
  * loose modda bağlantı herhangi bir handle'da başlayıp bitebilir — kablolama
  * diyagramında "source"/"target" zaten keyfi bir ayrımdır.
  */
-function PinHandle({ pin }: { pin: DiagramPinDto }) {
+function PinHandle({ pin, isConnectable }: { pin: DiagramPinDto; isConnectable: boolean }) {
   const position = SIDE_TO_POSITION[pin.side] ?? Position.Left;
 
   return (
@@ -123,6 +123,9 @@ function PinHandle({ pin }: { pin: DiagramPinDto }) {
         id={pin.id}
         type='source'
         position={position}
+        // RF düğüme `isConnectable` verir ama özel düğümün handle'larına KENDİSİ iletmez; iletilmezse salt okunur
+        // editörde (düğüm `connectable: false`) pinden kablo çekilmeye başlanabilirdi.
+        isConnectable={isConnectable}
         // `pinPlacementStyle` İKİ ekseni birden veriyor ve React Flow'un
         // kenar sınıfını ezip geçiyor. Bu ŞART: arka plan görselli şablonlarda
         // pin kenarda değil, çizimin ortasındaki bir klemensin üzerinde

@@ -44,7 +44,8 @@ export function DeviceNodeMenu({ device, children }: { device: DiagramDeviceDto;
   // Erken dönüşten ÖNCE: hook sırası koşullu olamaz.
   const isUnsaved = useIsUnsaved(device.id);
 
-  if (!context) return <>{children}</>;
+  // İki bölüm de izne bağlı (kumanda `ControlOutput`, düzenleme `EditDiagram`); hiçbiri yoksa menü açılmaz.
+  if (!context || (!context.canControl && !context.canEdit)) return <>{children}</>;
 
   // Kumanda hedefi YALNIZCA `Output` kanalıdır — Bidirectional dahil diğer her yön
   // sunucuda reddedilir. Koşul `DeviceCommandService.SendAsync`'teki kontrolün
@@ -68,54 +69,63 @@ export function DeviceNodeMenu({ device, children }: { device: DiagramDeviceDto;
               adı bir grubun başlığı değil, menünün başlığı. Aşağıdaki iki başlık
               ise gerçek grup etiketi, o yüzden `ContextMenuGroup` içindeler. */}
           <div className='text-muted-foreground truncate px-1.5 py-1 text-xs font-medium'>{device.name}</div>
-          <ContextMenuSeparator />
 
-          <ContextMenuGroup>
-            <ContextMenuLabel>Kumanda</ContextMenuLabel>
-            {blocker ? (
-              <p className='text-muted-foreground px-1.5 py-1 text-xs'>{blocker}</p>
-            ) : targets.length === 0 ? (
-              <p className='text-muted-foreground px-1.5 py-1 text-xs'>Bu cihazda çıkış yönlü kanal yok.</p>
-            ) : (
-              targets.map(channel => (
-                <ContextMenuSub key={channel.id}>
-                  <ContextMenuSubTrigger>
-                    <PowerIcon />
-                    <span className='truncate'>
-                      OUT{channel.channelNumber} · {channel.name}
-                    </span>
-                  </ContextMenuSubTrigger>
-                  {/* Gönderilen NİYET, ham değer değil: telde gidecek "1"/"0"'ı
-                      sunucu NO/NC kutbuna göre çözüyor. Burada "1" göndermek, NC
-                      kablolu bir röleyi tam ters yönde sürerdi. */}
-                  <ContextMenuSubContent>
-                    <ContextMenuItem onClick={() => dispatch({ commandType: DeviceCommandType.SetOutput, ioChannelId: channel.id, turnOn: true })}>
-                      Aç
-                    </ContextMenuItem>
-                    <ContextMenuItem onClick={() => dispatch({ commandType: DeviceCommandType.SetOutput, ioChannelId: channel.id, turnOn: false })}>
-                      Kapat
-                    </ContextMenuItem>
-                  </ContextMenuSubContent>
-                </ContextMenuSub>
-              ))
-            )}
-          </ContextMenuGroup>
+          {context.canControl && (
+            <>
+              <ContextMenuSeparator />
 
-          <ContextMenuSeparator />
+              <ContextMenuGroup>
+                <ContextMenuLabel>Kumanda</ContextMenuLabel>
+                {blocker ? (
+                  <p className='text-muted-foreground px-1.5 py-1 text-xs'>{blocker}</p>
+                ) : targets.length === 0 ? (
+                  <p className='text-muted-foreground px-1.5 py-1 text-xs'>Bu cihazda çıkış yönlü kanal yok.</p>
+                ) : (
+                  targets.map(channel => (
+                    <ContextMenuSub key={channel.id}>
+                      <ContextMenuSubTrigger>
+                        <PowerIcon />
+                        <span className='truncate'>
+                          OUT{channel.channelNumber} · {channel.name}
+                        </span>
+                      </ContextMenuSubTrigger>
+                      {/* Gönderilen NİYET, ham değer değil: telde gidecek "1"/"0"'ı
+                          sunucu NO/NC kutbuna göre çözüyor. Burada "1" göndermek, NC
+                          kablolu bir röleyi tam ters yönde sürerdi. */}
+                      <ContextMenuSubContent>
+                        <ContextMenuItem onClick={() => dispatch({ commandType: DeviceCommandType.SetOutput, ioChannelId: channel.id, turnOn: true })}>
+                          Aç
+                        </ContextMenuItem>
+                        <ContextMenuItem onClick={() => dispatch({ commandType: DeviceCommandType.SetOutput, ioChannelId: channel.id, turnOn: false })}>
+                          Kapat
+                        </ContextMenuItem>
+                      </ContextMenuSubContent>
+                    </ContextMenuSub>
+                  ))
+                )}
+              </ContextMenuGroup>
+            </>
+          )}
 
-          <ContextMenuGroup>
-            <ContextMenuLabel>Düzenle</ContextMenuLabel>
-            <ContextMenuItem onClick={() => context.onDuplicate(device.id)}>
-              <CopyIcon />
-              Kopyala
-            </ContextMenuItem>
-            {/* Silme EN ALTTA ve onaylı: geri alma yok (D3'te iptal edildi), tek
-                yanlış tıklama cihazı kablolarıyla birlikte götürür. */}
-            <ContextMenuItem variant='destructive' onClick={() => setConfirmingDelete(true)}>
-              <Trash2Icon />
-              Sil
-            </ContextMenuItem>
-          </ContextMenuGroup>
+          {context.canEdit && (
+            <>
+              <ContextMenuSeparator />
+
+              <ContextMenuGroup>
+                <ContextMenuLabel>Düzenle</ContextMenuLabel>
+                <ContextMenuItem onClick={() => context.onDuplicate(device.id)}>
+                  <CopyIcon />
+                  Kopyala
+                </ContextMenuItem>
+                {/* Silme EN ALTTA ve onaylı: geri alma yok (D3'te iptal edildi), tek
+                    yanlış tıklama cihazı kablolarıyla birlikte götürür. */}
+                <ContextMenuItem variant='destructive' onClick={() => setConfirmingDelete(true)}>
+                  <Trash2Icon />
+                  Sil
+                </ContextMenuItem>
+              </ContextMenuGroup>
+            </>
+          )}
         </ContextMenuContent>
       </ContextMenu>
 

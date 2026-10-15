@@ -1,14 +1,22 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
-import { assignUserIdentityCard, createUser, getUserList, getUserRoles, syncUserRoles, updateUser } from '@/api/user';
+import { assignUserIdentityCard, changeUserPassword, createUser, getCardHolders, getUserList, getUserRoles, syncUserRoles, updateUser } from '@/api/user';
 import { userKeys } from '@/api/query-keys';
-import type { UserCreateRequest, UserIdentityCardAssignRequest, UserUpdateRequest } from '@/models/user';
+import type { UserCreateRequest, UserIdentityCardAssignRequest, UserPasswordChangeRequest, UserUpdateRequest } from '@/models/user';
 
 /** Kullanıcı kartları — pasifler DAHİL (geri alınabilmeleri için). */
 export function useUsers() {
   return useQuery({
     queryKey: userKeys.list(),
     queryFn: getUserList
+  });
+}
+
+/** Kart tanımlama penceresinin kullanıcıları (aktifler) — `ManageAccessCards` ister, tam liste (`useUsers`) `ManageUsers`. */
+export function useCardHolders() {
+  return useQuery({
+    queryKey: userKeys.cardHolders(),
+    queryFn: getCardHolders
   });
 }
 
@@ -48,6 +56,16 @@ export function useUpdateUser() {
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: userKeys.all });
       toast.success('Kullanıcı güncellendi.');
+    }
+  });
+}
+
+/** Parola değiştirme (yönetici). Hata politikası formda (`handleFormApiError`); listede değişen alan yok, invalidate gerekmez. */
+export function useChangeUserPassword() {
+  return useMutation({
+    mutationFn: ({ userId, request }: { userId: string; request: UserPasswordChangeRequest }) => changeUserPassword(userId, request),
+    onSuccess: () => {
+      toast.success('Parola değiştirildi. Kullanıcının açık oturumları yeniden giriş isteyecek.');
     }
   });
 }

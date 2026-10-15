@@ -1,6 +1,7 @@
 import { lazy } from 'react';
 import { redirect, type RouteObject } from 'react-router';
 import { ChartColumnIcon, DoorOpenIcon, IdCardIcon, LandmarkIcon, SlidersHorizontalIcon } from 'lucide-react';
+import { requirePermission } from '@/lib/route-guards';
 import type { AppModule } from '../types';
 import { alertCabinetsQueryOptions, busyCabinetsQueryOptions } from './hooks/use-operator-sessions';
 
@@ -42,6 +43,8 @@ const routes: RouteObject[] = [
         // bakıldığı oradan belli, kabin seçtiren ikinci bir giriş gereksiz olurdu.
         path: 'virtual-cabinet',
         handle: { crumb: 'Sanal Kabin' },
+        // Sanal kabini açma ve yönetme TEK izindir (`SignalVirtualCabinet`); çekirdeğin `ControlOutput`'u burada geçmez.
+        loader: requirePermission('SignalVirtualCabinet'),
         children: [
           {
             path: ':cabinetId',
@@ -65,18 +68,22 @@ const routes: RouteObject[] = [
           {
             path: ':cabinetId',
             handle: { crumb: 'Kapı Yapılandırması' },
+            loader: requirePermission('ConfigureSystem'),
             lazy: async () => ({ Component: (await import('./views/admin/cabinet-config')).default })
           }
         ]
       },
       {
+        // Kurum ↔ rol eşlemesi sistem yapılandırmasıdır; operatörün kurumu ise kartın geçiş yetkisidir (ayrı izin).
         path: 'authorities',
         handle: { crumb: 'Kurumlar' },
+        loader: requirePermission('ConfigureSystem'),
         lazy: async () => ({ Component: (await import('./views/admin/authorities')).default })
       },
       {
         path: 'operators',
         handle: { crumb: 'Operatörler' },
+        loader: requirePermission('ManageAccessCards'),
         lazy: async () => ({ Component: (await import('./views/admin/operators')).default })
       }
     ]
@@ -91,8 +98,8 @@ export const signalizationModule: AppModule = {
     { title: 'Operatör İşlemleri', url: '/signalization/sessions', icon: DoorOpenIcon },
     { title: 'Rapor', url: '/signalization/report', icon: ChartColumnIcon },
     { title: 'Kabinler', url: '/signalization/cabinets', icon: SlidersHorizontalIcon },
-    { title: 'Kurumlar', url: '/signalization/authorities', icon: LandmarkIcon },
-    { title: 'Operatörler', url: '/signalization/operators', icon: IdCardIcon }
+    { title: 'Kurumlar', url: '/signalization/authorities', icon: LandmarkIcon, permission: 'ConfigureSystem' },
+    { title: 'Operatörler', url: '/signalization/operators', icon: IdCardIcon, permission: 'ManageAccessCards' }
   ],
   // Oturum açık olduğu sürece her sayfada: operatör işlemi canlı yayını + kartsız giriş / zorla açma bildirimi.
   LayoutExtension: lazy(() => import('./components/layout-extension')),

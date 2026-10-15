@@ -397,22 +397,23 @@ public class AppDbContext : IdentityDbContext<User, Role, Guid>
             {
                 Id = (int)EntityEnums.Permission.ViewDiagram,
                 Code = nameof(EntityEnums.Permission.ViewDiagram),
-                DisplayName = "Diyagrami goruntule",
+                DisplayName = "Diyagramı izle",
                 Category = "Diagram"
             },
             new Permission
             {
                 Id = (int)EntityEnums.Permission.EditDiagram,
                 Code = nameof(EntityEnums.Permission.EditDiagram),
-                DisplayName = "Diyagrami duzenle",
+                DisplayName = "Diyagramı düzenle",
                 Category = "Diagram"
             },
             new Permission
             {
+                // Yalnızca çekirdek diyagram; sinyalizasyonun sanal kabini SignalVirtualCabinet ister (2026-10-14).
                 Id = (int)EntityEnums.Permission.ControlOutput,
                 Code = nameof(EntityEnums.Permission.ControlOutput),
-                DisplayName = "Cikis sur (role / kilit / siren)",
-                Category = "Control"
+                DisplayName = "Diyagramdan komut gönder",
+                Category = "Diagram"
             },
             new Permission
             {
@@ -496,6 +497,13 @@ public class AppDbContext : IdentityDbContext<User, Role, Guid>
                 Id = (int)EntityEnums.Permission.SignalSessionClose,
                 Code = nameof(EntityEnums.Permission.SignalSessionClose),
                 DisplayName = "Operatör işlemini elle kapatma",
+                Category = "Signalization"
+            },
+            new Permission
+            {
+                Id = (int)EntityEnums.Permission.SignalVirtualCabinet,
+                Code = nameof(EntityEnums.Permission.SignalVirtualCabinet),
+                DisplayName = "Sanal kabini aç ve komut gönder",
                 Category = "Signalization"
             }
         );
@@ -593,6 +601,11 @@ public class AppDbContext : IdentityDbContext<User, Role, Guid>
             {
                 RoleId = new Guid("7138ec51-4f9e-4afd-b61b-5a9a4584f5da"),
                 PermissionId = (int)EntityEnums.Permission.SignalSessionClose
+            },
+            new RolePermission
+            {
+                RoleId = new Guid("7138ec51-4f9e-4afd-b61b-5a9a4584f5da"),
+                PermissionId = (int)EntityEnums.Permission.SignalVirtualCabinet
             }
         );
         #endregion

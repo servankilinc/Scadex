@@ -1,9 +1,11 @@
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
 using Scadex.Business.Abstract;
+using Scadex.Business.Utils.Auth;
 using Scadex.Model.Dtos.CameraCaptureSetting.Commands;
 using Scadex.WebAPI.Controllers.Base;
 using Scadex.WebAPI.Tools;
+using static Scadex.Model.Enums.EntityEnums;
 
 namespace Scadex.WebAPI.Controllers;
 
@@ -25,6 +27,7 @@ public class CameraCaptureSettingController : BaseController
     }
 
     [HttpPut]
+    [RequirePermission(Permission.ConfigureSystem)]
     public async Task<IActionResult> Update(CameraCaptureSettingUpdateDto request, CancellationToken cancellationToken)
     {
         var result = await _settingService.UpdateAsync(request, cancellationToken);

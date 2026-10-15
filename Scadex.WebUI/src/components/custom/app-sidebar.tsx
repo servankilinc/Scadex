@@ -73,12 +73,13 @@ const NAV_ITEMS: NavItem[] = [
   { title: 'Olay Geçmişi', url: '/events', icon: HistoryIcon },
   // Canlı izleme kamera tanımını da (ekle/düzenle) kapsar — ayrı bir "Kameralar"
   // yönetim ekranı yok (eski /admin/cameras, 2026-09-23'te buraya taşındı).
-  { title: 'Kameralar', url: '/cameras', icon: VideoIcon },
-  { title: 'Firmalar', url: '/admin/companies', icon: Building2Icon },
-  { title: 'Kullanıcılar', url: '/admin/users', icon: UsersIcon },
-  { title: 'Roller', url: '/admin/roles', icon: ShieldIcon },
-  { title: 'Şablonlar', url: '/admin/templates', icon: ShapesIcon },
-  { title: 'Ayarlar', url: '/admin/settings', icon: SettingsIcon }
+  // `permission`: rotanın `requirePermission`'ıyla aynı izin (main.tsx).
+  { title: 'Kameralar', url: '/cameras', icon: VideoIcon, permission: 'ViewCamera' },
+  { title: 'Firmalar', url: '/admin/companies', icon: Building2Icon, permission: 'ConfigureSystem' },
+  { title: 'Kullanıcılar', url: '/admin/users', icon: UsersIcon, permission: 'ManageUsers' },
+  { title: 'Roller', url: '/admin/roles', icon: ShieldIcon, permission: 'ManageUsers' },
+  { title: 'Şablonlar', url: '/admin/templates', icon: ShapesIcon, permission: 'ConfigureSystem' },
+  { title: 'Ayarlar', url: '/admin/settings', icon: SettingsIcon, permission: 'ConfigureSystem' }
 ];
 
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
