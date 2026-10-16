@@ -32,6 +32,12 @@ public class RoleService : IRoleService
         var result = await _unitOfWork.Roles.GetAllAsync<RoleDto>(configurationProvider: _mapper.ConfigurationProvider, filter: request?.Filter, sorts: request?.Sorts, cancellationToken: cancellationToken);
         if (result == null)
             return Result<ICollection<RoleDto>>.NotFound();
+
+        // Role'de UserRoles navigasyonu yok (Identity ara tablosu); sayı ayrı bir gruplu sorguyla eklenir.
+        var userCounts = await _unitOfWork.Roles.GetUserCountsAsync(cancellationToken);
+        foreach (var role in result)
+            role.UserCount = userCounts.GetValueOrDefault(role.Id);
+
         return Result<ICollection<RoleDto>>.Success(result);
     }
     #endregion

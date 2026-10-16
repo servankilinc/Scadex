@@ -1,9 +1,25 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { getPermissionList } from '@/api/permission';
-import { createRole, getRoleList, getRolePermissions, syncRolePermissions, updateRole } from '@/api/role';
+import {
+  addRoleMember,
+  createRole,
+  getPermissionMatrix,
+  getRoleList,
+  getRoleMembers,
+  getRolePermissions,
+  removeRoleMember,
+  savePermissionMatrix,
+  syncRolePermissions,
+  updateRole
+} from '@/api/role';
 import { permissionKeys, roleKeys, userKeys } from '@/api/query-keys';
+import { getCurrentUser } from '@/lib/auth-session';
 import type { RoleCreateRequest, RoleUpdateRequest } from '@/models/role';
+import type { RolePermissionMatrixItem } from '@/models/rolePermission';
+
+/** Yetki yazımı token'a girişte yansır; başarı bildirimleri bunu söyler. */
+export const RELOGIN_NOTICE = 'Değişiklik, ilgili kullanıcıların bir sonraki girişinde geçerli olur.';
 
 /** Rol kartları ve kullanıcı Roller dialogu — pasifler DAHİL. */
 export function useRoles() {
@@ -31,6 +47,35 @@ export function usePermissions() {
   });
 }
 
+/** Her rol × izin kimlikleri — Yetki Matrisi ve kullanıcı Roller dialogundaki "etkin izinler" önizlemesi. */
+export function usePermissionMatrix() {
+  return useQuery({
+    queryKey: roleKeys.matrix(),
+    queryFn: getPermissionMatrix
+  });
+}
+
+/** Üyeler dialogunun kaynağı. `roleId` null iken istek atılmaz. */
+export function useRoleMembers(roleId: string | null) {
+  return useQuery({
+    queryKey: roleKeys.members(roleId ?? ''),
+    queryFn: () => getRoleMembers(roleId!),
+    enabled: roleId != null
+  });
+}
+
+/**
+ * Rol-izin ve rol-üye yazımları rol listesini (kullanıcı sayısı), matrisi ve kullanıcı listesini (roller sütunu) birlikte
+ * etkiler; hepsi tazelenir.
+ */
+function useInvalidateAuthorization() {
+  const queryClient = useQueryClient();
+  return () => {
+    void queryClient.invalidateQueries({ queryKey: roleKeys.all });
+    void queryClient.invalidateQueries({ queryKey: userKeys.all });
+  };
+}
+
 /** `onError` BİLEREK yok — `handleFormApiError` çağıran formda kurulur. */
 export function useCreateRole() {
   const queryClient = useQueryClient();
@@ -45,27 +90,68 @@ export function useCreateRole() {
 }
 
 export function useUpdateRole() {
-  const queryClient = useQueryClient();
+  // Kullanıcının rolleri ADLA döner; ad değişince önbellekteki listeler eski adı taşır.
+  const invalidate = useInvalidateAuthorization();
 
   return useMutation({
     mutationFn: (request: RoleUpdateRequest) => updateRole(request),
     onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: roleKeys.all });
-      // Kullanıcının rolleri ADLA döner; ad değişince önbellekteki listeler eski adı taşır.
-      void queryClient.invalidateQueries({ queryKey: userKeys.all });
-      toast.success('Rol güncellendi.');
+      invalidate();
+      toast.success('Rol güncellendi.', { description: RELOGIN_NOTICE });
     }
   });
 }
 
 export function useSyncRolePermissions() {
-  const queryClient = useQueryClient();
+  const invalidate = useInvalidateAuthorization();
 
   return useMutation({
     mutationFn: ({ roleId, permissionIds }: { roleId: string; permissionIds: number[] }) => syncRolePermissions(roleId, permissionIds),
-    onSuccess: (_data, { roleId }) => {
-      void queryClient.invalidateQueries({ queryKey: roleKeys.permissions(roleId) });
-      toast.success('İzinler kaydedildi.');
+    onSuccess: () => {
+      invalidate();
+      toast.success('İzinler kaydedildi.', { description: RELOGIN_NOTICE });
     }
   });
+}
+
+/** Matris kaydı — yalnızca değişen roller gönderilir. Hata politikası ekranda (toast). */
+export function useSavePermissionMatrix() {
+  const invalidate = useInvalidateAuthorization();
+
+  return useMutation({
+    mutationFn: (items: RolePermissionMatrixItem[]) => savePermissionMatrix(items),
+    onSuccess: (_data, items) => {
+      invalidate();
+      toast.success(`${items.length} rolün izinleri kaydedildi.`, { description: RELOGIN_NOTICE });
+    }
+  });
+}
+
+export function useAddRoleMember() {
+  const invalidate = useInvalidateAuthorization();
+
+  return useMutation({
+    mutationFn: ({ roleId, userId }: { roleId: string; userId: string }) => addRoleMember(roleId, userId),
+    onSuccess: (_data, { userId }) => {
+      invalidate();
+      toast.success('Kullanıcı role eklendi.', { description: selfAwareNotice(userId) });
+    }
+  });
+}
+
+export function useRemoveRoleMember() {
+  const invalidate = useInvalidateAuthorization();
+
+  return useMutation({
+    mutationFn: ({ roleId, userId }: { roleId: string; userId: string }) => removeRoleMember(roleId, userId),
+    onSuccess: (_data, { userId }) => {
+      invalidate();
+      toast.success('Kullanıcı rolden çıkarıldı.', { description: selfAwareNotice(userId) });
+    }
+  });
+}
+
+/** Değişen kullanıcı oturumu açan kişiyse bildirim ona hitap eder — kendi menüsü yeniden girişe kadar değişmez. */
+export function selfAwareNotice(userId: string): string {
+  return getCurrentUser()?.id === userId ? 'Yetkileriniz bir sonraki girişinizde güncellenecek.' : RELOGIN_NOTICE;
 }

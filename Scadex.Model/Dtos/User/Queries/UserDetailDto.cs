@@ -17,4 +17,7 @@ public class UserDetailDto : IDto
     public DateTime? CreateDateUtc { get; set; }
     public DateTime? UpdateDateUtc { get; set; }
     public bool IsActive { get; set; }
+
+    /// <summary> Kullanıcının rol adları (pasif roller dahil), ada göre sıralı. ProjectTo doldurmaz: <c>UserService.GetDetailListAsync</c> ayrı sorguyla yazar. </summary>
+    public ICollection<string> Roles { get; set; } = new List<string>();
 }

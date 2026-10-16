@@ -4,6 +4,7 @@ using Scadex.Core.Utils;
 using Scadex.Core.Utils.ResultPattern;
 using Scadex.DataAccess.UoW;
 using Scadex.Model.Dtos.Common;
+using Scadex.Model.Dtos.UserRole.Queries;
 using Scadex.Model.Entities;
 
 namespace Scadex.Business.Concrete;
@@ -19,6 +20,67 @@ public class UserRoleService : IUserRoleService
         _roleManager = roleManager;
         _unitOfWork = unitOfWork;
     }
+
+    #region Role members
+    public async Task<Result<ICollection<RoleMemberDto>>> GetMembersAsync(Guid roleId, CancellationToken cancellationToken = default)
+    {
+        if (!await _unitOfWork.Roles.IsExistAsync(where: r => r.Id == roleId, cancellationToken: cancellationToken))
+            return Result<ICollection<RoleMemberDto>>.NotFound(message: "Rol bulunamadı.");
+
+        var users = await _unitOfWork.Users.GetUsersInRoleAsync(roleId, cancellationToken);
+        ICollection<RoleMemberDto> members = users
+            .Select(u => new RoleMemberDto { UserId = u.Id, UserName = u.UserName, FullName = u.FullName, IsActive = u.IsActive })
+            .ToList();
+        return Result<ICollection<RoleMemberDto>>.Success(members);
+    }
+
+    public async Task<Result> AddMemberAsync(Guid roleId, Guid userId, CancellationToken cancellationToken = default)
+    {
+        var role = await _roleManager.FindByIdAsync(roleId.ToString());
+        if (role == null)
+            return Result.NotFound(message: "Rol bulunamadı.");
+
+        // SyncAsync ile aynı kural: pasif rol yeni bir kullanıcıya atanamaz.
+        if (!role.IsActive)
+        {
+            var message = $"Pasif rol atanamaz: {role.Name}";
+            return Result.Validation(new Dictionary<string, string[]> { ["RoleId"] = new[] { message } }, message: message);
+        }
+
+        var user = await _userManager.FindByIdAsync(userId.ToString());
+        if (user == null)
+            return Result.NotFound(message: "Kullanıcı bulunamadı.");
+
+        if (await _userManager.IsInRoleAsync(user, role.Name!))
+            return Result.Success();
+
+        var identityResult = await _userManager.AddToRoleAsync(user, role.Name!);
+        if (!identityResult.Succeeded)
+            return Result.Failure(description: "Role cannot be assigned.", metadata: GlobalExtensions.Meta("Identity Service Errors", identityResult.Errors));
+
+        return Result.Success();
+    }
+
+    public async Task<Result> RemoveMemberAsync(Guid roleId, Guid userId, CancellationToken cancellationToken = default)
+    {
+        var role = await _roleManager.FindByIdAsync(roleId.ToString());
+        if (role == null)
+            return Result.NotFound(message: "Rol bulunamadı.");
+
+        var user = await _userManager.FindByIdAsync(userId.ToString());
+        if (user == null)
+            return Result.NotFound(message: "Kullanıcı bulunamadı.");
+
+        if (!await _userManager.IsInRoleAsync(user, role.Name!))
+            return Result.Success();
+
+        var identityResult = await _userManager.RemoveFromRoleAsync(user, role.Name!);
+        if (!identityResult.Succeeded)
+            return Result.Failure(description: "Role cannot be removed.", metadata: GlobalExtensions.Meta("Identity Service Errors", identityResult.Errors));
+
+        return Result.Success();
+    }
+    #endregion
 
     public async Task<Result<ICollection<string>>> GetRolesOfUserAsync(Guid userId, CancellationToken cancellationToken = default)
     {

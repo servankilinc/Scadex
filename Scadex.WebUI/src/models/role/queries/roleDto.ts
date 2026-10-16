@@ -10,4 +10,6 @@ export interface RoleDto {
   createDateUtc: string | null;
   updateDateUtc: string | null;
   isActive: boolean;
+  /** Role atanmış kullanıcı sayısı (pasif kullanıcılar dahil). */
+  userCount: number;
 }

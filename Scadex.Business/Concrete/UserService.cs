@@ -38,6 +38,12 @@ public class UserService : IUserService
         var result = await _unitOfWork.Users.GetAllAsync<UserDetailDto>(configurationProvider: _mapper.ConfigurationProvider, filter: request?.Filter, sorts: request?.Sorts, cancellationToken: cancellationToken);
         if (result == null)
             return Result<ICollection<UserDetailDto>>.NotFound();
+
+        // User'da UserRoles navigasyonu yok (Identity ara tablosu); roller ayrı tek sorguyla eklenir.
+        var rolesByUser = await _unitOfWork.Users.GetRoleNamesByUserAsync(cancellationToken);
+        foreach (var user in result)
+            user.Roles = rolesByUser.GetValueOrDefault(user.Id) ?? new List<string>();
+
         return Result<ICollection<UserDetailDto>>.Success(result);
     }
 

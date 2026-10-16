@@ -426,49 +426,49 @@ public class AppDbContext : IdentityDbContext<User, Role, Guid>
             {
                 Id = (int)EntityEnums.Permission.ManageUsers,
                 Code = nameof(EntityEnums.Permission.ManageUsers),
-                DisplayName = "Kullanici yonet",
+                DisplayName = "Kullanıcı ve rolleri yönet",
                 Category = "Admin"
             },
             new Permission
             {
                 Id = (int)EntityEnums.Permission.ConfigureSystem,
                 Code = nameof(EntityEnums.Permission.ConfigureSystem),
-                DisplayName = "Sistem ayarlarini yapilandir",
+                DisplayName = "Sistem ayarlarını yapılandır",
                 Category = "Admin"
             },
             new Permission
             {
                 Id = (int)EntityEnums.Permission.ViewCamera,
                 Code = nameof(EntityEnums.Permission.ViewCamera),
-                DisplayName = "Kamera goruntule",
+                DisplayName = "Kamera görüntüle",
                 Category = "Diagram"
             },
             new Permission
             {
                 Id = (int)EntityEnums.Permission.ExportData,
                 Code = nameof(EntityEnums.Permission.ExportData),
-                DisplayName = "Veri disari aktar",
+                DisplayName = "Veri dışarı aktar",
                 Category = "Data"
             },
             new Permission
             {
                 Id = (int)EntityEnums.Permission.ManageWorkflow,
                 Code = nameof(EntityEnums.Permission.ManageWorkflow),
-                DisplayName = "Is akisi yonet",
+                DisplayName = "İş akışı yönet",
                 Category = "Admin"
             },
             new Permission
             {
                 Id = (int)EntityEnums.Permission.ManageAccessCards,
                 Code = nameof(EntityEnums.Permission.ManageAccessCards),
-                DisplayName = "Gecis kartlarini yonet",
+                DisplayName = "Geçiş kartlarını yönet",
                 Category = "Access"
             },
             new Permission
             {
                 Id = (int)EntityEnums.Permission.RemotePcView,
                 Code = nameof(EntityEnums.Permission.RemotePcView),
-                DisplayName = "PC ekranlarini izle",
+                DisplayName = "PC ekranlarını izle",
                 Category = "RemoteDesk"
             },
             new Permission
@@ -482,7 +482,7 @@ public class AppDbContext : IdentityDbContext<User, Role, Guid>
             {
                 Id = (int)EntityEnums.Permission.RemotePcAudit,
                 Code = nameof(EntityEnums.Permission.RemotePcAudit),
-                DisplayName = "PC izleme raporunu gor",
+                DisplayName = "PC izleme raporunu gör",
                 Category = "RemoteDesk"
             },
             new Permission

@@ -32,4 +32,30 @@ public class UserRoleController : BaseController
         var result = await _userRoleService.SyncAsync(userId, roleNames, cancellationToken);
         return ToAction(result);
     }
+
+    #region Role members
+    [HttpGet("role/{roleId:guid}/users")]
+    [RequirePermission(Permission.ManageUsers)]
+    public async Task<IActionResult> GetMembers(Guid roleId, CancellationToken cancellationToken)
+    {
+        var result = await _userRoleService.GetMembersAsync(roleId, cancellationToken);
+        return ToAction(result);
+    }
+
+    [HttpPut("role/{roleId:guid}/users/{userId:guid}")]
+    [RequirePermission(Permission.ManageUsers)]
+    public async Task<IActionResult> AddMember(Guid roleId, Guid userId, CancellationToken cancellationToken)
+    {
+        var result = await _userRoleService.AddMemberAsync(roleId, userId, cancellationToken);
+        return ToAction(result);
+    }
+
+    [HttpDelete("role/{roleId:guid}/users/{userId:guid}")]
+    [RequirePermission(Permission.ManageUsers)]
+    public async Task<IActionResult> RemoveMember(Guid roleId, Guid userId, CancellationToken cancellationToken)
+    {
+        var result = await _userRoleService.RemoveMemberAsync(roleId, userId, cancellationToken);
+        return ToAction(result);
+    }
+    #endregion
 }

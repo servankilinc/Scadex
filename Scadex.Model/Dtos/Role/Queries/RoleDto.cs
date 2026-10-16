@@ -13,4 +13,7 @@ public class RoleDto : IDto
     public DateTime? CreateDateUtc { get; set; }
     public DateTime? UpdateDateUtc { get; set; }
     public bool IsActive { get; set; }
+
+    /// <summary> Role atanmış kullanıcı sayısı. ProjectTo doldurmaz: <c>RoleService.GetBaseListAsync</c> ayrı sorguyla yazar. </summary>
+    public int UserCount { get; set; }
 }

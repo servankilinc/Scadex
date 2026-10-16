@@ -90,7 +90,11 @@ export const roleKeys = {
   all: ['role'] as const,
   list: () => [...roleKeys.all, 'list'] as const,
   /** Bir rolün izinleri — İzinler dialogunun kaynağı. */
-  permissions: (roleId: string) => [...roleKeys.all, 'permissions', roleId] as const
+  permissions: (roleId: string) => [...roleKeys.all, 'permissions', roleId] as const,
+  /** Tüm roller × izin kimlikleri — Yetki Matrisi ve kullanıcı Roller dialogundaki önizleme. */
+  matrix: () => [...roleKeys.all, 'matrix'] as const,
+  /** Role atanmış kullanıcılar — Üyeler dialogu. */
+  members: (roleId: string) => [...roleKeys.all, 'members', roleId] as const
 };
 
 /**

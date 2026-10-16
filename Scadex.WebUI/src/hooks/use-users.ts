@@ -1,7 +1,8 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { assignUserIdentityCard, changeUserPassword, createUser, getCardHolders, getUserList, getUserRoles, syncUserRoles, updateUser } from '@/api/user';
-import { userKeys } from '@/api/query-keys';
+import { roleKeys, userKeys } from '@/api/query-keys';
+import { selfAwareNotice } from '@/hooks/use-roles';
 import type { UserCreateRequest, UserIdentityCardAssignRequest, UserPasswordChangeRequest, UserUpdateRequest } from '@/models/user';
 
 /** Kullanıcı kartları — pasifler DAHİL (geri alınabilmeleri için). */
@@ -88,8 +89,10 @@ export function useSyncUserRoles() {
   return useMutation({
     mutationFn: ({ userId, roleNames }: { userId: string; roleNames: string[] }) => syncUserRoles(userId, roleNames),
     onSuccess: (_data, { userId }) => {
-      void queryClient.invalidateQueries({ queryKey: userKeys.roles(userId) });
-      toast.success('Roller kaydedildi.');
+      // Kullanıcı listesindeki roller sütunu ve rol listesindeki kullanıcı sayısı da değişti.
+      void queryClient.invalidateQueries({ queryKey: userKeys.all });
+      void queryClient.invalidateQueries({ queryKey: roleKeys.all });
+      toast.success('Roller kaydedildi.', { description: selfAwareNotice(userId) });
     }
   });
 }

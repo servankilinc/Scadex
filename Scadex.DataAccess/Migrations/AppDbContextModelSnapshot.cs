@@ -3779,7 +3779,7 @@ namespace Scadex.DataAccess.Migrations
                             Id = 2,
                             Category = "Diagram",
                             Code = "ControlOutput",
-                            DisplayName = "Diyagramdan komut gönder (röle / kilit / siren)"
+                            DisplayName = "Diyagramdan komut gönder"
                         },
                         new
                         {
@@ -3793,49 +3793,49 @@ namespace Scadex.DataAccess.Migrations
                             Id = 4,
                             Category = "Admin",
                             Code = "ManageUsers",
-                            DisplayName = "Kullanici yonet"
+                            DisplayName = "Kullanıcı ve rolleri yönet"
                         },
                         new
                         {
                             Id = 5,
                             Category = "Admin",
                             Code = "ConfigureSystem",
-                            DisplayName = "Sistem ayarlarini yapilandir"
+                            DisplayName = "Sistem ayarlarını yapılandır"
                         },
                         new
                         {
                             Id = 6,
                             Category = "Diagram",
                             Code = "ViewCamera",
-                            DisplayName = "Kamera goruntule"
+                            DisplayName = "Kamera görüntüle"
                         },
                         new
                         {
                             Id = 7,
                             Category = "Data",
                             Code = "ExportData",
-                            DisplayName = "Veri disari aktar"
+                            DisplayName = "Veri dışarı aktar"
                         },
                         new
                         {
                             Id = 8,
                             Category = "Admin",
                             Code = "ManageWorkflow",
-                            DisplayName = "Is akisi yonet"
+                            DisplayName = "İş akışı yönet"
                         },
                         new
                         {
                             Id = 9,
                             Category = "Access",
                             Code = "ManageAccessCards",
-                            DisplayName = "Gecis kartlarini yonet"
+                            DisplayName = "Geçiş kartlarını yönet"
                         },
                         new
                         {
                             Id = 10,
                             Category = "RemoteDesk",
                             Code = "RemotePcView",
-                            DisplayName = "PC ekranlarini izle"
+                            DisplayName = "PC ekranlarını izle"
                         },
                         new
                         {
@@ -3849,7 +3849,7 @@ namespace Scadex.DataAccess.Migrations
                             Id = 12,
                             Category = "RemoteDesk",
                             Code = "RemotePcAudit",
-                            DisplayName = "PC izleme raporunu gor"
+                            DisplayName = "PC izleme raporunu gör"
                         },
                         new
                         {

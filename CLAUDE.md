@@ -265,6 +265,12 @@ Bunlar tek bir dosyaya bakarak görülemez; gerekçeleri PROJECT_OVERVIEW.md §5
   rotada `requirePermission(...)` loader'ı (`lib/route-guards.ts`), menüde `permission`, düğmede `usePermission()` — bunlar yalnızca
   UX'tir. Diyagram editörü `EditDiagram` yoksa **salt okunurdur** (palet/kaydet/tuval ayarı yok, düğümler `draggable/connectable:
   false` — düğüm düzeyindeki `draggable` tuvalin `nodesDraggable`'ını ezdiği için orada da kapatılır).
+  **Yetki yönetimi (2026-10-16):** rol→izin (`RolePermission/role/{id}/sync`, Yetki Matrisi `PUT RolePermission/matrix`) ve
+  kullanıcı↔rol (`UserRole/user/{id}/sync`, Roller → Üyeler `UserRole/role/{roleId}/users/{userId}`) yazımları `ManageUsers` ister.
+  **Bilinçli olarak yoktur** (kullanıcı kararı): son yöneticiyi kilitleme koruması (son `ManageUsers` sahibi yetkisiz kalırsa kurtarma
+  veritabanından yapılır), yetki yükseltme kısıtı (ManageUsers sahibi kendinde olmayan izni verebilir), yetki denetim tablosu ve
+  anında etki — izinler token'a girişte yazılır, değişiklik **bir sonraki girişte** geçerli olur; "zorla oturum kapat" düğmesi web
+  istemcisi refresh kullanmadığı için etkisiz olacağından eklenmedi.
 - **Kaydetme sözleşmesinde `created`/`updated` ayrımı yoktur.** Gövde
   `{ upserted: [...], deleted: [ids] }`; **Guid'i istemci üretir**, sunucu kimliği arar.
   Pin ve kanal kimlikleri salt-oluşturmadır; mevcut cihaza `pins`/`ioChannels` göndermek 400'dür.

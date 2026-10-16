@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Controller, useForm, type UseFormRegisterReturn } from 'react-hook-form';
+import { Controller, useForm, useWatch, type Control, type UseFormRegisterReturn } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { KeyRoundIcon, PencilIcon, PlusIcon, ShieldIcon } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
@@ -14,7 +14,10 @@ import { Switch } from '@/components/ui/switch';
 import { ActiveBadge, DataTable, type DataTableColumn } from '@/components/custom/data-table';
 import { handleFormApiError } from '@/lib/axios-helper';
 import { useCurrentUser } from '@/lib/auth-session';
+import { effectivePermissionIds, groupByCategory, permissionCategoryLabel } from '@/lib/permissions';
+import type { PermissionDto } from '@/models/permission';
 import type { RoleDto } from '@/models/role';
+import type { RolePermissionMatrixItem } from '@/models/rolePermission';
 import {
   userCreateRequestSchema,
   userPasswordChangeSchema,
@@ -25,7 +28,7 @@ import {
   type UserUpdateRequest
 } from '@/models/user';
 import { useCompanies } from '@/hooks/use-companies';
-import { useRoles } from '@/hooks/use-roles';
+import { RELOGIN_NOTICE, usePermissionMatrix, usePermissions, useRoles } from '@/hooks/use-roles';
 import { useChangeUserPassword, useCreateUser, useSyncUserRoles, useUpdateUser, useUserRoles, useUsers } from '@/hooks/use-users';
 
 /**
@@ -39,7 +42,11 @@ import { useChangeUserPassword, useCreateUser, useSyncUserRoles, useUpdateUser, 
  */
 export default function Users() {
   const { data, isPending, isError, error } = useUsers();
+  const roles = useRoles();
   const currentUser = useCurrentUser();
+  // Pasif rol kullanıcıda atanmış kalır ama izin vermez — sütunda soluk gösterilir.
+  const passiveRoleKeys = new Set((roles.data ?? []).filter(role => !role.isActive).map(role => role.name.toUpperCase()));
+  const columns = buildColumns(passiveRoleKeys);
   const [isCreating, setIsCreating] = useState(false);
   const [editing, setEditing] = useState<UserDetailDto | null>(null);
   const [assigning, setAssigning] = useState<UserDetailDto | null>(null);
@@ -61,7 +68,7 @@ export default function Users() {
       {isError && <p className='text-sm text-destructive'>{error.message}</p>}
 
       <DataTable
-        columns={COLUMNS}
+        columns={columns}
         rows={data}
         getRowKey={user => user.id}
         isLoading={isPending}
@@ -99,14 +106,35 @@ export default function Users() {
   );
 }
 
-const COLUMNS: DataTableColumn<UserDetailDto>[] = [
-  { id: 'fullName', header: 'Ad soyad', cell: user => <span className='font-medium'>{user.fullName}</span> },
-  { id: 'userName', header: 'Kullanıcı adı', cell: user => user.userName ?? '—' },
-  { id: 'company', header: 'Firma', cell: user => user.companyName },
-  { id: 'email', header: 'E-posta', className: 'max-w-xs truncate', cell: user => user.email ?? '—' },
-  { id: 'card', header: 'Kart', cell: user => (user.identityCardId ? <span className='font-mono text-xs'>{user.identityCardId}</span> : '—') },
-  { id: 'active', header: 'Durum', cell: user => <ActiveBadge isActive={user.isActive} /> }
-];
+function buildColumns(passiveRoleKeys: Set<string>): DataTableColumn<UserDetailDto>[] {
+  return [
+    { id: 'fullName', header: 'Ad soyad', cell: user => <span className='font-medium'>{user.fullName}</span> },
+    { id: 'userName', header: 'Kullanıcı adı', cell: user => user.userName ?? '—' },
+    { id: 'company', header: 'Firma', cell: user => user.companyName },
+    {
+      id: 'roles',
+      header: 'Roller',
+      cell: user =>
+        user.roles.length === 0 ? (
+          <span className='text-muted-foreground'>—</span>
+        ) : (
+          <div className='flex max-w-xs flex-wrap gap-1'>
+            {user.roles.map(name => {
+              const isPassive = passiveRoleKeys.has(name.toUpperCase());
+              return (
+                <Badge key={name} variant={isPassive ? 'secondary' : 'outline'} className={isPassive ? 'opacity-60' : undefined} title={isPassive ? 'Pasif rol — izin vermez' : undefined}>
+                  {name}
+                </Badge>
+              );
+            })}
+          </div>
+        )
+    },
+    { id: 'email', header: 'E-posta', className: 'max-w-xs truncate', cell: user => user.email ?? '—' },
+    { id: 'card', header: 'Kart', cell: user => (user.identityCardId ? <span className='font-mono text-xs'>{user.identityCardId}</span> : '—') },
+    { id: 'active', header: 'Durum', cell: user => <ActiveBadge isActive={user.isActive} /> }
+  ];
+}
 
 /**
  * Kart okuyucudan gelen HAM kart kimliği. Sunucu ham string karşılaştırması yapar
@@ -393,6 +421,9 @@ function UserPasswordDialog({ user, onClose }: { user: UserDetailDto; onClose: (
 function UserRolesDialog({ user, onClose }: { user: UserDetailDto; onClose: () => void }) {
   const roles = useRoles();
   const assigned = useUserRoles(user.id);
+  // Önizleme kaynakları — yüklenemezlerse atama yine yapılabilir, yalnızca önizleme görünmez.
+  const matrix = usePermissionMatrix();
+  const permissions = usePermissions();
   const loadError = roles.error ?? assigned.error;
 
   return (
@@ -400,7 +431,7 @@ function UserRolesDialog({ user, onClose }: { user: UserDetailDto; onClose: () =
       <DialogContent className='flex max-h-[90vh] flex-col gap-0 overflow-hidden p-0'>
         <DialogHeader className='p-4 pb-3'>
           <DialogTitle>Roller — {user.fullName}</DialogTitle>
-          <DialogDescription>Değişiklik, kullanıcının bir sonraki girişinde ya da oturum yenilemesinde geçerli olur.</DialogDescription>
+          <DialogDescription>{RELOGIN_NOTICE}</DialogDescription>
         </DialogHeader>
 
         {/* Scroll İÇ katmanda ve başlığın ALTINDA: yuvarlatılmış kutu scrollbar'ı köşeden kırpar, X düğmesi scrollbar'la çakışmaz. */}
@@ -408,7 +439,14 @@ function UserRolesDialog({ user, onClose }: { user: UserDetailDto; onClose: () =
           {/* Form ancak iki kaynak da gelince mount edilir: varsayılan değerler veriden
               okunur, sonradan `reset` gerekmez. */}
           {roles.data && assigned.data ? (
-            <UserRolesForm userId={user.id} roles={roles.data} assigned={assigned.data} onClose={onClose} />
+            <UserRolesForm
+              userId={user.id}
+              roles={roles.data}
+              assigned={assigned.data}
+              matrix={matrix.data}
+              permissions={permissions.data}
+              onClose={onClose}
+            />
           ) : loadError ? (
             <p className='p-4 text-sm text-destructive'>{loadError.message}</p>
           ) : (
@@ -424,7 +462,21 @@ function UserRolesDialog({ user, onClose }: { user: UserDetailDto; onClose: () =
   );
 }
 
-function UserRolesForm({ userId, roles, assigned, onClose }: { userId: string; roles: RoleDto[]; assigned: string[]; onClose: () => void }) {
+function UserRolesForm({
+  userId,
+  roles,
+  assigned,
+  matrix,
+  permissions,
+  onClose
+}: {
+  userId: string;
+  roles: RoleDto[];
+  assigned: string[];
+  matrix: RolePermissionMatrixItem[] | undefined;
+  permissions: PermissionDto[] | undefined;
+  onClose: () => void;
+}) {
   // Identity rol adlarını büyük/küçük harfe duyarsız eşler; sunucu da öyle karşılaştırıyor.
   const assignedKeys = new Set(assigned.map(name => name.toUpperCase()));
   const isAssigned = (role: RoleDto) => assignedKeys.has(role.name.toUpperCase());
@@ -485,6 +537,8 @@ function UserRolesForm({ userId, roles, assigned, onClose }: { userId: string; r
         />
 
         {errors.roleNames && <FieldError>{errors.roleNames.message}</FieldError>}
+
+        {matrix && permissions && <EffectivePermissionsPreview control={form.control} roles={roles} matrix={matrix} permissions={permissions} />}
       </div>
 
       <DialogFooter className='mx-0 mb-0'>
@@ -496,5 +550,49 @@ function UserRolesForm({ userId, roles, assigned, onClose }: { userId: string; r
         </Button>
       </DialogFooter>
     </form>
+  );
+}
+
+/**
+ * Seçili rollerin verdiği izinlerin canlı önizlemesi. Pasif rol izin vermez (sunucudaki kuralın aynası, `effectivePermissionIds`).
+ * `useWatch` — `form.watch()` DEĞİL: React Compiler onu memoize edemiyor.
+ */
+function EffectivePermissionsPreview({
+  control,
+  roles,
+  matrix,
+  permissions
+}: {
+  control: Control<{ roleNames: string[] }>;
+  roles: RoleDto[];
+  matrix: RolePermissionMatrixItem[];
+  permissions: PermissionDto[];
+}) {
+  const roleNames = useWatch({ control, name: 'roleNames' });
+  const granted = effectivePermissionIds(roleNames, roles, matrix);
+  const groups = groupByCategory(permissions.filter(permission => granted.has(permission.id)));
+
+  return (
+    <div className='mt-2 rounded-lg border bg-muted/40 p-3'>
+      <p className='text-sm font-medium'>Etkin izinler ({granted.size})</p>
+      {groups.length === 0 ? (
+        <p className='mt-1 text-sm text-muted-foreground'>Seçili rollerle bu kullanıcı hiçbir izne sahip olmaz; yalnızca giriş isteyen ekranları görür.</p>
+      ) : (
+        <div className='mt-2 flex flex-col gap-2'>
+          {groups.map(([category, items]) => (
+            <div key={category} className='flex flex-col gap-1'>
+              <p className='text-xs font-medium tracking-wide text-muted-foreground uppercase'>{permissionCategoryLabel(category)}</p>
+              <div className='flex flex-wrap gap-1'>
+                {items.map(permission => (
+                  <Badge key={permission.id} variant='outline' title={permission.code}>
+                    {permission.displayName}
+                  </Badge>
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
   );
 }

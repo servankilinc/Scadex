@@ -16,4 +16,6 @@ export interface UserDetailDto {
   createDateUtc: string | null;
   updateDateUtc: string | null;
   isActive: boolean;
+  /** Rol ADLARI (pasif roller dahil), ada göre sıralı. */
+  roles: string[];
 }
