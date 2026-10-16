@@ -3,7 +3,9 @@ import { Link } from 'react-router';
 import { IdCardIcon, PencilIcon, PlusIcon, SearchIcon, WorkflowIcon } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { Field, FieldLabel } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
+import { Switch } from '@/components/ui/switch';
 import { StatusDot } from '@/components/diagram/template-node';
 import { CabinetFormDialog } from '@/components/cabinet/cabinet-form-dialog';
 import { CardEnrollmentDialog } from '@/components/cabinet/card-enrollment-dialog';
@@ -61,13 +63,24 @@ export default function Cabinets() {
   /** Kart tanımlama penceresi açık kabin. */
   const [enrollCabinet, setEnrollCabinet] = useState<CabinetDetailDto | null>(null);
 
+  // Pasif kabinler varsayılan olarak gizli; tercih bilerek hatırlanmaz — ekran her girişte kapalı başlar.
+  const [showPassive, setShowPassive] = useState(false);
+  const passiveCount = (data ?? []).filter(cabinet => !cabinet.isActive).length;
+
   // Arama yalnızca kabin ADINA bakar (firma dahil değil); Türkçe büyük/küçük harf.
   const [search, setSearch] = useState('');
   const filteredCabinets = useMemo(() => {
+    const visible = (data ?? []).filter(cabinet => showPassive || cabinet.isActive);
     const term = search.trim().toLocaleLowerCase('tr');
-    if (!term) return data ?? [];
-    return (data ?? []).filter(cabinet => cabinet.name.toLocaleLowerCase('tr').includes(term));
-  }, [data, search]);
+    if (!term) return visible;
+    return visible.filter(cabinet => cabinet.name.toLocaleLowerCase('tr').includes(term));
+  }, [data, search, showPassive]);
+
+  const emptyMessage = !data?.length
+    ? 'Henüz kabin yok.'
+    : search.trim()
+      ? 'Aramaya uyan kabin yok.'
+      : "Yalnızca pasif kabin var; görmek için 'Pasifleri göster'i açın.";
 
   return (
     <div className='flex flex-col gap-4 p-4'>
@@ -84,9 +97,19 @@ export default function Cabinets() {
         )}
       </div>
 
-      <div className='relative w-full max-w-xs'>
-        <SearchIcon className='pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground' />
-        <Input className='pl-8' placeholder='Kabin ara…' value={search} onChange={e => setSearch(e.target.value)} />
+      <div className='flex flex-wrap items-center gap-4'>
+        <div className='relative w-full max-w-xs'>
+          <SearchIcon className='pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground' />
+          <Input className='pl-8' placeholder='Kabin ara…' value={search} onChange={e => setSearch(e.target.value)} />
+        </div>
+        {passiveCount > 0 && (
+          <Field orientation='horizontal' className='w-auto'>
+            <Switch id='cabinets-show-passive' checked={showPassive} onCheckedChange={checked => setShowPassive(checked)} />
+            <FieldLabel htmlFor='cabinets-show-passive' className='font-normal whitespace-nowrap'>
+              Pasifleri göster ({passiveCount})
+            </FieldLabel>
+          </Field>
+        )}
       </div>
 
       {isError && <p className='text-sm text-destructive'>{error.message}</p>}
@@ -97,7 +120,7 @@ export default function Cabinets() {
         getRowKey={cabinet => cabinet.id}
         isLoading={isPending}
         isRowMuted={cabinet => !cabinet.isActive}
-        emptyMessage={data?.length ? 'Aramaya uyan kabin yok.' : 'Henüz kabin yok.'}
+        emptyMessage={emptyMessage}
         actions={cabinet => (
           <>
             {can('ViewDiagram') && (
