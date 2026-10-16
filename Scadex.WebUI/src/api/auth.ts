@@ -11,8 +11,8 @@ export async function login(request: LoginRequest): Promise<LoginResponse> {
     clientType: import.meta.env.VITE_CLIENT_TYPE
   });
 
-  // Yanit oturumun tamamini tasir: token, kullanici, rol ve izinler. Sunucuda
-  // ayri bir profil ucu yoktur, oturum tek istekte kurulur.
+  // Yanit oturumun tamamini tasir: token, kullanici, rol ve izinler; oturum tek
+  // istekte kurulur. Profil ucu (api/profile.ts) yalnizca /profile ekranindadir.
   setAccessToken(response.accessToken.token);
   setSession({ userId: response.user.id, deviceId: response.deviceId });
   setCurrentUser(response.user, response.roles ?? [], response.permissions);

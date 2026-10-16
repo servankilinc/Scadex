@@ -8,3 +8,12 @@ export { userUpdateRequestSchema, type UserUpdateRequest } from './commands/user
 export type { UserIdentityCardAssignRequest } from './commands/userIdentityCardAssignRequest';
 export { userPasswordChangeSchema, type UserPasswordChangeForm, type UserPasswordChangeRequest } from './commands/userPasswordChangeRequest';
 export type { UserCardHolderDto } from './queries/userCardHolderDto';
+
+// Profil — giriş yapan kullanıcının kendisi (`/api/Account/profile`, `/api/Account/password`)
+export type { UserProfileDto } from './queries/userProfileDto';
+export { userProfileUpdateRequestSchema, type UserProfileUpdateRequest } from './commands/userProfileUpdateRequest';
+export {
+  userOwnPasswordChangeSchema,
+  type UserOwnPasswordChangeForm,
+  type UserOwnPasswordChangeRequest
+} from './commands/userOwnPasswordChangeRequest';

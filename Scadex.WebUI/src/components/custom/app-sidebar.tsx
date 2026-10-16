@@ -15,6 +15,7 @@ import {
   ShapesIcon,
   ShieldIcon,
   SunIcon,
+  UserIcon,
   UsersIcon,
   VideoIcon,
   Zap,
@@ -202,6 +203,12 @@ function NavUser() {
                 GRUBU etiketlemek zorunda (Radix'in serbest Label'i degil).
                 Kullanici adi bir grubun basligi degil, menunun basligi. */}
             <div className='text-muted-foreground truncate px-1.5 py-1 text-xs font-medium'>{name}</div>
+            <DropdownMenuSeparator />
+
+            <DropdownMenuItem onClick={() => navigate('/profile')}>
+              <UserIcon />
+              Profilim
+            </DropdownMenuItem>
             <DropdownMenuSeparator />
 
             {/* Tema secimi Redux'ta duruyordu ama onu degistirecek HICBIR arayuz

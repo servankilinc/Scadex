@@ -61,6 +61,8 @@ const router = createBrowserRouter([
             children: [
               { index: true, Component: AppViews.Home },
               { path: 'about', Component: AppViews.About, handle: { crumb: 'Hakkında' } },
+              // Kendi hesabı: izin İSTEMEZ (sunucu kimliği token'dan okur). Menüde değil, kullanıcı açılır menüsündedir.
+              { path: 'profile', Component: AppViews.Profile, handle: { crumb: 'Profilim' } },
               {
                 // Diyagram, /cabinets ALTINA yuvalanır: breadcrumb eşleşen route
                 // zincirinden türediği için, kardeş olsaydı "Kabinler / Diyagram"

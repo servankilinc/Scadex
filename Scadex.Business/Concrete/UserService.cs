@@ -202,6 +202,83 @@ public class UserService : IUserService
     }
     #endregion
 
+    #region Profile
+    public async Task<Result<UserProfileDto>> GetProfileAsync(Guid userId, CancellationToken cancellationToken = default)
+    {
+        // Pasif kullanıcının access token'ı süresi dolana kadar geçerli kalır; profil ona açılmaz.
+        var profile = await _unitOfWork.Users.GetAsync<UserProfileDto>(configurationProvider: _mapper.ConfigurationProvider, where: u => u.Id == userId && u.IsActive, cancellationToken: cancellationToken);
+        if (profile == null)
+            return Result<UserProfileDto>.NotFound(message: "Kullanıcı bulunamadı veya pasif durumda.");
+        return Result<UserProfileDto>.Success(profile);
+    }
+
+    public async Task<Result<UserProfileDto>> UpdateProfileAsync(Guid userId, UserProfileUpdateDto request, CancellationToken cancellationToken = default)
+    {
+        var validationResult = await _validationService.ValidateAsync(request, cancellationToken);
+        if (!validationResult.IsValid)
+            return Result<UserProfileDto>.Validation(validationResult.Failures);
+
+        var user = await _userManager.FindByIdAsync(userId.ToString());
+        if (user == null || !user.IsActive)
+            return Result<UserProfileDto>.NotFound(message: "Kullanıcı bulunamadı veya pasif durumda.");
+
+        // E-posta benzersizliği Identity'de kapalı (`RequireUniqueEmail = false`); CreateAsync'teki denetimin aynısı.
+        // İkinci bir eşleşme FindByEmailAsync'i (giriş) istisnaya düşürürdü.
+        var email = string.IsNullOrWhiteSpace(request.Email) ? null : request.Email.Trim();
+        if (email != null)
+        {
+            var owner = await _userManager.FindByEmailAsync(email);
+            if (owner != null && owner.Id != userId)
+            {
+                const string message = "Bu e-posta adresi zaten kullaniliyor.";
+                return Result<UserProfileDto>.Validation(new Dictionary<string, string[]> { [nameof(request.Email)] = new[] { message } }, message: message);
+            }
+        }
+
+        user.FullName = request.FullName.Trim();
+        user.PhoneNumber = string.IsNullOrWhiteSpace(request.PhoneNumber) ? null : request.PhoneNumber.Trim();
+
+        // E-posta repository ile yazılmaz: `NormalizedEmail` güncellenmez ve e-postayla giriş eski adresi arar.
+        // SetEmailAsync diğer alanlarla birlikte tek UpdateAsync'te kaydeder.
+        var identityResult = string.Equals(email, user.Email, StringComparison.Ordinal)
+            ? await _userManager.UpdateAsync(user)
+            : await _userManager.SetEmailAsync(user, email);
+        if (!identityResult.Succeeded)
+            return Result<UserProfileDto>.Failure(description: "User profile cannot be updated.", metadata: GlobalExtensions.Meta("Identity Service Errors", identityResult.Errors));
+
+        return await GetProfileAsync(userId, cancellationToken);
+    }
+
+    public async Task<Result> ChangeOwnPasswordAsync(Guid userId, UserOwnPasswordChangeDto request, CancellationToken cancellationToken = default)
+    {
+        var validationResult = await _validationService.ValidateAsync(request, cancellationToken);
+        if (!validationResult.IsValid)
+            return Result.Validation(validationResult.Failures);
+
+        var user = await _userManager.FindByIdAsync(userId.ToString());
+        if (user == null || !user.IsActive)
+            return Result.NotFound(message: "Kullanıcı bulunamadı veya pasif durumda.");
+
+        // ChangePasswordAsync mevcut parolayı doğrular ve güvenlik damgasını (SecurityStamp) yeniler.
+        var identityResult = await _userManager.ChangePasswordAsync(user, request.CurrentPassword, request.NewPassword);
+        if (!identityResult.Succeeded)
+        {
+            // Yanlış mevcut parola da parola kuralı ihlali de istemci hatasıdır (400); hata ilgili alana yazılır.
+            var mismatch = identityResult.Errors.Any(e => e.Code == nameof(IdentityErrorDescriber.PasswordMismatch));
+            var messages = mismatch ? new[] { "Mevcut parola hatalı." } : identityResult.Errors.Select(e => e.Description).ToArray();
+            var field = mismatch ? nameof(request.CurrentPassword) : nameof(request.NewPassword);
+            return Result.Validation(new Dictionary<string, string[]> { [field] = messages }, message: messages.FirstOrDefault());
+        }
+
+        // Diğer cihazlar yeni parolayla yeniden girmeli; bu cihazın oturumu korunur (kullanıcı kendini dışarı atmasın).
+        var keepDeviceId = request.DeviceId ?? Guid.Empty;
+        await _unitOfWork.RefreshTokens.RevokeDeviceRefreshTokensAsync(f => f.UserId == userId && f.DeviceId != keepDeviceId && f.IsRevoked == false, cancellationToken);
+
+        _logger.LogInformation("Parola kullanici tarafindan degistirildi: kullanici {UserId}", userId);
+        return Result.Success();
+    }
+    #endregion
+
     #region Helpers
     /// <summary> boş kart id metni <c>null</c>'a çekilir(Db de veri varsa benzersiz olmlaı boş string çakışma yaratır dı) </summary>
     private static string? NormalizeIdentityCardId(string? identityCardId) => string.IsNullOrWhiteSpace(identityCardId) ? null : identityCardId.Trim();

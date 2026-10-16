@@ -117,6 +117,15 @@ public class MappingProfiles : Profile
             .ForMember(dest => dest.UpdateDateUtc, opt => opt.MapFrom(src => src.UpdateDateUtc))
             .ForMember(dest => dest.IsActive, opt => opt.MapFrom(src => src.IsActive));
 
+        CreateMap<User, UserProfileDto>()
+            .ForMember(dest => dest.Id, opt => opt.MapFrom(src => src.Id))
+            .ForMember(dest => dest.UserName, opt => opt.MapFrom(src => src.UserName))
+            .ForMember(dest => dest.Email, opt => opt.MapFrom(src => src.Email))
+            .ForMember(dest => dest.FullName, opt => opt.MapFrom(src => src.FullName))
+            .ForMember(dest => dest.PhoneNumber, opt => opt.MapFrom(src => src.PhoneNumber))
+            .ForMember(dest => dest.CompanyName, opt => opt.MapFrom(src => src.Company != default ? src.Company.Name : default))
+            .ForMember(dest => dest.IdentityCardId, opt => opt.MapFrom(src => src.IdentityCardId));
+
         CreateMap<UserCreateDto, User>()
             .ForMember(dest => dest.UserName, opt => opt.MapFrom(src => src.UserName))
             .ForMember(dest => dest.Email, opt => opt.MapFrom(src => src.Email))

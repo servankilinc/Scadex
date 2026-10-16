@@ -17,9 +17,10 @@ import type { UserBaseDto } from '@/models/user';
  *  - roles       : LoginResponse.roles
  *  - permissions : LoginResponse.permissions
  *
- * user/roles/permissions ucu de girise verilir; sunucuda ayri bir profil ucu
- * YOKTUR. Burada durduklari icin sayfa yenilendiginde ek istek atilmadan
- * render edilir.
+ * user/roles/permissions ucu de girise verilir. Burada durduklari icin sayfa
+ * yenilendiginde ek istek atilmadan render edilir. Profil ekrani (/profile)
+ * kendi verisini `GET /api/Account/profile`'dan okur; ad degisince buradaki
+ * kopyayi updateCurrentUser ile esitler.
  *
  * userId/deviceId/user SIR DEGILDIR - gercek sir olan refresh token HttpOnly
  * cookie'de durur ve JS'ten okunamaz. Buradaki izin listesi de YALNIZCA UX
@@ -170,6 +171,12 @@ export function getCurrentUser(): UserBaseDto | null {
 /** Uc parca da ayni yanittan (LoginResponse) gelir, birlikte yazilir. */
 export function setCurrentUser(user: UserBaseDto, roles: string[], permissions: string[]): void {
   merge({ user, roles, permissions });
+}
+
+/** Profil kaydedilince menudeki ad yeniden giris beklemeden guncellensin. Rol/izin degismez; oturum yoksa hicbir sey yapmaz. */
+export function updateCurrentUser(patch: Partial<Omit<UserBaseDto, 'id'>>): void {
+  if (!cache.user) return;
+  merge({ user: { ...cache.user, ...patch } });
 }
 
 // --- Rol ve izin kontrolu (YALNIZCA UX) ---

@@ -22,4 +22,13 @@ public interface IUserService
 
     /// <summary> Parolayı eskisini sormadan değiştirir; refresh token'ları iptal eder, kilidi sıfırlar. </summary>
     Task<Result> ChangePasswordAsync(Guid userId, UserPasswordChangeDto request, CancellationToken cancellationToken = default);
+
+    // Profile — giriş yapan kullanıcının kendisi; `userId` her zaman token'dan gelir, gövdeden değil.
+    Task<Result<UserProfileDto>> GetProfileAsync(Guid userId, CancellationToken cancellationToken = default);
+
+    /// <summary> Ad soyad, e-posta ve telefonu yazar; güncel profili döner. E-posta UserManager üzerinden yazılır (NormalizedEmail). </summary>
+    Task<Result<UserProfileDto>> UpdateProfileAsync(Guid userId, UserProfileUpdateDto request, CancellationToken cancellationToken = default);
+
+    /// <summary> Mevcut parolayı doğrulayarak değiştirir; isteği gönderen cihaz dışındaki oturumları iptal eder. </summary>
+    Task<Result> ChangeOwnPasswordAsync(Guid userId, UserOwnPasswordChangeDto request, CancellationToken cancellationToken = default);
 }
