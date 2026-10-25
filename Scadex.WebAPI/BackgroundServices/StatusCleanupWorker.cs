@@ -37,9 +37,9 @@ public class StatusCleanupWorker : BackgroundService
                 var cabinetStatusService = scope.ServiceProvider.GetRequiredService<ICabinetStatusService>();
 
                 var result = await cabinetStatusService.SweepAsync(stoppingToken);
-                if (result.ClearedDevices > 0 || result.ClearedCameras > 0 || result.ReconciledCabinets > 0)
-                    _logger.LogInformation("Kabin durum taramasi: {Devices} cihazin ve {Cameras} kameranin eskiyen durumu temizlendi, {Cabinets} kabin uzlastirildi",
-                        result.ClearedDevices, result.ClearedCameras, result.ReconciledCabinets);
+                if (result.ClearedDevices > 0 || result.ReconciledCabinets > 0)
+                    _logger.LogInformation("Kabin durum taramasi: {Devices} cihazin eskiyen durumu temizlendi, {Cabinets} kabin uzlastirildi",
+                        result.ClearedDevices, result.ReconciledCabinets);
             }
             catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
             {

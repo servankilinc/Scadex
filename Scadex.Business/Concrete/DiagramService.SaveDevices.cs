@@ -1,4 +1,5 @@
-﻿using Scadex.Model.Dtos.Diagram.Commands;
+﻿using Microsoft.EntityFrameworkCore;
+using Scadex.Model.Dtos.Diagram.Commands;
 using Scadex.Model.Dtos.Diagram.Commands.Items;
 using Scadex.Model.Entities;
 using static Scadex.Model.Enums.EntityEnums;
@@ -16,7 +17,10 @@ public partial class DiagramService
 {
     // ==================== YUKLEME ====================
 
-    /// <summary>Gonderide gecen tum cihaz Id'leri; TAKIPLI, kabin filtresi YOK.</summary>
+    /// <summary>
+    /// Gonderide gecen tum cihaz Id'leri; TAKIPLI, kabin filtresi YOK. Ek tablolar (kamera / kontrol karti / PC)
+    /// birlikte yuklenir: guncellemede yazilir, silmede MAC'leri serbest birakilir (DiagramService.SaveDeviceExtensions.cs).
+    /// </summary>
     private async Task<EntityLookup<Device>> LoadDevicesAsync(Guid cabinetId, DiagramSaveRequest request, CancellationToken cancellationToken)
     {
         var ids = request.Devices.Upserted.Select(d => d.Id).Concat(request.Devices.Deleted).Distinct().ToList();
@@ -24,6 +28,7 @@ public partial class DiagramService
 
         var rows = await _unitOfWork.Devices.GetAllAsync(
             where: d => ids.Contains(d.Id),
+            include: q => q.Include(d => d.Camera).Include(d => d.ControlCard).Include(d => d.PcDevice),
             cancellationToken: cancellationToken) ?? [];
 
         // Device IActivatableEntity: "kaldirilmis" olmak IsActive = false demek.
@@ -60,34 +65,6 @@ public partial class DiagramService
             cancellationToken: cancellationToken) ?? [];
 
         return rows.ToList();
-    }
-
-    /// <summary>
-    /// Gonderilen MAC adreslerinin SAHIPLERI — <c>IX_Device_MacAddress</c>
-    /// (unique, WHERE MacAddress IS NOT NULL AND IsActive = 1).
-    ///
-    /// <b>Neden kabinle daraltilmiyor.</b> MAC index'i kabin bazli DEGIL,
-    /// GLOBALDIR: bir fiziksel kartin tek MAC'i vardir ve ingest kabini bu adresten cozer.
-    /// Dolayisiyla carpisma baska bir kabindeki cihazla da olabilir; sorgu kabinle degil,
-    /// GONDERILEN ADRESLERLE daraltilir. Gonderide hic adres yoksa sorgu ATILMAZ.
-    /// </summary>
-    private async Task<Dictionary<Guid, string>> LoadDeviceMacAddressesAsync(DiagramSaveRequest request, CancellationToken cancellationToken)
-    {
-        var submitted = request.Devices.Upserted
-            .Select(d => d.MacAddress)
-            .Where(mac => !string.IsNullOrWhiteSpace(mac))
-            .Select(mac => mac!)
-            .Distinct(StringComparer.OrdinalIgnoreCase)
-            .ToList();
-
-        if (submitted.Count == 0) return [];
-
-        var rows = await _unitOfWork.Devices.GetAllAsync(
-            select: d => new DeviceMacRow(d.Id, d.MacAddress!),
-            where: d => d.IsActive && d.MacAddress != null && submitted.Contains(d.MacAddress),
-            cancellationToken: cancellationToken) ?? [];
-
-        return rows.ToDictionary(r => r.Id, r => r.MacAddress);
     }
 
     /// <summary>
@@ -167,36 +144,6 @@ public partial class DiagramService
     }
 
     /// <summary>
-    /// MAC adreslerinin benzersizligi — <c>IX_Device_MacAddress</c>. Index KABIN BAZLI
-    /// DEGIL GLOBALDIR: bir fiziksel kartin tek MAC'i vardir ve ingest kabini bu adresten
-    /// cozer; ayni adres iki cihaza dusseydi telemetri yanlis kabine yazilirdi. Bu yuzden
-    /// hata mesaji "bu kabinde" demez — carpisan cihaz baska bir kabinde olabilir.
-    /// </summary>
-    private static void ValidateDeviceMacAddresses(DiagramSaveRequest request, SaveContext context, Dictionary<string, List<string>> errors)
-    {
-        var upsertedIds = request.Devices.Upserted.Select(d => d.Id).ToHashSet();
-        // OrdinalIgnoreCase: SQL Server'in varsayilan collation'i buyuk/kucuk harf duyarsiz,
-        // yani "aa:bb.." ile "AA:BB.." index'te AYNI satirdir. On kontrol de oyle saymali.
-        var macAddresses = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-
-        foreach (var (deviceId, macAddress) in context.DeviceMacAddresses)
-        {
-            // Silinen cihaz index filtresinden duser, yazilan cihazin YENI degeri
-            // asagida eklenecek — ikisi de mevcut adres sayilmaz.
-            if (context.DeletedDeviceIds.Contains(deviceId) || upsertedIds.Contains(deviceId)) continue;
-            macAddresses.Add(macAddress);
-        }
-
-        for (int i = 0; i < request.Devices.Upserted.Count; i++)
-        {
-            var macAddress = request.Devices.Upserted[i].MacAddress;
-            if (string.IsNullOrWhiteSpace(macAddress)) continue;
-            if (!macAddresses.Add(macAddress))
-                AddError(errors, $"Devices.Upserted[{i}].MacAddress", "Bu MAC adresi baska bir cihaza kayitli");
-        }
-    }
-
-    /// <summary>
     /// Izleme yalnizca izlenebilir sablondan (<c>ComponentTemplate.IsMonitorable</c>) turemis cihazda acilabilir:
     /// klemensin, sigortanin yoklanacak bir agi yoktur. Kapatmak her zaman serbesttir.
     /// </summary>
@@ -255,6 +202,7 @@ public partial class DiagramService
             if (context.Devices.Live.TryGetValue(draft.Id, out var device))
             {
                 WriteDevice(device, draft);
+                WriteDeviceExtensions(device, draft);
                 continue;
             }
 
@@ -269,6 +217,7 @@ public partial class DiagramService
             };
             WriteDevice(device, draft);
             _unitOfWork.Devices.Add(device);
+            WriteDeviceExtensions(device, draft);
 
             // Pini olmayan sablon: cihaz pinsiz dogar. Bu bir SECIM degil, sablonun
             // sonucu — pin yazarligi sablon ekranina aittir.
@@ -284,9 +233,9 @@ public partial class DiagramService
     /// alanlarini eski degerleriyle geri yazma riski dogurur.
     ///
     /// <c>DeviceStatusId</c> / <c>LastSeen</c> / <c>LastConnectionError</c> burada DOKUNULMAZ —
-    /// taslakta zaten yoklar, yalnizca <c>ICabinetStatusService</c> yazar. <c>MacAddress</c> /
-    /// <c>IpAddress</c> ise taslakta VARDIR: MAC, SCADA ingest'inin kabini cozdugu adrestir ve
-    /// operatorun girebilmesi gerekir. Izleme ayarlari (<c>MonitoringPort</c>, <c>PingIntervalSec</c>,
+    /// taslakta zaten yoklar, yalnizca <c>ICabinetStatusService</c> yazar. <c>IpAddress</c> ise taslakta
+    /// VARDIR (yoklamanin ve kameranin hedefi). MAC / kullanici / parola cihaz govdesinde degil ek tablolardadir:
+    /// <see cref="WriteDeviceExtensions"/>. Izleme ayarlari (<c>MonitoringPort</c>, <c>PingIntervalSec</c>,
     /// <c>IsMonitoringEnabled</c>) da taslaktadir: yoklamanin hedefini operator belirler.
     /// Izlemesi kapatilan cihazin durumu son degerinde kalir; son kaniti 23 saatten eskiyse periyodik tarama
     /// onu <c>null</c>'a (bilinmiyor) ceker — Offline'a degil.
@@ -302,14 +251,9 @@ public partial class DiagramService
         device.ZIndex = draft.ZIndex;
         device.IsLocked = draft.IsLocked;
         device.IsVisible = draft.IsVisible;
-        device.MacAddress = draft.MacAddress;
         device.IpAddress = draft.IpAddress;
         device.MonitoringPort = draft.MonitoringPort;
         device.PingIntervalSec = draft.PingIntervalSec;
         device.IsMonitoringEnabled = draft.IsMonitoringEnabled;
     }
-
-    // ==================== YARDIMCI TIPLER ====================
-
-    private sealed record DeviceMacRow(Guid Id, string MacAddress);
 }

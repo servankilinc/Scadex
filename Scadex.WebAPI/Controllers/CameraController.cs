@@ -37,14 +37,6 @@ public class CameraController : BaseController
         return ToAction(result);
     }
 
-    [HttpPost]
-    [RequirePermission(Permission.ConfigureSystem)]
-    public async Task<IActionResult> Create(CameraCreateDto request, CancellationToken cancellationToken)
-    {
-        var result = await _cameraService.CreateAsync(request, cancellationToken);
-        return ToAction(result);
-    }
-
     [HttpPut]
     [RequirePermission(Permission.ConfigureSystem)]
     public async Task<IActionResult> Update(CameraUpdateDto request, CancellationToken cancellationToken)

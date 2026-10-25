@@ -11,7 +11,6 @@ public class Device : IEntity, IAuditableEntity, IActivatableEntity, IMonitoredA
     public string Name { get; set; } = null!;
     public int? DeviceStatusId { get; set; }
     public string? IpAddress { get; set; }
-    public string? MacAddress { get; set; }
 
     #region --- Diagrma Props ---
     public double CoordinateX { get; set; }
@@ -57,5 +56,10 @@ public class Device : IEntity, IAuditableEntity, IActivatableEntity, IMonitoredA
     public virtual ICollection<IoChannel>? IoChannels { get; set; }
     public virtual ICollection<Pin>? Pins { get; set; }
     public virtual ICollection<DeviceCommand>? DeviceCommands { get; set; }
+
+    // 1-1 ek tablolar: şablon tipine göre en fazla biri doludur.
+    public virtual Camera? Camera { get; set; }
+    public virtual ControlCard? ControlCard { get; set; }
+    public virtual PcDevice? PcDevice { get; set; }
     #endregion
 }

@@ -235,7 +235,6 @@ public class MappingProfiles : Profile
             .ForMember(dest => dest.Width, opt => opt.MapFrom(src => src.Width))
             .ForMember(dest => dest.Height, opt => opt.MapFrom(src => src.Height))
             .ForMember(dest => dest.ComponentTemplateId, opt => opt.MapFrom(src => src.ComponentTemplateId))
-            .ForMember(dest => dest.MacAddress, opt => opt.MapFrom(src => src.MacAddress))
             .ForMember(dest => dest.IpAddress, opt => opt.MapFrom(src => src.IpAddress))
             .ForMember(dest => dest.DeviceStatusId, opt => opt.MapFrom(src => src.DeviceStatusId))
             .ForMember(dest => dest.DeviceStatusName, opt => opt.MapFrom(src => src.DeviceStatus != default ? src.DeviceStatus.Name : default))
@@ -247,7 +246,26 @@ public class MappingProfiles : Profile
             // kabin dogru boyut ve renkle render olmali.
             .ForMember(dest => dest.Template, opt => opt.MapFrom(src => src.ComponentTemplate))
             .ForMember(dest => dest.Pins, opt => opt.MapFrom(src => src.Pins))
-            .ForMember(dest => dest.IoChannels, opt => opt.MapFrom(src => src.IoChannels));
+            .ForMember(dest => dest.IoChannels, opt => opt.MapFrom(src => src.IoChannels))
+            // Ek tablolar: satir yoksa null. Parola bilerek yok, yalnizca var/yok bilgisi.
+            .ForMember(dest => dest.Camera, opt => opt.MapFrom(src => src.Camera))
+            .ForMember(dest => dest.ControlCard, opt => opt.MapFrom(src => src.ControlCard))
+            .ForMember(dest => dest.Pc, opt => opt.MapFrom(src => src.PcDevice));
+
+        CreateMap<Camera, DiagramCameraDto>()
+            .ForMember(dest => dest.Brand, opt => opt.MapFrom(src => src.Brand))
+            .ForMember(dest => dest.Model, opt => opt.MapFrom(src => src.Model))
+            .ForMember(dest => dest.Description, opt => opt.MapFrom(src => src.Description))
+            .ForMember(dest => dest.Username, opt => opt.MapFrom(src => src.Username))
+            .ForMember(dest => dest.HasPassword, opt => opt.MapFrom(src => src.Password != null && src.Password != ""));
+
+        CreateMap<ControlCard, DiagramControlCardDto>()
+            .ForMember(dest => dest.MacAddress, opt => opt.MapFrom(src => src.MacAddress))
+            .ForMember(dest => dest.Username, opt => opt.MapFrom(src => src.Username))
+            .ForMember(dest => dest.HasPassword, opt => opt.MapFrom(src => src.Password != null && src.Password != ""));
+
+        CreateMap<PcDevice, DiagramPcDeviceDto>()
+            .ForMember(dest => dest.MacAddress, opt => opt.MapFrom(src => src.MacAddress));
 
         CreateMap<ComponentTemplate, DiagramComponentTemplateDto>()
             .ForMember(dest => dest.Id, opt => opt.MapFrom(src => src.Id))
@@ -380,52 +398,26 @@ public class MappingProfiles : Profile
 
         #region Camera
         CreateMap<Camera, CameraDto>()
-            .ForMember(dest => dest.Id, opt => opt.MapFrom(src => src.Id))
-            .ForMember(dest => dest.CabinetId, opt => opt.MapFrom(src => src.CabinetId))
-            .ForMember(dest => dest.CabinetName, opt => opt.MapFrom(src => src.Cabinet != null ? src.Cabinet.Name : ""))
-            .ForMember(dest => dest.Name, opt => opt.MapFrom(src => src.Name))
+            .ForMember(dest => dest.Id, opt => opt.MapFrom(src => src.DeviceId))
+            .ForMember(dest => dest.CabinetId, opt => opt.MapFrom(src => src.Device!.CabinetId))
+            .ForMember(dest => dest.CabinetName, opt => opt.MapFrom(src => src.Device!.Cabinet != null ? src.Device.Cabinet.Name : ""))
+            .ForMember(dest => dest.Name, opt => opt.MapFrom(src => src.Device!.Name))
             .ForMember(dest => dest.Description, opt => opt.MapFrom(src => src.Description))
             .ForMember(dest => dest.Brand, opt => opt.MapFrom(src => src.Brand))
             .ForMember(dest => dest.Model, opt => opt.MapFrom(src => src.Model))
-            .ForMember(dest => dest.IpAddress, opt => opt.MapFrom(src => src.IpAddress))
+            .ForMember(dest => dest.IpAddress, opt => opt.MapFrom(src => src.Device!.IpAddress ?? ""))
             .ForMember(dest => dest.Username, opt => opt.MapFrom(src => src.Username))
-            .ForMember(dest => dest.Password, opt => opt.MapFrom(src => src.Password))
-            .ForMember(dest => dest.MonitoringPort, opt => opt.MapFrom(src => src.MonitoringPort))
-            .ForMember(dest => dest.DeviceStatusId, opt => opt.MapFrom(src => src.DeviceStatusId))
-            .ForMember(dest => dest.DeviceStatusName, opt => opt.MapFrom(src => src.DeviceStatus != null ? src.DeviceStatus.Name : null))
-            .ForMember(dest => dest.LastSeen, opt => opt.MapFrom(src => src.LastSeen))
-            .ForMember(dest => dest.PingIntervalSec, opt => opt.MapFrom(src => src.PingIntervalSec))
-            .ForMember(dest => dest.IsMonitoringEnabled, opt => opt.MapFrom(src => src.IsMonitoringEnabled))
-            .ForMember(dest => dest.LastConnectionError, opt => opt.MapFrom(src => src.LastConnectionError))
-            .ForMember(dest => dest.IsActive, opt => opt.MapFrom(src => src.IsActive))
-            .ForMember(dest => dest.CreateDateUtc, opt => opt.MapFrom(src => src.CreateDateUtc))
-            .ForMember(dest => dest.UpdateDateUtc, opt => opt.MapFrom(src => src.UpdateDateUtc));
-
-        CreateMap<CameraCreateDto, Camera>()
-            .ForMember(dest => dest.CabinetId, opt => opt.MapFrom(src => src.CabinetId))
-            .ForMember(dest => dest.Name, opt => opt.MapFrom(src => src.Name))
-            .ForMember(dest => dest.Description, opt => opt.MapFrom(src => src.Description))
-            .ForMember(dest => dest.Brand, opt => opt.MapFrom(src => src.Brand))
-            .ForMember(dest => dest.Model, opt => opt.MapFrom(src => src.Model))
-            .ForMember(dest => dest.IpAddress, opt => opt.MapFrom(src => src.IpAddress))
-            .ForMember(dest => dest.Username, opt => opt.MapFrom(src => src.Username))
-            .ForMember(dest => dest.Password, opt => opt.MapFrom(src => src.Password))
-            .ForMember(dest => dest.MonitoringPort, opt => opt.MapFrom(src => src.MonitoringPort)) // null ise CameraService markanin RTSP portunu yazar
-            .ForMember(dest => dest.PingIntervalSec, opt => opt.MapFrom(src => src.PingIntervalSec))
-            .ForMember(dest => dest.IsMonitoringEnabled, opt => opt.MapFrom(src => src.IsMonitoringEnabled));
-
-        CreateMap<CameraUpdateDto, Camera>()
-            .ForMember(dest => dest.Name, opt => opt.MapFrom(src => src.Name))
-            .ForMember(dest => dest.Description, opt => opt.MapFrom(src => src.Description))
-            .ForMember(dest => dest.Brand, opt => opt.MapFrom(src => src.Brand))
-            .ForMember(dest => dest.Model, opt => opt.MapFrom(src => src.Model))
-            .ForMember(dest => dest.IpAddress, opt => opt.MapFrom(src => src.IpAddress))
-            .ForMember(dest => dest.Username, opt => opt.MapFrom(src => src.Username))
-            .ForMember(dest => dest.Password, opt => opt.Ignore()) // şifre özel iş kuralı ile mapleniyor, null ise dokunmaz, boş veya dolu ise günceller
-            .ForMember(dest => dest.MonitoringPort, opt => opt.MapFrom(src => src.MonitoringPort)) // null ise CameraService markanin RTSP portunu yazar
-            .ForMember(dest => dest.PingIntervalSec, opt => opt.MapFrom(src => src.PingIntervalSec))
-            .ForMember(dest => dest.IsMonitoringEnabled, opt => opt.MapFrom(src => src.IsMonitoringEnabled))
-            .ForMember(dest => dest.IsActive, opt => opt.MapFrom(src => src.IsActive));
+            .ForMember(dest => dest.HasPassword, opt => opt.MapFrom(src => src.Password != null && src.Password != ""))
+            .ForMember(dest => dest.MonitoringPort, opt => opt.MapFrom(src => src.Device!.MonitoringPort))
+            .ForMember(dest => dest.DeviceStatusId, opt => opt.MapFrom(src => src.Device!.DeviceStatusId))
+            .ForMember(dest => dest.DeviceStatusName, opt => opt.MapFrom(src => src.Device!.DeviceStatus != null ? src.Device.DeviceStatus.Name : null))
+            .ForMember(dest => dest.LastSeen, opt => opt.MapFrom(src => src.Device!.LastSeen))
+            .ForMember(dest => dest.PingIntervalSec, opt => opt.MapFrom(src => src.Device!.PingIntervalSec))
+            .ForMember(dest => dest.IsMonitoringEnabled, opt => opt.MapFrom(src => src.Device!.IsMonitoringEnabled))
+            .ForMember(dest => dest.LastConnectionError, opt => opt.MapFrom(src => src.Device!.LastConnectionError))
+            .ForMember(dest => dest.IsActive, opt => opt.MapFrom(src => src.Device!.IsActive))
+            .ForMember(dest => dest.CreateDateUtc, opt => opt.MapFrom(src => src.Device!.CreateDateUtc))
+            .ForMember(dest => dest.UpdateDateUtc, opt => opt.MapFrom(src => src.Device!.UpdateDateUtc));
         #endregion
 
         #region CameraCaptureSetting

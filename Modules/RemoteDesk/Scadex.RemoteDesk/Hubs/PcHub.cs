@@ -59,9 +59,9 @@ public class PcHub : Hub<IPcHubClient>
         var clientMacs = request.MacAddresses.Select(MacAddress.Normalize).OfType<string>().ToHashSet();
 
         // PC sayısı küçüktür: aday cihazlar projeksiyonla okunup bellekte normalize karşılaştırılır (DB'deki yazım serbest).
-        var candidates = await _unitOfWork.Devices.GetAllAsync(
-            select: d => new { d.Id, d.Name, CabinetName = d.Cabinet!.Name, d.MacAddress },
-            where: d => d.IsActive && d.MacAddress != null && d.ComponentTemplate!.DeviceTypeId == (int)DeviceType.Pc,
+        var candidates = await _unitOfWork.PcDevices.GetAllAsync(
+            select: p => new { Id = p.DeviceId, p.Device!.Name, CabinetName = p.Device.Cabinet!.Name, p.MacAddress },
+            where: p => p.MacAddress != null && p.Device!.IsActive && p.Device.ComponentTemplate!.DeviceTypeId == (int)DeviceType.Pc,
             cancellationToken: Context.ConnectionAborted) ?? [];
 
         var matches = candidates

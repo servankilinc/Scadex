@@ -8,6 +8,9 @@ export {
   type DeviceDraft,
   type DevicePinDraft,
   type DeviceIoChannelDraft,
+  type CameraDraft,
+  type ControlCardDraft,
+  type PcDeviceDraft,
   type ConnectionDraft,
   type AnnotationDraft
 } from './commands/diagramSaveRequest';
@@ -16,7 +19,7 @@ export {
 export type { PointDto } from './queries/pointDto';
 export type { DiagramDto } from './queries/diagramDto';
 export type { DiagramCabinetDto } from './queries/diagramCabinetDto';
-export type { DiagramDeviceDto } from './queries/diagramDeviceDto';
+export type { DiagramDeviceDto, DiagramCameraDto, DiagramControlCardDto, DiagramPcDeviceDto } from './queries/diagramDeviceDto';
 export type { DiagramTemplateDto } from './queries/diagramTemplateDto';
 export type { DiagramPinDto } from './queries/diagramPinDto';
 export type { DiagramIoChannelDto } from './queries/diagramIoChannelDto';

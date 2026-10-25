@@ -5,6 +5,7 @@ import {
   type DeviceDraft,
   type DiagramSaveRequest
 } from '@/models/diagram';
+import { toExtensionDrafts } from './device-extensions';
 import type { DiagramJournal } from './journal';
 import { isUnsaved } from './unsaved-store';
 import type { AnnotationNode, DeviceNode, DiagramNode } from './to-rf-nodes';
@@ -86,11 +87,12 @@ function toDeviceDraft(node: DeviceNode): DeviceDraft {
     // `node.width` DEĞİL — bkz. dosya başındaki not.
     width: device.width,
     height: device.height,
-    macAddress: device.macAddress,
     ipAddress: device.ipAddress,
     monitoringPort: device.monitoringPort,
     pingIntervalSec: device.pingIntervalSec,
     isMonitoringEnabled: device.isMonitoringEnabled,
+    // Kamera / kontrol kartı / PC ek nesneleri; bekleyen parola yoksa `null` = "dokunma".
+    ...toExtensionDrafts(device),
     // `componentTemplatePinId` tipte null olabilir ama BURADA olamaz: gönderilen
     // pinler `instantiate-template-pins.ts`'in şablondan ürettikleridir ve o alanı
     // daima doldurur. Null gelseydi sunucu şema karşılaştırmasında zaten 400'e

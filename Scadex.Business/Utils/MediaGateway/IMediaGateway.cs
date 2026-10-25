@@ -1,5 +1,5 @@
+using Scadex.Business.Utils.CameraProtocolProfile;
 using Scadex.Core.Utils.ResultPattern;
-using Scadex.Model.Entities;
 using static Scadex.Model.Enums.EntityEnums;
 
 namespace Scadex.Business.Utils.MediaGateway;
@@ -14,7 +14,14 @@ public interface IMediaGateway
     public const string HttpClientName = "http_client_media_gateway";
 
     /// <summary> Live stream path'i kurar (path varsa ve ayarlarında değişiklik yoksa atlar değişiklik varsa günceller). </summary>
-    Task<Result> EnsureLivePathAsync(Camera camera, StreamProfile profile, CancellationToken cancellationToken = default);
+    Task<Result> EnsureLivePathAsync(CameraEndpoint camera, StreamProfile profile, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Live stream path'i VARSA ve yapılandırması kameranın güncel RTSP kaynağıyla uyuşmuyorsa siler; yoksa ya da güncelse dokunmaz.
+    /// Kamera bilgisi (IP / marka / kimlik) değiştiğinde açık izleyicilerin eski oturumu kesilsin diye — yolu yeniden kurmak
+    /// bir sonraki izleme isteğinin (<see cref="EnsureLivePathAsync"/>) işidir.
+    /// </summary>
+    Task<Result> DeleteLivePathIfStaleAsync(CameraEndpoint camera, StreamProfile profile, CancellationToken cancellationToken = default);
 
     /// <summary> Yolu siler. </summary>
     Task<Result> DeletePathAsync(string pathName, CancellationToken cancellationToken = default);

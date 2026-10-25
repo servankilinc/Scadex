@@ -21,8 +21,8 @@ export const DeviceStatusLabels: Record<DeviceStatus, string> = {
 
 /** Sunucudaki `EntityEnums.CabinetStatusContributorKind` — kabin durum dökümündeki kaydın cinsi. */
 export const CabinetStatusContributorKind = {
-  Device: 1,
-  Camera: 2
+  Device: 1
+  // 2 (Camera) kaldırıldı (2026-10-22): kamera artık bir cihazdır — numarayı yeniden kullanmayın.
 } as const;
 export type CabinetStatusContributorKind = (typeof CabinetStatusContributorKind)[keyof typeof CabinetStatusContributorKind];
 
@@ -67,8 +67,10 @@ export const DeviceType = {
   Mains: 11,
   /** Sigorta / devre kesici. */
   CircuitBreaker: 12,
-  /** Saha bilgisayarı — çevre birimi değil; RemoteDesk modülünde ekranı izlenir (MAC ile eşlenir). */
-  Pc: 13
+  /** Saha bilgisayarı — çevre birimi değil; RemoteDesk modülünde ekranı izlenir (MAC ile eşlenir, ek alanları `pc`). */
+  Pc: 13,
+  /** IP kamera — MediaMTX üzerinden izlenir; marka ve kimlik bilgileri cihazın `camera` ek nesnesindedir (2026-10-22). */
+  Camera: 14
 } as const;
 export type DeviceType = (typeof DeviceType)[keyof typeof DeviceType];
 
@@ -85,7 +87,8 @@ export const DeviceTypeLabels: Record<DeviceType, string> = {
   [DeviceType.CardReader]: 'Kart Okuyucu',
   [DeviceType.Mains]: 'Şebeke Girişi',
   [DeviceType.CircuitBreaker]: 'Sigorta / Kesici',
-  [DeviceType.Pc]: 'Bilgisayar'
+  [DeviceType.Pc]: 'Bilgisayar',
+  [DeviceType.Camera]: 'Kamera'
 };
 
 // ─────────────────────────────────────────────────────────────

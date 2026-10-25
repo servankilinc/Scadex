@@ -23,13 +23,11 @@ public static class EntityEnums
     /// <summary> Kabin durum dökümündeki kaydın cinsi (<c>CabinetStatusContributorDto.Kind</c>). </summary>
     public enum CabinetStatusContributorKind
     {
-        Device = 1,
-        Camera = 2
+        Device = 1
     }
 
     /// <summary>
     /// Diyagram üzerinde yer alan cihazların kategorisi.
-    /// DİKKAT: Ağ üzerinden izlenen 3. parti cihazlar (kamera, UPS, switch) bu enum'da DEĞİLDİR 
     /// </summary>
     public enum DeviceType
     {
@@ -62,7 +60,10 @@ public static class EntityEnums
         Mains = 11,
         /// <summary> Sigorta / devre kesici — referans diyagramdaki "ŞEBEKE", "220V ÇIKIŞ" ve "LAMBA" şalterleri. </summary>
         CircuitBreaker = 12,
-        Pc = 13
+        /// <summary>Bilgisayar — RemoteDesk modülünün ekranını izlediği PC. Ek alanları <c>PcDevice</c>'tadır.</summary>
+        Pc = 13,
+        /// <summary>IP kamera — MediaMTX üzerinden izlenir, anlık görüntü/klip alınır. Ek alanları <c>Camera</c>'dadır.</summary>
+        Camera = 14
     }
 
 

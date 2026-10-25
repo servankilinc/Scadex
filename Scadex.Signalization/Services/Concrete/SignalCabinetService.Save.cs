@@ -116,7 +116,7 @@ public partial class SignalCabinetService
             cancellationToken: cancellationToken) ?? [];
         var channelById = channels.Where(c => c.DeviceIsActive).ToDictionary(c => c.Id, c => c.Direction);
 
-        var cameraIds = (await _unitOfWork.Cameras.GetAllAsync(select: c => c.Id, where: c => c.CabinetId == cabinetId, cancellationToken: cancellationToken) ?? []).ToHashSet();
+        var cameraIds = (await _unitOfWork.Cameras.GetAllAsync(select: c => c.DeviceId, where: c => c.Device!.CabinetId == cabinetId, cancellationToken: cancellationToken) ?? []).ToHashSet();
         var activeAuthorityIds = (await _db.Authorities.AsNoTracking().Where(a => a.IsActive).Select(a => a.Id).ToListAsync(cancellationToken)).ToHashSet();
 
         void CheckChannel(string key, Guid channelId, PinDirection expected, string label)

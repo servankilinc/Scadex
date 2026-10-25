@@ -4,7 +4,7 @@ using Scadex.Business.Abstract;
 using Scadex.Business.Settings;
 using Scadex.Business.Utils.CameraCaptureGateway;
 using Scadex.Core.Utils.ResultPattern;
-using Scadex.Model.Entities;
+using Scadex.Business.Utils.CameraProtocolProfile;
 
 namespace Scadex.WebAPI.Utils;
 
@@ -27,7 +27,7 @@ public sealed partial class CameraCaptureGateway : ICameraCaptureGateway
     }
 
     /// <inheritdoc/>
-    public async Task<Result<SnapshotPayload>> GetSnapshotAsync(Camera camera, string sourceUrl, CancellationToken cancellationToken = default)
+    public async Task<Result<SnapshotPayload>> GetSnapshotAsync(CameraEndpoint camera, string sourceUrl, CancellationToken cancellationToken = default)
     {
         var settings = await _cameraCaptureSettingService.GetSettingsAsync(cancellationToken);
 
@@ -63,7 +63,7 @@ public sealed partial class CameraCaptureGateway : ICameraCaptureGateway
     /// <item>Ham dosya anahtar kareyle basladigi icin <c>-t</c> burada tam ilk kareden sayar; tam sureye kirpilip MP4'e paketlenir (yerel, yeniden kodlama yok).</item>
     /// </list>
     /// </remarks>
-    public async Task<Result> RecordClipAsync(Camera camera, string sourceUrl, int durationSec, string outputFullPath, CancellationToken cancellationToken = default)
+    public async Task<Result> RecordClipAsync(CameraEndpoint camera, string sourceUrl, int durationSec, string outputFullPath, CancellationToken cancellationToken = default)
     {
         var settings = await _cameraCaptureSettingService.GetSettingsAsync(cancellationToken);
 

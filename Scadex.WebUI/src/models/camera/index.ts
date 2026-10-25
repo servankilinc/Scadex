@@ -6,14 +6,12 @@ export type { StreamTokenDto } from './queries/streamTokenDto';
 // Commands — C# DTO aynaları, saf interface
 export type { CameraCaptureCreateRequest } from './commands/cameraCaptureCreateRequest';
 
-// Form — ekleme ve düzenlemenin ortak şekli + sunucu şekline projeksiyonlar
+// Form — düzenleme formunun şekli + sunucu şekline projeksiyon (oluşturma yalnızca diyagramda)
 export {
   cameraFormSchema,
   emptyCameraForm,
   toCameraForm,
-  toCreateRequest,
   toUpdateRequest,
-  type CameraCreateRequest,
   type CameraFormValues,
   type CameraUpdateRequest
 } from './commands/cameraForm';

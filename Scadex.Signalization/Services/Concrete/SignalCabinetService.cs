@@ -137,8 +137,8 @@ public partial class SignalCabinetService : ISignalCabinetService
         };
 
         var cameras = await _unitOfWork.Cameras.GetAllAsync(
-            select: c => new SignalCameraOptionDto { Id = c.Id, Name = c.Name, IsActive = c.IsActive },
-            where: c => c.CabinetId == cabinetId,
+            select: c => new SignalCameraOptionDto { Id = c.DeviceId, Name = c.Device!.Name, IsActive = c.Device.IsActive },
+            where: c => c.Device!.CabinetId == cabinetId,
             cancellationToken: cancellationToken) ?? [];
 
         var authorities = await _authorityService.GetAllAsync(cancellationToken);

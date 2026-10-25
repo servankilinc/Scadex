@@ -35,6 +35,8 @@ public class AppDbContext : IdentityDbContext<User, Role, Guid>
     public DbSet<DeviceStatus> DeviceStatuses { get; set; }
     public DbSet<DeviceType> DeviceTypes { get; set; }
     public DbSet<Camera> Cameras { get; set; }
+    public DbSet<ControlCard> ControlCards { get; set; }
+    public DbSet<PcDevice> PcDevices { get; set; }
     public DbSet<CameraCapture> CameraCaptures { get; set; }
     public DbSet<ChannelEvent> ChannelEvents { get; set; }
     public DbSet<CameraCaptureSetting> CameraCaptureSettings { get; set; }
@@ -182,28 +184,44 @@ public class AppDbContext : IdentityDbContext<User, Role, Guid>
             d.HasMany(d => d.IoChannels).WithOne(i => i.Device).HasForeignKey(i => i.DeviceId).OnDelete(DeleteBehavior.Restrict);
             d.HasMany(d => d.Pins).WithOne(p => p.Device).HasForeignKey(p => p.DeviceId).OnDelete(DeleteBehavior.Restrict);
             d.HasMany(d => d.DeviceCommands).WithOne(d => d.Device).HasForeignKey(d => d.DeviceId).OnDelete(DeleteBehavior.Restrict);
-
-            // Restriction: Bir MAC adresi en fazla bir aktif cihaza ait olabilir; pasif cihazlar serbesttir.
-            d.HasIndex(d => d.MacAddress).IsUnique().HasFilter("[MacAddress] IS NOT NULL AND [IsActive] = 1");
         });
         modelBuilder.Entity<DiagramAnnotation>(d =>
         {
             d.ToTable("DiagramAnnotation");
             d.HasKey(d => d.Id);
         });
+
+        // ---- DEVICE EK TABLOLARI (1-1, ortak birincil anahtar: DeviceId hem PK hem FK) ----
+        // Kalitim (TPT/TPH) bilerek yok: Devices sorgulari bu tablolara ancak Include edilirse dokunur.
+        // Cihaz silinmez (IsActive = false) -> Restrict. MAC index'leri Device.IsActive'e bakamaz; bu yuzden
+        // cihaz silinirken ek satirdaki MAC null'a cekilir (DiagramService.SaveDeviceExtensions).
         modelBuilder.Entity<Camera>(c =>
         {
             c.ToTable("Camera");
-            c.HasKey(c => c.Id);
-            c.HasOne(c => c.Cabinet).WithMany(c => c.Cameras).HasForeignKey(c => c.CabinetId).OnDelete(DeleteBehavior.Restrict);
-            c.HasOne(c => c.DeviceStatus).WithMany(d => d.Cameras).HasForeignKey(c => c.DeviceStatusId).OnDelete(DeleteBehavior.Restrict);
+            c.HasKey(c => c.DeviceId);
+            c.Property(c => c.DeviceId).ValueGeneratedNever();
+            c.HasOne(c => c.Device).WithOne(d => d.Camera).HasForeignKey<Camera>(c => c.DeviceId).OnDelete(DeleteBehavior.Restrict);
             c.HasMany(c => c.Captures).WithOne(p => p.Camera).HasForeignKey(p => p.CameraId).OnDelete(DeleteBehavior.Restrict);
+        });
+        modelBuilder.Entity<ControlCard>(c =>
+        {
+            c.ToTable("ControlCard");
+            c.HasKey(c => c.DeviceId);
+            c.Property(c => c.DeviceId).ValueGeneratedNever();
+            c.HasOne(c => c.Device).WithOne(d => d.ControlCard).HasForeignKey<ControlCard>(c => c.DeviceId).OnDelete(DeleteBehavior.Restrict);
 
-            // Restriction: Ayni kabinde ayni IP adresi en fazla bir tane olabilir; pasif kameralar serbesttir.
-            c.HasIndex(c => new { c.CabinetId, c.IpAddress }).IsUnique().HasFilter("[IsActive] = 1");
+            // Restriction: Bir MAC adresi en fazla bir kontrol kartina ait olabilir (SISTEM GENELI, kabin bazli degil).
+            c.HasIndex(c => c.MacAddress).IsUnique().HasFilter("[MacAddress] IS NOT NULL");
+        });
+        modelBuilder.Entity<PcDevice>(p =>
+        {
+            p.ToTable("PcDevice");
+            p.HasKey(p => p.DeviceId);
+            p.Property(p => p.DeviceId).ValueGeneratedNever();
+            p.HasOne(p => p.Device).WithOne(d => d.PcDevice).HasForeignKey<PcDevice>(p => p.DeviceId).OnDelete(DeleteBehavior.Restrict);
 
-            // Restriction: Ayni kabinde ayni isim en fazla bir tane olabilir; pasif kameralar serbesttir.
-            c.HasIndex(c => new { c.CabinetId, c.Name }).IsUnique().HasFilter("[IsActive] = 1");
+            // Restriction: Bir MAC adresi en fazla bir PC'ye ait olabilir (SISTEM GENELI).
+            p.HasIndex(p => p.MacAddress).IsUnique().HasFilter("[MacAddress] IS NOT NULL");
         });
         modelBuilder.Entity<CameraCapture>(p =>
         {
@@ -345,7 +363,8 @@ public class AppDbContext : IdentityDbContext<User, Role, Guid>
             new DeviceType { Id = (int)EntityEnums.DeviceType.CardReader, Name = nameof(EntityEnums.DeviceType.CardReader), Category = "Field" },
             new DeviceType { Id = (int)EntityEnums.DeviceType.Mains, Name = nameof(EntityEnums.DeviceType.Mains), Category = "Power" },
             new DeviceType { Id = (int)EntityEnums.DeviceType.CircuitBreaker, Name = nameof(EntityEnums.DeviceType.CircuitBreaker), Category = "Power" },
-            new DeviceType { Id = (int)EntityEnums.DeviceType.Pc, Name = nameof(EntityEnums.DeviceType.Pc), Category = "Field" }
+            new DeviceType { Id = (int)EntityEnums.DeviceType.Pc, Name = nameof(EntityEnums.DeviceType.Pc), Category = "Field" },
+            new DeviceType { Id = (int)EntityEnums.DeviceType.Camera, Name = nameof(EntityEnums.DeviceType.Camera), Category = "Field" }
         );
         #endregion
 
@@ -753,6 +772,7 @@ public class AppDbContext : IdentityDbContext<User, Role, Guid>
         EntityEnums.DeviceType.Mains => "#FECACA",              // koyu kirmizi
         EntityEnums.DeviceType.CircuitBreaker => "#FED7AA",     // koyu turuncu
         EntityEnums.DeviceType.Pc => "#E0F2FE",                 // gok mavisi
+        EntityEnums.DeviceType.Camera => "#EDE9FE",             // lavanta
         _ => "#F1F5F9"
     };
 
@@ -954,6 +974,10 @@ public class AppDbContext : IdentityDbContext<User, Role, Guid>
         SvgTemplate(EntityEnums.DeviceType.Pc, 7, "Bilgisayar", 200, 150, "computer.svg",
             [.. DcLoadPins("+12V", Volt.DC_12V, 50, 90, 128), new("RJ45", 150, 128, Side.Bottom, Fn.RJ45, Dir.Bidirectional, Volt.Data)],
             idType: EntityEnums.DeviceType.Peripheral);
+        // Kamera (2026-10-22): RJ45 ucu sayesinde izlenebilir; eski Camera tablosundaki kameralar migration'da bu sablonla Device'a tasindi.
+        // Kimligi sabittir (SeedTemplateId(Camera, 1)) — migration SQL'i bu Id'yi kullanir, degistirmeyin.
+        SvgTemplate(EntityEnums.DeviceType.Camera, 1, "IP Kamera", 200, 150, "camera.svg",
+            [.. DcLoadPins("+12V", Volt.DC_12V, 50, 90, 128), new("RJ45", 150, 128, Side.Bottom, Fn.RJ45, Dir.Bidirectional, Volt.Data)]);
         // Aydinlatma LED'i sebekeye degil, ROLE CIKISINA baglanir: cikis modulunun ucu kuru
         // kontaktir ve kartin kendi beslemesi 12VDC'dir, dolayisiyla o da siren/kilit gibi bir
         // DC yuktur. Yonlendirme LED'inden farki: bu panoyu/alani aydinlatir, sinyal vermez.

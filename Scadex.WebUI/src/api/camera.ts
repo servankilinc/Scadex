@@ -1,16 +1,14 @@
 import http from '@/lib/axios-helper';
-import type { CameraCreateRequest, CameraDto, CameraUpdateRequest } from '@/models/camera';
-import type { CreatedDto } from '@/models/common/createdDto';
+import type { CameraDto, CameraUpdateRequest } from '@/models/camera';
 
 const CAMERA_ROUTE = '/api/Camera';
 
 /**
  * Bir kabindeki kameralar.
  *
- * `includePassive` varsayılan olarak KAPALI. Pasifleri görebilmek şart —
- * `IsActive` üzerinde global query filter bilerek yok ve pasife alınan bir
- * kaydı geri getirmenin başka yolu bulunmuyor — ama liste ekranının varsayılanı
- * aktifler olmalı.
+ * `includePassive` varsayılan olarak KAPALI. Pasif (diyagramdan kaldırılmış)
+ * kameralar çekim geçmişi için görülebilir — `IsActive` üzerinde global query
+ * filter bilerek yok — ama liste ekranının varsayılanı aktifler olmalı.
  */
 export async function getCamerasByCabinet(cabinetId: string, includePassive = false): Promise<CameraDto[]> {
   const query = includePassive ? '?includePassive=true' : '';
@@ -21,16 +19,11 @@ export async function getCamera(id: string): Promise<CameraDto> {
   return http.get<CameraDto>(`${CAMERA_ROUTE}/${id}`);
 }
 
-/** Başarıda `{ id }` döner — sözleşmenin "her Create id döndürür" kuralı. */
-export async function createCamera(request: CameraCreateRequest): Promise<CreatedDto> {
-  return http.post<CreatedDto>(CAMERA_ROUTE, request);
-}
-
 /**
- * Başarıda gövdesiz 200 döner.
+ * Başarıda gövdesiz 200 döner. Yalnızca AKTİF kamerayı günceller (pasifte 404).
  *
- * PASİFE ALMA DA BURADAN: `isActive: false` gönderilir. Ayrı bir DELETE ucu
- * yok — `Camera` `IActivatableEntity` ve fiziksel silme sunucuda exception atar.
+ * Oluşturma ve kaldırma (pasife alma) bu ekranda YOKTUR — kamera bir cihazdır ve
+ * cihazın yaşam döngüsü yalnızca diyagram kaydetmeden geçer (2026-10-25).
  *
  * **Parola üç durumlu.** Kullanıcı parola alanına dokunmadıysa çağıran taraf
  * `password` alanını gövdeden ÇIKARMALIDIR (`undefined`); aksi hâlde boş string
@@ -40,4 +33,3 @@ export async function createCamera(request: CameraCreateRequest): Promise<Create
 export async function updateCamera(request: CameraUpdateRequest): Promise<void> {
   return http.put(CAMERA_ROUTE, request);
 }
-

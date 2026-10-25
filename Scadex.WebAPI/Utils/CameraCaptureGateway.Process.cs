@@ -1,7 +1,7 @@
 using System.ComponentModel;
 using System.Diagnostics;
 using System.Text.RegularExpressions;
-using Scadex.Model.Entities;
+using Scadex.Business.Utils.CameraProtocolProfile;
 
 namespace Scadex.WebAPI.Utils;
 
@@ -99,7 +99,7 @@ public sealed partial class CameraCaptureGateway
     /// </summary>
     /// <param name="timeoutMessage">Sert sinir asildiginda donecek mesaj (islemin ne oldugunu en iyi cagiran bilir).</param>
     /// <param name="genericMessage">Taninmayan hatada donecek mesaj; varsayilani kamera tarafini isaret eder (yerel kirpma gibi kamerasiz adimlar kendi mesajini verir).</param>
-    private CaptureFailure? DescribeFailure(FfmpegRun run, Camera camera, string operation, string timeoutMessage, string genericMessage = CameraUnavailableMessage)
+    private CaptureFailure? DescribeFailure(FfmpegRun run, CameraEndpoint camera, string operation, string timeoutMessage, string genericMessage = CameraUnavailableMessage)
     {
         if (run.NotFound)
             return new CaptureFailure("FFmpeg bulunamadı; sunucuda FFmpeg eksik ya da MediaGateway:FfmpegPath ayarı yanlış olabilir.");

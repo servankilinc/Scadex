@@ -1,8 +1,8 @@
 using Microsoft.Extensions.Caching.Distributed;
+using Scadex.Business.Utils.CameraProtocolProfile;
 using Scadex.Business.Utils.MediaGateway;
 using Scadex.Core.Utils.ResultPattern;
 using Scadex.Model.Dtos.Camera.Queries;
-using Scadex.Model.Entities;
 using System.Security.Cryptography;
 using System.Text;
 using static Scadex.Model.Enums.EntityEnums;
@@ -27,17 +27,19 @@ public partial class CameraService
     public async Task<Result<StreamTokenDto>> CreateStreamTokenAsync(Guid cameraId, StreamProfile profile, CancellationToken cancellationToken = default)
     {
         // 1) Kamera bilgilerini al
-        var camera = await _unitOfWork.Cameras.GetAsync(where: c => c.Id == cameraId, cancellationToken: cancellationToken);
+        var row = await LoadCameraAsync(cameraId, cancellationToken);
 
-        if (camera == null)
+        if (row == null)
             return Result<StreamTokenDto>.NotFound(description: "Kamera bulunamadi");
 
-        if (!camera.IsActive)
+        if (!row.IsActive)
             return Result<StreamTokenDto>.Validation(new Dictionary<string, string[]> { ["IsActive"] = ["Pasif kamera izlenemez."] });
+
+        var camera = row.Endpoint;
 
         // Main strean olmayan markada Sub strean istegi Main yoluna duser. Ayri bir "_sub" yolu acilmaz ki kameraya
         // ayni akim icin ikinci bir RTSP baglantisi kurulmasin. Istemci farki gormez: dogru yol WHEP URL'inde gelir.
-        var effectiveProfile = profile == StreamProfile.Sub && !_cameraProtocolProfileResolver.Resolve(camera).HasSubStream ? StreamProfile.Main : profile;
+        var effectiveProfile = profile == StreamProfile.Sub && !_cameraProtocolProfileResolver.Resolve(camera.Brand).HasSubStream ? StreamProfile.Main : profile;
 
         // 2) Media Gateway'de path'i olustur
         var ensureResult = await _mediaGateway.EnsureLivePathAsync(camera, effectiveProfile, cancellationToken);
@@ -87,7 +89,7 @@ public partial class CameraService
     /// <c>sourceOnDemandCloseAfter</c> boyunca acik tutar (giris serisinin sonraki kareleri yeniden baglanmaz).
     /// Token omru kisa olabilir: MediaMTX RTSP okumasinda auth'u yalnizca oturum kurulurken sorar.
     /// </summary>
-    private async Task<Result<string>> PrepareCaptureSourceAsync(Camera camera, CancellationToken cancellationToken)
+    private async Task<Result<string>> PrepareCaptureSourceAsync(CameraEndpoint camera, CancellationToken cancellationToken)
     {
         var ensureResult = await _mediaGateway.EnsureLivePathAsync(camera, StreamProfile.Main, cancellationToken);
         if (!ensureResult.IsSuccess)

@@ -23,6 +23,8 @@ public interface IUnitOfWork : IDisposable, IAsyncDisposable
     IDeviceStatusRepository DeviceStatuses { get; }
     IDeviceTypeRepository DeviceTypes { get; }
     ICameraRepository Cameras { get; }
+    IControlCardRepository ControlCards { get; }
+    IPcDeviceRepository PcDevices { get; }
     ICameraCaptureRepository CameraCaptures { get; }
     IChannelEventRepository ChannelEvents { get; }
     ICameraCaptureSettingRepository CameraCaptureSettings { get; }

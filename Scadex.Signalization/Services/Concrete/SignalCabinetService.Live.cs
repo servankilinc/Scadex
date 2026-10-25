@@ -95,8 +95,8 @@ public partial class SignalCabinetService
             return [];
 
         var cameras = await _unitOfWork.Cameras.GetAllAsync(
-            select: c => new { c.Id, c.Name },
-            where: c => cameraIds.Contains(c.Id),
+            select: c => new { Id = c.DeviceId, c.Device!.Name },
+            where: c => cameraIds.Contains(c.DeviceId),
             cancellationToken: cancellationToken
         ) ?? [];
 

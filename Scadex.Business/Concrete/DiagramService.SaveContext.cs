@@ -17,7 +17,7 @@ namespace Scadex.Business.Concrete;
 /// <code>
 /// Istek -> 1. FluentValidation (DiagramSaveRequest.cs)  — sekil / uzunluk / enum
 ///          2. Kabin var mi + IsEmpty kisa devresi       — Save.cs
-///          3. LoadSaveContextAsync                      — TEK okuma turu (en fazla 14 sorgu)
+///          3. LoadSaveContextAsync                      — TEK okuma turu (en fazla 17 sorgu)
 ///          4. ValidateReferences                        — DB kisitlarinin on kontrolu -> 400
 ///          -- transaction --
 ///          5. ApplyDeletions  -> SaveChangesAsync       — kablo -> pin -> cihaz -> not
@@ -28,6 +28,7 @@ namespace Scadex.Business.Concrete;
 /// <b>Adimlarin govdeleri aile bazli uc dosyada</b>, her biri kendi
 /// yukleme -> dogrulama -> uygulama dikey dilimini tasir:
 /// <c>DiagramService.SaveDevices.cs</c> (cihaz govdesi),
+/// <c>DiagramService.SaveDeviceExtensions.cs</c> (1-1 ek tablolar: kamera / kontrol karti / PC; MAC ve kimlik bilgileri),
 /// <c>DiagramService.SaveDevicePins.cs</c> (pin / kanal alt ailesi),
 /// <c>DiagramService.SaveConnections.cs</c> (kablo + uc cozumleme),
 /// <c>DiagramService.SaveAnnotations.cs</c> (not).
@@ -36,6 +37,9 @@ namespace Scadex.Business.Concrete;
 /// <list type="bullet">
 /// <item>Cihaza yeni alan: <c>DeviceDraft</c> + <c>DeviceDraftValidator</c> ->
 /// <c>WriteDevice</c> (SaveDevices.cs) -> TS aynasi (Scadex.WebUI/src/models/diagram).</item>
+/// <item>Tipe ozgu alan / yeni ek tablo: <c>DeviceExtensionDrafts.cs</c>'te taslak + validator ->
+/// <c>DeviceDraft</c>'ta nesne -> <c>ValidateDeviceExtensions</c> ve <c>WriteDeviceExtensions</c>
+/// (SaveDeviceExtensions.cs) -> TS aynasi. Alan <c>Device</c>'a eklenmez.</item>
 /// <item>Yeni benzersizlik kurali: bir <c>LoadXAsync</c> + <c>SaveContext</c> alani +
 /// bir <c>ValidateX</c> (alan bazli anahtarla <see cref="AddError"/>).</item>
 /// <item>Yeni aile: yeni <c>DiagramService.SaveXxx.cs</c> + <c>EntityDelta&lt;T&gt;</c>
@@ -97,7 +101,10 @@ public partial class DiagramService
             PinsOfDeletedDevices = await LoadPinsOfDeletedDevicesAsync(deletedDeviceIds, cancellationToken),
             CascadeConnections = await LoadCascadeConnectionsAsync(cabinetId, deletedDeviceIds, cancellationToken),
             PinPairCandidates = await LoadPinPairCandidatesAsync(cabinetId, referencedPinIds, cancellationToken),
-            DeviceMacAddresses = await LoadDeviceMacAddressesAsync(request, cancellationToken),
+            TemplateDeviceTypes = await LoadTemplateDeviceTypesAsync(request, cancellationToken),
+            ControlCardMacAddresses = await LoadControlCardMacAddressesAsync(request, cancellationToken),
+            PcMacAddresses = await LoadPcMacAddressesAsync(request, cancellationToken),
+            CameraIpAddresses = await LoadCameraIpAddressesAsync(cabinetId, request, cancellationToken),
             MonitorableTemplateIds = await LoadMonitorableTemplateIdsAsync(request, cancellationToken),
             NewPins = BuildNewPinRefs(newDevices, templatePins),
             ClaimedPinIds = await LoadClaimedPinIdsAsync(newDevices, cancellationToken),
@@ -122,7 +129,7 @@ public partial class DiagramService
         var errors = new Dictionary<string, List<string>>(StringComparer.Ordinal);
 
         ValidateDevices(request, context, errors);
-        ValidateDeviceMacAddresses(request, context, errors);
+        ValidateDeviceExtensions(request, context, errors);
         ValidateDeviceMonitoring(request, context, errors);
         ValidateConnections(request, context, errors);
         ValidateAnnotations(request, context, errors);
@@ -149,6 +156,7 @@ public partial class DiagramService
         ApplyConnectionDeletions(request, context);   // 1) kablolar (+ cihazi kalkanlar)
         ApplyPinDeletions(context);                   // 2) pinler
         ApplyDeviceDeletions(context);                // 3) cihazlar (IsActive = false)
+        ApplyDeviceExtensionDeletions(context);       //    + ek tablolardaki MAC'ler serbest
         ApplyAnnotationDeletions(request, context);   // 4) notlar (sistemdeki TEK hard delete)
     }
 
@@ -252,8 +260,14 @@ public partial class DiagramService
         public required List<Pin> PinsOfDeletedDevices { get; init; }
         /// <summary>Cihazi silindigi icin birlikte kalkacak kablolar.</summary>
         public required List<Connection> CascadeConnections { get; init; }
-        /// <summary>Gonderilen MAC adreslerinin sahipleri — KABIN GENELI DEGIL, SISTEM GENELI.</summary>
-        public required Dictionary<Guid, string> DeviceMacAddresses { get; init; }
+        /// <summary>Gonderilen taslaklarin sablon -> DeviceTypeId haritasi (ek tablo tutarliligi icin; pasif sablonlar dahil).</summary>
+        public required Dictionary<Guid, int> TemplateDeviceTypes { get; init; }
+        /// <summary>Gonderilen kontrol karti MAC'lerinin sahipleri — KABIN GENELI DEGIL, SISTEM GENELI.</summary>
+        public required Dictionary<Guid, string> ControlCardMacAddresses { get; init; }
+        /// <summary>Gonderilen PC MAC'lerinin sahipleri — SISTEM GENELI.</summary>
+        public required Dictionary<Guid, string> PcMacAddresses { get; init; }
+        /// <summary>Kabindeki aktif kameralarin IP'leri (kamera IP'si kabin icinde tekil; yalnizca gerektiginde okunur).</summary>
+        public required Dictionary<Guid, string> CameraIpAddresses { get; init; }
         /// <summary>Izlemesi acik gonderilen taslaklarin sablonlarindan izlenebilir olanlar (yalnizca gerektiginde okunur).</summary>
         public required HashSet<Guid> MonitorableTemplateIds { get; init; }
         /// <summary>Cift cakismasi icin bakilacak mevcut kablolar.</summary>

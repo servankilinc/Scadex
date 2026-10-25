@@ -258,10 +258,14 @@ aggregate'in controller'ında durur.
   adresi işgal eden cihazın **adını** da söyler.
 - **Bir cihazı silmek kanallarını serbest bırakmaz.** Cihaz `IsActive = false` olur, pinleri
   ve kabloları düşer, ama `IoChannel` satırları yerinde kalır — dolayısıyla `IN1` işgal
-  edilmeye devam eder. `MacAddress` ise serbest kalır (index filtresi `IsActive = 1`).
-- **`macAddress` / `ipAddress` deltada taşınır (2026-09-10).** MAC, SCADA ingest'inin kabini
-  çözdüğü adrestir (§ 5.3) ve operatörün girebilmesi gerekir; ikisi de cihaz özellik
-  panelinden yazılır. `deviceStatusId` / `lastSeen` / `lastConnectionError` ise **taslakta yoktur**
+  edilmeye devam eder. MAC ise serbest kalır (silmede ek satırdaki MAC `null`'a çekilir).
+- **Tipe özgü alanlar 1-1 ek tablolardadır (2026-10-22):** `Camera` (marka, model, açıklama, kullanıcı, parola),
+  `ControlCard` (MAC, kullanıcı, parola), `PcDevice` (MAC); birincil anahtar ortaktır (`DeviceId`). Deltada cihaz taslağı
+  şablon tipiyle eşleşen nesneyi **zorunlu** taşır (`camera` / `controlCard` / `pc`); yanlış tipe giden nesne 400'dür
+  (`DiagramService.SaveDeviceExtensions.cs`). Parola okuma DTO'suna yazılmaz (`hasPassword`); taslakta `null` = dokunma,
+  `""` = temizle. Kalıtım (TPT/TPH) bilerek kullanılmadı: ek satır yalnızca `Include` edilince okunur.
+- **`ipAddress` ve MAC deltada taşınır (2026-09-10; MAC 2026-10-22'den beri ek nesnede).** Kontrol kartının MAC'i SCADA
+  ingest'inin kabini çözdüğü adrestir (§ 5.3) ve operatörün girebilmesi gerekir; ikisi de cihaz özellik panelinden yazılır. `deviceStatusId` / `lastSeen` / `lastConnectionError` ise **taslakta yoktur**
   ve `WriteDevice`'ta dokunulmaz — onları yalnızca `ICabinetStatusService` yazar (§ 5.3 "Canlılık").
 - **İzleme ayarları deltada taşınır (2026-09-24).** `monitoringPort`, `pingIntervalSec`,
   `isMonitoringEnabled` (`Device : IMonitoredAsset`). Kurallar: port 1..65535, periyot 5..86400 sn,
@@ -269,12 +273,17 @@ aggregate'in controller'ında durur.
   **`ComponentTemplate.IsMonitorable`** olan cihazda açılabilir (`ValidateDeviceMonitoring`, 400
   anahtarı `Devices.Upserted[i].IsMonitoringEnabled`). Editör izleme bölümünü yalnızca izlenebilir
   şablonda gösterir.
-- **`macAddress` benzersizliği kabin geneli değil, SİSTEM GENELİDİR**
-  (`IX_Device_MacAddress`, unique, `WHERE MacAddress IS NOT NULL AND IsActive = 1`). Bir
+- **MAC benzersizliği kabin geneli değil, SİSTEM GENELİDİR ve tip başınadır**
+  (`IX_ControlCard_MacAddress` / `IX_PcDevice_MacAddress`, unique, `WHERE MacAddress IS NOT NULL`). Bir
   fiziksel kartın tek MAC'i vardır ve ingest kabini bu adresten çözer; aynı adres iki kabinde
   olsaydı telemetri yanlış kabine yazılırdı. Bu yüzden çarpışma **başka bir kabindeki** cihazla
-  da olabilir ve `LoadDeviceMacAddressesAsync` kabinle değil gönderilen adreslerle daraltılır.
-  Çakışma `400` döner (`Devices.Upserted[i].MacAddress`) — DB kısıtına çarpıp 500 üretmemek için.
+  da olabilir ve MAC yükleyicileri kabinle değil gönderilen adreslerle daraltılır.
+  Çakışma `400` döner (`Devices.Upserted[i].ControlCard.MacAddress` / `.Pc.MacAddress`) — DB kısıtına çarpıp 500 üretmemek için.
+- **Kamera bir cihazdır (2026-10-22, `DeviceType.Camera`, şablon "IP Kamera").** Oluşturma ve kaldırma (pasife alma) her
+  cihaz gibi yalnızca diyagram deltasıdır (`EditDiagram`, 2026-10-25) — diyagramda olmayan tanımlı cihaz yoktur. Kamera ekranı
+  (`PUT /api/Camera`, `ConfigureSystem`) yalnızca aktif kameranın bilgisini günceller ve kameraya özel okumaları (izleme, kare,
+  klip) yapar. IP'si zorunlu ve kabin içinde tekildir (iki yolda da doğrulanır); boş izleme portu markanın RTSP
+  portuyla dolar. Commit sonrası değişen/silinen kameraların MediaMTX yolları düşürülür (`ICameraService.RefreshStreamPathsAsync`).
 - Karşılığı bulunamayan `deleted` kimlikleri **sessizce atlanır** ve sayılmaz — istemciyi
   "bu kayıt sunucuya gitti mi" bilgisini taşımaktan kurtaran karar budur. Buna karşılık
   `upserted`'da başka kabine ait ya da silinmiş/pasif bir kimlik `400`'dür: soft-delete
@@ -316,8 +325,8 @@ politikası ile.
 
 - **Kabin `macAddress`'ten çözülür, gövdede `cabinetId` YOKTUR (2026-09-10).** Sahadaki SCADA
   bizim ürettiğimiz kabin `Guid`'ini bilemez; bildiğimiz ortak değer kartın MAC adresidir.
-  Sunucu, gelen adresle **birebir eşleşen** (`Device.MacAddress == macAddress`), aktif ve
-  şablonu `DeviceType.ControlModule` olan cihazı arar ve o cihazın `CabinetId`'sini kullanır.
+  Sunucu, gelen adresle **birebir eşleşen** (`ControlCard.MacAddress == macAddress`; 2026-10-22 öncesi `Device.MacAddress`),
+  aktif ve şablonu `DeviceType.ControlModule` olan cihazı arar ve o cihazın `CabinetId`'sini kullanır.
   Karşılığı yoksa **404** döner. **MAC tek tip saklanır (2026-09-30):** `AA:BB:CC:DD:EE:FF` (büyük harf, `:`).
   Hem diyagramdan kaydedilen adres hem SCADA'nın gönderdiği adres girişte bu biçime çevrilir
   (`Scadex.Core/Utils/MacAddressFormat`, DTO setter'ları), karşılaştırma düz eşitliktir: SCADA `50-8d-5c-…`,
@@ -439,18 +448,18 @@ tasarlanmalı.
 
 Kabindeki öncelik: Offline > Warning > Maintenance > Online; hiç katkı yoksa `null`.
 
-*Bağlantı kontrolü — izlenen cihaz ve kamera* ("izleniyor" = `IsMonitoringEnabled`; cihazda ayrıca
-şablon `IsMonitorable`)
+*Bağlantı kontrolü — izlenen cihaz* ("izleniyor" = `IsMonitoringEnabled` ve şablon `IsMonitorable`). Kamera 2026-10-22'den
+beri bir cihazdır ve aynı tabloya girer (`CameraProbeSource` kalktı); kamerada boş port kayıtta markanın RTSP portuyla dolar.
 
-| | Cihaz (`DeviceProbeSource`) | Kamera (`CameraProbeSource`) |
-|---|---|---|
-| Yoklanma şartı | Aktif, izleme açık, şablon izlenebilir, IP dolu, kabin aktif | Aktif, izleme açık, kabin aktif |
-| Port / periyot | `MonitoringPort` (isteğe bağlı; boşsa ping), `PingIntervalSec` (varsayılan 300) | `MonitoringPort` (boşsa RTSP portu), `PingIntervalSec` (varsayılan 300) |
-| Yöntem | Port varsa TCP connect, yoksa ICMP ping (2026-10-12); 3 sn zaman aşımı, `MonitoredAssetProbeWorker` 30 sn'de bir tur | TCP connect (port hep dolu), aynı ayarlar |
-| Başarılı | `LastSeen`, hata temizlenir; `null`/Offline → **Online** | `LastSeen`, hata temizlenir → **Online** |
-| Başarısız | Hata yazılır; **ilk** denemede `null`/Online → **Offline** | Hata yazılır; **ilk** denemede → **Offline** |
-| Başka kanıt | Yalnızca **kontrol kartı**: ingest (tanımsız kanal dahil), kart okuma, başarılı komut → Online; komut `NoResponse` → **anında** Offline (`Failed` dokunmaz) | Yok |
-| Yayın | `DeviceStatusChanged` (kabin grubu) + kabin yeniden hesabı | Yalnızca kabin yeniden hesabı |
+| | Cihaz (`DeviceProbeSource`, kameralar dahil) |
+|---|---|
+| Yoklanma şartı | Aktif, izleme açık, şablon izlenebilir, IP dolu, kabin aktif |
+| Port / periyot | `MonitoringPort` (isteğe bağlı; boşsa ping), `PingIntervalSec` (varsayılan 300) |
+| Yöntem | Port varsa TCP connect, yoksa ICMP ping (2026-10-12); 3 sn zaman aşımı, `MonitoredAssetProbeWorker` 30 sn'de bir tur |
+| Başarılı | `LastSeen`, hata temizlenir; `null`/Offline → **Online** (Warning/Maintenance korunur) |
+| Başarısız | Hata yazılır; **ilk** denemede `null`/Online → **Offline** |
+| Başka kanıt | Yalnızca **kontrol kartı**: ingest (tanımsız kanal dahil), kart okuma, başarılı komut → Online; komut `NoResponse` → **anında** Offline (`Failed` dokunmaz) |
+| Yayın | `DeviceStatusChanged` (kabin grubu) + kabin yeniden hesabı |
 
 *İzleme kapalıyken*
 
@@ -481,11 +490,10 @@ Kontrol kartı olmayan kabinin tabanı `null`'dır (en iyi hâli Bilinmiyor).
 
 **Durum dökümü — "kabin neden bu renkte" (2026-10-12).** `GET /api/Cabinet/{id}/status-breakdown`
 (`ICabinetStatusService.GetBreakdownAsync`, `CabinetStatusService.Breakdown.cs`) hesaplamanın gördüğü her kaydı
-(kontrol kartı, izlemesi açık ya da durumu dolu aktif cihaz, izlemesi açık kamera) kendi durumu, son görülme, son hata
-ve **kabine yansıyan katkısıyla** döner. Katkı yukarıdaki tablonun AYNI kodudur (`CabinetContribution` /
-`CameraContribution`); ön yüz kuralı kopyalamaz, yalnızca `contribution`'ı okur. Ana sayfa haritasındaki kabin
-panelinde "Durum nedeni" bölümü olarak görünür; panel açıkken kabinin hub grubuna abone olur, kamera değişimi
-yayınlanmadığı için 30 sn yedek yoklama yapar. Salt okunurdur; durum geçmişi tutulmaz (yalnızca şu anki neden).
+(kontrol kartı, izlemesi açık ya da durumu dolu aktif cihaz — kameralar dahil) kendi durumu, son görülme, son hata
+ve **kabine yansıyan katkısıyla** döner. Katkı yukarıdaki tablonun AYNI kodudur (`CabinetContribution`; ayrı kamera kuralı
+2026-10-22'de kalktı); ön yüz kuralı kopyalamaz, yalnızca `contribution`'ı okur. Ana sayfa haritasındaki kabin
+panelinde "Durum nedeni" bölümü olarak görünür; panel açıkken kabinin hub grubuna abone olur, 30 sn yedek yoklama yapar. Salt okunurdur; durum geçmişi tutulmaz (yalnızca şu anki neden).
 
 | Olay | Kontrol kartı | POS | Kamera | Kabin |
 |---|---|---|---|---|
@@ -826,11 +834,11 @@ değil, bilinçli bir karardır; `dotnet build` çıktısındaki 5 uyarı bu yü
 - **Ingest yalnızca `macAddress` ile "kimlik doğrular"** — paylaşılan sır / imza yok. MAC
   adresi taklit edilebilir bir değerdir; kimlik doğrulama değil, adresleme yapar.
 - ~~`Device.MacAddress`'in yazım yolu yok~~ — **diyagram deltasına eklendi (2026-09-10)**,
-  `IpAddress` ile birlikte; bkz. § 5.2. Kalan risk: `IX_Device_MacAddress` **global** olduğu
-  için ileride gelecek **kiracı izolasyonu** (companyId global query filter) ile çakışır —
+  `IpAddress` ile birlikte; bkz. § 5.2 (2026-10-22'den beri `ControlCard` / `PcDevice` ek tablolarında). Kalan risk:
+  MAC index'leri **global** olduğu için ileride gelecek **kiracı izolasyonu** (companyId global query filter) ile çakışır —
   ön doğrulama başka kiracının cihazını göremez hale gelirken DB kısıtı global kalır ve
-  yinelenen MAC `400` yerine `500` üretir. O filtre eklendiğinde `LoadDeviceMacAddressesAsync`
-  `IgnoreQueryFilters` ile çalışmalıdır (§ 6'daki "hiçbir yerde `IgnoreQueryFilters`
+  yinelenen MAC `400` yerine `500` üretir. O filtre eklendiğinde MAC yükleyicileri (`LoadControlCardMacAddressesAsync` /
+  `LoadPcMacAddressesAsync`) `IgnoreQueryFilters` ile çalışmalıdır (§ 6'daki "hiçbir yerde `IgnoreQueryFilters`
   çağrılmaz" kuralının bilinen tek istisnası bu olacak).
 - **Ayrı bir `TelemetryRecord` tablosu yok — bilinçli.** 2026-09-10'da analog kanalların
   geçmişinin de `ChannelEvent`'te tutulmasına karar verildi (`ChannelEventService`'teki koşul
@@ -919,8 +927,8 @@ mount + `key` ile tazelenmesi.
 `MonitoredAssetProbeWorker` (WebAPI/BackgroundServices) `StatusCleanupWorker` (eski adı `OfflineDeviceChecker`) kalıbını izler.
 **Tipe özel değildir:** kayıtlı her `IMonitoredAssetProbeSource` üzerinden döner, tipleri hiç
 bilmez. Yeni bir izlenen tip eklemek = yeni bir kaynak implementasyonu + tek satırlık DI kaydı;
-worker değişmez. Kaynaklar: `CameraProbeSource` ve (2026-09-24) `DeviceProbeSource` — izlemesi açık
-ve şablonu `IsMonitorable` olan diyagram cihazları; sonucu `ICabinetStatusService` yazar.
+worker değişmez. Tek kaynak (2026-09-24) `DeviceProbeSource` — izlemesi açık ve şablonu `IsMonitorable` olan diyagram
+cihazları (kameralar dahil; `CameraProbeSource` 2026-10-22'de kalktı); sonucu `ICabinetStatusService` yazar.
 
 Alınan kararlar:
 

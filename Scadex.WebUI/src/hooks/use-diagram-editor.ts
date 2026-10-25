@@ -6,6 +6,7 @@ import { diagramKeys } from '@/api/query-keys';
 import { useAppDispatch } from '@/hooks';
 import { ConnectionRejectionMessages, buildConnectionContext, validateConnection } from '@/lib/diagram/connection-rules';
 import { buildSaveRequest } from '@/lib/diagram/build-save-request';
+import { copyDeviceExtensions, emptyDeviceExtensions } from '@/lib/diagram/device-extensions';
 import { instantiateFromDevicePins, instantiateFromTemplate } from '@/lib/diagram/instantiate-template-pins';
 import { forgetUnsaved, markSaved, markUnsaved, resetUnsaved } from '@/lib/diagram/unsaved-store';
 import {
@@ -322,7 +323,6 @@ export function useDiagramEditor(cabinetId: string, graph: DiagramDto): DiagramE
         width: null,
         height: null,
         componentTemplateId: template.id,
-        macAddress: null,
         ipAddress: null,
         deviceStatusId: null,
         deviceStatusName: null,
@@ -333,6 +333,8 @@ export function useDiagramEditor(cabinetId: string, graph: DiagramDto): DiagramE
         pingIntervalSec: 300,
         isMonitoringEnabled: false,
         lastConnectionError: null,
+        // Tipine göre boş ek nesne (kamera / kontrol modülü / PC): sunucu taslakta tipiyle eşleşen nesneyi zorunlu tutar.
+        ...emptyDeviceExtensions(template.deviceTypeId),
         template: {
           id: template.id,
           name: template.name,
@@ -504,10 +506,10 @@ export function useDiagramEditor(cabinetId: string, graph: DiagramDto): DiagramE
         coordinateX: node.position.x + DUPLICATE_OFFSET,
         coordinateY: node.position.y + DUPLICATE_OFFSET,
         zIndex: nextZIndex(nodesRef.current),
-        // Ağ adresleri de KOPYALANMAZ. `IX_Device_MacAddress` sistem genelinde
-        // benzersiz olduğu için kopya zaten çakışırdı; ötesinde bir MAC tek bir
-        // fiziksel karta aittir — kopyalanması anlamsızdır.
-        macAddress: null,
+        // Ağ adresleri de KOPYALANMAZ. MAC tekillik index'i (kontrol kartı / PC) sistem genelinde
+        // benzersiz olduğu için kopya zaten çakışırdı; ötesinde bir MAC tek bir fiziksel karta aittir.
+        // Parola da kopyalanamaz (sunucu göndermez) — bkz. `copyDeviceExtensions`.
+        ...copyDeviceExtensions(source),
         ipAddress: null,
         // IP kopyalanmadığı için izleme de kapalı doğar: açık kalsaydı sunucu "izleme açıkken IP zorunlu" ile
         // kaydı 400'lerdi. Port ve periyot `...source` ile gelir — IP girilip izleme açılınca hazırdır.

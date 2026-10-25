@@ -1,4 +1,5 @@
 import {
+  CctvIcon,
   CpuIcon,
   GaugeIcon,
   IdCardIcon,
@@ -33,11 +34,12 @@ export const DEVICE_TYPE_ICON: Record<DeviceType, LucideIcon> = {
   [DeviceType.CardReader]: IdCardIcon,
   [DeviceType.Mains]: PlugZapIcon,
   [DeviceType.CircuitBreaker]: ToggleLeftIcon,
-  [DeviceType.Pc]: MonitorIcon
+  [DeviceType.Pc]: MonitorIcon,
+  [DeviceType.Camera]: CctvIcon
 };
 
 /**
- * Tiplerin gösterim sırası: `DeviceType`'ın TANIM sırası (ControlModule → Pc). API yanıtının
+ * Tiplerin gösterim sırası: `DeviceType`'ın TANIM sırası (ControlModule → Camera). API yanıtının
  * sırasına bağlı kalınmıyor — sunucu farklı bir sırayla dönerse grupların yeri değişir, kullanıcı
  * her seferinde aynı yerde arar.
  */

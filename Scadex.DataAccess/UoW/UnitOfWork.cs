@@ -28,13 +28,15 @@ public class UnitOfWork : IUnitOfWork
     public IDeviceStatusRepository DeviceStatuses { get; private set; }
     public IDeviceTypeRepository DeviceTypes { get; private set; }
     public ICameraRepository Cameras { get; private set; }
+    public IControlCardRepository ControlCards { get; private set; }
+    public IPcDeviceRepository PcDevices { get; private set; }
     public ICameraCaptureRepository CameraCaptures { get; private set; }
     public IChannelEventRepository ChannelEvents { get; private set; }
     public ICameraCaptureSettingRepository CameraCaptureSettings { get; private set; }
     public IRefreshTokenRepository RefreshTokens { get; private set; }
     #endregion
 
-    public UnitOfWork(AppDbContext context, ICompanyRepository companyRepository, ICabinetRepository cabinetRepository, IUserRepository userRepository, IRoleRepository roleRepository, IRolePermissionRepository rolePermissionRepository, IPermissionRepository permissionRepository, IDeviceCommandRepository deviceCommandRepository, IConnectionRepository connectionRepository, IIoChannelRepository ioChannelRepository, IPinRepository pinRepository, ICanvasSettingsRepository canvasSettingsRepository, IComponentTemplateRepository componentTemplateRepository, IComponentTemplatePinRepository componentTemplatePinRepository, IDeviceRepository deviceRepository, IDiagramAnnotationRepository diagramAnnotationRepository, IDeviceStatusRepository deviceStatusRepository, IDeviceTypeRepository deviceTypeRepository, ICameraRepository cameraRepository, ICameraCaptureRepository cameraCaptureRepository, IChannelEventRepository channelEventRepository, ICameraCaptureSettingRepository cameraCaptureSettingRepository, IRefreshTokenRepository refreshTokenRepository)
+    public UnitOfWork(AppDbContext context, ICompanyRepository companyRepository, ICabinetRepository cabinetRepository, IUserRepository userRepository, IRoleRepository roleRepository, IRolePermissionRepository rolePermissionRepository, IPermissionRepository permissionRepository, IDeviceCommandRepository deviceCommandRepository, IConnectionRepository connectionRepository, IIoChannelRepository ioChannelRepository, IPinRepository pinRepository, ICanvasSettingsRepository canvasSettingsRepository, IComponentTemplateRepository componentTemplateRepository, IComponentTemplatePinRepository componentTemplatePinRepository, IDeviceRepository deviceRepository, IDiagramAnnotationRepository diagramAnnotationRepository, IDeviceStatusRepository deviceStatusRepository, IDeviceTypeRepository deviceTypeRepository, ICameraRepository cameraRepository, IControlCardRepository controlCardRepository, IPcDeviceRepository pcDeviceRepository, ICameraCaptureRepository cameraCaptureRepository, IChannelEventRepository channelEventRepository, ICameraCaptureSettingRepository cameraCaptureSettingRepository, IRefreshTokenRepository refreshTokenRepository)
     {
         _context = context;
         Companies = companyRepository;
@@ -55,6 +57,8 @@ public class UnitOfWork : IUnitOfWork
         DeviceStatuses = deviceStatusRepository;
         DeviceTypes = deviceTypeRepository;
         Cameras = cameraRepository;
+        ControlCards = controlCardRepository;
+        PcDevices = pcDeviceRepository;
         CameraCaptures = cameraCaptureRepository;
         ChannelEvents = channelEventRepository;
         CameraCaptureSettings = cameraCaptureSettingRepository;

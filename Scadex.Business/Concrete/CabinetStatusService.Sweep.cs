@@ -40,25 +40,9 @@ public partial class CabinetStatusService
             device.LastConnectionError = null;
             AddChange(changesByCabinet, device);
         }
+        
 
-        // 2) Kamera temizligi: ayni kural, izlemesi kapali kameralar icin. Kamerada SignalR durum olayi yok; ekran REST'ten okur.
-        var expiredCameras = await _unitOfWork.Cameras.GetAllAsync(
-            where: c =>
-                c.IsActive &&
-                !c.IsMonitoringEnabled &&
-                c.LastSeen != null && c.LastSeen < threshold &&
-                (c.DeviceStatusId == (int)DeviceStatus.Online || c.DeviceStatusId == (int)DeviceStatus.Offline),
-            tracking: true,
-            cancellationToken: cancellationToken
-        ) ?? [];
-
-        foreach (var camera in expiredCameras)
-        {
-            camera.DeviceStatusId = null;
-            camera.LastConnectionError = null;
-        }
-
-        if (expiredDevices.Count > 0 || expiredCameras.Count > 0)
+        if (expiredDevices.Count > 0)
         {
             await _unitOfWork.SaveChangesAsync(cancellationToken);
 
@@ -66,11 +50,11 @@ public partial class CabinetStatusService
                 await _notifier.DeviceStatusesChangedAsync(cabinetId, changes, cancellationToken);
         }
 
-        // 3) Uzlastirma: cihaz/kamera durumunu degistirmeden kabini etkileyen yavas yollar (diyagramda cihaz silme,
-        //    kamera pasife alma / izlemeyi kapatma) burada kapanir. 1-2. adimlarin kabinleri de bununla hesaplanir.
+        // 2) Uzlastirma: cihaz durumunu degistirmeden kabini etkileyen yavas yollar (diyagramda cihaz silme, izlemeyi
+        //    kapatma) burada kapanir. 1. adimin kabinleri de bununla hesaplanir.
         int reconciled = await ReconcileAllCabinetsAsync(cancellationToken);
 
-        return new CabinetStatusSweepResult(expiredDevices.Count, expiredCameras.Count, reconciled);
+        return new CabinetStatusSweepResult(expiredDevices.Count, reconciled);
     }
 
     /// <summary>
@@ -95,18 +79,12 @@ public partial class CabinetStatusService
             cancellationToken: cancellationToken
         ) ?? [];
 
-        var offlineCameraCabinetIds = (await _unitOfWork.Cameras.GetAllAsync(
-            select: c => c.CabinetId,
-            where: c => c.IsActive && c.IsMonitoringEnabled && c.DeviceStatusId == (int)DeviceStatus.Offline,
-            cancellationToken: cancellationToken
-        ) ?? []).ToHashSet();
-
         var contributionsByCabinet = deviceStatuses.ToLookup(d => d.CabinetId, d => CabinetContribution(d.DeviceStatusId, d.IsControlModule));
 
         var drifted = new Dictionary<Guid, int?>();
         foreach (var cabinet in cabinets)
         {
-            var next = CalculateCabinetStatus(contributionsByCabinet[cabinet.Id], offlineCameraCabinetIds.Contains(cabinet.Id));
+            var next = CalculateCabinetStatus(contributionsByCabinet[cabinet.Id]);
             if (next != cabinet.DeviceStatusId)
                 drifted[cabinet.Id] = next;
         }

@@ -1,13 +1,9 @@
 /**
- * Ayna: Scadex.Model/Dtos/Camera/Commands/CameraCreateDto.cs + CameraUpdateDto.cs
- *       (+ CameraCreateDtoValidator / CameraUpdateDtoValidator / CameraRules)
- * Sözleşme: docs/api-contract/11-camera.md
+ * Ayna: Scadex.Model/Dtos/Camera/Commands/CameraUpdateDto.cs (+ CameraUpdateDtoValidator)
  *
- * `cabinetForm.ts` ile aynı desen: ekleme ve düzenlemenin ORTAK şekli tek bir
- * şemadır, sunucuya gönderilen şekle dönüşüm `toCreateRequest` /
- * `toUpdateRequest` ile yapılır. Sunucuda da ortak kurallar tek bir
- * `CameraRules` sınıfında toplanmış durumda — ikisi ayrışırsa create'te
- * reddedilen bir değer update ile içeri girebilirdi.
+ * Yalnızca DÜZENLEME formu: kamera bir cihazdır ve oluşturma/kaldırma (pasife
+ * alma) yalnızca diyagram kaydetmeden geçer (2026-10-25). Sunucuya gönderilen
+ * şekle dönüşüm `toUpdateRequest` ile yapılır.
  *
  * Port ve kanal alanı YOK: markaya aittirler, sunucuda `ICameraProtocolProfile`
  * `brand`'e göre üretir.
@@ -61,15 +57,12 @@ export const cameraFormSchema = z.object({
     .int('Yoklama aralığı tam sayı olmalı')
     .min(10, 'Yoklama aralığı en az 10 saniye olmalı')
     .max(86400, 'Yoklama aralığı en fazla 24 saat olabilir'),
-  isMonitoringEnabled: z.boolean(),
-
-  /** Yalnızca düzenlemede anlamlı; ekleme her zaman aktif doğurur. */
-  isActive: z.boolean()
+  isMonitoringEnabled: z.boolean()
 });
 
 export type CameraFormValues = z.infer<typeof cameraFormSchema>;
 
-/** Yeni kamera formunun başlangıç değerleri — sunucudaki DTO varsayılanlarıyla aynı. */
+/** Düzenlenecek kayıt gelene kadar formun boş başlangıcı (alanlar kontrollü kalsın diye). */
 export const emptyCameraForm: CameraFormValues = {
   name: '',
   description: '',
@@ -80,13 +73,16 @@ export const emptyCameraForm: CameraFormValues = {
   password: '',
   monitoringPort: null,
   pingIntervalSec: 300,
-  isMonitoringEnabled: true,
-  isActive: true
+  isMonitoringEnabled: true
 };
 
-/** Sunucudaki `CameraCreateDto`. `isActive` GÖNDERİLMEZ — yeni kamera aktif doğar. */
-export interface CameraCreateRequest {
-  cabinetId: string;
+/**
+ * Sunucudaki `CameraUpdateDto`. `cabinetId` YOKTUR — kamera kabin değiştiremez
+ * (geçmiş çekimlerini yanlış kabine bağlardı). `isActive` YOKTUR — pasife alma
+ * diyagramdan silmektir.
+ */
+export interface CameraUpdateRequest {
+  id: string;
   name: string;
   description?: string;
   brand: CameraBrand;
@@ -100,40 +96,21 @@ export interface CameraCreateRequest {
   isMonitoringEnabled: boolean;
 }
 
-/** Sunucudaki `CameraUpdateDto`. `cabinetId` YOKTUR — kamera kabin değiştiremez. */
-export interface CameraUpdateRequest extends Omit<CameraCreateRequest, 'cabinetId'> {
-  id: string;
-  isActive: boolean;
-}
-
 /** Boş metni `undefined`'a çevirir — sunucuda `string?`, boş string değil null gitsin. */
 const orUndefined = (value: string) => (value.trim().length > 0 ? value.trim() : undefined);
 
-export function toCreateRequest(values: CameraFormValues, cabinetId: string): CameraCreateRequest {
+export function toUpdateRequest(values: CameraFormValues, id: string): CameraUpdateRequest {
   return {
-    cabinetId,
+    id,
     name: values.name,
     description: orUndefined(values.description),
     brand: values.brand,
     model: orUndefined(values.model),
     ipAddress: values.ipAddress,
     username: orUndefined(values.username),
-    password: orUndefined(values.password),
     monitoringPort: values.monitoringPort,
     pingIntervalSec: values.pingIntervalSec,
-    isMonitoringEnabled: values.isMonitoringEnabled
-  };
-}
-
-export function toUpdateRequest(values: CameraFormValues, id: string): CameraUpdateRequest {
-  // `cabinetId` bilerek DÜŞÜRÜLÜYOR: `CameraUpdateDto` onu taşımaz, kamera
-  // kabin değiştiremez (geçmiş çekimlerini yanlış kabine bağlardı).
-  const { cabinetId, ...rest } = toCreateRequest(values, '');
-  void cabinetId;
-  return {
-    ...rest,
-    id,
-    isActive: values.isActive,
+    isMonitoringEnabled: values.isMonitoringEnabled,
     /**
      * ÜÇ DURUMLU PAROLA — sunucudaki kuralın birebir karşılığı.
      *
@@ -160,7 +137,6 @@ export function toCameraForm(camera: CameraDto): CameraFormValues {
     password: '',
     monitoringPort: camera.monitoringPort,
     pingIntervalSec: camera.pingIntervalSec,
-    isMonitoringEnabled: camera.isMonitoringEnabled,
-    isActive: camera.isActive
+    isMonitoringEnabled: camera.isMonitoringEnabled
   };
 }

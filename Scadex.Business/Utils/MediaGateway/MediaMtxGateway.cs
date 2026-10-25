@@ -1,9 +1,9 @@
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Scadex.Business.Settings;
+using Scadex.Business.Utils.CameraProtocolProfile;
 using Scadex.Business.Utils.CameraProtocolProfile.Resolver;
 using Scadex.Core.Utils.ResultPattern;
-using Scadex.Model.Entities;
 using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
@@ -38,18 +38,9 @@ public class MediaMtxGateway : IMediaGateway
 
 
     /// <inheritdoc/>
-    public async Task<Result> EnsureLivePathAsync(Camera camera, StreamProfile profile, CancellationToken cancellationToken = default)
+    public async Task<Result> EnsureLivePathAsync(CameraEndpoint camera, StreamProfile profile, CancellationToken cancellationToken = default)
     {
-        var rtspUrl = _profileResolver.Resolve(camera).BuildRtspUrl(camera, profile);
-
-        var payload = new Dictionary<string, object?>
-        {
-            ["source"] = rtspUrl,
-            // Talep uzerine baglan: izleyicisi olmayan bir kamera icin RTSP oturumu acik tutulmaz "SourceOnDemandCloseAfterSec" saniye sonra RTSP oturumu kapatilir.
-            ["sourceOnDemand"] = true,
-            ["sourceOnDemandCloseAfter"] = $"{_mediaGatewaySettings.SourceOnDemandCloseAfterSec}s",
-            ["rtspTransport"] = _mediaGatewaySettings.RtspTransport
-        };
+        var payload = BuildLivePathPayload(camera, profile);
 
         var pathName = IMediaGateway.LivePathName(camera.Id, profile);
 
@@ -96,6 +87,35 @@ public class MediaMtxGateway : IMediaGateway
             _logger.LogError(exception, "Medya gecidi yolu yazilirken beklenmeyen hata: {PathName}", pathName);
             return Result.Failure(description: "Medya geçidi yapılandırılamadı.");
         }
+    }
+
+    /// <inheritdoc/>
+    public async Task<Result> DeleteLivePathIfStaleAsync(CameraEndpoint camera, StreamProfile profile, CancellationToken cancellationToken = default)
+    {
+        var pathName = IMediaGateway.LivePathName(camera.Id, profile);
+        var httpClient = CreateConfiguredClient();
+
+        try
+        {
+            using var getResponse = await httpClient.GetAsync($"v3/config/paths/get/{pathName}", cancellationToken);
+
+            // Yol hic kurulmamis: kesilecek oturum yok, ilk izleme istegi guncel bilgilerle kurar.
+            if (getResponse.StatusCode == HttpStatusCode.NotFound)
+                return Result.Success();
+            if (!getResponse.IsSuccessStatusCode)
+                return Result.Failure(description: $"Medya geçidi yolu okunamadı: {await ReadErrorAsync(getResponse, cancellationToken)}");
+
+            var current = await getResponse.Content.ReadFromJsonAsync<JsonElement>(cancellationToken);
+            if (MatchesDesiredConfig(current, BuildLivePathPayload(camera, profile)))
+                return Result.Success();
+        }
+        catch (Exception exception) when (exception is not OperationCanceledException || !cancellationToken.IsCancellationRequested)
+        {
+            _logger.LogWarning(exception, "Medya gecidi yolu okunamadi: {PathName}", pathName);
+            return Result.Failure(description: "Medya geçidine ulaşılamıyor.");
+        }
+
+        return await DeletePathAsync(pathName, cancellationToken);
     }
 
     /// <inheritdoc/>
@@ -260,6 +280,16 @@ public class MediaMtxGateway : IMediaGateway
 
 
     #region Helpers
+    /// <summary> Canli yolun istenen yapilandirmasi; hem kurma hem "eskimis mi" karsilastirmasi AYNI govdeyi kullanir. </summary>
+    private Dictionary<string, object?> BuildLivePathPayload(CameraEndpoint camera, StreamProfile profile) => new()
+    {
+        ["source"] = _profileResolver.Resolve(camera.Brand).BuildRtspUrl(camera, profile),
+        // Talep uzerine baglan: izleyicisi olmayan bir kamera icin RTSP oturumu acik tutulmaz "SourceOnDemandCloseAfterSec" saniye sonra RTSP oturumu kapatilir.
+        ["sourceOnDemand"] = true,
+        ["sourceOnDemandCloseAfter"] = $"{_mediaGatewaySettings.SourceOnDemandCloseAfterSec}s",
+        ["rtspTransport"] = _mediaGatewaySettings.RtspTransport
+    };
+
     /// <summary>
     /// Control API'nin sayfali liste uclarini bastan sona okur.
     /// <c>itemCount</c> sayfa basina sinirli oldugu icin TEK istek yetmez;

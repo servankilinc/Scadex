@@ -206,80 +206,25 @@ namespace Scadex.DataAccess.Migrations
 
             modelBuilder.Entity("Scadex.Model.Entities.Camera", b =>
                 {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
+                    b.Property<Guid>("DeviceId")
                         .HasColumnType("uniqueidentifier");
 
                     b.Property<int>("Brand")
                         .HasColumnType("int");
 
-                    b.Property<Guid>("CabinetId")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<DateTime?>("CreateDateUtc")
-                        .HasColumnType("datetime2");
-
-                    b.Property<string>("CreatedBy")
-                        .HasColumnType("nvarchar(max)");
-
                     b.Property<string>("Description")
                         .HasColumnType("nvarchar(max)");
-
-                    b.Property<int?>("DeviceStatusId")
-                        .HasColumnType("int");
-
-                    b.Property<string>("IpAddress")
-                        .IsRequired()
-                        .HasColumnType("nvarchar(450)");
-
-                    b.Property<bool>("IsActive")
-                        .HasColumnType("bit");
-
-                    b.Property<bool>("IsMonitoringEnabled")
-                        .HasColumnType("bit");
-
-                    b.Property<string>("LastConnectionError")
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<DateTime?>("LastSeen")
-                        .HasColumnType("datetime2");
 
                     b.Property<string>("Model")
                         .HasColumnType("nvarchar(max)");
 
-                    b.Property<int?>("MonitoringPort")
-                        .HasColumnType("int");
-
-                    b.Property<string>("Name")
-                        .IsRequired()
-                        .HasColumnType("nvarchar(450)");
-
                     b.Property<string>("Password")
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<int>("PingIntervalSec")
-                        .HasColumnType("int");
-
-                    b.Property<DateTime?>("UpdateDateUtc")
-                        .HasColumnType("datetime2");
-
-                    b.Property<string>("UpdatedBy")
                         .HasColumnType("nvarchar(max)");
 
                     b.Property<string>("Username")
                         .HasColumnType("nvarchar(max)");
 
-                    b.HasKey("Id");
-
-                    b.HasIndex("DeviceStatusId");
-
-                    b.HasIndex("CabinetId", "IpAddress")
-                        .IsUnique()
-                        .HasFilter("[IsActive] = 1");
-
-                    b.HasIndex("CabinetId", "Name")
-                        .IsUnique()
-                        .HasFilter("[IsActive] = 1");
+                    b.HasKey("DeviceId");
 
                     b.ToTable("Camera", (string)null);
                 });
@@ -739,6 +684,19 @@ namespace Scadex.DataAccess.Migrations
                             IsMonitorable = true,
                             IsSystemTemplate = true,
                             Name = "Bilgisayar",
+                            Width = 200.0
+                        },
+                        new
+                        {
+                            Id = new Guid("7e200000-0000-0000-0014-000000000001"),
+                            BackgroundColor = "#EDE9FE",
+                            BackgroundImageUrl = "/templates/system/camera.svg",
+                            DeviceTypeId = 14,
+                            Height = 150.0,
+                            IsActive = true,
+                            IsMonitorable = true,
+                            IsSystemTemplate = true,
+                            Name = "IP Kamera",
                             Width = 200.0
                         },
                         new
@@ -2877,6 +2835,42 @@ namespace Scadex.DataAccess.Migrations
                         },
                         new
                         {
+                            Id = new Guid("7e300000-0000-0014-0001-000000000001"),
+                            ComponentTemplateId = new Guid("7e200000-0000-0000-0014-000000000001"),
+                            Direction = 0,
+                            Function = 3,
+                            Name = "+12V",
+                            RelativeX = 0.25,
+                            RelativeY = 0.85333333333333339,
+                            Side = 3,
+                            VoltageLevel = 1
+                        },
+                        new
+                        {
+                            Id = new Guid("7e300000-0000-0014-0001-000000000002"),
+                            ComponentTemplateId = new Guid("7e200000-0000-0000-0014-000000000001"),
+                            Direction = 0,
+                            Function = 4,
+                            Name = "GND",
+                            RelativeX = 0.45000000000000001,
+                            RelativeY = 0.85333333333333339,
+                            Side = 3,
+                            VoltageLevel = 1
+                        },
+                        new
+                        {
+                            Id = new Guid("7e300000-0000-0014-0001-000000000003"),
+                            ComponentTemplateId = new Guid("7e200000-0000-0000-0014-000000000001"),
+                            Direction = 2,
+                            Function = 7,
+                            Name = "RJ45",
+                            RelativeX = 0.75,
+                            RelativeY = 0.85333333333333339,
+                            Side = 3,
+                            VoltageLevel = 5
+                        },
+                        new
+                        {
                             Id = new Guid("7e300000-0000-0007-0008-000000000001"),
                             ComponentTemplateId = new Guid("7e200000-0000-0000-0007-000000000008"),
                             Direction = 0,
@@ -3242,6 +3236,29 @@ namespace Scadex.DataAccess.Migrations
                         });
                 });
 
+            modelBuilder.Entity("Scadex.Model.Entities.ControlCard", b =>
+                {
+                    b.Property<Guid>("DeviceId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("MacAddress")
+                        .HasColumnType("nvarchar(450)");
+
+                    b.Property<string>("Password")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("Username")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.HasKey("DeviceId");
+
+                    b.HasIndex("MacAddress")
+                        .IsUnique()
+                        .HasFilter("[MacAddress] IS NOT NULL");
+
+                    b.ToTable("ControlCard", (string)null);
+                });
+
             modelBuilder.Entity("Scadex.Model.Entities.Device", b =>
                 {
                     b.Property<Guid>("Id")
@@ -3293,9 +3310,6 @@ namespace Scadex.DataAccess.Migrations
                     b.Property<DateTime?>("LastSeen")
                         .HasColumnType("datetime2");
 
-                    b.Property<string>("MacAddress")
-                        .HasColumnType("nvarchar(450)");
-
                     b.Property<int?>("MonitoringPort")
                         .HasColumnType("int");
 
@@ -3328,10 +3342,6 @@ namespace Scadex.DataAccess.Migrations
                     b.HasIndex("ComponentTemplateId");
 
                     b.HasIndex("DeviceStatusId");
-
-                    b.HasIndex("MacAddress")
-                        .IsUnique()
-                        .HasFilter("[MacAddress] IS NOT NULL AND [IsActive] = 1");
 
                     b.ToTable("Device", (string)null);
                 });
@@ -3579,6 +3589,12 @@ namespace Scadex.DataAccess.Migrations
                             Id = 13,
                             Category = "Field",
                             Name = "Pc"
+                        },
+                        new
+                        {
+                            Id = 14,
+                            Category = "Field",
+                            Name = "Camera"
                         });
                 });
 
@@ -3724,6 +3740,23 @@ namespace Scadex.DataAccess.Migrations
                         .HasFilter("[IsDeleted] = 0");
 
                     b.ToTable("IoChannel", (string)null);
+                });
+
+            modelBuilder.Entity("Scadex.Model.Entities.PcDevice", b =>
+                {
+                    b.Property<Guid>("DeviceId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("MacAddress")
+                        .HasColumnType("nvarchar(450)");
+
+                    b.HasKey("DeviceId");
+
+                    b.HasIndex("MacAddress")
+                        .IsUnique()
+                        .HasFilter("[MacAddress] IS NOT NULL");
+
+                    b.ToTable("PcDevice", (string)null);
                 });
 
             modelBuilder.Entity("Scadex.Model.Entities.Permission", b =>
@@ -4445,20 +4478,13 @@ namespace Scadex.DataAccess.Migrations
 
             modelBuilder.Entity("Scadex.Model.Entities.Camera", b =>
                 {
-                    b.HasOne("Scadex.Model.Entities.Cabinet", "Cabinet")
-                        .WithMany("Cameras")
-                        .HasForeignKey("CabinetId")
+                    b.HasOne("Scadex.Model.Entities.Device", "Device")
+                        .WithOne("Camera")
+                        .HasForeignKey("Scadex.Model.Entities.Camera", "DeviceId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
-                    b.HasOne("Scadex.Model.Entities.DeviceStatus", "DeviceStatus")
-                        .WithMany("Cameras")
-                        .HasForeignKey("DeviceStatusId")
-                        .OnDelete(DeleteBehavior.Restrict);
-
-                    b.Navigation("Cabinet");
-
-                    b.Navigation("DeviceStatus");
+                    b.Navigation("Device");
                 });
 
             modelBuilder.Entity("Scadex.Model.Entities.CameraCapture", b =>
@@ -4558,6 +4584,17 @@ namespace Scadex.DataAccess.Migrations
                     b.Navigation("TargetPin");
                 });
 
+            modelBuilder.Entity("Scadex.Model.Entities.ControlCard", b =>
+                {
+                    b.HasOne("Scadex.Model.Entities.Device", "Device")
+                        .WithOne("ControlCard")
+                        .HasForeignKey("Scadex.Model.Entities.ControlCard", "DeviceId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Device");
+                });
+
             modelBuilder.Entity("Scadex.Model.Entities.Device", b =>
                 {
                     b.HasOne("Scadex.Model.Entities.Cabinet", "Cabinet")
@@ -4639,6 +4676,17 @@ namespace Scadex.DataAccess.Migrations
                     b.Navigation("Device");
                 });
 
+            modelBuilder.Entity("Scadex.Model.Entities.PcDevice", b =>
+                {
+                    b.HasOne("Scadex.Model.Entities.Device", "Device")
+                        .WithOne("PcDevice")
+                        .HasForeignKey("Scadex.Model.Entities.PcDevice", "DeviceId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Device");
+                });
+
             modelBuilder.Entity("Scadex.Model.Entities.Pin", b =>
                 {
                     b.HasOne("Scadex.Model.Entities.ComponentTemplatePin", "ComponentTemplatePin")
@@ -4707,8 +4755,6 @@ namespace Scadex.DataAccess.Migrations
 
             modelBuilder.Entity("Scadex.Model.Entities.Cabinet", b =>
                 {
-                    b.Navigation("Cameras");
-
                     b.Navigation("CanvasSettings");
 
                     b.Navigation("ChannelEvents");
@@ -4746,9 +4792,15 @@ namespace Scadex.DataAccess.Migrations
 
             modelBuilder.Entity("Scadex.Model.Entities.Device", b =>
                 {
+                    b.Navigation("Camera");
+
+                    b.Navigation("ControlCard");
+
                     b.Navigation("DeviceCommands");
 
                     b.Navigation("IoChannels");
+
+                    b.Navigation("PcDevice");
 
                     b.Navigation("Pins");
                 });
@@ -4756,8 +4808,6 @@ namespace Scadex.DataAccess.Migrations
             modelBuilder.Entity("Scadex.Model.Entities.DeviceStatus", b =>
                 {
                     b.Navigation("Cabinets");
-
-                    b.Navigation("Cameras");
 
                     b.Navigation("Devices");
                 });

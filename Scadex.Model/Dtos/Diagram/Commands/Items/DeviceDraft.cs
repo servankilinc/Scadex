@@ -1,6 +1,5 @@
 using FluentValidation;
 using Scadex.Core.Model;
-using Scadex.Core.Utils;
 using Scadex.Model.Dtos.Diagram.Commands.Abstract;
 using Scadex.Model.Enums;
 
@@ -23,16 +22,15 @@ public class DeviceDraft : IDto, IIdentifiableDraft
     public bool IsLocked { get; set; }
     public bool IsVisible { get; set; } = true;
 
-    private string? _macAddress;
-
-    /// <summary> Gelirken tek tipe çevrilir (<c>AA:BB:CC:DD:EE:FF</c>, <see cref="MacAddressFormat"/>) </summary>
-    public string? MacAddress { get => _macAddress; set => _macAddress = MacAddressFormat.NormalizeOrKeep(value); }
-
     public string? IpAddress { get; set; }
 
     public int? MonitoringPort { get; set; }
     public int PingIntervalSec { get; set; } = 300;
     public bool IsMonitoringEnabled { get; set; }
+
+    public CameraDraft? Camera { get; set; }
+    public ControlCardDraft? ControlCard { get; set; }
+    public PcDeviceDraft? Pc { get; set; }
 
     /// <summary> Olusacak pinlerin KIMLIKLERI — yalnizca OLUSTURMADA doldurulur. </summary>
     public List<DevicePinDraft> Pins { get; set; } = [];
@@ -49,10 +47,6 @@ public class DeviceDraftValidator : AbstractValidator<DeviceDraft>
         RuleFor(v => v.ComponentTemplateId).NotEqual(Guid.Empty).WithMessage("Sablon secilmeli");
         RuleFor(v => v.Name).NotEmpty().WithMessage("Cihaz adi zorunlu");
         RuleFor(v => v.Name).MaximumLength(128).WithMessage("Cihaz adi en fazla 128 karakter olabilir");
-        RuleFor(v => v.MacAddress)
-            .Must(mac => MacAddressFormat.TryNormalize(mac) is not null)
-            .When(v => v.MacAddress is not null)
-            .WithMessage("MAC adresi 12 harf/rakam olmalı, ör. AA:BB:CC:DD:EE:FF (ayraç ':' ya da '-' olabilir)");
         RuleFor(v => v.IpAddress).MaximumLength(45).WithMessage("IP adresi en fazla 45 karakter olabilir");
 
         RuleFor(v => v.MonitoringPort!.Value).InclusiveBetween(1, 65535).When(v => v.MonitoringPort.HasValue).WithMessage("İzleme portu 1-65535 arasında olmalı");
@@ -63,6 +57,10 @@ public class DeviceDraftValidator : AbstractValidator<DeviceDraft>
 
         RuleFor(v => v.Width).GreaterThan(0).When(v => v.Width.HasValue).WithMessage("Genislik sifirdan buyuk olmali");
         RuleFor(v => v.Height).GreaterThan(0).When(v => v.Height.HasValue).WithMessage("Yukseklik sifirdan buyuk olmali");
+
+        RuleFor(v => v.Camera!).SetValidator(new CameraDraftValidator()).When(v => v.Camera is not null);
+        RuleFor(v => v.ControlCard!).SetValidator(new ControlCardDraftValidator()).When(v => v.ControlCard is not null);
+        RuleFor(v => v.Pc!).SetValidator(new PcDeviceDraftValidator()).When(v => v.Pc is not null);
 
         RuleForEach(v => v.Pins).SetValidator(new DevicePinDraftValidator());
         RuleForEach(v => v.IoChannels).SetValidator(new DeviceIoChannelDraftValidator());

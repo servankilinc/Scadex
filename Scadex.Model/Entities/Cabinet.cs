@@ -40,7 +40,6 @@ public class Cabinet : IEntity, IAuditableEntity, IActivatableEntity
     public virtual ICollection<DiagramAnnotation>? DiagramAnnotations { get; set; }
     public virtual ICollection<Connection>? Connections { get; set; }
     public virtual CanvasSettings? CanvasSettings { get; set; }
-    public virtual ICollection<Camera>? Cameras { get; set; }
     public virtual ICollection<ChannelEvent>? ChannelEvents { get; set; }
     #endregion
 }

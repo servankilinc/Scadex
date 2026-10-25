@@ -10,6 +10,8 @@ import { Textarea } from '@/components/ui/textarea';
 import {
   AnnotationShape,
   AnnotationShapeLabels,
+  CameraBrand,
+  CameraBrandLabels,
   deviceStatusLabel,
   DeviceTypeLabels,
   EdgeRouting,
@@ -19,7 +21,16 @@ import {
   WireType,
   WireTypeLabels
 } from '@/models/enums';
-import type { DiagramAnnotationItemDto, DiagramConnectionDto, DiagramDeviceDto, DiagramIoChannelDto, PointDto } from '@/models/diagram';
+import type {
+  DiagramAnnotationItemDto,
+  DiagramCameraDto,
+  DiagramConnectionDto,
+  DiagramControlCardDto,
+  DiagramDeviceDto,
+  DiagramIoChannelDto,
+  DiagramPcDeviceDto,
+  PointDto
+} from '@/models/diagram';
 import { useAppSelector } from '@/hooks';
 import type { DiagramEditor } from '@/hooks/use-diagram-editor';
 import { MIN_ALIGN } from '@/lib/diagram/align';
@@ -36,7 +47,7 @@ import { DeleteButton } from './confirm-delete';
  * Seçili öğenin, canvas üzerinde düzenlenemeyen alanları — ve seçime uygulanan
  * eylemler.
  *
- * Canvas konumu ve bağlantıyı yönetir; ad, MAC adresi, kablo tipi ve rengi gibi
+ * Canvas konumu ve bağlantıyı yönetir; ad, MAC adresi, kamera bilgileri, kablo tipi ve rengi gibi
  * alanların başka bir yeri yok. Kablo için bu kritik: `onConnect` yeni kabloyu
  * nötr bir varsayılanla (gri, düz, Sinyal) doğuruyor — panel olmasaydı çizilen
  * hiçbir kablonun tipi belirlenemezdi.
@@ -185,15 +196,14 @@ function DeviceForm({ node, editor }: { node: Extract<DiagramNode, { type: 'temp
         <TextInput id='device-name' value={device.name} onCommit={value => value && onChange({ name: value })} />
       </Field>
 
-      {/* Boş girdi null'a çevrilir: boş dize `IX_Device_MacAddress` benzersizlik
-          index'inde ikinci bir boş adresle çakışırdı, null'lar ise çakışmaz. */}
-      <Field label='MAC adresi' htmlFor='device-mac-address' hint='SCADA kontrol modülünü bu adresle tanır.'>
-        <TextInput id='device-mac-address' value={device.macAddress ?? ''} onCommit={value => onChange({ macAddress: value || null })} />
-      </Field>
-
-      <Field label='IP adresi' htmlFor='device-ip-address'>
+      <Field label='IP adresi' htmlFor='device-ip-address' hint={device.camera ? 'Kamera için zorunlu: RTSP adresi bundan kurulur.' : undefined}>
         <TextInput id='device-ip-address' value={device.ipAddress ?? ''} onCommit={value => onChange({ ipAddress: value || null })} />
       </Field>
+
+      {/* Tipe özgü alanlar cihazın ek nesnelerindedir (2026-10-22) — MAC, kullanıcı ve parola cihaz gövdesinde yok. */}
+      {device.camera && <CameraFields camera={device.camera} onChange={camera => onChange({ camera })} />}
+      {device.controlCard && <ControlCardFields card={device.controlCard} onChange={controlCard => onChange({ controlCard })} />}
+      {device.pc && <PcFields pc={device.pc} onChange={pc => onChange({ pc })} />}
 
       {/* İzleme yalnızca izlenebilir şablonda (`template.isMonitorable`) sunulur — klemensin, sigortanın yoklanacak bir ağı
           yok. Şablon izlenemezken izleme bir şekilde açık kalmışsa bölüm yine görünür ki kapatılabilsin; aksi halde
@@ -323,6 +333,94 @@ function DeviceForm({ node, editor }: { node: Extract<DiagramNode, { type: 'temp
           Panelde duran şey sonucu — geçmiş. */}
       <CommandHistory deviceId={device.id} />
     </div>
+  );
+}
+
+// Ek nesne alanları. Kurallar sunucudaki `DeviceExtensionDrafts.cs` validator'larının ELLE tutulan aynasıdır (model ≤ 64,
+// açıklama ≤ 512, kullanıcı/parola ≤ 128); MAC biçimini sunucu doğrular ve tek tipe çevirir. Boş girdi `null`'a çevrilir:
+// boş dize MAC tekillik index'inde ikinci bir boş adresle çakışırdı, null'lar çakışmaz.
+
+const CAMERA_BRANDS: CameraBrand[] = Object.values(CameraBrand);
+
+function CameraFields({ camera, onChange }: { camera: DiagramCameraDto; onChange: (camera: DiagramCameraDto) => void }) {
+  const patch = (next: Partial<DiagramCameraDto>) => onChange({ ...camera, ...next });
+
+  return (
+    <div className='flex flex-col gap-3 border-t pt-3'>
+      <p className='text-muted-foreground text-xs font-medium'>Kamera</p>
+      <Field label='Marka'>
+        <EnumSelect value={camera.brand} options={CAMERA_BRANDS} labels={CameraBrandLabels} onChange={brand => patch({ brand })} />
+      </Field>
+      <Field label='Model' htmlFor='camera-model'>
+        <TextInput id='camera-model' value={camera.model ?? ''} maxLength={64} onCommit={value => patch({ model: value || null })} />
+      </Field>
+      <Field label='Açıklama' htmlFor='camera-description'>
+        <TextInput id='camera-description' value={camera.description ?? ''} maxLength={512} onCommit={value => patch({ description: value || null })} />
+      </Field>
+      <CredentialFields idPrefix='camera' credentials={camera} onChange={patch} />
+      <p className='text-muted-foreground text-[10px]'>Bilgiler kaydedilince açık izlemeler yeni bilgilerle yeniden bağlanır.</p>
+    </div>
+  );
+}
+
+function ControlCardFields({ card, onChange }: { card: DiagramControlCardDto; onChange: (card: DiagramControlCardDto) => void }) {
+  const patch = (next: Partial<DiagramControlCardDto>) => onChange({ ...card, ...next });
+
+  return (
+    <div className='flex flex-col gap-3 border-t pt-3'>
+      <p className='text-muted-foreground text-xs font-medium'>Kontrol kartı</p>
+      <Field label='MAC adresi' htmlFor='card-mac-address' hint='SCADA kontrol modülünü bu adresle tanır; tüm kartlar arasında tekildir.'>
+        <TextInput id='card-mac-address' value={card.macAddress ?? ''} onCommit={value => patch({ macAddress: value || null })} />
+      </Field>
+      <CredentialFields idPrefix='card' credentials={card} onChange={patch} />
+    </div>
+  );
+}
+
+function PcFields({ pc, onChange }: { pc: DiagramPcDeviceDto; onChange: (pc: DiagramPcDeviceDto) => void }) {
+  return (
+    <div className='flex flex-col gap-3 border-t pt-3'>
+      <p className='text-muted-foreground text-xs font-medium'>Bilgisayar</p>
+      <Field label='MAC adresi' htmlFor='pc-mac-address' hint='Uzak masaüstü istemcisi bu adresle eşlenir; tüm PC’ler arasında tekildir.'>
+        <TextInput id='pc-mac-address' value={pc.macAddress ?? ''} onCommit={value => onChange({ macAddress: value || null })} />
+      </Field>
+    </div>
+  );
+}
+
+/**
+ * Kullanıcı adı + parola. Sunucu parolayı DÖNDÜRMEZ (`hasPassword`); girilen değer kaydedilene kadar `password`'ta bekler.
+ * Durum ikisinden türetilir: kayıt sonrası graf tazelenmediği için bekleyen değer orada kalır ve yeniden göndermek zararsızdır
+ * (aynı değer yazılır).
+ */
+function CredentialFields({
+  idPrefix,
+  credentials,
+  onChange
+}: {
+  idPrefix: string;
+  credentials: { username: string | null; hasPassword: boolean; password?: string | null };
+  onChange: (patch: { username?: string | null; password?: string | null }) => void;
+}) {
+  const pending = credentials.password;
+  const isSet = pending != null ? pending !== '' : credentials.hasPassword;
+
+  return (
+    <>
+      <Field label='Kullanıcı adı' htmlFor={`${idPrefix}-username`}>
+        <TextInput id={`${idPrefix}-username`} value={credentials.username ?? ''} maxLength={128} onCommit={value => onChange({ username: value || null })} />
+      </Field>
+      <Field label='Parola' htmlFor={`${idPrefix}-password`} hint={isSet ? 'Parola ayarlı. Değiştirmek için yenisini yazın.' : 'Parola yok.'}>
+        <div className='flex items-center gap-2'>
+          <PasswordInput id={`${idPrefix}-password`} onCommit={password => onChange({ password })} />
+          {isSet && (
+            <Button size='xs' variant='ghost' onClick={() => onChange({ password: '' })}>
+              Temizle
+            </Button>
+          )}
+        </div>
+      </Field>
+    </>
   );
 }
 
@@ -815,7 +913,7 @@ function ReadOnly({ term, value }: { term: string; value: string }) {
  * Çağıran taraf `key={id}` verir: seçim değişince bileşen remount olur ve taslak
  * taze değerle doğar. Bunu bir effect'le yapmak fazladan bir render turu üretirdi.
  */
-function TextInput({ id, value, onCommit }: { id: string; value: string; onCommit: (value: string) => void }) {
+function TextInput({ id, value, maxLength, onCommit }: { id: string; value: string; maxLength?: number; onCommit: (value: string) => void }) {
   const [draft, setDraft] = useState(value);
 
   const commit = () => {
@@ -828,6 +926,7 @@ function TextInput({ id, value, onCommit }: { id: string; value: string; onCommi
       id={id}
       className='h-7'
       value={draft}
+      maxLength={maxLength}
       onChange={e => setDraft(e.target.value)}
       onBlur={commit}
       onKeyDown={e => {
@@ -836,6 +935,41 @@ function TextInput({ id, value, onCommit }: { id: string; value: string; onCommi
         // yolu. Blur commit'i tetiklemesin diye taslak önce geri alınır.
         if (e.key === 'Escape') {
           setDraft(value);
+          e.currentTarget.blur();
+        }
+      }}
+    />
+  );
+}
+
+/**
+ * Parola girdisi — her zaman BOŞ başlar (sunucu parolayı göndermez). Boş bırakılan alan "dokunma" demektir; yazılan değer
+ * commit'te (blur / Enter) gönderilir ve girdi yeniden boşalır. Temizlemek ayrı bir düğmedir (bkz. `CredentialFields`).
+ */
+function PasswordInput({ id, onCommit }: { id: string; onCommit: (value: string) => void }) {
+  const [draft, setDraft] = useState('');
+
+  const commit = () => {
+    if (draft === '') return;
+    onCommit(draft);
+    setDraft('');
+  };
+
+  return (
+    <Input
+      id={id}
+      type='password'
+      autoComplete='new-password'
+      className='h-7'
+      maxLength={128}
+      value={draft}
+      placeholder='••••••'
+      onChange={e => setDraft(e.target.value)}
+      onBlur={commit}
+      onKeyDown={e => {
+        if (e.key === 'Enter') e.currentTarget.blur();
+        if (e.key === 'Escape') {
+          setDraft('');
           e.currentTarget.blur();
         }
       }}

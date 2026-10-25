@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { Link, useParams } from 'react-router';
-import { ArrowLeftIcon, PencilIcon, PlusIcon, VideoOffIcon } from 'lucide-react';
+import { ArrowLeftIcon, PencilIcon, VideoOffIcon } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -20,19 +20,17 @@ import { CameraBrandLabels } from '@/models/enums/entityEnums';
 /**
  * Canlı izleme, adım 2 — `/cameras/cabinet/:cabinetId`: seçilen kabinin kameraları.
  *
- * Hem izleme hem yönetim. Aktif kameralar tali akımla grid'de oynar (`CameraTile`); her kutucuğun
- * altında tanım bilgisi ve "düzenle" durur, başlıkta "Yeni kamera". Tanım/CRUD eskiden ayrı bir
- * ekrandaydı (`/admin/cameras`); iki ekran aynı kabin → kamera listesini gösterdiği için burada
- * birleşti (2026-09-23).
+ * İzleme + bilgi güncelleme. Aktif kameralar tali akımla grid'de oynar (`CameraTile`); her kutucuğun
+ * altında tanım bilgisi ve "düzenle" durur.
  *
- * Kameralar diyagramda YER ALMAZ (pini/kablosu yok, verisi SCADA'dan gelmez); ortak izleme alanlarının
- * sözleşmesi sunucuda `IMonitoredAsset`.
+ * Kamera 2026-10-22'den beri bir cihazdır (`DeviceType.Camera`). Oluşturma ve kaldırma (pasife alma) YALNIZCA
+ * diyagramdandır (2026-10-25); bu ekran (`ConfigureSystem`) aktif kameranın bilgisini günceller. Pasif kamera =
+ * diyagramdan kaldırılmış kamera: çekim geçmişi için listelenir, düzenlenmez.
  */
 export default function CabinetCameras() {
   const { cabinetId } = useParams<{ cabinetId: string }>();
   const cabinets = useCabinets();
   const [includePassive, setIncludePassive] = useState(false);
-  const [isCreating, setIsCreating] = useState(false);
   const [editing, setEditing] = useState<CameraDto | null>(null);
   // Kamera tanımı (adres, parola) sistem yapılandırmasıdır; izlemek için `ViewCamera` yeter (rota onu ister).
   const canConfigure = usePermission()('ConfigureSystem');
@@ -71,23 +69,16 @@ export default function CabinetCameras() {
 
   return (
     <div className='flex flex-col gap-4 p-4'>
-      <div className='flex flex-wrap items-start justify-between gap-3'>
-        <div>
-          <Button variant='ghost' size='sm' className='-ml-2 mb-1' nativeButton={false} render={<Link to='/cameras' />}>
-            <ArrowLeftIcon />
-            Kabin değiştir
-          </Button>
-          <h1 className='text-lg font-semibold'>{cabinet.name}</h1>
-          <p className='text-sm text-muted-foreground'>
-            Kabindeki kameraların tali akımı. Tek kamerayı ana akımla izlemek için kutucuğa girin.
-          </p>
-        </div>
-        {canConfigure && (
-          <Button size='sm' onClick={() => setIsCreating(true)}>
-            <PlusIcon />
-            Yeni kamera
-          </Button>
-        )}
+      <div>
+        <Button variant='ghost' size='sm' className='-ml-2 mb-1' nativeButton={false} render={<Link to='/cameras' />}>
+          <ArrowLeftIcon />
+          Kabin değiştir
+        </Button>
+        <h1 className='text-lg font-semibold'>{cabinet.name}</h1>
+        <p className='text-sm text-muted-foreground'>
+          Kabindeki kameraların tali akımı. Tek kamerayı ana akımla izlemek için kutucuğa girin. Kamera eklemek ve
+          kaldırmak kabin diyagramından yapılır.
+        </p>
       </div>
 
       <Field orientation='horizontal' className='w-auto self-start'>
@@ -109,7 +100,8 @@ export default function CabinetCameras() {
             ) : (
               <PassiveCameraPlaceholder camera={camera} />
             )}
-            <CameraFacts camera={camera} onEdit={canConfigure ? () => setEditing(camera) : undefined} />
+            {/* Pasif = diyagramdan kaldırılmış: düzenlenmez (sunucu 404 döner). */}
+            <CameraFacts camera={camera} onEdit={canConfigure && camera.isActive ? () => setEditing(camera) : undefined} />
           </Card>
         ))}
       </div>
@@ -117,24 +109,23 @@ export default function CabinetCameras() {
       {cameras.data && visibleCameras.length === 0 && (
         <Card>
           <CardContent className='py-8 text-center text-sm text-muted-foreground'>
-            Bu kabinde {includePassive ? '' : 'aktif '}kamera yok.
+            Bu kabinde {includePassive ? '' : 'aktif '}kamera yok. Kamera, kabin diyagramına "IP Kamera" şablonuyla eklenir.
           </CardContent>
         </Card>
       )}
 
-      <CameraFormDialog mode='create' cabinetId={cabinet.id} open={isCreating} onOpenChange={setIsCreating} />
-      <CameraFormDialog mode='edit' camera={editing} open={editing != null} onOpenChange={open => !open && setEditing(null)} />
+      <CameraFormDialog camera={editing} open={editing != null} onOpenChange={open => !open && setEditing(null)} />
     </div>
   );
 }
 
-/** Pasif kamera izlenemez — sunucu bilet vermez. Yayın yerine yalnızca yer tutucu; düzenleyip aktif etmek için listede. */
+/** Pasif (diyagramdan kaldırılmış) kamera izlenemez — sunucu bilet vermez. Yayın yerine yalnızca yer tutucu; çekim geçmişi için listede. */
 function PassiveCameraPlaceholder({ camera }: { camera: CameraDto }) {
   return (
     <div className='flex aspect-video flex-col items-center justify-center gap-1.5 bg-muted p-3 text-center'>
       <VideoOffIcon className='size-6 text-muted-foreground' />
       <p className='truncate text-sm font-medium'>{camera.name}</p>
-      <p className='text-xs text-muted-foreground'>Pasif — izlenemez</p>
+      <p className='text-xs text-muted-foreground'>Diyagramdan kaldırıldı — izlenemez</p>
     </div>
   );
 }
@@ -149,7 +140,7 @@ function CameraFacts({ camera, onEdit }: { camera: CameraDto; onEdit?: () => voi
           {/* Pasif kayitlar listede GORUNUR — geri alinabilsin diye. */}
           {!camera.isActive && <Badge variant='secondary'>Pasif</Badge>}
           {!camera.isMonitoringEnabled && <Badge variant='outline'>İzleme kapalı</Badge>}
-          {!camera.password && <Badge variant='outline'>Parola yok</Badge>}
+          {!camera.hasPassword && <Badge variant='outline'>Parola yok</Badge>}
         </div>
         {onEdit && (
           <Button size='icon-sm' variant='outline' onClick={onEdit} aria-label={`${camera.name} kamerasını düzenle`} title='Düzenle'>

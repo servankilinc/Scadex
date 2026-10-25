@@ -1,11 +1,10 @@
-using Scadex.Model.Entities;
 using static Scadex.Model.Enums.EntityEnums;
 
 namespace Scadex.Business.Utils.CameraProtocolProfile.Resolver;
 
 public interface ICameraProtocolProfileResolver
 {
-    ICameraProtocolProfile Resolve(Camera camera);
+    ICameraProtocolProfile Resolve(CameraBrand brand);
 }
 
 public class CameraProtocolProfileResolver : ICameraProtocolProfileResolver
@@ -29,8 +28,8 @@ public class CameraProtocolProfileResolver : ICameraProtocolProfileResolver
             throw new InvalidOperationException($"Şu kamera markalarının ICameraProtocolProfile kaydı yok: {string.Join(", ", missing)}");
     }
 
-    public ICameraProtocolProfile Resolve(Camera camera) =>
-        _profiles.TryGetValue(camera.Brand, out var profile)
+    public ICameraProtocolProfile Resolve(CameraBrand brand) =>
+        _profiles.TryGetValue(brand, out var profile)
             ? profile
-            : throw new InvalidOperationException($"Kamera {camera.Id} için tanımsız marka: {(int)camera.Brand}");
+            : throw new InvalidOperationException($"Tanımsız kamera markası: {(int)brand}");
 }

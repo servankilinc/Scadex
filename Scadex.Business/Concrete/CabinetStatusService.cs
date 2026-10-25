@@ -135,7 +135,7 @@ public partial class CabinetStatusService : ICabinetStatusService
         await PublishCabinetChangeAsync(cabinet, cancellationToken);
     }
 
-    /// <summary> Kabin durumunu cihaz/kamera katkilarindan hesaplar; farkliysa yazar ve yayinlar. <paramref name="cabinet"/> takipli olmali. </summary>
+    /// <summary> Kabin durumunu cihaz katkilarindan hesaplar; farkliysa yazar ve yayinlar. <paramref name="cabinet"/> takipli olmali </summary>
     private async Task ApplyCalculatedStatusAsync(Cabinet cabinet, CancellationToken cancellationToken)
     {
         Guid cabinetId = cabinet.Id;
@@ -147,12 +147,7 @@ public partial class CabinetStatusService : ICabinetStatusService
             cancellationToken: cancellationToken
         ) ?? [];
 
-        bool hasOfflineCamera = await _unitOfWork.Cameras.IsExistAsync(
-            where: c => c.CabinetId == cabinetId && c.IsActive && c.IsMonitoringEnabled && c.DeviceStatusId == (int)DeviceStatus.Offline,
-            cancellationToken: cancellationToken
-        );
-
-        var next = CalculateCabinetStatus(deviceStatuses.Select(d => CabinetContribution(d.DeviceStatusId, d.IsControlModule)), hasOfflineCamera);
+        var next = CalculateCabinetStatus(deviceStatuses.Select(d => CabinetContribution(d.DeviceStatusId, d.IsControlModule)));
         if (next == cabinet.DeviceStatusId)
             return;
 
@@ -189,11 +184,7 @@ public partial class CabinetStatusService : ICabinetStatusService
         return true;
     }
 
-    /// <summary>
-    /// Basarisiz sonda cihazi ILK basarisizlikta <c>Offline</c>'a ceker — kamerayla ayni kural (2026-09-24 karari); hata
-    /// <c>LastConnectionError</c>'a yazilir. Kontrol modulu olmayan cihazin Offline'i kabine <c>Warning</c> olarak yansir
-    /// (bkz. <see cref="CabinetContribution"/>).
-    /// </summary>
+    /// <summary> Basarisiz sonda cihazi ILK basarisizlikta <c>Offline</c>'a ceker hata <c>LastConnectionError</c>'a yazilir. Kontrol modulu olmayan cihazin Offline'i kabine <c>Warning</c> olarak yansır </summary>
     private static bool MarkProbeFailed(Device device, string? error)
     {
         device.LastConnectionError = error.Truncate(MaxErrorLength);
@@ -202,8 +193,7 @@ public partial class CabinetStatusService : ICabinetStatusService
 
     /// <summary>
     /// Bir cihazin kabin durumuna katkisi. Kabinin TABANI kontrol modulunun (SCADA karti) durumudur: Online / Offline / null.
-    /// Kontrol modulu OLMAYAN cihazlar kabini yalnizca KOTULESTIREBILIR (2026-09-24 karari): Offline'lari kabine <c>Warning</c>
-    /// olarak katilir (kameradaki gibi), Online'lari hic katilmaz — bir POS ulasilabilir diye SCADA'si bilinmeyen kabin
+    /// Kontrol modulu OLMAYAN cihazlar kabini yalnizca KOTULESTIREBILIR: Offline'lari kabine <c>Warning</c> olarak katilir, Online'lari hic katilmaz — bir POS ya da kamera ulasilabilir diye SCADA'si bilinmeyen kabin
     /// "Online" gorunmemeli. Cihazin kendi durumu degismez; yalnizca kabine yansimasi.
     /// </summary>
     private static int? CabinetContribution(int? status, bool isControlModule)
@@ -220,27 +210,18 @@ public partial class CabinetStatusService : ICabinetStatusService
     }
 
     /// <summary>
-    /// IZLENEN bir kameranin kabin durumuna katkisi: Offline'i kabine <c>Warning</c> olarak katilir, digerleri hic katilmaz
-    /// (Online kamera SCADA'si bilinmeyen kabini "Online" gostermemeli). Izlemesi kapali kamera katki vermez.
-    /// </summary>
-    private static int? CameraContribution(int? status) => status == (int)DeviceStatus.Offline ? (int)DeviceStatus.Warning : null;
-
-    /// <summary>
-    /// Kabin durumu = cihaz katkilarinin (<see cref="CabinetContribution"/>) en kotusu; izlenen bir kamera Offline ise
-    /// <see cref="CameraContribution"/> katkisi. <see cref="RecalculateAsync"/> ve tarama uzlastirmasi AYNI kurali kullanir.
+    /// Kabin durumu = cihaz katkilarinin (<see cref="CabinetContribution"/>) en kotusu.
+    /// <see cref="RecalculateAsync"/> ve tarama uzlastirmasi AYNI kurali kullanir.
     /// Hesaplama HICBIR ZAMAN <c>Maintenance</c> uretmez: kabinde <c>Maintenance</c> yalnizca operatorun elle verdigi
-    /// yapiskan karardir (<see cref="SetMaintenanceAsync"/>, 2026-09-28). Bir cihazin Maintenance'i kabine tasinsaydi
+    /// yapiskan karardir (<see cref="SetMaintenanceAsync"/>). Bir cihazin Maintenance'i kabine taşınsaydı
     /// kabin kendiliginden bakima duser ve hesaplama ona bir daha dokunmazdi.
     /// </summary>
-    private static int? CalculateCabinetStatus(IEnumerable<int?> deviceContributions, bool hasOfflineCamera)
+    private static int? CalculateCabinetStatus(IEnumerable<int?> deviceContributions)
     {
         int? worst = null;
         int worstRank = -1;
 
-        // Online kamera katki VERMEZ: SCADA'dan hic ses gelmemis kabin yalnizca kamerayla "Online" gorunmemeli.
-        var candidates = hasOfflineCamera ? deviceContributions.Append(CameraContribution((int)DeviceStatus.Offline)) : deviceContributions;
-
-        foreach (var candidate in candidates)
+        foreach (var candidate in deviceContributions)
         {
             if (candidate is not int status || status == (int)DeviceStatus.Maintenance)
                 continue;

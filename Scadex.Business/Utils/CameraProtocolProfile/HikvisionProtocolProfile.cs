@@ -1,4 +1,3 @@
-using Scadex.Model.Entities;
 using static Scadex.Model.Enums.EntityEnums;
 
 namespace Scadex.Business.Utils.CameraProtocolProfile;
@@ -16,7 +15,7 @@ public class HikvisionProtocolProfile : ICameraProtocolProfile
     public bool HasSubStream => true;
 
     /// <inheritdoc/>
-    public string BuildRtspUrl(Camera camera, StreamProfile profile)
+    public string BuildRtspUrl(CameraEndpoint camera, StreamProfile profile)
     {
         int channel = profile == StreamProfile.Main ? MainChannel : SubChannel;
         return $"rtsp://{BuildUserInfo(camera)}{camera.IpAddress}:{RtspPort}/Streaming/Channels/{channel}";
@@ -26,7 +25,7 @@ public class HikvisionProtocolProfile : ICameraProtocolProfile
     /// Kimlik bilgileri percent-encode edilir: parolada <c>#</c>, <c>/</c>, <c>?</c> ya da <c>%</c> olsaydi URL bozulur ve MediaMTX kameraya
     /// baglanamazdi. Kullanici adi yoksa userinfo hic yazilmaz (<c>rtsp://:@ip</c> uretilmesin).
     /// </summary>
-    private static string BuildUserInfo(Camera camera)
+    private static string BuildUserInfo(CameraEndpoint camera)
     {
         if (string.IsNullOrEmpty(camera.Username))
             return "";

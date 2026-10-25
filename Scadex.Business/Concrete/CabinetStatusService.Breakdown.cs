@@ -8,7 +8,7 @@ namespace Scadex.Business.Concrete;
 
 /// <summary>
 /// Kabin durumunun dökümü — "kabin neden bu renkte". Yalnızca OKUR; katkılar <see cref="ApplyCalculatedStatusAsync"/>'in kullandığı
-/// <see cref="CabinetContribution"/> / <see cref="CameraContribution"/> kurallarıyla üretilir, ön yüz kuralı kopyalamaz.
+/// <see cref="CabinetContribution"/> kuralıyla üretilir, ön yüz kuralı kopyalamaz.
 /// </summary>
 public partial class CabinetStatusService
 {
@@ -45,13 +45,6 @@ public partial class CabinetStatusService
             cancellationToken: cancellationToken
         ) ?? [];
 
-        // Yalnızca izlenen kamera katkı verir (ApplyCalculatedStatusAsync ile aynı küme).
-        var cameras = await _unitOfWork.Cameras.GetAllAsync(
-            select: c => new { c.Id, c.Name, c.IpAddress, c.MonitoringPort, c.PingIntervalSec, c.DeviceStatusId, c.LastSeen, c.LastConnectionError },
-            where: c => c.CabinetId == cabinetId && c.IsActive && c.IsMonitoringEnabled,
-            cancellationToken: cancellationToken
-        ) ?? [];
-
         var items = devices
             .Select(d => new CabinetStatusContributorDto
             {
@@ -69,20 +62,6 @@ public partial class CabinetStatusService
                 LastConnectionError = d.LastConnectionError,
                 Contribution = CabinetContribution(d.DeviceStatusId, d.IsControlModule)
             })
-            .Concat(cameras.Select(c => new CabinetStatusContributorDto
-            {
-                Kind = EntityEnums.CabinetStatusContributorKind.Camera,
-                Id = c.Id,
-                Name = c.Name,
-                IsMonitoringEnabled = true,
-                IpAddress = c.IpAddress,
-                MonitoringPort = c.MonitoringPort,
-                PingIntervalSec = c.PingIntervalSec,
-                StatusId = c.DeviceStatusId,
-                LastSeen = c.LastSeen,
-                LastConnectionError = c.LastConnectionError,
-                Contribution = CameraContribution(c.DeviceStatusId)
-            }))
             .OrderByDescending(i => i.Contribution is int status ? EntityEnums.DeviceStatusSeverityRank(status) : -1)
             .ThenByDescending(i => i.IsControlModule)
             .ThenBy(i => i.Name)

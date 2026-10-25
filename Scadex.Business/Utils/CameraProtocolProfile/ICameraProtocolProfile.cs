@@ -1,10 +1,9 @@
-using Scadex.Model.Entities;
 using static Scadex.Model.Enums.EntityEnums;
 
 namespace Scadex.Business.Utils.CameraProtocolProfile;
 
 /// <summary>
-/// Bir kamera markasının protokol ayrıntıları: RTSP yolu, portu, kanal numaraları, sub stream desteğini belirleyen <c>Camera.Brand</c>.
+/// Bir kamera markasının protokol ayrıntıları: RTSP yolu, portu, kanal numaraları, sub stream desteğini belirleyen <c>Camera.Brand</c> (<see cref="CameraEndpoint.Brand"/>).
 /// Kamerayalar ile MediaMTX aracılığı (RTSP) ile canlı izleme, anlık görüntü ve klip MediaMTX'in path'leri ile yönetilir. Marka API'si (ISAPI vb.) kullanılmaz.
 /// </summary>
 public interface ICameraProtocolProfile
@@ -20,5 +19,5 @@ public interface ICameraProtocolProfile
     bool HasSubStream { get; }
 
     /// <summary> Kameranın RTSP adresi; YALNIZCA Media Gateway yolunun kaynağı olur (<c>EnsureLivePathAsync</c>). Client'a ASLA gitmez icinde kamera parolasi var; loga da maskelenmeden yazılmaz. </summary>
-    string BuildRtspUrl(Camera camera, StreamProfile profile);
+    string BuildRtspUrl(CameraEndpoint camera, StreamProfile profile);
 }

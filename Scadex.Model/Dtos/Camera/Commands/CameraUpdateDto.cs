@@ -5,6 +5,7 @@ using static Scadex.Model.Enums.EntityEnums;
 
 namespace Scadex.Model.Dtos.Camera.Commands;
 
+/// <summary> <c>IsActive</c> bilerek yoktur — olusturma ve kaldirma (pasife alma) yalnizca diyagram üzerinden olur </summary>
 public class CameraUpdateDto : IDto
 {
     public Guid Id { get; set; }
@@ -25,8 +26,6 @@ public class CameraUpdateDto : IDto
     public int? MonitoringPort { get; set; }
     public int PingIntervalSec { get; set; }
     public bool IsMonitoringEnabled { get; set; }
-
-    public bool IsActive { get; set; }
 }
 
 public class CameraUpdateDtoValidator : AbstractValidator<CameraUpdateDto>

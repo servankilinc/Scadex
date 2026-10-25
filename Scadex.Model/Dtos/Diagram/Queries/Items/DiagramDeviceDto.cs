@@ -18,7 +18,6 @@ public class DiagramDeviceDto : IDto
     public double? Width { get; set; }
     public double? Height { get; set; }
     public Guid ComponentTemplateId { get; set; }
-    public string? MacAddress { get; set; }
     public string? IpAddress { get; set; }
     public int? DeviceStatusId { get; set; }
     public string? DeviceStatusName { get; set; }
@@ -30,9 +29,35 @@ public class DiagramDeviceDto : IDto
     public bool IsMonitoringEnabled { get; set; }
     public string? LastConnectionError { get; set; }
 
+    /// <summary> Ek tablolar: şablon tipine göre en fazla biri doludur. Parola bilerek yoktur, yalnızca <c>HasPassword</c>. </summary>
+    public DiagramCameraDto? Camera { get; set; }
+    public DiagramControlCardDto? ControlCard { get; set; }
+    public DiagramPcDeviceDto? Pc { get; set; }
+
     public DiagramComponentTemplateDto Template { get; set; } = null!;
     public ICollection<DiagramPinDto> Pins { get; set; } = [];
     public ICollection<DiagramIoChannelDto> IoChannels { get; set; } = [];
+}
+
+public class DiagramCameraDto : IDto
+{
+    public CameraBrand Brand { get; set; }
+    public string? Model { get; set; }
+    public string? Description { get; set; }
+    public string? Username { get; set; }
+    public bool HasPassword { get; set; }
+}
+
+public class DiagramControlCardDto : IDto
+{
+    public string? MacAddress { get; set; }
+    public string? Username { get; set; }
+    public bool HasPassword { get; set; }
+}
+
+public class DiagramPcDeviceDto : IDto
+{
+    public string? MacAddress { get; set; }
 }
 
 public class DiagramComponentTemplateDto : IDto

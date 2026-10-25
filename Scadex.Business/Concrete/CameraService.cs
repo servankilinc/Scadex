@@ -1,11 +1,11 @@
 using AutoMapper;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Caching.Distributed;
-using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Scadex.Business.Abstract;
 using Scadex.Business.Settings;
 using Scadex.Business.Utils.CameraCaptureGateway;
+using Scadex.Business.Utils.CameraProtocolProfile;
 using Scadex.Business.Utils.CameraProtocolProfile.Resolver;
 using Scadex.Business.Utils.CaptureFileStore;
 using Scadex.Business.Utils.ClipCaptureQueue;
@@ -17,8 +17,6 @@ using Scadex.Core.Utils.Validation;
 using Scadex.DataAccess.UoW;
 using Scadex.Model.Dtos.Camera.Commands;
 using Scadex.Model.Dtos.Camera.Queries;
-using Scadex.Model.Dtos.Common;
-using Scadex.Model.Entities;
 using static Scadex.Model.Enums.EntityEnums;
 
 namespace Scadex.Business.Concrete;
@@ -38,7 +36,6 @@ public partial class CameraService : ICameraService
     private readonly IHttpContextManager _httpContextManager;
     private readonly ILoggingService _logger;
     private readonly IMapper _mapper;
-    private readonly ICabinetStatusService _cabinetStatusService;
     private readonly ICameraProtocolProfileResolver _cameraProtocolProfileResolver;
 
     public CameraService(
@@ -51,13 +48,11 @@ public partial class CameraService : ICameraService
         IDistributedCache cache,
         IOptions<MediaGatewaySettings> mediaGatewaySettings,
         ICameraCaptureSettingService captureSettingService,
-        ICabinetStatusService cabinetStatusService,
         ICameraProtocolProfileResolver cameraProtocolProfileResolver,
         IHttpContextManager httpContextManager,
         ILoggingService logger,
         IMapper mapper)
     {
-        _cabinetStatusService = cabinetStatusService;
         _unitOfWork = unitOfWork;
         _validationService = validationService;
         _mediaGateway = mediaGateway;
@@ -83,9 +78,8 @@ public partial class CameraService : ICameraService
 
         var cameras = await _unitOfWork.Cameras.GetAllAsync<CameraDto>(
             configurationProvider: _mapper.ConfigurationProvider,
-            where: c => c.CabinetId == cabinetId && (includePassive || c.IsActive),
-            include: i => i.Include(x => x.Cabinet).Include(x => x.DeviceStatus),
-            orderBy: q => q.OrderBy(c => c.Name),
+            where: c => c.Device!.CabinetId == cabinetId && (includePassive || c.Device.IsActive),
+            orderBy: q => q.OrderBy(c => c.Device!.Name),
             cancellationToken: cancellationToken
         );
 
@@ -96,8 +90,7 @@ public partial class CameraService : ICameraService
     {
         var camera = await _unitOfWork.Cameras.GetAsync<CameraDto>(
             configurationProvider: _mapper.ConfigurationProvider,
-            where: c => c.Id == id,
-            include: i => i.Include(x => x.Cabinet).Include(x => x.DeviceStatus),
+            where: c => c.DeviceId == id,
             cancellationToken: cancellationToken
         );
 
@@ -107,92 +100,86 @@ public partial class CameraService : ICameraService
         return Result<CameraDto>.Success(camera);
     }
 
-    public async Task<Result<CreatedDto>> CreateAsync(CameraCreateDto request, CancellationToken cancellationToken = default)
-    {
-        var validationResult = await _validationService.ValidateAsync(request, cancellationToken);
-        if (!validationResult.IsValid)
-            return Result<CreatedDto>.Validation(validationResult.Failures, description: "Validation failed for CameraCreateDto");
-
-        var cabinetExists = await _unitOfWork.Cabinets.IsExistAsync(where: c => c.Id == request.CabinetId && c.IsActive, cancellationToken: cancellationToken);
-
-        if (!cabinetExists)
-            return Result<CreatedDto>.Failure("Kabin bulunamadı veya pasif durumda");
-
-        var conflict = await CheckUniquenessAsync(request.CabinetId, request.Name, request.IpAddress, excludeId: null, cancellationToken);
-        if (conflict != null)
-            return Result<CreatedDto>.Validation(conflict, description: "Camera uniqueness violated");
-
-        var camera = _mapper.Map<Camera>(request);
-        //camera.Id = Guid.NewGuid();
-        camera.DeviceStatusId = null;
-        camera.IsActive = true;
-        // Monitoring portu bos birakildiysa markanin RTSP portu yoklanir.
-        camera.MonitoringPort ??= _cameraProtocolProfileResolver.Resolve(camera).RtspPort;
-
-        await _unitOfWork.Cameras.AddAndSaveAsync(camera, cancellationToken);
-        return Result<CreatedDto>.Success(new CreatedDto(camera.Id));
-    }
-
+    /// <inheritdoc/>
     public async Task<Result> UpdateAsync(CameraUpdateDto request, CancellationToken cancellationToken = default)
     {
         var validationResult = await _validationService.ValidateAsync(request, cancellationToken);
         if (!validationResult.IsValid)
             return Result.Validation(validationResult.Failures, description: "Validation failed for CameraUpdateDto");
 
-        var camera = await _unitOfWork.Cameras.GetAsync(where: c => c.Id == request.Id, tracking: true, cancellationToken: cancellationToken);
+        // Pasif kamera = diyagramdan kaldirilmis cihaz (pinleri silinmis): bilgisi bu ekrandan degismez, geri de getirilemez.
+        var camera = await _unitOfWork.Cameras.GetAsync(
+            where: c => c.DeviceId == request.Id && c.Device!.IsActive,
+            include: q => q.Include(c => c.Device),
+            tracking: true,
+            cancellationToken: cancellationToken);
+        if (camera?.Device == null)
+            return Result.NotFound("Kamera bulunamadı ya da diyagramdan kaldırılmış");
 
-        if (camera == null)
-            return Result.NotFound("Kamera bulunamadi");
+        var device = camera.Device;
 
-        var conflict = await CheckUniquenessAsync(camera.CabinetId, request.Name, request.IpAddress, excludeId: camera.Id, cancellationToken);
+        var conflict = await CheckUniquenessAsync(device.CabinetId, request.Name, request.IpAddress, excludeId: device.Id, cancellationToken);
         if (conflict != null)
             return Result.Validation(conflict, description: "Camera uniqueness violated");
 
-        // Medya gateway (MediaMTX) path kameranin bilgilerine bağımlıdır biri degistiginde ya da kamera pasife alındığında path silinmelidir.
-        // Aksi takdirde MediaMTX eski bilgilerle baglanmaya calisir ve zaman asimina duserek baglantiyi keser. 
-        // RTSP adresini IP, kimlik bilgileri ve MARKA belirler (port ve kanal markanin protokol profilindedir).
-        bool connectionChanged =
-            camera.IpAddress != request.IpAddress ||
-            camera.Username != request.Username ||
-            camera.Brand != request.Brand;
+        device.Name = request.Name;
+        device.IpAddress = request.IpAddress;
+        device.MonitoringPort = request.MonitoringPort ?? _cameraProtocolProfileResolver.Resolve(request.Brand).RtspPort;
+        device.PingIntervalSec = request.PingIntervalSec;
+        device.IsMonitoringEnabled = request.IsMonitoringEnabled;
 
-        bool passwordChanged = request.Password != null && camera.Password != request.Password;
+        camera.Brand = request.Brand;
+        camera.Model = request.Model;
+        camera.Description = request.Description;
+        camera.Username = request.Username;
+        // null = dokunma; "" = temizle (diyagram taslagiyla ayni kural).
+        if (request.Password != null)
+            camera.Password = request.Password == "" ? null : request.Password;
 
-        bool deactivated = camera.IsActive && !request.IsActive;
+        await _unitOfWork.SaveChangesAsync(cancellationToken);
 
-        camera = _mapper.Map(request, camera);
-
-        if (passwordChanged)
-            camera.Password = request.Password;
-
-        camera.MonitoringPort ??= _cameraProtocolProfileResolver.Resolve(camera).RtspPort;
-
-        await _unitOfWork.Cameras.UpdateAndSaveAsync(camera, cancellationToken);
-
-
-        /// <summary> Kameranın Media gateway pathlerini etkileyen bilgileri değişmişse Live Stream pathleri temizlenir </summary>
-        if (connectionChanged || deactivated || passwordChanged)
-        {
-            foreach (var profile in new[] { StreamProfile.Main, StreamProfile.Sub })
-            {
-                var pathName = IMediaGateway.LivePathName(camera.Id, profile);
-                var result = await _mediaGateway.DeletePathAsync(pathName, cancellationToken);
-
-                if (!result.IsSuccess)
-                    _logger.LogWarning($"Kamera {camera.Id} icin güncelleme sonrası {profile} yolu medya gecidinden silinemedi: {result.Error.Description}");
-            }
-        }
+        // MediaMTX yolu kamera bilgisine bagli: degistiyse yol dusurulur (commit sonrasi).
+        await RefreshStreamPathsAsync([device.Id], cancellationToken);
 
         return Result.Success();
     }
 
-    #region Helpers    
-    /// <summary> Kamera Ad ve IP, kabin icinde benzersiz olmali. </summary>
+    /// <inheritdoc/>
+    public async Task RefreshStreamPathsAsync(IReadOnlyCollection<Guid> deviceIds, CancellationToken cancellationToken = default)
+    {
+        if (deviceIds.Count == 0) return;
+
+        var ids = deviceIds.ToList();
+        var cameras = await _unitOfWork.Cameras.GetAllAsync(
+            select: c => new CameraRow(new CameraEndpoint(c.DeviceId, c.Device!.IpAddress ?? "", c.Brand, c.Username, c.Password), c.Device.IsActive),
+            where: c => ids.Contains(c.DeviceId),
+            cancellationToken: cancellationToken) ?? [];
+
+        foreach (var camera in cameras)
+        {
+            foreach (var profile in new[] { StreamProfile.Main, StreamProfile.Sub })
+            {
+                // Pasif (silinmis) kameranin yolu her kosulda gider; aktifte yalnizca yapilandirmasi eskimisse.
+                var result = camera.IsActive
+                    ? await _mediaGateway.DeleteLivePathIfStaleAsync(camera.Endpoint, profile, cancellationToken)
+                    : await _mediaGateway.DeletePathAsync(IMediaGateway.LivePathName(camera.Endpoint.Id, profile), cancellationToken);
+
+                if (!result.IsSuccess)
+                    _logger.LogWarning($"Kamera {camera.Endpoint.Id} icin kayit sonrasi {profile} yolu medya gecidinde yenilenemedi: {result.Error.Description}");
+            }
+        }
+    }
+
+    #region Helpers
+    /// <summary>
+    /// Kamera adi ve IP'si KABIN ICINDE (aktif kameralar arasinda) tekil olmali. Diyagram kaydetme de IP tekilligini ayni
+    /// kumede dogrular (<c>ValidateDeviceExtensions</c>); ad tekilligi yalnizca bu ekranin kuralidir.
+    /// </summary>
     private async Task<Dictionary<string, string[]>?> CheckUniquenessAsync(Guid cabinetId, string name, string ipAddress, Guid? excludeId, CancellationToken cancellationToken)
     {
         var siblings = await _unitOfWork.Cameras.GetAllAsync(
-            select: c => new { c.Id, c.Name, c.IpAddress },
-            where: c => c.CabinetId == cabinetId && c.IsActive && (excludeId == null || c.Id != excludeId),
+            select: c => new { c.DeviceId, c.Device!.Name, c.Device.IpAddress },
+            where: c => c.Device!.CabinetId == cabinetId && c.Device.IsActive && (excludeId == null || c.DeviceId != excludeId),
             cancellationToken: cancellationToken
         ) ?? [];
 
@@ -206,5 +193,14 @@ public partial class CameraService : ICameraService
 
         return errors.Count > 0 ? errors : null;
     }
-    #endregion 
+
+    /// <summary> Kameraya baglanmak icin gereken her sey + cihazin aktifligi, TEK sorguda (Device JOIN'i EF kurar). </summary>
+    private Task<CameraRow?> LoadCameraAsync(Guid cameraId, CancellationToken cancellationToken) =>
+        _unitOfWork.Cameras.GetAsync(
+            select: c => new CameraRow(new CameraEndpoint(c.DeviceId, c.Device!.IpAddress ?? "", c.Brand, c.Username, c.Password), c.Device.IsActive),
+            where: c => c.DeviceId == cameraId,
+            cancellationToken: cancellationToken);
+
+    private sealed record CameraRow(CameraEndpoint Endpoint, bool IsActive);
+    #endregion
 }

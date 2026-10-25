@@ -44,8 +44,7 @@ public static class ServiceRegistration
         services.AddScoped<IScadaCommandGateway, ScadaCommandGateway>();
         services.AddScoped<IOutputPolarityResolver, OutputPolarityResolver>();
 
-        // Yoklanabilir her entity servisi içim buraya bir kayıt ekle;
-        services.AddScoped<IMonitoredAssetProbeSource, CameraProbeSource>();
+        // Yoklanabilir her entity servisi için buraya bir kayıt ekle;
         services.AddScoped<IMonitoredAssetProbeSource, DeviceProbeSource>();
 
         #region KAMERA / MEDYA

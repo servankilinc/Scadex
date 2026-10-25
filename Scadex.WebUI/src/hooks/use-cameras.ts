@@ -1,8 +1,8 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
-import { createCamera, getCamera, getCamerasByCabinet, updateCamera } from '@/api/camera';
-import { cameraKeys } from '@/api/query-keys';
-import type { CameraCreateRequest, CameraUpdateRequest } from '@/models/camera';
+import { getCamera, getCamerasByCabinet, updateCamera } from '@/api/camera';
+import { cameraKeys, diagramKeys } from '@/api/query-keys';
+import type { CameraUpdateRequest } from '@/models/camera';
 
 /**
  * Bir kabindeki kameralar.
@@ -41,26 +41,16 @@ export function useCamera(id: string | undefined) {
  * `onError` BİLEREK yok: hata politikası `handleFormApiError` ile forma ait ve
  * `form.setError`'a ihtiyaç duyar, o da yalnızca çağıran tarafta vardır.
  */
-export function useCreateCamera() {
-  const queryClient = useQueryClient();
-
-  return useMutation({
-    mutationFn: (request: CameraCreateRequest) => createCamera(request),
-    onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: cameraKeys.all });
-      toast.success('Kamera eklendi.');
-    }
-  });
-}
-
 export function useUpdateCamera() {
   const queryClient = useQueryClient();
 
   return useMutation({
     mutationFn: (request: CameraUpdateRequest) => updateCamera(request),
-    onSuccess: (_data, request) => {
+    onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: cameraKeys.all });
-      toast.success(request.isActive ? 'Kamera güncellendi.' : 'Kamera pasife alındı.');
+      // Kamera bir cihazdır: diyagram önbelleği de bayatlar. Yalnızca İŞARETLENİR (refetchType none) — açık editördeki düzenleme ezilmesin.
+      void queryClient.invalidateQueries({ queryKey: diagramKeys.all, refetchType: 'none' });
+      toast.success('Kamera güncellendi.');
     }
   });
 }

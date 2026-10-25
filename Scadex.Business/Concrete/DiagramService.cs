@@ -1,6 +1,7 @@
 using AutoMapper;
 using Scadex.Business.Abstract;
 using Scadex.Business.Utils;
+using Scadex.Business.Utils.CameraProtocolProfile.Resolver;
 using Scadex.Core.Utils.ResultPattern;
 using Scadex.Core.Utils.Validation;
 using Scadex.DataAccess.UoW;
@@ -15,11 +16,13 @@ public partial class DiagramService : IDiagramService
     private readonly IUnitOfWork _unitOfWork;
     private readonly IValidationService _validationService;
     private readonly IMapper _mapper;
-    public DiagramService(IUnitOfWork unitOfWork, IValidationService validationService, IMapper mapper)
+    private readonly ICameraProtocolProfileResolver _cameraProtocolProfileResolver;
+    public DiagramService(IUnitOfWork unitOfWork, IValidationService validationService, IMapper mapper, ICameraProtocolProfileResolver cameraProtocolProfileResolver)
     {
         _unitOfWork = unitOfWork;
         _validationService = validationService;
         _mapper = mapper;
+        _cameraProtocolProfileResolver = cameraProtocolProfileResolver;
     }
 
     public async Task<Result<DiagramDto>> GetAsync(Guid cabinetId, CancellationToken cancellationToken = default)

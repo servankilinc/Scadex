@@ -30,7 +30,7 @@ public partial class CameraService
                 return Result<SnapshotPayload>.Success(cached);
         }
 
-        var camera = await _unitOfWork.Cameras.GetAsync(where: c => c.Id == cameraId, cancellationToken: cancellationToken);
+        var camera = (await LoadCameraAsync(cameraId, cancellationToken))?.Endpoint;
 
         if (camera == null)
             return Result<SnapshotPayload>.NotFound(description: "Kamera bulunamadi");

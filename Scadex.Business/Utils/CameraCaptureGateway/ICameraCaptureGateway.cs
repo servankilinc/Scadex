@@ -1,5 +1,5 @@
 using Scadex.Core.Utils.ResultPattern;
-using Scadex.Model.Entities;
+using Scadex.Business.Utils.CameraProtocolProfile;
 
 namespace Scadex.Business.Utils.CameraCaptureGateway;
 
@@ -10,10 +10,10 @@ namespace Scadex.Business.Utils.CameraCaptureGateway;
 public interface ICameraCaptureGateway
 {
     /// <summary> Kaynaktan tek kare alir (JPEG). Ilk anahtar kare beklenir. </summary>
-    Task<Result<SnapshotPayload>> GetSnapshotAsync(Camera camera, string sourceUrl, CancellationToken cancellationToken = default);
+    Task<Result<SnapshotPayload>> GetSnapshotAsync(CameraEndpoint camera, string sourceUrl, CancellationToken cancellationToken = default);
 
     /// <summary> Sessiz olarak <paramref name="outputFullPath"/>'e MP4 olarak yazar; sure dolunca doner. </summary>
-    Task<Result> RecordClipAsync(Camera camera, string sourceUrl, int durationSec, string outputFullPath, CancellationToken cancellationToken = default);
+    Task<Result> RecordClipAsync(CameraEndpoint camera, string sourceUrl, int durationSec, string outputFullPath, CancellationToken cancellationToken = default);
 }
 
 

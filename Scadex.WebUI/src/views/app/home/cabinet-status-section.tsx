@@ -7,7 +7,7 @@ import { StatusDot } from '@/components/diagram/template-node';
 import { useCabinetStatusBreakdown } from '@/hooks/use-cabinet-status-breakdown';
 import { usePermission } from '@/lib/auth-session';
 import type { CabinetStatusBreakdownDto, CabinetStatusContributorDto } from '@/models/cabinet';
-import { CabinetStatusContributorKind, DeviceStatus, deviceStatusLabel } from '@/models/enums';
+import { DeviceStatus, deviceStatusLabel } from '@/models/enums';
 import { cn, formatUtcDateTime } from '@/lib/utils';
 
 const RULE_HINT =
@@ -64,9 +64,8 @@ export function CabinetStatusSection({ cabinetId, statusId }: { cabinetId: strin
 /** Tek satır (durum noktası, ad, durum, kabine yansıma); tıklayınca ayrıntı açılır. Kabini düşüren satır açık başlar. */
 function ContributorRow({ cabinetId, item }: { cabinetId: string; item: CabinetStatusContributorDto }) {
   const degrades = isDegrading(item);
-  const isCamera = item.kind === CabinetStatusContributorKind.Camera;
-  // Bağlantı hedef ekranın izni yoksa çizilmez (rota zaten ana sayfaya döndürürdü).
-  const canOpen = usePermission()(isCamera ? 'ViewCamera' : 'ViewDiagram');
+  // Bağlantı hedef ekranın izni yoksa çizilmez (rota zaten ana sayfaya döndürürdü). Kamera da bir cihazdır (2026-10-22): diyagramda açılır.
+  const canOpen = usePermission()('ViewDiagram');
 
   return (
     <li className={cn(degrades && (item.contribution === DeviceStatus.Warning ? 'bg-amber-500/5' : 'bg-destructive/5'))}>
@@ -104,10 +103,8 @@ function ContributorRow({ cabinetId, item }: { cabinetId: string; item: CabinetS
             )}
             {canOpen && (
               <dd className='col-start-2'>
-                <Link
-                  to={isCamera ? `/cameras/${item.id}` : `/cabinets/${cabinetId}/diagram`}
-                  className='inline-flex items-center gap-1 text-primary underline-offset-4 hover:underline'>
-                  {isCamera ? 'Kamerayı aç' : 'Diyagramda aç'}
+                <Link to={`/cabinets/${cabinetId}/diagram`} className='inline-flex items-center gap-1 text-primary underline-offset-4 hover:underline'>
+                  Diyagramda aç
                   <ExternalLinkIcon className='size-3' />
                 </Link>
               </dd>
@@ -131,25 +128,20 @@ function summarize(data: CabinetStatusBreakdownDto): string {
   if (data.isMaintenance) return 'Kabin elle bakıma alındı; bakımdan çıkarılana kadar otomatik durum hesabı durur.';
 
   const controlModules = data.items.filter(i => i.isControlModule);
-  const others = data.items.filter(i => !i.isControlModule && isDegrading(i));
-  const devices = others.filter(i => i.kind === CabinetStatusContributorKind.Device).length;
-  const cameras = others.filter(i => i.kind === CabinetStatusContributorKind.Camera).length;
+  // Kameralar da cihazdır (2026-10-22): ayrı sayılmaz, şablon adlarıyla listede görünürler.
+  const devices = data.items.filter(i => !i.isControlModule && isDegrading(i)).length;
 
   const parts: string[] = [];
   if (!data.hasControlModule) parts.push('Kabinde kontrol modülü (SCADA kartı) yok; kabin Çevrimiçi olamaz.');
   else if (controlModules.some(isDegrading)) parts.push('Kontrol modülüne (SCADA kartı) ulaşılamıyor.');
   else if (controlModules.every(i => i.contribution == null)) parts.push('Kontrol modülünden henüz haber alınmadı.');
 
-  if (devices > 0 || cameras > 0) {
-    const counts = [devices > 0 && `${devices} cihaz`, cameras > 0 && `${cameras} kamera`].filter(Boolean).join(' ve ');
-    parts.push(`${counts} çevrimdışı — kabine Uyarı olarak yansıyor.`);
-  }
+  if (devices > 0) parts.push(`${devices} cihaz çevrimdışı — kabine Uyarı olarak yansıyor.`);
 
-  return parts.length > 0 ? parts.join(' ') : 'Sorun yok: kontrol modülü çevrimiçi, izlenen cihaz ve kameralar ulaşılabilir.';
+  return parts.length > 0 ? parts.join(' ') : 'Sorun yok: kontrol modülü çevrimiçi, izlenen cihazlar (kameralar dahil) ulaşılabilir.';
 }
 
 function kindLabel(item: CabinetStatusContributorDto): string {
-  if (item.kind === CabinetStatusContributorKind.Camera) return 'Kamera';
   if (item.isControlModule) return 'Kontrol modülü';
   return item.templateName ?? 'Cihaz';
 }

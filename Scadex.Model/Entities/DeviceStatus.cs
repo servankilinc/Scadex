@@ -20,6 +20,5 @@ public class DeviceStatus : IEntity, IAuditableEntity, IImmutableEntity
     #region *** EF Core Navigation ***
     public virtual ICollection<Cabinet>? Cabinets { get; set; }
     public virtual ICollection<Device>? Devices { get; set; }
-    public virtual ICollection<Camera>? Cameras { get; set; }
     #endregion
 }

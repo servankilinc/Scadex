@@ -13,9 +13,13 @@ namespace Scadex.WebAPI.Controllers;
 public class DiagramController : BaseController
 {
     private readonly IDiagramService _diagramService;
+    private readonly ICameraService _cameraService;
 
-    public DiagramController(ILogger<DiagramController> logger, IDiagramService diagramService) : base(logger)
-        => _diagramService = diagramService;
+    public DiagramController(ILogger<DiagramController> logger, IDiagramService diagramService, ICameraService cameraService) : base(logger)
+    {
+        _diagramService = diagramService;
+        _cameraService = cameraService;
+    }
 
 
     [HttpGet("cabinet/{cabinetId:guid}")]
@@ -32,6 +36,16 @@ public class DiagramController : BaseController
     public async Task<IActionResult> Save(Guid cabinetId, DiagramSaveRequest request, CancellationToken cancellationToken)
     {
         var result = await _diagramService.SaveAsync(cabinetId, request, cancellationToken);
+
+        // Commit SONRASI: kamera bilgisi degisen ya da silinen kameralarin MediaMTX yollari dusurulur, acik izleyicinin eski
+        // bilgilerle kurulan oturumu kesilir. Kaydetmenin icinde degil burada, cunku DiagramService.Save.cs'e dokunulmaz ve
+        // yol, geri alinabilecek bir transaction'dan once silinmemeli. Basarisizlik yalnizca loglanir.
+        if (result.IsSuccess)
+        {
+            var touchedDeviceIds = request.Devices.Upserted.Select(d => d.Id).Concat(request.Devices.Deleted).Distinct().ToList();
+            await _cameraService.RefreshStreamPathsAsync(touchedDeviceIds, cancellationToken);
+        }
+
         return ToAction(result);
     }
 }

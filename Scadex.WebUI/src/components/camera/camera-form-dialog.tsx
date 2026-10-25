@@ -16,28 +16,23 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Switch } from '@/components/ui/switch';
 import { Textarea } from '@/components/ui/textarea';
 import { handleFormApiError } from '@/lib/axios-helper';
-import { useCreateCamera, useUpdateCamera } from '@/hooks/use-cameras';
+import { useUpdateCamera } from '@/hooks/use-cameras';
 import { CameraBrand, CameraBrandLabels } from '@/models/enums/entityEnums';
 
 import {
   cameraFormSchema,
   emptyCameraForm,
   toCameraForm,
-  toCreateRequest,
   toUpdateRequest,
   type CameraDto,
   type CameraFormValues
 } from '@/models/camera';
 
 /**
- * Tek bir form bileşeni tutuluyor çünkü iki mod arasındaki fark yalnızca iki
- * alan (`cabinetId` / `id`) ve `isActive`'in görünürlüğü; iki ayrı bileşen,
- * aynı formu iki yerde bakmak demek olurdu ve ikisi sessizce
- * ayrışırdı. Sunucuda da ortak kurallar tek `CameraRules` sınıfında.
+ * Yalnızca DÜZENLEME: kamera bir cihazdır ve oluşturma/kaldırma (pasife alma)
+ * yalnızca diyagramdan yapılır (2026-10-25). Pasif kamera düzenlenmez — sunucu 404 döner.
  */
-type Props =
-  | { mode: 'create'; cabinetId: string; open: boolean; onOpenChange: (open: boolean) => void; camera?: undefined }
-  | { mode: 'edit'; camera: CameraDto | null; open: boolean; onOpenChange: (open: boolean) => void; cabinetId?: undefined };
+type Props = { camera: CameraDto | null; open: boolean; onOpenChange: (open: boolean) => void };
 
 /** Seçim listesinin sırası — yeni marka `CameraBrand`'e eklenince buraya da eklenir. */
 const CAMERA_BRANDS: CameraBrand[] = [CameraBrand.Hikvision];
@@ -55,41 +50,26 @@ const toNullableNumber = (value: unknown): number | null => {
   return Number.isNaN(parsed) ? null : parsed;
 };
 
-export function CameraFormDialog(props: Props) {
-  const { mode, open, onOpenChange } = props;
-  const isEdit = mode === 'edit';
-
+export function CameraFormDialog({ camera, open, onOpenChange }: Props) {
   const form = useForm<CameraFormValues>({
     resolver: zodResolver(cameraFormSchema),
     defaultValues: emptyCameraForm
   });
 
-  const createMutation = useCreateCamera();
-  const updateMutation = useUpdateCamera();
-  const mutation = isEdit ? updateMutation : createMutation;
+  const mutation = useUpdateCamera();
   const errors = form.formState.errors;
 
-  // Vazgeçilen bir kaydın alanları bir sonraki açılışta karşımıza çıkmasın.
-  // Parola alanı DÜZENLEMEDE DE boş gelir — `toCameraForm` onu bilerek boş
-  // bırakıyor (gerekçe `cameraForm.ts`'te), böylece boş bırakmak "dokunma"
-  // anlamını korur.
-  const editing = isEdit ? props.camera : null;
+  // Vazgeçilen bir düzenlemenin alanları bir sonraki açılışta karşımıza çıkmasın.
+  // Parola alanı boş gelir — `toCameraForm` onu bilerek boş bırakıyor (gerekçe
+  // `cameraForm.ts`'te), böylece boş bırakmak "dokunma" anlamını korur.
   useEffect(() => {
-    if (!open) return;
-    form.reset(editing ? toCameraForm(editing) : emptyCameraForm);
-  }, [open, editing, form]);
+    if (!open || !camera) return;
+    form.reset(toCameraForm(camera));
+  }, [open, camera, form]);
 
   const submit = form.handleSubmit(values => {
-    if (isEdit) {
-      if (!editing) return;
-      updateMutation.mutate(toUpdateRequest(values, editing.id), {
-        onSuccess: () => onOpenChange(false),
-        onError: error => handleFormApiError(error, form.setError)
-      });
-      return;
-    }
-
-    createMutation.mutate(toCreateRequest(values, props.cabinetId), {
+    if (!camera) return;
+    mutation.mutate(toUpdateRequest(values, camera.id), {
       onSuccess: () => onOpenChange(false),
       onError: error => handleFormApiError(error, form.setError)
     });
@@ -99,9 +79,10 @@ export function CameraFormDialog(props: Props) {
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className='flex max-h-[85vh] flex-col gap-0 overflow-hidden p-0 sm:max-w-2xl'>
         <DialogHeader className='p-4 pb-3'>
-          <DialogTitle>{isEdit ? 'Kamerayı düzenle' : 'Yeni kamera'}</DialogTitle>
+          <DialogTitle>Kamerayı düzenle</DialogTitle>
           <DialogDescription>
-            IP, marka ve erişim bilgileri buradan tanımlanır; port ve akım kanallarını seçilen marka belirler.
+            IP, marka ve erişim bilgileri buradan güncellenir; port ve akım kanallarını seçilen marka belirler. Kamera
+            diyagramdan eklenir ve diyagramdan kaldırılır.
           </DialogDescription>
         </DialogHeader>
 
@@ -174,9 +155,7 @@ export function CameraFormDialog(props: Props) {
                 <Field>
                   <FieldLabel htmlFor='camera-password'>Parola</FieldLabel>
                   <Input id='camera-password' type='password' autoComplete='new-password' {...form.register('password')} />
-                  <FieldDescription>
-                    {isEdit ? 'Boş bırakılırsa mevcut parola korunur.' : 'Kamera web arayüzü parolası.'}
-                  </FieldDescription>
+                  <FieldDescription>Boş bırakılırsa mevcut parola korunur.</FieldDescription>
                   {errors.password && <FieldError>{errors.password.message}</FieldError>}
                 </Field>
               </div>
@@ -210,21 +189,6 @@ export function CameraFormDialog(props: Props) {
                 <FieldDescription className='mt-2'>
                   Kapalıyken kamera hiç yoklanmaz ve durumu olduğu yerde donar. İzleme portu boş bırakılırsa markanın RTSP portu kullanılır.
                 </FieldDescription>
-
-                {isEdit && (
-                  <Field orientation='horizontal' className='mt-3'>
-                    <FieldLabel htmlFor='camera-active'>Aktif</FieldLabel>
-                    <Controller
-                      control={form.control}
-                      name='isActive'
-                      render={({ field }) => <Switch id='camera-active' checked={field.value} onCheckedChange={field.onChange} />}
-                    />
-                  </Field>
-                )}
-                {isEdit && (
-                  // Kamera silinemez (`IActivatableEntity`) — pasife alma tek yol.
-                  <FieldDescription className='mt-2'>Pasif kamera listede gizlenir ama kaydı ve çekim geçmişi korunur.</FieldDescription>
-                )}
               </div>
             </FieldGroup>
 
@@ -233,7 +197,7 @@ export function CameraFormDialog(props: Props) {
                 Vazgeç
               </Button>
               <Button type='submit' disabled={mutation.isPending}>
-                {mutation.isPending ? 'Kaydediliyor…' : isEdit ? 'Kaydet' : 'Kamerayı ekle'}
+                {mutation.isPending ? 'Kaydediliyor…' : 'Kaydet'}
               </Button>
             </DialogFooter>
           </form>

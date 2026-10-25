@@ -244,7 +244,13 @@ Bunlar tek bir dosyaya bakarak görülemez; gerekçeleri PROJECT_OVERVIEW.md §5
   deltası üzerinden yazılır; `CanvasSettings` yalnızca
   `PUT /api/CanvasSettings/cabinet/{cabinetId}` üzerinden. Bu tabloların generic
   controller'ları **2026-10-14'te kaldırıldı** (okuma diyagram ucundan gelir) — geri eklemeyin.
-  İhtiyaç varsa sahibinin controller'ına ekran bazlı bir uç ekleyin.
+  İhtiyaç varsa sahibinin controller'ına ekran bazlı bir uç ekleyin. **Cihazın yaşam döngüsü (oluşturma + kaldırma/pasife
+  alma) YALNIZCA diyagram deltasıdır (2026-10-25, kullanıcı kararı)** — diyagramda olmayan tanımlı cihaz yoktur. Tipe özel
+  ekranlar yalnızca **mevcut, aktif** cihazın bilgisini günceller ve kendi özel okumalarını yapar (kamera: `PUT /api/Camera`,
+  `ConfigureSystem` + izleme/kare/klip). PC / POS / alarm gibi tiplere diyagram dışı ekran istenirse aynı kalıp izlenir
+  (sahibinin controller'ında ekran bazlı güncelleme ucu, diyagram kaydetmeyle aynı doğrulamalar); **oluşturma ya da
+  `IsActive` yazan uç açılmaz**. Gerekçe: ekrandan pasife alınıp diyagramdan silinmiş bir cihazı geri getirmek onu pinsiz
+  diriltiyordu (diyagram silmesi pinleri ve kabloları soft-delete eder, ekran yalnızca `IsActive` yazardı).
 - **Generic CRUD yüzeyi yoktur (2026-10-14).** İstemcinin çağırmadığı uçlar (`{id}/base`, `list/base`, `selectlist`,
   `pagination`, `datatable/*`, `DeviceCommand`/`Pin`/`DeviceStatus`… controller'ları) ve yalnızca onlara hizmet eden servis
   metotları/DTO'lar silindi. "İleride lazım olur" diye uç eklemeyin; bir ekran istediğinde, o ekranın uçu eklenir.
@@ -254,7 +260,7 @@ Bunlar tek bir dosyaya bakarak görülemez; gerekçeleri PROJECT_OVERVIEW.md §5
   `[RequirePermission(Permission.X)]` ile işaretleyin — modül kaydına `AddPolicy` eklemeyin. Kural: **sahaya etki eden ve veri
   yazan her uç bir izin ister** (`EditDiagram` diyagram/tuval yazımı, `ConfigureSystem` kabin/firma/kamera/şablon/ayar/sinyalizasyon
   yapılandırması, `ManageUsers` kullanıcı/rol/izin + parola, `ManageAccessCards` kart ataması + operatör kurumu),
-  hassas okumalar da (`ViewCamera` kamera listesi/detayı/bilet/kare — DTO parolayı taşır; `ViewDiagram` diyagram okuma + komut geçmişi;
+  hassas okumalar da (`ViewCamera` kamera listesi/detayı/bilet/kare; `ViewDiagram` diyagram okuma + komut geçmişi;
   `ManageUsers` kullanıcı listesi ve rolleri — kart tanımlama kendi dar listesini `GET User/card-holders` ile `ManageAccessCards`'la okur);
   diğer okuma uçları yalnızca giriş ister. **Komut izinleri ayrıdır (2026-10-14):** çekirdek diyagram komutu `ViewDiagram` + `ControlOutput`
   (ikisi birden), sinyalizasyonun sanal kabini (okuma + komut + kart okumaları) TEK izin `SignalVirtualCabinet` — `ControlOutput`
@@ -275,14 +281,38 @@ Bunlar tek bir dosyaya bakarak görülemez; gerekçeleri PROJECT_OVERVIEW.md §5
   `{ upserted: [...], deleted: [ids] }`; **Guid'i istemci üretir**, sunucu kimliği arar.
   Pin ve kanal kimlikleri salt-oluşturmadır; mevcut cihaza `pins`/`ioChannels` göndermek 400'dür.
 - **Kanal adresleri kabin genelinde tekildir**, cihaz genelinde değil. Bir cihazı silmek
-  kanallarını serbest bırakmaz (`IN1` işgal edilmeye devam eder), `MacAddress` ise serbest kalır.
-- **`MacAddress` benzersizliği kabin genelinde DEĞİL, sistem genelindedir.**
-  `IX_Device_MacAddress` (unique, `WHERE MacAddress IS NOT NULL AND IsActive = 1`) globaldir:
-  bir fiziksel kartın tek MAC'i vardır ve ingest kabini bu adresten çözer — aynı adres iki
-  kabinde olsaydı telemetri yanlış kabine yazılırdı. Bu yüzden `LoadDeviceMacAddressesAsync`
-  kabinle değil, **gönderilen adreslerle** daraltılır; yeni bir benzersizlik kuralını bu kalıptan
-  kopyalarken kabin/sistem farkını atlamayın. Ön doğrulama (`ValidateDeviceMacAddresses`) DB kısıtına
-  çarpıp 500 üretmemek içindir, süs değil.
+  kanallarını serbest bırakmaz (`IN1` işgal edilmeye devam eder), MAC ise serbest kalır.
+- **Tipe özgü alanlar `Device`'ta DEĞİL, 1-1 ek tablolardadır (2026-10-22):** `Camera` (marka, model, açıklama, kullanıcı,
+  parola), `ControlCard` (MAC, kullanıcı, parola), `PcDevice` (MAC). Birincil anahtar ortaktır (`DeviceId` hem PK hem FK),
+  tip yine `ComponentTemplate.DeviceTypeId`'dir. **Kalıtım bilerek yoktur** — `Camera : Device` / `HasBaseType` yazmayın:
+  `HasBaseType` tek başına TPH (tek tablo) kurar, TPT ise her `Devices` sorgusuna tüm alt tabloları JOIN'ler ve parolaları her
+  cihaz okumasında belleğe getirir. Ek satır yalnızca `Include` edilince okunur. Tek yazım yolu yine diyagram deltasıdır:
+  `DeviceDraft.Camera` / `.ControlCard` / `.Pc` — şablon tipiyle eşleşen nesne **zorunludur**, yanlış tipe giden 400'dür
+  (`DiagramService.SaveDeviceExtensions.cs`). Okuma DTO'ları parola döndürmez, `hasPassword` döner; taslakta `password: null` =
+  dokunma, `""` = temizle. **Yeni tip (Alarm, NAS…) = `DeviceType` değeri + sistem şablonu + gerekiyorsa ek tablo + taslak nesnesi
+  + panel bölümü;** alanı `Device`'a eklemeyin, ayrı kök tablo da açmayın, diyagram dışında oluşturma ucu açmayın.
+- **MAC benzersizliği kabin genelinde DEĞİL, sistem genelindedir ve TİP BAŞINADIR.**
+  `IX_ControlCard_MacAddress` / `IX_PcDevice_MacAddress` (unique, `WHERE MacAddress IS NOT NULL`): bir fiziksel kartın tek
+  MAC'i vardır ve ingest kabini bu adresten çözer — aynı adres iki kabinde olsaydı telemetri yanlış kabine yazılırdı. Ingest
+  yalnızca `ControlCard`'a, `PcHub` yalnızca `PcDevice`'a bakar. Index `Device.IsActive`'e bakamadığı için **cihaz silinince
+  ek satırdaki MAC `null`'a çekilir** (`ApplyDeviceExtensionDeletions`, silme SaveChanges'inde — aynı gönderide yeni cihaz
+  adresi alabilsin); kopya `IsActive` kolonu eklemeyin. MAC yükleyicileri kabinle değil **gönderilen adreslerle** daraltılır;
+  ön doğrulama (`ValidateDeviceExtensions`) DB kısıtına çarpıp 500 üretmemek içindir, süs değil. MAC ileride BasicAuth'a
+  geçilince kalkacak (kullanıcı kararı); o zamana kadar bu düzen geçerlidir.
+- **Kamera bir `Device`'tır (`DeviceType.Camera = 14`, sistem şablonu "IP Kamera", 2026-10-22).** Diyagramdan eklenir ve
+  diyagramdan kaldırılır (şablonla sürükleme + özellik paneli, `EditDiagram`). Kamera ekranı (`/cameras/cabinet/:id`,
+  `PUT /api/Camera`, `ConfigureSystem`) yalnızca **aktif** kameranın bilgisini günceller — oluşturamaz, pasife alamaz
+  (`CameraUpdateDto`'da `IsActive` yoktur), pasif kamerayı düzenleyemez (404); iki yol aynı kuralları uygular, son yazan
+  kazanır (2026-10-25). Pasif (diyagramdan kaldırılmış) kamera ekranda çekim geçmişi için listelenir. 2026-10-25'ten önce
+  kamera ekranından eklenmiş kameralar diyagramda gizli durabilir (`IsVisible = false`): "Seçilemeyen öğeler → Göster" ile
+  tuvale alınır. Kamera IP'si zorunludur ve
+  **kabin içinde** tekildir (iki yolda da doğrulanır, DB index'i yok; ad tekilliği yalnızca kamera ekranının kuralı); boş izleme
+  portu markanın RTSP portuyla dolar. Kamera Id'si cihaz Id'sidir:
+  `CameraCapture.CameraId`, `signalization.OuterDoor.CameraId` ve `cam_{id}` yolları onu görür. Kamera bilgisi değişince MediaMTX
+  yolunu düşürmek **commit sonrası** yapılır: diyagramda `DiagramController.Save`, ekranda `CameraService.UpdateAsync`
+  (`ICameraService.RefreshStreamPathsAsync`; yapılandırması güncel kaynakla uyuşmayan ya da pasif kameranın yolu silinir) —
+  `.Save.cs`'e koymayın. Kamera okuma DTO'su parolayı döndürmez (`hasPassword`). RTSP adresi kuran kod entity değil
+  `CameraEndpoint` alır.
 - **Lifecycle interceptor'ları sessizce geçmez, istisna atar.** `IImmutableEntity` güncelleme
   ve silmede, `IActivatableEntity` silmede patlar (`IsActive = false` kullanın);
   `ISoftDeletableEntity` fiziksel silmeyi `IsDeleted = true`'ya çevirir. `IsActive` üzerinde
@@ -312,23 +342,23 @@ Bunlar tek bir dosyaya bakarak görülemez; gerekçeleri PROJECT_OVERVIEW.md §5
   bir izlenen tip eklemek = yeni kaynak + tek satır DI kaydı, worker'a dokunulmaz. Sonda
   `MonitoringPort` doluysa **TCP connect**, boşsa **ICMP ping** yapar (2026-10-12; eskiden ICMP dalı yoktu ve
   portsuz varlık atlanırdı). Ping yalnızca "makine ağda" der — hizmetin ayakta olduğunu TCP kanıtlar; ICMP'si
-  kapalı hedef sağlamken Çevrimdışı görünür, ona port girilir. Kamerada boş port yine markanın RTSP portuyla
-  dolar (ping'e düşmez). Buraya "şimdi dene" tarzı bir uç eklemeyin. Kaynaklar: `CameraProbeSource`,
-  `DeviceProbeSource` (2026-09-24 — `Device : IMonitoredAsset`; yalnızca izlemesi açık **ve**
-  şablonu `ComponentTemplate.IsMonitorable` olan cihaz). Worker son sonda anı olarak sondanın
+  kapalı hedef sağlamken Çevrimdışı görünür, ona port girilir. Kamerada boş port kayıtta markanın RTSP portuyla
+  dolar (ping'e düşmez). Buraya "şimdi dene" tarzı bir uç eklemeyin. Tek kaynak `DeviceProbeSource`'tur
+  (2026-09-24 — `Device : IMonitoredAsset`; yalnızca izlemesi açık **ve** şablonu `ComponentTemplate.IsMonitorable` olan cihaz).
+  `CameraProbeSource` 2026-10-22'de kalktı: kamera bir cihazdır ve aynı kaynakla yoklanır. Worker son sonda anı olarak sondanın
   bitişini yazar (bilinçli); `PingIntervalSec` tur aralığının tam katıysa hedef bir tur geç
   yoklanır (60 sn → fiilen 90 sn).
 - **Kabin durumu ve cihaz CANLILIK durumu yalnızca `ICabinetStatusService` üzerinden yazılır
   (2026-09-24).** `Cabinet.DeviceStatusId`, `Device.DeviceStatusId` / `LastSeen` /
   `LastConnectionError`'a başka yerden dokunmayın; kanıtı (yoklama, SCADA teması, komut
   `NoResponse`) servise verin. Kabin durumu = cihaz katkılarının en kötüsü ve **tabanı kontrol
-  modülüdür**: kabini Online'a da Offline'a da yalnızca kontrol modülü çeker; diğer cihazların ve
-  izlenen kameraların `Offline`'ı kabine `Warning` olarak yansır, `Online`'ları hiç katılmaz
+  modülüdür**: kabini Online'a da Offline'a da yalnızca kontrol modülü çeker; diğer cihazların (kameralar
+  dahil — 2026-10-22'den beri ayrı kamera kuralı yok) `Offline`'ı kabine `Warning` olarak yansır, `Online`'ları hiç katılmaz
   (`CabinetContribution`). Durum tabloları: PROJECT_OVERVIEW.md § 5.3 "Canlılık". SCADA canlılığı **kontrol modülünde** tutulur
   (kanıt kart başınadır): her ingest (tanımsız kanal dahil), kart okuma ve başarılı komut temas
-  sayılır; giriş modülüne canlılık yazmayın. Başarısız sonda **ilk başarısızlıkta** Offline yapar
-  (kamerayla aynı); `NoResponse` anında. **`LastSeen`'e bakıp Offline yargısına varılmaz** — yalnızca
-  izlemesi kapalı cihaz/kameraların `LastSeen`'i dolu ve 23 saatten eski Online/Offline'ı taramada `null`'a
+  sayılır; giriş modülüne canlılık yazmayın. Başarısız sonda **ilk başarısızlıkta** Offline yapar;
+  `NoResponse` anında. **`LastSeen`'e bakıp Offline yargısına varılmaz** — yalnızca
+  izlemesi kapalı cihazların `LastSeen`'i dolu ve 23 saatten eski Online/Offline'ı taramada `null`'a
   ("Bilinmiyor") çekilir; boş `LastSeen` eski sayılmaz (hiç görülmemiş kartın `NoResponse` Offline'ı silinmesin)
   (izlenenleri katmayın: yoklamayla her turda Bilinmiyor ↔ Offline salınırlar),
   23 saat bilerek sabittir. Canlılık yalnızca Online/Offline/`null`'a karar verir,
@@ -338,9 +368,9 @@ Bunlar tek bir dosyaya bakarak görülemez; gerekçeleri PROJECT_OVERVIEW.md §5
   operatör kararıdır (2026-09-28):** ayrı kolon yok, `Cabinet.DeviceStatusId` = Maintenance; kabin düzenleme ekranından
   `ICabinetStatusService.SetMaintenanceAsync` ile yazılır. Hesaplama ve tarama bakımdaki kabine dokunmaz, hesaplama da
   hiçbir zaman Maintenance üretmez (cihazın Maintenance'ı kabine taşınmaz) — yoksa kabin kendiliğinden bakıma düşüp kalırdı.
-  **"Kabin neden bu renkte" dökümü (`GetBreakdownAsync`, 2026-10-12) katkıyı aynı `CabinetContribution` /
-  `CameraContribution` koduyla üretir;** ön yüz (harita panelindeki "Durum nedeni") kuralı kopyalamaz, `contribution`'ı okur.
-  Kuralı değiştirirseniz tek yer orasıdır.
+  **"Kabin neden bu renkte" dökümü (`GetBreakdownAsync`, 2026-10-12) katkıyı aynı `CabinetContribution`
+  koduyla üretir;** ön yüz (harita panelindeki "Durum nedeni") kuralı kopyalamaz, `contribution`'ı okur.
+  Kuralı değiştirirseniz tek yer orasıdır. `CabinetStatusContributorKind.Camera` (2) kalktı — numarayı yeniden kullanmayın.
 - **MediaMTX yol temizliği üç şeyi asla silmez:** bizim üretmediğimiz adlar (yalnızca `cam_`
   önekliler adaydır — `mediamtx.yml`'deki **`all_others`** silinseydi geçit
   yapılandırmasız kalırdı), `record: true` olan yollar ve `readers > 0` olan yollar. Bu kuralları
@@ -437,11 +467,11 @@ Bir şeyin çalıştığını varsaymadan önce doğrulayın:
 
 - **Ingest gövdesinde `cabinetId` YOKTUR; kabin MAC adresinden çözülür.** Gerçek sözleşme
   `{ macAddress, type: "I"|"A", channelNumber, value, timestampUtc }` (`ScadaIngestRequest`).
-  Sahadaki SCADA bizim ürettiğimiz Guid'i bilemez; sunucu gelen adresle **birebir eşleşen**,
-  aktif ve şablonu `DeviceType.ControlModule` olan cihazın `CabinetId`'sini kullanır
+  Sahadaki SCADA bizim ürettiğimiz Guid'i bilemez; sunucu gelen adresle **birebir eşleşen** `ControlCard.MacAddress`'in,
+  aktif ve şablonu `DeviceType.ControlModule` olan cihazının `CabinetId`'sini kullanır
   (`ChannelEventService.IngestAsync` adım 3), karşılığı yoksa 404 döner. **MAC tek tip saklanır ve
   gelirken tek tipe çevrilir (2026-09-30):** `AA:BB:CC:DD:EE:FF` (büyük harf, `:`), kural
-  `Scadex.Core/Utils/MacAddressFormat.cs`. Çeviri giriş DTO'larının setter'ındadır (`DeviceDraft`,
+  `Scadex.Core/Utils/MacAddressFormat.cs`. Çeviri giriş DTO'larının setter'ındadır (`ControlCardDraft`, `PcDeviceDraft`,
   `ScadaIngestRequest`, `ScadaCardReadRequest`), bu yüzden karşılaştırma yine düz string eşitliğidir ve
   SCADA `50-8d-…` de gönderse eşleşir. Hex şartı **bilinçli yok** (12 harf/rakam): test kabinlerindeki
   `CL:AU:…` adresleri geçerli kalmalı. Yeni bir MAC girişi eklerseniz aynı setter kalıbını kullanın; `AutoMapper`
@@ -458,8 +488,9 @@ Bir şeyin çalıştığını varsaymadan önce doğrulayın:
   kart 500 üretir. **Kart tanımlama (2026-10-13) çekirdektedir:** her okuma gözlemcilerden önce `DiagramHub`'a `CardRead` olarak
   yayınlanır, Kabinler → "Kart tanımlama" penceresi dinler; atama `PUT /api/User/{id}/identity-card` (`AssignIdentityCardAsync`, yalnızca
   kart alanı — `PUT /api/User` tüm alanları ezer). Pencere okumayı modüllerden **bilerek** saklamaz/baypas etmez (kullanıcı kararı).
-- **`MacAddress` / `IpAddress` artık diyagram deltasıyla yazılır (2026-09-10).** `DeviceDraft`
-  bu iki alanı taşır, `WriteDevice` yazar, editörde cihaz özellik panelinden girilir. Bunlar
+- **`IpAddress` ve ek tablo alanları (MAC, kimlik bilgileri) diyagram deltasıyla yazılır (2026-09-10; MAC 2026-10-22'den beri
+  `DeviceDraft.ControlCard` / `.Pc` içinde).** `WriteDevice` IP'yi, `WriteDeviceExtensions` ek satırı yazar; editörde cihaz
+  özellik panelinden girilir. Bunlar
   `DeviceStatusId` / `LastSeen` / `LastConnectionError` gibi telemetri alanı **değildir** — o
   üçü taslakta yok ve `WriteDevice`'ta dokunulmaz. İzleme ayarları (`MonitoringPort`,
   `PingIntervalSec`, `IsMonitoringEnabled`, 2026-09-24) da deltayla yazılır; izleme açıkken IP

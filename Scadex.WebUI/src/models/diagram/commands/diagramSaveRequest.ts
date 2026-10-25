@@ -1,5 +1,5 @@
 /** Ayna: Scadex.Model/Dtos/Diagram/Commands/DiagramSaveRequest.cs — sözleşme: docs/api-contract/03-diagram-save.md */
-import type { AnnotationShape, EdgeRouting, LineStyle, PinDirection, WireType } from '@/models/enums';
+import type { AnnotationShape, CameraBrand, EdgeRouting, LineStyle, PinDirection, WireType } from '@/models/enums';
 import type { PointDto } from '../queries/pointDto';
 
 /**
@@ -88,11 +88,6 @@ export interface DeviceDraft {
    */
   width: number | null;
   height: number | null;
-  /**
-   * Kontrol modüllerinde SCADA ingest'inin kabini çözdüğü adres. Sistem genelinde
-   * benzersizdir (`IX_Device_MacAddress`); çakışırsa sunucu 400 döner.
-   */
-  macAddress: string | null;
   ipAddress: string | null;
   /**
    * İzleme ayarları. Sunucu kuralları (`DeviceDraftValidator`): port 1..65535, periyot 5..86400 sn; izleme açıkken
@@ -103,6 +98,13 @@ export interface DeviceDraft {
   pingIntervalSec: number;
   isMonitoringEnabled: boolean;
   /**
+   * Ek tablolar (2026-10-22): şablon tipine göre TAM OLARAK biri dolu, diğerleri `null` (kamera / kontrol modülü / PC;
+   * diğer tiplerde üçü de `null`). Eksik ya da yanlış tipe giden nesne 400'dür (`ValidateDeviceExtensions`).
+   */
+  camera: CameraDraft | null;
+  controlCard: ControlCardDraft | null;
+  pc: PcDeviceDraft | null;
+  /**
    * Yalnızca OLUŞTURMADA doldurulur; mevcut bir cihazda dolu gönderilirse 400
    * (pinleri zaten var). "Bu cihaz yeni mi" sorusunu `lib/diagram/unsaved-store.ts`
    * cevaplar — Id'nin kendisi cevaplayamaz.
@@ -110,6 +112,30 @@ export interface DeviceDraft {
   pins: DevicePinDraft[];
   /** Ad okuma yolundaki `DiagramDeviceDto.ioChannels` ile AYNI: aynı liste okunup geri gönderiliyor. */
   ioChannels: DeviceIoChannelDraft[];
+}
+
+/**
+ * Ayna: `DeviceExtensionDrafts.cs`. Sunucu kuralları: model ≤ 64, açıklama ≤ 512, kullanıcı/parola ≤ 128, MAC 12 harf/rakam
+ * (`:`/`-` ayraçlı). `password`: `null` = mevcut parolaya dokunma, `''` = temizle, değer = yaz.
+ */
+export interface CameraDraft {
+  brand: CameraBrand;
+  model: string | null;
+  description: string | null;
+  username: string | null;
+  password: string | null;
+}
+
+export interface ControlCardDraft {
+  /** Tüm kontrol kartları arasında tekil (kabin bazlı değil); çakışırsa 400 `Devices.Upserted[i].ControlCard.MacAddress`. */
+  macAddress: string | null;
+  username: string | null;
+  password: string | null;
+}
+
+export interface PcDeviceDraft {
+  /** Tüm PC'ler arasında tekil; çakışırsa 400 `Devices.Upserted[i].Pc.MacAddress`. */
+  macAddress: string | null;
 }
 
 export interface ConnectionDraft {
@@ -161,8 +187,8 @@ export interface AnnotationDraft {
  * dokunulmadan kalır — `deviceStatusId` / `lastSeen` / `lastConnectionError` bilerek
  * dışarıda: onları yoklama ve SCADA teması yazar, kaydetmek bu değerleri ezmemeli.
  *
- * `macAddress` / `ipAddress` ise 2026-09-10'dan beri taslakta VARDIR: MAC, SCADA
- * ingest'inin kabini çözdüğü adrestir ve operatörün panelden girebilmesi gerekir.
+ * `ipAddress` taslakta VARDIR; MAC / kullanıcı / parola cihazın ek nesnelerindedir (`camera` / `controlCard` / `pc`,
+ * 2026-10-22) ve operatör onları özellik panelinden girer.
  */
 export interface DiagramSaveRequest {
   devices: EntityDelta<DeviceDraft>;

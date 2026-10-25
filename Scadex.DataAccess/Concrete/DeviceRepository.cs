@@ -16,13 +16,13 @@ public class DeviceRepository : RepositoryBase<Device, AppDbContext>, IDeviceRep
     /// <inheritdoc />
     public async Task<Guid> GetCabinetIdByControlModuleMacAsync(string macAddress, CancellationToken cancellationToken = default)
     {
-        return await _context.Devices
+        return await _context.ControlCards
             .AsNoTracking()
-            .Where(d =>
-                d.IsActive &&
-                d.MacAddress == macAddress &&
-                d.ComponentTemplate!.DeviceTypeId == (int)DeviceType.ControlModule)
-            .Select(d => d.CabinetId)
+            .Where(c =>
+                c.MacAddress == macAddress &&
+                c.Device!.IsActive &&
+                c.Device.ComponentTemplate!.DeviceTypeId == (int)DeviceType.ControlModule)
+            .Select(c => c.Device!.CabinetId)
             .FirstOrDefaultAsync(cancellationToken);
     }
 }

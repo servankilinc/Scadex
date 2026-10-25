@@ -19,15 +19,10 @@ export interface CameraDto {
 
   username: string | null;
   /**
-   * Kamera parolası — DÜZ METİN olarak döner (kullanıcı kararı).
-   *
-   * Önceki sözleşmede yerine `hasPassword: boolean` gidiyordu; sistem kapalı
-   * ağda çalıştığı ve bu aşamada kamera kimlik bilgilerinin gizlenmesi
-   * istenmediği için doğrudan döndürülüyor.
-   *
-   * Yazma yolu YİNE ÜÇ DURUMLU: `undefined` = dokunma, `''` = sil, dolu = değiştir.
+   * Parola DÖNMEZ, yalnızca var/yok (2026-10-22). Kamera bir cihazdır; kimlik bilgileri diyagramın özellik panelinden
+   * yazılır (`DiagramCameraDto`), bu okuma ucu yalnızca izleme ekranlarına hizmet eder.
    */
-  password: string | null;
+  hasPassword: boolean;
 
   monitoringPort: number | null;
   /**

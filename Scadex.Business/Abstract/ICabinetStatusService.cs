@@ -34,10 +34,10 @@ public interface ICabinetStatusService
 
     /// <summary>
     /// 1) izlemesi kapalı cihazların durumunu → <c>null</c> (bilinmiyor) yapar.
-    /// 2) Tüm aktif kabinlerin uzlaştırılması (diyagramda cihaz silme, kamera pasife alma gibi yavaş yollar).
+    /// 2) Tüm aktif kabinlerin uzlaştırılması (diyagramda cihaz silme, izlemeyi kapatma gibi yavaş yollar).
     /// </summary>
     Task<CabinetStatusSweepResult> SweepAsync(CancellationToken cancellationToken = default);
 }
 
 /// <summary> Tarama turunun özeti — yalnızca log içindir. </summary>
-public readonly record struct CabinetStatusSweepResult(int ClearedDevices, int ClearedCameras, int ReconciledCabinets);
+public readonly record struct CabinetStatusSweepResult(int ClearedDevices, int ReconciledCabinets);

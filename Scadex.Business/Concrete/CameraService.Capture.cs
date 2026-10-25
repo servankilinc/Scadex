@@ -14,7 +14,7 @@ public partial class CameraService
     /// <inheritdoc/>
     public async Task<Result<ICollection<CameraCaptureDto>>> GetCapturesAsync(Guid cameraId, int take = 20, CancellationToken cancellationToken = default)
     {
-        bool cameraExists = await _unitOfWork.Cameras.IsExistAsync(where: c => c.Id == cameraId, cancellationToken: cancellationToken);
+        bool cameraExists = await _unitOfWork.Cameras.IsExistAsync(where: c => c.DeviceId == cameraId, cancellationToken: cancellationToken);
 
         if (!cameraExists)
             return Result<ICollection<CameraCaptureDto>>.NotFound(description: "Kamera bulunamadi");
@@ -37,7 +37,7 @@ public partial class CameraService
             return;
         }
 
-        var camera = await _unitOfWork.Cameras.GetAsync(where: c => c.Id == capture.CameraId, cancellationToken: cancellationToken);
+        var camera = (await LoadCameraAsync(capture.CameraId, cancellationToken))?.Endpoint;
         if (camera == null)
         {
             await FailCaptureAsync(capture, "Kamera bulunamadı.", cancellationToken);
@@ -105,9 +105,10 @@ public partial class CameraService
         if (!validationResult.IsValid)
             return Result<CameraCaptureDto>.Validation(validationResult.Failures, description: "Validation failed for CameraCaptureCreateDto");
 
-        var camera = await _unitOfWork.Cameras.GetAsync(where: c => c.Id == cameraId && c.IsActive, cancellationToken: cancellationToken);
-        if (camera == null)
+        var row = await LoadCameraAsync(cameraId, cancellationToken);
+        if (row is not { IsActive: true })
             return Result<CameraCaptureDto>.NotFound(description: "Kamera bulunamadi veya pasif durumda.");
+        var camera = row.Endpoint;
 
         var captureSettings = await _captureSettingService.GetSettingsAsync(cancellationToken);
 

@@ -123,7 +123,6 @@ classDiagram
         +Guid ComponentTemplateId
         +int? DeviceStatusId
         +string? IpAddress
-        +string? MacAddress
         +DateTime? LastSeen
         +bool IsActive
     }
@@ -231,21 +230,24 @@ classDiagram
     }
 
     class Camera {
-        +Guid Id
-        +Guid CabinetId
-        +string Name
+        +Guid DeviceId
         +CameraBrand Brand
         +string? Model
-        +string IpAddress
+        +string? Description
         +string? Username
         +string? Password
-        +int? MonitoringPort
-        +int? DeviceStatusId
-        +DateTime? LastSeen
-        +int PingIntervalSec
-        +bool IsMonitoringEnabled
-        +string? LastConnectionError
-        +bool IsActive
+    }
+
+    class ControlCard {
+        +Guid DeviceId
+        +string? MacAddress
+        +string? Username
+        +string? Password
+    }
+
+    class PcDevice {
+        +Guid DeviceId
+        +string? MacAddress
     }
 
     class CameraCapture {
@@ -303,7 +305,9 @@ classDiagram
     Cabinet "1" *-- "*" Connection
     Cabinet "1" *-- "*" DiagramAnnotation
     Cabinet "1" *-- "0..1" CanvasSettings
-    Cabinet "1" *-- "*" Camera
+    Device "1" *-- "0..1" Camera : DeviceId (PK/FK)
+    Device "1" *-- "0..1" ControlCard : DeviceId (PK/FK)
+    Device "1" *-- "0..1" PcDevice : DeviceId (PK/FK)
     Cabinet "1" *-- "*" ChannelEvent
     Cabinet "1" o-- "*" IoChannel : denormalize
     DeviceType "1" o-- "*" ComponentTemplate
@@ -320,7 +324,6 @@ classDiagram
     Camera "1" *-- "*" CameraCapture
     DeviceStatus "1" o-- "*" Device
     DeviceStatus "1" o-- "*" Cabinet
-    DeviceStatus "1" o-- "*" Camera
     Role "1" *-- "*" RolePermission
     Permission "1" o-- "*" RolePermission
     User "1" *-- "*" RefreshToken
@@ -451,10 +454,23 @@ Hepsi `Backend/CabinetOs.Model/Entities/` altındadır. Audit alanları (`Create
 | `Rotation` / `ZIndex` / `IsLocked` / `IsVisible` | | çizim durumu |
 | `CabinetId` / `ComponentTemplateId` | `Guid` | ikisi de **insert-only** — farklı değer göndermek 400 |
 | `DeviceStatusId` | `int?` | telemetriyle yazılır |
-| `IpAddress` | `string?` | `MacAddress` ile birlikte diyagram deltasından yazılır; benzersizlik kısıtı yok |
-| `MacAddress` | `string?` | `DeviceType.ControlModule` cihazlarda **ingest'in kabin çözümlemesidir** — SCADA bu adresi gönderir, sunucu birebir string eşleşmesiyle kabini bulur. **Sistem genelinde benzersiz** (`IX_Device_MacAddress`, `WHERE MacAddress IS NOT NULL AND IsActive = 1`) — kabin bazlı değil |
+| `IpAddress` | `string?` | diyagram deltasından yazılır; benzersizlik kısıtı yok (kamerada zorunlu ve kabin içinde tekil — kayıtta doğrulanır) |
 | `LastSeen` | `DateTime?` | bayat süpürücüsünün baktığı alan |
 | `IsActive` | `bool` | |
+
+> **`MacAddress` 2026-10-22'de `Device`'tan kalktı.** Tipe özgü alanlar 1-1 ek tablolardadır (aşağıda); `Device` yalnızca her cihazın ortak alanlarını taşır.
+
+**Device ek tabloları** — 1-1, **ortak birincil anahtar** (`DeviceId` hem PK hem `Device.Id`'ye FK, Restrict). Hangisinin dolu olduğunu `ComponentTemplate.DeviceTypeId` belirler; tutarlılığı DB değil yazım yolları doğrular. Yazım yolu diyagram deltası (`DeviceDraft.Camera` / `.ControlCard` / `.Pc`, `ValidateDeviceExtensions`); **kameranın bilgisi ayrıca kamera ekranından güncellenir** (`PUT /api/Camera`, `ConfigureSystem`, yalnızca aktif kamera). Cihaz oluşturma ve kaldırma (pasife alma) yalnızca diyagramdandır (2026-10-25) — diyagramda olmayan tanımlı cihaz yoktur.
+
+| Tablo | Tip | Alanlar | Not |
+|---|---|---|---|
+| `Camera` | `Camera` (14) | `Brand` · `Model?` · `Description?` · `Username?` · `Password?` | `CameraCapture.CameraId` → `Camera.DeviceId` |
+| `ControlCard` | `ControlModule` (1) | `MacAddress?` · `Username?` · `Password?` | MAC **ingest'in ve kart okumanın kabin çözümlemesidir**; `IX_ControlCard_MacAddress` (`WHERE MacAddress IS NOT NULL`) **sistem genelinde** tekil |
+| `PcDevice` | `Pc` (13) | `MacAddress?` | RemoteDesk istemcisinin kimliği; `IX_PcDevice_MacAddress` sistem genelinde tekil |
+
+> **Kalıtım değil kompozisyon.** `Camera : Device` (TPT) her `Devices` sorgusuna tüm alt tabloları JOIN'ler ve parolaları her cihaz okumasında belleğe getirirdi; `HasBaseType` tek başına ise TPH (tek tablo) kurar — § 4.4'te reddedilen tasarım. Ek satır yalnızca `Include` edilince okunur.
+> **MAC tekilliği tip başınadır** (ingest yalnızca `ControlCard`'a, `PcHub` yalnızca `PcDevice`'a bakar). Filtreli index `Device.IsActive`'e bakamadığı için **cihaz silinince ek satırdaki MAC `null`'a çekilir**; kopya `IsActive` kolonu eklenmez.
+> **Parola okuma DTO'larına yazılmaz** (`hasPassword`); taslakta `null` = dokunma, `""` = temizle.
 
 **`Pin`** — cihazın klemensi. İçeriğini **sunucu** şablondan kopyalar; **Id'sini istemci üretir**.
 
@@ -509,14 +525,14 @@ Hepsi `Backend/CabinetOs.Model/Entities/` altındadır. Audit alanları (`Create
 
 #### Monitoring
 
-**`Camera`** — `IMonitoredAsset` uygular.
-`Id` · `CabinetId` · `Name` · `Description?` · `Brand` · `Model?` · `IpAddress` · `Username?` · `Password?` · `MonitoringPort?` · `DeviceStatusId?` · `LastSeen?` · `PingIntervalSec` · `IsMonitoringEnabled` · `LastConnectionError?` · `IsActive`.
+**`Camera`** — `Device`'ın 1-1 ek tablosu (2026-10-22; öncesinde `IMonitoredAsset` uygulayan ayrı kök tabloydu).
+`DeviceId` (PK/FK) · `Brand` · `Model?` · `Description?` · `Username?` · `Password?`. Ad, kabin, IP, izleme ve canlılık alanları `Device`'tadır; kamera `DeviceProbeSource` ile yoklanır ve kabin durumuna diğer cihazlar gibi katılır. Migration (`DeviceExtensionTables`) eski kameraları **aynı Id ile** `Device`'a taşıdı — çekimler, `signalization.OuterDoor.CameraId` ve `cam_{id}` yolları değişmedi.
 
 > **Port, kanal ve akım bayrağı kolonu YOKTUR (2026-09-25).** `Brand` (`CameraBrand`, int) karşılık gelen `ICameraProtocolProfile`'ı seçer; RTSP yolu, RTSP portu (554), akım kanalları ve tali akım desteği oradan gelir. Kameraya yalnızca MediaMTX bağlanır; anlık görüntü ve klip de onun canlı yolundan FFmpeg ile alınır (2026-09-25), marka API'si (ISAPI) kullanılmaz. `RtspPort`, `HttpPort`, `HttpsPort`, `Main/SubStreamChannel`, `Main/SubStreamEnabled`, `SnapshotChannel` ve serbest metin `Manufacturer` bu yüzden kaldırıldı — başka markada boş kalıyorlardı.
 
 > ⚠ **Parola düz metin saklanır ve okuma DTO'sunda düz metin döner** — kullanıcı kararı (kapalı ağ). Şifreleme katmanı bilinçle **yoktur**; bir `ICameraSecretProtector` bir tur var olup kullanıcı talimatıyla kaldırıldı, geri getirmeyin.
 > **RTSP URL'i hiçbir zaman tarayıcıya ulaşmaz** — bu ayrı bir kuraldır ve geçerlidir. URL kolon olarak da saklanmaz: `IpAddress`/port'u bir string içinde tekrarlar ve biri değiştiğinde sessizce ayrışırdı.
-> **Kamera `Device` değildir:** pini yok, kablosu yok, diyagramda değil, verisi SCADA'dan gelmiyor.
+> ~~Kamera `Device` değildir~~ — **2026-10-22'de tersine çevrildi:** kamera bir cihazdır ("IP Kamera" şablonu: +12V, GND, RJ45) diyagramdan eklenir/kaldırılır, bilgisi kamera ekranından da güncellenir (2026-10-25'e kadar kamera ekranından eklenebiliyordu ve diyagramda gizli doğuyordu; bu yol kaldırıldı). Gerekçe: izleme/canlılık alanları ve kuralları iki kopya hâlinde ayrışmıştı (iki yoklama kaynağı, iki kabin katkı kuralı); PC zaten bir `Device`'tı.
 
 **`CameraCapture`**
 `Id` (long, IDENTITY) · `CameraId` · `Type` · `Status` · `CapturedAtUtc` · `DurationSec?` · `RelativePath?` · `SizeBytes?` · `FailureReason?` · `ExpiresAt?` · `RequestedByUserId?`.
@@ -548,7 +564,7 @@ bool IsMonitoringEnabled { get; set; }
 string? LastConnectionError { get; set; }
 ```
 
-> **Tek bir `MonitoredDevice` tablosu bilinçle YOK.** Her izlenen tip kendi tablosunu alır; ortağı **arayüz** garanti eder. Kalıtım (TPH) kullanılmadı çünkü EF onu tek tabloya çökertir — reddedilen tasarım tam olarak budur (§ 4.4).
+> **Tek bir `MonitoredDevice` tablosu bilinçle YOK.** 2026-10-22'den beri izlenen her şey bir `Device`'tır (tek uygulayıcı); tipe özgü alanlar 1-1 ek tablolardadır. Kalıtım (TPH/TPT) kullanılmadı çünkü EF TPH'yi tek tabloya çökertir — reddedilen tasarım tam olarak budur (§ 4.4) — TPT de her cihaz okumasını JOIN'e çevirir.
 
 ---
 
@@ -560,7 +576,8 @@ string? LastConnectionError { get; set; }
 DeviceStatus        Offline=0, Online=1, Warning=2, Maintenance=4   (3 = Critical 2026-10-12 kaldırıldı, boş)
 DeviceType          ControlModule=1, InputModule=2, OutputModule=3, LedModule=4,
                     TerminalBlock=5, Sensor=6, Peripheral=7, PowerSupply=8,
-                    MeasurementDevice=9, CardReader=10, Mains=11, CircuitBreaker=12   (0 YOK)
+                    MeasurementDevice=9, CardReader=10, Mains=11, CircuitBreaker=12,
+                    Pc=13, Camera=14                                     (0 YOK)
 PinDirection        Input=0, Output=1, Bidirectional=2, AnalogInput=3
 HandleSide          Left=0, Right=1, Top=2, Bottom=3
 PinFunction         COM=0, NO=1, NC=2, VCC=3, GND=4, RS485_POS=5, RS485_NEG=6, RJ45=7,
@@ -938,7 +955,7 @@ MonitoredDeviceType  Camera, UPS, Switch, Router, …
 
 > `SNMPConfig`'in ayrı tablo olmasının gerekçesi hâlâ öğreticidir: (a) v3 parolaları ana tablodayken her `ToListAsync()` onları belleğe çekiyordu; (b) opsiyonel owned type'ta EF **tüm** kolonları nullable yapmak zorundadır ve "SNMP var mı" sorusu altı kolonun hepsinin null olup olmadığına bakılarak cevaplanır — ayrı tabloda soru **satırın varlığıyla** cevaplanır; (c) şifreleme ve `GRANT` tablo seviyesinde uygulanabilir.
 
-**Yeni bir izlenen tip gerekirse** (ör. UPS): `MonitoredDevice`'ı diriltmeyin. `Camera` desenini izleyin — kendi tablosu, `IMonitoredAsset` implementasyonu, kendi servisi, kendi `probe-result` ucu.
+**Yeni bir izlenen tip gerekirse** (ör. UPS, NAS, alarm paneli): `MonitoredDevice`'ı diriltmeyin, ayrı kök tablo da açmayın (2026-10-22 kararı). Reçete: `DeviceType` değeri + sistem şablonu (RJ45 ucu → `IsMonitorable`) + tipe özgü alan varsa `Device` ile 1-1 ek tablo (ortak PK) + `DeviceDraft`'ta taslak nesnesi + `ValidateDeviceExtensions` / `WriteDeviceExtensions` + özellik panelinde bölüm. Yoklama ve kabin durumu ek kod istemez (`DeviceProbeSource`, `CabinetContribution`). Modüle ait bir tipse ek tablo modülün şemasında, `DeviceId` FK'siz durur.
 
 > **Bugün hiçbir yoklama servisi yok.** `POST /api/Camera/{id}/probe-result` kullanıcının yazacağı hedeftir; bugün `Camera.DeviceStatusId`'yi hiçbir şey yazmadığı için her kamera **"Yoklanmadı"** (`null`, ki bu `Offline` **değildir**) görünür.
 

@@ -2,8 +2,6 @@ using Scadex.Business.Utils.CameraCaptureGateway;
 using Scadex.Core.Utils.ResultPattern;
 using Scadex.Model.Dtos.Camera.Commands;
 using Scadex.Model.Dtos.Camera.Queries;
-using Scadex.Model.Dtos.Common;
-using Scadex.Model.Dtos.Monitoring.Commands;
 using static Scadex.Model.Enums.EntityEnums;
 
 namespace Scadex.Business.Abstract;
@@ -13,16 +11,18 @@ public interface ICameraService
     #region CRUD
     Task<Result<CameraDto>> GetAsync(Guid id, CancellationToken cancellationToken = default);
     Task<Result<ICollection<CameraDto>>> GetListAsync(Guid cabinetId, bool includePassive = false, CancellationToken cancellationToken = default);
-    Task<Result<CreatedDto>> CreateAsync(CameraCreateDto request, CancellationToken cancellationToken = default);
-    Task<Result> UpdateAsync(CameraUpdateDto request, CancellationToken cancellationToken = default); 
-    #endregion
-
-    #region Monitoring
-    /// <summary> Bir ping (TCP connect) sonucunu yazar. </summary>
-    Task<Result> RecordProbeResultAsync(Guid cameraId, MonitoredAssetProbeResultDto result, CancellationToken cancellationToken = default);
+    Task<Result> UpdateAsync(CameraUpdateDto request, CancellationToken cancellationToken = default);
     #endregion
 
     #region Streaming (MediaGateway)
+    /// <summary>
+    /// Diyagram kaydi (<c>DiagramController.Save</c>): kaydedildikten sonra cagrilir verilen cihazlardan kamera olanlarin
+    /// canli yollarini medya gecidinde yeniler — pasif kameranin yolunu siler, aktif kamerada yapilandirmasi guncel RTSP
+    /// kaynagiyla uyusmayan yolu siler (acik izleyicilerin eski bilgilerle kurulan oturumu kesilsin diye). Fark takibi
+    /// gerekmez: karsilastirma MediaMTX'teki yapilandirmayla yapilir. Basarisizlik yalnizca loglanir, kaydi geri almaz.
+    /// </summary>
+    Task RefreshStreamPathsAsync(IReadOnlyCollection<Guid> deviceIds, CancellationToken cancellationToken = default);
+
     /// <summary> Canli izleme token'ı uretir ve MediaMTX ilgili path'i kurar. NOT: Token path'e baglidir ve kisa omurludur. </summary>
     Task<Result<StreamTokenDto>> CreateStreamTokenAsync(Guid cameraId, StreamProfile profile, CancellationToken cancellationToken = default);
 
