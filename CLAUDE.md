@@ -377,7 +377,7 @@ Bunlar tek bir dosyaya bakarak görülemez; gerekçeleri PROJECT_OVERVIEW.md §5
   hiçbir zaman Maintenance üretmez (cihazın Maintenance'ı kabine taşınmaz) — yoksa kabin kendiliğinden bakıma düşüp kalırdı.
   **"Kabin neden bu renkte" dökümü (`GetBreakdownAsync`, 2026-10-12) katkıyı aynı `CabinetContribution`
   koduyla üretir;** ön yüz (harita panelindeki "Durum nedeni") kuralı kopyalamaz, `contribution`'ı okur.
-  Kuralı değiştirirseniz tek yer orasıdır. `CabinetStatusContributorKind.Camera` (2) kalktı — numarayı yeniden kullanmayın.
+  Kuralı değiştirirseniz tek yer orasıdır. `CabinetStatusContributorKind` 2026-10-25'te tümden kalktı (tek değeri kalmıştı); döküm kaydı her zaman bir cihazdır.
 - **MediaMTX yol temizliği üç şeyi asla silmez:** bizim üretmediğimiz adlar (yalnızca `cam_`
   önekliler adaydır — `mediamtx.yml`'deki **`all_others`** silinseydi geçit
   yapılandırmasız kalırdı), `record: true` olan yollar ve `readers > 0` olan yollar. Bu kuralları

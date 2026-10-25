@@ -20,12 +20,6 @@ public static class EntityEnums
         _ => 0
     };
 
-    /// <summary> Kabin durum dökümündeki kaydın cinsi (<c>CabinetStatusContributorDto.Kind</c>). </summary>
-    public enum CabinetStatusContributorKind
-    {
-        Device = 1
-    }
-
     /// <summary>
     /// Diyagram üzerinde yer alan cihazların kategorisi.
     /// </summary>

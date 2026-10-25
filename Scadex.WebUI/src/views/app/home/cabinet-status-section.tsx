@@ -51,7 +51,7 @@ export function CabinetStatusSection({ cabinetId, statusId }: { cabinetId: strin
           {breakdown.data.items.length > 0 && (
             <ul className='divide-y rounded-md border'>
               {breakdown.data.items.map(item => (
-                <ContributorRow key={`${item.kind}-${item.id}`} cabinetId={cabinetId} item={item} />
+                <ContributorRow key={item.id} cabinetId={cabinetId} item={item} />
               ))}
             </ul>
           )}

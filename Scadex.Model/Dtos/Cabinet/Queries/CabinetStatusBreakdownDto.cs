@@ -1,10 +1,9 @@
 using Scadex.Core.Model;
-using static Scadex.Model.Enums.EntityEnums;
 
 namespace Scadex.Model.Dtos.Cabinet.Queries;
 
 /// <summary>
-/// Kabin durumunun dökümü: kabin bu durumda ÇÜNKÜ hangi cihaz/kamera ne katkı veriyor (<c>GET /api/Cabinet/{id}/status-breakdown</c>).
+/// Kabin durumunun dökümü: kabin bu durumda ÇÜNKÜ hangi cihaz ne katkı veriyor (<c>GET /api/Cabinet/{id}/status-breakdown</c>).
 /// Katkılar <c>CabinetStatusService</c>'in durumu hesaplayan kuralının AYNISIYLA sunucuda üretilir; ön yüz kuralı kopyalamaz.
 /// Salt okunurdur — durumu yine yalnızca <c>ICabinetStatusService</c>'in yazım yolları değiştirir.
 /// </summary>
@@ -24,13 +23,12 @@ public class CabinetStatusBreakdownDto : IDto
     public List<CabinetStatusContributorDto> Items { get; set; } = [];
 }
 
-/// <summary> Kabin durumuna katkı veren (ya da verebilecek) tek bir cihaz/kamera. </summary>
+/// <summary> Kabin durumuna katkı veren (ya da verebilecek) tek bir cihaz — kameralar dahil, hepsi <c>Device</c>'tır. </summary>
 public class CabinetStatusContributorDto : IDto
 {
-    public CabinetStatusContributorKind Kind { get; set; }
     public Guid Id { get; set; }
     public string Name { get; set; } = null!;
-    /// <summary> Cihazın şablon adı; kamerada <c>null</c>. </summary>
+    /// <summary> Cihazın şablon adı. </summary>
     public string? TemplateName { get; set; }
     public bool IsControlModule { get; set; }
 
@@ -45,7 +43,7 @@ public class CabinetStatusContributorDto : IDto
     public string? LastConnectionError { get; set; }
 
     /// <summary>
-    /// Kaydın kabine YANSIYAN durumu (kuralın çıktısı): kontrol modülünde kendi durumu, diğer cihaz ve izlenen kamerada
+    /// Kaydın kabine YANSIYAN durumu (kuralın çıktısı): kontrol modülünde kendi durumu, diğer cihazlarda (kameralar dahil)
     /// <c>Offline → Warning</c>. <c>null</c> = kabine katkısı yok (örn. Çevrimiçi bir POS kabini Çevrimiçi yapamaz).
     /// </summary>
     public int? Contribution { get; set; }

@@ -48,7 +48,6 @@ public partial class CabinetStatusService
         var items = devices
             .Select(d => new CabinetStatusContributorDto
             {
-                Kind = EntityEnums.CabinetStatusContributorKind.Device,
                 Id = d.Id,
                 Name = d.Name,
                 TemplateName = d.TemplateName,

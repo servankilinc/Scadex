@@ -19,13 +19,6 @@ export const DeviceStatusLabels: Record<DeviceStatus, string> = {
   [DeviceStatus.Maintenance]: 'Bakımda'
 };
 
-/** Sunucudaki `EntityEnums.CabinetStatusContributorKind` — kabin durum dökümündeki kaydın cinsi. */
-export const CabinetStatusContributorKind = {
-  Device: 1
-  // 2 (Camera) kaldırıldı (2026-10-22): kamera artık bir cihazdır — numarayı yeniden kullanmayın.
-} as const;
-export type CabinetStatusContributorKind = (typeof CabinetStatusContributorKind)[keyof typeof CabinetStatusContributorKind];
-
 /**
  * `deviceStatusId === null`'un arayüzdeki adı. Telde ve DB'de temsil `null`'dır ve "canlılık kanıtı yok" demektir:
  * cihaz hiç yoklanmadı / SCADA'dan hiç temas gelmedi ya da izlenmiyor. `Offline` (0) ile AYNI ŞEY DEĞİL — o "denendi,

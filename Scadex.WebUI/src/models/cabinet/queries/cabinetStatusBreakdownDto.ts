@@ -1,8 +1,8 @@
 /** Ayna: Scadex.Model/Dtos/Cabinet/Queries/CabinetStatusBreakdownDto.cs — `GET /api/Cabinet/{id}/status-breakdown`. */
-import type { CabinetStatusContributorKind, DeviceStatus } from '@/models/enums';
+import type { DeviceStatus } from '@/models/enums';
 
 /**
- * Kabin durumunun dökümü: kabin bu renkte ÇÜNKÜ hangi cihaz/kamera ne katkı veriyor. Katkılar sunucuda durumu hesaplayan
+ * Kabin durumunun dökümü: kabin bu renkte ÇÜNKÜ hangi cihaz (kameralar dahil) ne katkı veriyor. Katkılar sunucuda durumu hesaplayan
  * kuralın AYNISIYLA üretilir — ön yüz kuralı kopyalamaz, yalnızca `contribution`'ı okur. `...` damgalarında `Z` yok.
  */
 export interface CabinetStatusBreakdownDto {
@@ -20,10 +20,9 @@ export interface CabinetStatusBreakdownDto {
 }
 
 export interface CabinetStatusContributorDto {
-  kind: CabinetStatusContributorKind;
   id: string;
   name: string;
-  /** Cihazın şablon adı; kamerada `null`. */
+  /** Cihazın şablon adı. */
   templateName: string | null;
   isControlModule: boolean;
   isMonitoringEnabled: boolean;
