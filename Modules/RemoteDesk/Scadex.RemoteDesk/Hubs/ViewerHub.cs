@@ -18,6 +18,9 @@ public interface IViewerHubClient
 {
     Task ControlEnded(ControlEndedNotice notice);
 
+    /// <summary> Kontrol edilen PC'de girdinin durumu değişti (kilit ekranı / UAC, red, monitör yok). </summary>
+    Task ControlInputState(ControlInputNotice notice);
+
     /// <summary> Dosya transferinin durumu değişti (hazır/tamamlandı/başarısız). </summary>
     Task FileTransferState(Model.Dtos.FileTransfer.FileTransferStateNotice notice);
 }

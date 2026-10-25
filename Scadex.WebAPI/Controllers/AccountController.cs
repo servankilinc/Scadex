@@ -7,7 +7,7 @@ using Scadex.Model.Auth.Logout;
 using Scadex.Model.Auth.Refresh;
 using Scadex.Model.Dtos.User.Commands;
 using Scadex.WebAPI.Controllers.Base;
-using Scadex.WebAPI.Tools;
+using Scadex.Business.Utils.RateLimiting;
 using System.Security.Claims;
 
 namespace Scadex.WebAPI.Controllers;

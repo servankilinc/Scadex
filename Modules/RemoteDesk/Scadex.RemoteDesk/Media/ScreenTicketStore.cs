@@ -7,7 +7,7 @@ namespace Scadex.RemoteDesk.Media;
 /// PC pathlerinin tokenları. Token RTSP/WHEP parolasıdır; MediaMTX onu auth kancasına iletir.
 /// <list type="bullet">
 /// <item><b>Okuma toekn'ı</b> — tarayıcı; kısa ömürlü, WHEP el sıkışmasında bir kez doğrulanır.</item>
-/// <item><b>Yayın toekn'ı</b> — Windows istemcisi; oturum boyunca geçerli, TEK KULLANIMLIK DEĞİL (FFmpeg koparsa yeniden bağlanır, MediaMTX tekrar sorar).
+/// <item><b>Yayın toekn'ı</b> — PC istemcisi; oturum boyunca geçerli, TEK KULLANIMLIK DEĞİL (FFmpeg koparsa yeniden bağlanır, MediaMTX tekrar sorar).
 ///  Oturum bitince <see cref="RevokePublishAsync"/> ile silinir; üst sınır yalnızca sahipsiz kalana karşı emniyettir.</item>
 /// </list>
 /// Anahtar uzayları ayrıdır: okuma toekn'ı yayın, yayın token'ı okuma yapmaz; kameranın tokenları da karışmaz.

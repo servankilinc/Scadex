@@ -3,7 +3,8 @@ using System.Runtime.InteropServices;
 namespace Scadex.RemoteDesk.Windows.Services.Shell;
 
 /// <summary>
-/// System Tray ikonu (WinForms <c>NotifyIcon</c>, üçüncü parti paket yok). Pencere kapatılınca uygulama buraya iner; çıkış yalnızca menüden.
+/// System Tray ikonu (WinForms <c>NotifyIcon</c>, üçüncü parti paket yok). Pencere kapatılınca arayüz buraya iner. "Arayüzü kapat" yalnızca
+/// arayüzü kapatır — izleme ve uzaktan bağlantı Agent'tadır ve sürer.
 /// Merkez ekranı izlerken ikon kırmızı noktalı olur. UI iş parçacığında oluşturulmalı ve güncellenmelidir.
 /// </summary>
 public sealed partial class TrayIcon : IDisposable
@@ -13,14 +14,14 @@ public sealed partial class TrayIcon : IDisposable
     private readonly System.Drawing.Icon _watchingIcon;
     private readonly IntPtr _watchingHandle;
 
-    public TrayIcon(Action show, Action reconnect, Action exit)
+    public TrayIcon(Action show, Action reconnect, Action closeUi)
     {
         var menu = new System.Windows.Forms.ContextMenuStrip();
         menu.Items.Add("Göster", null, (_, _) => show());
         menu.Items.Add("Yeniden bağlan", null, (_, _) => reconnect());
-        menu.Items.Add("Günlük klasörünü aç", null, (_, _) => ClientLog.OpenFolder());
+        menu.Items.Add("Günlük klasörünü aç", null, (_, _) => UiLog.OpenAgentLogFolder());
         menu.Items.Add(new System.Windows.Forms.ToolStripSeparator());
-        menu.Items.Add("Çıkış", null, (_, _) => exit());
+        menu.Items.Add("Arayüzü kapat (izleme sürer)", null, (_, _) => closeUi());
 
         (_watchingIcon, _watchingHandle) = CreateWatchingIcon(_normalIcon);
 

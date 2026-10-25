@@ -10,9 +10,10 @@ using static Scadex.RemoteDesk.Enums.RemoteDeskEnums;
 namespace Scadex.RemoteDesk.Controllers;
 
 /// <summary>
-/// Dosya transferinin BAYT yüzeyi. Baytlar hub'dan değil buradan, merkezdeki geçici dosya üzerinden akar.
-/// Tarayıcı uçları <c>RemotePcFileTransfer</c> ister (JWT); PC uçları (<c>pull</c>/<c>push</c>) JWT'siz, tek-kullanımlık BİLETLE
-/// yetkilendirilir. 1 GB sınırı akışta zorlanır. Hangi dosyanın nereye gideceği viewer hub'ında kontrol sahipliğiyle bağlanır.
+/// Dosya transferinin tarayıcı tarafı BAYT yüzeyi (<c>RemotePcFileTransfer</c>, kullanıcı JWT'si). Baytlar hub'dan değil buradan, merkezdeki
+/// geçici dosya üzerinden akar; 1 GB sınırı akışta zorlanır. PC tarafı (<c>push</c>/<c>pull</c>) ayrı controller'dadır
+/// (<see cref="PcFileTransferController"/>): cihaz kimliği ister ve <c>[Authorize]</c>'lar VE ile birleştiği için buradaki kullanıcı
+/// policy'siyle aynı sınıfta duramaz.
 /// </summary>
 [Authorize(Policy = RemoteDeskModule.FileTransferPolicy)]
 public class FileTransferController : RemoteDeskControllerBase
@@ -41,7 +42,7 @@ public class FileTransferController : RemoteDeskControllerBase
         var entry = _store.BeginBrowserUpload(userId, userName, fileName);
         try
         {
-            long bytes = await CopyWithLimitAsync(Request.Body, entry.TempPath, cancellationToken);
+            long bytes = await FileTransferStore.CopyWithLimitAsync(Request.Body, entry.TempPath, cancellationToken);
             if (bytes < 0)
             {
                 _store.Remove(entry.TransferId);
@@ -73,59 +74,6 @@ public class FileTransferController : RemoteDeskControllerBase
         var stream = new FileStream(entry.TempPath, FileMode.Open, FileAccess.Read, FileShare.Read, 64 * 1024, FileOptions.DeleteOnClose | FileOptions.Asynchronous);
         _store.Forget(transferId);   // kaydı düşür; dosya DeleteOnClose ile gider
         return File(stream, "application/octet-stream", entry.FileName);
-    }
-
-    /// <summary> PC → merkeze yükle (FromPc baytları). JWT'siz; bilet şart. </summary>
-    [AllowAnonymous]
-    [HttpPut("filetransfer/{transferId:guid}/push")]
-    [DisableRequestSizeLimit]
-    public async Task<IActionResult> Push(Guid transferId, [FromQuery] string ticket, CancellationToken cancellationToken)
-    {
-        if (!_store.ValidateTicket(transferId, ticket) || !_store.TryGet(transferId, out var entry) || entry.Direction != FileTransferDirection.FromPc)
-            return Unauthorized();
-        long bytes = await CopyWithLimitAsync(Request.Body, entry.TempPath, cancellationToken);
-        if (bytes < 0)
-        {
-            _store.SetStatus(transferId, FileTransferStatus.Failed, error: "1 GB sınırı aşıldı");
-            return BadRequest();
-        }
-        _store.SetStatus(transferId, entry.Status, bytes);   // durum ReportFileTransfer ile ilerler
-        return Ok();
-    }
-
-    /// <summary> PC → merkezden çek (ToPc baytları). JWT'siz; bilet şart. </summary>
-    [AllowAnonymous]
-    [HttpGet("filetransfer/{transferId:guid}/pull")]
-    public IActionResult Pull(Guid transferId, [FromQuery] string ticket)
-    {
-        if (!_store.ValidateTicket(transferId, ticket) || !_store.TryGet(transferId, out var entry)
-            || entry.Direction != FileTransferDirection.ToPc || !System.IO.File.Exists(entry.TempPath))
-            return Unauthorized();
-        var stream = new FileStream(entry.TempPath, FileMode.Open, FileAccess.Read, FileShare.Read, 64 * 1024, FileOptions.Asynchronous);
-        return File(stream, "application/octet-stream", entry.FileName);
-    }
-
-    /// <summary> Gövdeyi dosyaya akıtır; <see cref="FileTransferStore.MaxBytes"/> aşılırsa -1 döner (ve dosyayı siler). </summary>
-    private static async Task<long> CopyWithLimitAsync(Stream source, string destPath, CancellationToken cancellationToken)
-    {
-        long total = 0;
-        var buffer = new byte[64 * 1024];
-        await using (var dest = new FileStream(destPath, FileMode.Create, FileAccess.Write, FileShare.None, buffer.Length, FileOptions.Asynchronous))
-        {
-            int read;
-            while ((read = await source.ReadAsync(buffer, cancellationToken)) > 0)
-            {
-                total += read;
-                if (total > FileTransferStore.MaxBytes)
-                {
-                    dest.Close();
-                    try { System.IO.File.Delete(destPath); } catch { /* yok say */ }
-                    return -1;
-                }
-                await dest.WriteAsync(buffer.AsMemory(0, read), cancellationToken);
-            }
-        }
-        return total;
     }
 
     private Guid? CurrentUserId() =>

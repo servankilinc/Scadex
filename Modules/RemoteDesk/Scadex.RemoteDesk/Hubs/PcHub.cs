@@ -1,5 +1,4 @@
 using Microsoft.AspNetCore.Authorization;
-using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.AspNetCore.SignalR;
 using Microsoft.Extensions.Logging;
 using Scadex.Business.Utils.Auth;
@@ -15,16 +14,19 @@ using static Scadex.Model.Enums.EntityEnums;
 namespace Scadex.RemoteDesk.Hubs;
 
 /// <summary>
-/// Windows clients kontrol düzlemi — <c>/hubs/remote-desk/pc</c>, yalnızca modül açıkken eşlenir.
+/// PC istemcilerinin kontrol düzlemi (sözleşme OS'tan bağımsız) — <c>/hubs/remote-desk/pc</c>, yalnızca modül açıkken eşlenir.
 /// <para/>
 /// PC Basic Auth ile doğrulanır (çekirdeğin <see cref="DeviceAuthPolicies.Pc"/> policy'si; kullanıcı adı = cihaz Id'si, parola =
 /// diyagramda üretilen parola).
+/// <para/>
+/// Negotiate ve bağlantı istekleri IP başına sınırlıdır (<see cref="RemoteDeskModule.PcHubRateLimitPolicy"/>, eşlemede); bağlanıp
+/// <see cref="HelloTimeout"/> içinde <c>Hello</c>'su kabul edilmeyen bağlantı kapatılır — kimliği doğru ama işsiz bağlantı yer tutmasın.
 /// </summary>
 [Authorize(Policy = DeviceAuthPolicies.Pc)]
-[DisableRateLimiting]
 public class PcHub : Hub<IPcHubClient>
 {
     private const string DeviceIdItem = "remotedesk.deviceId";
+    private static readonly TimeSpan HelloTimeout = TimeSpan.FromSeconds(10);
 
     private readonly IUnitOfWork _unitOfWork;
     private readonly PcConnectionRegistry _registry;
@@ -44,6 +46,21 @@ public class PcHub : Hub<IPcHubClient>
         _registry = registry;
         _networkPolicy = networkPolicy;
         _logger = logger;
+    }
+
+    /// <summary> <see cref="HelloTimeout"/> içinde Hello kabul edilmezse bağlantıyı kapatır (red alan istemci zaten kendisi kapatır). </summary>
+    public override Task OnConnectedAsync()
+    {
+        var context = Context;
+        var logger = _logger;
+        _ = Task.Delay(HelloTimeout, context.ConnectionAborted).ContinueWith(t =>
+        {
+            if (t.IsCanceled || context.Items.ContainsKey(DeviceIdItem)) return;
+            logger.LogWarning("RemoteDesk: {DeviceId} {HelloTimeout} sn içinde Hello göndermedi; bağlantı kapatıldı",
+                context.User?.GetDeviceId(), HelloTimeout.TotalSeconds);
+            context.Abort();
+        }, TaskScheduler.Default);
+        return base.OnConnectedAsync();
     }
 
     /// <summary> Kimliği doğrulanmış PC'yi bellekteki bağlantı kaydına yazar (cihaz başına ilk bağlanan kazanır). </summary>
@@ -99,6 +116,10 @@ public class PcHub : Hub<IPcHubClient>
     /// <summary> Dosya transferinin sonucu (push/pull bitti ya da reddedildi). </summary>
     public Task ReportFileTransfer(FileTransferResult result) =>
         _files.OnPcResultAsync(RequireDeviceId(), Context.ConnectionId, result);
+
+    /// <summary> Uzaktan kontrolde girdinin durumu değişti — kontrol eden tarayıcıya iletilir. </summary>
+    public Task ReportControlInput(ControlInputReport report) =>
+        _control.OnPcInputStateAsync(RequireDeviceId(), Context.ConnectionId, report);
 
     public override async Task OnDisconnectedAsync(Exception? exception)
     {

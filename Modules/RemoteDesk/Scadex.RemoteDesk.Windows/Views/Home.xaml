@@ -61,6 +61,7 @@
                             <RowDefinition Height="Auto" />
                             <RowDefinition Height="Auto" />
                             <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
                         </Grid.RowDefinitions>
                         <TextBlock Grid.Row="0" Text="Merkez" Style="{StaticResource Label}" />
                         <TextBlock Grid.Row="0" Grid.Column="1" Text="{Binding CentralUrl}" Style="{StaticResource Value}" />
@@ -70,6 +71,8 @@
                         <!-- Seçilebilir: teknisyen diyagramdaki PC cihazının kullanıcı adıyla karşılaştırır. Sır gösterilmez. -->
                         <TextBox Grid.Row="2" Grid.Column="1" Text="{Binding DeviceIdText, Mode=OneWay}" IsReadOnly="True" BorderThickness="0"
                                  Background="Transparent" FontFamily="Consolas" Padding="0" Margin="0,3,0,3" />
+                        <TextBlock Grid.Row="3" Text="Agent" Style="{StaticResource Label}" />
+                        <TextBlock Grid.Row="3" Grid.Column="1" Text="{Binding AgentText}" Style="{StaticResource Value}" Foreground="#6B7580" />
                     </Grid>
                 </StackPanel>
             </Border>
@@ -77,10 +80,8 @@
             <!-- Başlık: FFmpeg ve donanım -->
             <Border Style="{StaticResource Card}">
                 <StackPanel>
-                    <DockPanel>
-                        <Button DockPanel.Dock="Right" Content="Monitörleri yenile" Command="{Binding RefreshCommand}" Margin="0" />
-                        <TextBlock Text="Scadex RemoteDesk — saha kontrolü" FontSize="17" FontWeight="SemiBold" />
-                    </DockPanel>
+                    <!-- Monitör listesi Agent'tan kendiliğinden gelir (ekran değişince / RDP geçişinde); elle yenileme yok. -->
+                    <TextBlock Text="Scadex RemoteDesk — saha kontrolü" FontSize="17" FontWeight="SemiBold" />
                     <TextBlock Text="{Binding MachineText}" Style="{StaticResource Value}" Margin="0,6,0,0" />
                     <TextBlock Text="{Binding FfmpegText}" Style="{StaticResource Value}" Foreground="#6B7580" />
                     <TextBlock Text="{Binding FfmpegWarning}" Style="{StaticResource Value}" Foreground="#C78A10" FontWeight="SemiBold"

@@ -8,7 +8,7 @@ export const InputEventType = {
   Down: 2,
   Up: 3,
   Wheel: 4,
-  /** `code` zorunlu; sunucu yalnızca tablosundaki (Contracts `KeyboardScanCodes`) kodları iletir. */
+  /** `code` zorunlu; sunucu yalnızca Contracts `KeyboardCodes` kümesindeki kodları iletir (OS'tan bağımsız; PC kendi tuş kimliğine çevirir). */
   KeyDown: 5,
   KeyUp: 6
 } as const;
@@ -88,6 +88,39 @@ export const RemoteControlEndReasonLabels: Record<RemoteControlEndReason, string
 export interface ControlEndedNotice {
   controlSessionId: string;
   reason: RemoteControlEndReason;
+}
+
+/**
+ * Kontrol edilen PC'de girdinin durumu (readiness P1.5) — C#: `Contracts/Hub/RemoteInput.cs > ControlInputState`. PC yalnızca değişince
+ * bildirir; kontrol `Ok` varsayımıyla başlar.
+ */
+export const ControlInputState = {
+  Ok: 1,
+  SecureDesktop: 2,
+  SecureDesktopUnavailable: 3,
+  Rejected: 4,
+  MonitorMissing: 5
+} as const;
+export type ControlInputState = (typeof ControlInputState)[keyof typeof ControlInputState];
+
+/** Araç çubuğunda gösterilen metin ve ton: `info` = girdi gidiyor ama dikkat; `warning` = girdi ulaşmıyor. */
+export const ControlInputStateLabels: Record<Exclude<ControlInputState, 1>, { text: string; tone: 'info' | 'warning' }> = {
+  [ControlInputState.SecureDesktop]: { text: "PC'de kilit ekranı ya da UAC onayı açık — tıklama ve tuşlarınız oraya gider.", tone: 'info' },
+  [ControlInputState.SecureDesktopUnavailable]: {
+    text: "PC'de kilit ekranı ya da UAC onayı açık; PC istemcisi oraya erişemiyor.",
+    tone: 'warning'
+  },
+  [ControlInputState.Rejected]: {
+    text: 'PC girdiyi reddetti — öndeki pencere ya da bir güvenlik yazılımı engelliyor olabilir.',
+    tone: 'warning'
+  },
+  [ControlInputState.MonitorMissing]: { text: "İzlenen monitör PC'de artık yok — monitörü yeniden seçin.", tone: 'warning' }
+};
+
+/** Sunucu → tarayıcı: kontrol edilen PC'de girdinin durumu değişti. */
+export interface ControlInputNotice {
+  controlSessionId: string;
+  state: ControlInputState;
 }
 
 /** `PcDetailDto.control` — PC'yi şu an kontrol eden kullanıcı. */

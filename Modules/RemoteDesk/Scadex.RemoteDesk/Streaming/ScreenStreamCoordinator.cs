@@ -71,7 +71,7 @@ public sealed class ScreenStreamCoordinator
     public async Task<Result<ScreenViewDto>> StartViewAsync(Guid deviceId, int monitorIndex, Guid userId, CancellationToken cancellationToken)
     {
         if (!_connections.TryGet(deviceId, out var connection))
-            return Result<ScreenViewDto>.Validation(Error("DeviceId", "PC bağlı değil: Windows istemcisi merkeze bağlı olmalı."));
+            return Result<ScreenViewDto>.Validation(Error("DeviceId", "PC bağlı değil: PC istemcisi merkeze bağlı olmalı."));
         if (connection.Monitors.All(m => m.Index != monitorIndex))
             return Result<ScreenViewDto>.Validation(Error("MonitorIndex", "PC'de bu numarada monitör yok."));
 

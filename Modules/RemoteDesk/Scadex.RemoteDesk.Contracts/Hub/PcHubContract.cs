@@ -3,7 +3,12 @@ using Scadex.RemoteDesk.Contracts.Media;
 namespace Scadex.RemoteDesk.Contracts.Hub;
 
 /// <summary>
-/// Windows istemcisi ↔ merkez kontrol düzlemi. JSON Scadex'le aynıdır: camelCase, enum SAYI, <c>null</c> alanlar gövdede kalır. İstemci dışarı bağlanır; PC hiçbir port açmaz.
+/// PC istemcisi ↔ merkez kontrol düzlemi. JSON Scadex'le aynıdır: camelCase, enum SAYI, <c>null</c> alanlar gövdede kalır. İstemci dışarı bağlanır; PC hiçbir port açmaz.
+/// <para/>
+/// Sözleşme işletim sisteminden BAĞIMSIZDIR: bugün tek istemci Windows'tur, ileride Linux/Android istemcisi aynı hub'a sunucu değişmeden
+/// bağlanabilmelidir. Bu yüzden telde yalnızca platformdan bağımsız kavramlar taşınır (DOM tuş kodu, [0,1] koordinat, RTSP yayın adresi, opak
+/// yol metni). Platforma özgü alanlar (<see cref="Media.MonitorInfo"/>'daki DXGI ayrıntıları, <see cref="Media.EncoderKind"/>) yalnızca
+/// bilgi içindir; sunucu onları YORUMLAMAZ. Yeni alan eklerken bu ayrımı koruyun.
 /// </summary>
 public static class PcHubContract
 {
@@ -15,6 +20,7 @@ public static class PcHubContract
     public const string ReportMonitors = nameof(ReportMonitors);
     public const string ReportStreamState = nameof(ReportStreamState);
     public const string ReportFileTransfer = nameof(ReportFileTransfer);
+    public const string ReportControlInput = nameof(ReportControlInput);
 }
 
 /// <summary> Sunucu → istemci. Metot adları arayüz metot adlarıdır (<c>Hub&lt;IPcHubClient&gt;</c>). </summary>
@@ -81,7 +87,7 @@ public enum ScreenStreamState
     Streaming = 2,
     /// <summary> FFmpeg düştü, yeniden deneniyor. </summary>
     Retrying = 3,
-    /// <summary> Ekran kilitli / güvenli masaüstü — kilit açılınca kendiliğinden sürer. </summary>
+    /// <summary> Ekran kilitli / yakalanamıyor (Windows'ta güvenli masaüstü geçişi) — kendiliğinden sürer. </summary>
     ScreenLocked = 4,
     Failed = 5,
     Stopped = 6

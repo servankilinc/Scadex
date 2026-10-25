@@ -1,6 +1,7 @@
 import { useCallback, useSyncExternalStore } from 'react';
 import type { PermissionCode } from '@/models/enums/entityEnums';
 import type { UserBaseDto } from '@/models/user';
+import { newId } from '@/lib/sequential-id';
 
 /**
  * Oturuma dair HER SEY bu dosyada: localStorage'daki tek anahtar, degisiklikleri
@@ -152,12 +153,15 @@ export function clearSession(): void {
  * refresh zinciri acar; sabit tutuldugunda "bu cihazdan cikis yap" anlamli olur.
  * Uretildigi anda kaydedilir ki basarisiz bir giris denemesinden sonra bile
  * ayni cihaz kimligiyle devam edilsin.
+ *
+ * `crypto.randomUUID()` DEGIL: o yalnizca guvenli baglamda (HTTPS/localhost) vardir; HTTPS'siz kurulumda (README § 1.4) ilk giris
+ * TypeError ile hic gonderilemezdi. `newId()` `crypto.getRandomValues` kullanir, her baglamda calisir ve gecerli bir Guid uretir.
  */
 export function getOrCreateDeviceId(): string {
   const existing = cache.deviceId;
   if (existing) return existing;
 
-  const deviceId = crypto.randomUUID();
+  const deviceId = newId();
   merge({ deviceId });
   return deviceId;
 }

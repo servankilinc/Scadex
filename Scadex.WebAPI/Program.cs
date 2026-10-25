@@ -25,6 +25,7 @@ using Scadex.RemoteDesk;
 using Scadex.Signalization;
 using Scadex.WebAPI.BackgroundServices;
 using Scadex.WebAPI.Hubs;
+using Scadex.Business.Utils.RateLimiting;
 using Scadex.WebAPI.Tools;
 using Scadex.WebAPI.Utils;
 using Scalar.AspNetCore;
@@ -336,9 +337,9 @@ else
 
 app.UseAuthentication();
 
-app.UseAuthorization();
-
 app.UseRateLimiter();
+
+app.UseAuthorization();
 
 app.MapControllers();
 

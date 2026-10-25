@@ -7,6 +7,8 @@ import {
   MouseButton,
   RemoteControlEndReasonLabels,
   type ControlEndedNotice,
+  type ControlInputNotice,
+  type ControlInputState,
   type InputEvent,
   type RequestControlResponse
 } from '../models/control';
@@ -35,6 +37,8 @@ export interface RemoteControlOptions {
   video: HTMLVideoElement;
   /** `ended`'de `message` nedeni taşır (red, sunucunun bitirmesi, kopma). */
   onState: (state: RemoteControlState, message?: string) => void;
+  /** PC'de girdinin durumu değişti (kilit ekranı / UAC, red, monitör yok — readiness P1.5). Yalnızca değişince gelir. */
+  onInput: (state: ControlInputState) => void;
 }
 
 export interface RemoteControlHandle {
@@ -47,7 +51,7 @@ export interface RemoteControlHandle {
 const FLUSH_MS = 16;
 
 export function startRemoteControl(options: RemoteControlOptions): RemoteControlHandle {
-  const { deviceId, monitorIndex, surface, video, onState } = options;
+  const { deviceId, monitorIndex, surface, video, onState, onInput } = options;
 
   let connection: HubConnection | null = new HubConnectionBuilder()
     .withUrl(`${API_BASE_URL}/hubs/remote-desk/viewer`, { accessTokenFactory: () => getAccessToken() ?? '' })
@@ -249,6 +253,9 @@ export function startRemoteControl(options: RemoteControlOptions): RemoteControl
 
   connection.on('ControlEnded', (notice: ControlEndedNotice) => {
     if (notice.controlSessionId === controlSessionId) finish(RemoteControlEndReasonLabels[notice.reason], false);
+  });
+  connection.on('ControlInputState', (notice: ControlInputNotice) => {
+    if (!finished && notice.controlSessionId === controlSessionId) onInput(notice.state);
   });
   connection.onclose(() => finish('Kontrol bağlantısı koptu.', false));
 

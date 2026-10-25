@@ -7,7 +7,7 @@ import { API_BASE_URL } from '@/lib/axios-helper';
  * yazmak, uygulama taşındığı gün (localhost → IIS → ters vekil) bütün
  * şablonların görselini kırardı.
  *
- * Ama frontend geliştirmede :5173'te, API :7042'de. Göreli URL'yi olduğu gibi
+ * Ama frontend geliştirmede :5173'te, API :5208'de. Göreli URL'yi olduğu gibi
  * `<img src>`'ye vermek Vite'a gider ve 404 döner. Çevirme TEK yerde yapılıyor
  * ki bir bileşende unutulup "bazı yerlerde resim görünmüyor" hatası çıkmasın.
  */

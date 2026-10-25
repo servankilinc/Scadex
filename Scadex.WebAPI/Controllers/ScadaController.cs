@@ -5,7 +5,7 @@ using Scadex.Business.Abstract;
 using Scadex.Business.Utils.Auth;
 using Scadex.Model.Dtos.Scada.Commands;
 using Scadex.WebAPI.Controllers.Base;
-using Scadex.WebAPI.Tools;
+using Scadex.Business.Utils.RateLimiting;
 
 namespace Scadex.WebAPI.Controllers;
 

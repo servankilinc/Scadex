@@ -25,7 +25,7 @@ public static class RemoteDeskEnums
         NoViewers = 1,
         /// <summary> Aynı monitör için yeni bir oturum açıldı. </summary>
         Replaced = 2,
-        /// <summary> Windows istemcisinin bağlantısı koptu. </summary>
+        /// <summary> PC istemcisinin bağlantısı koptu. </summary>
         ClientDisconnected = 3,
         /// <summary> İstemci yayını başlatamadı / sürdüremedi. </summary>
         ClientFailed = 4,

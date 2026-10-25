@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Link, useParams } from 'react-router';
 import { useQueryClient } from '@tanstack/react-query';
-import { ArrowLeftIcon, ArrowLeftRightIcon, ChevronDownIcon, ChevronUpIcon, ClipboardCopyIcon, ClipboardListIcon, ClipboardPasteIcon, EyeIcon, LoaderIcon, MaximizeIcon, MonitorIcon, MonitorOffIcon, MousePointerClickIcon, VideoOffIcon } from 'lucide-react';
+import { ArrowLeftIcon, ArrowLeftRightIcon, ChevronDownIcon, ChevronUpIcon, ClipboardCopyIcon, ClipboardListIcon, ClipboardPasteIcon, EyeIcon, LoaderIcon, LockIcon, MaximizeIcon, MonitorIcon, MonitorOffIcon, MousePointerClickIcon, TriangleAlertIcon, VideoOffIcon } from 'lucide-react';
 import { toast } from 'sonner';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -15,7 +15,8 @@ import { usePcStream } from '../hooks/use-pc-stream';
 import { useRemoteControl } from '../hooks/use-remote-control';
 import { useFileTransfer } from '../hooks/use-file-transfer';
 import { FileTransferDialog } from '../components/file-transfer-dialog';
-import type { PcControlDto } from '../models/control';
+import { CLIPBOARD_MAX_CHARS, ClipboardDialog } from '../components/clipboard-dialog';
+import { ControlInputState, ControlInputStateLabels, type PcControlDto } from '../models/control';
 import { ScreenStreamStateLabels, type PcDetailDto, type PcMonitorDto } from '../models/pc';
 
 /**
@@ -43,6 +44,9 @@ const COMBOS: { label: string; codes: string[] }[] = [
 /** Keyboard Lock API (yalnızca Chromium, yalnızca tam ekranda) — TS DOM kütüphanesinde yok. */
 type KeyboardLock = { lock?: (codes?: string[]) => Promise<void>; unlock?: () => void };
 const keyboardLock = () => (navigator as Navigator & { keyboard?: KeyboardLock }).keyboard;
+
+/** Tek tık pano (async Clipboard API) yalnızca güvenli bağlamda vardır; yoksa iki adımlı pencere açılır. */
+const hasAsyncClipboard = () => window.isSecureContext && navigator.clipboard !== undefined;
 
 const CONTROL_PERMISSION: keyof typeof Permission = 'RemotePcControl';
 const FILE_PERMISSION: keyof typeof Permission = 'RemotePcFileTransfer';
@@ -183,11 +187,18 @@ function PcPlayer({ deviceId, monitorIndex, control }: { deviceId: string; monit
   // Üst-orta araç çubuğu (kontrol + kısayol + dosya + pano): açılır/kapanır katman.
   const [toolbarOpen, setToolbarOpen] = useState(true);
 
-  // Panolar arası aktarım (RemoteDesk.md § 12.9). Tek tık navigator.clipboard (güvenli bağlam gerekir — dağıtım gereği, yedek yok).
+  // Panolar arası aktarım (RemoteDesk.md § 12.9). Güvenli bağlamda tek tık navigator.clipboard; HTTPS'siz kurulumda (navigator.clipboard
+  // yok) iki adımlı pencere — Ctrl+V / Ctrl+C her bağlamda çalışır (2026-10-26).
+  const [clipboardDialog, setClipboardDialog] = useState<{ mode: 'export' } | { mode: 'import'; text: string } | null>(null);
+
   const exportClipboard = useCallback(async () => {
+    if (!hasAsyncClipboard()) {
+      setClipboardDialog({ mode: 'export' });
+      return;
+    }
     try {
       const text = await navigator.clipboard.readText();
-      if (text.length > 1_000_000) {
+      if (text.length > CLIPBOARD_MAX_CHARS) {
         toast.error('Pano metni çok uzun (en fazla ~1 milyon karakter).');
         return;
       }
@@ -195,21 +206,32 @@ function PcPlayer({ deviceId, monitorIndex, control }: { deviceId: string; monit
       if (res.success) toast.success('Pano uzak PC’ye aktarıldı.');
       else toast.error(res.message ?? 'Pano aktarılamadı.');
     } catch {
-      toast.error('Yerel pano okunamadı (tarayıcı izni / HTTPS gerekir).');
+      // Tarayıcı izni reddedildi: iki adımlı yola düş.
+      setClipboardDialog({ mode: 'export' });
     }
   }, [files]);
 
   const importClipboard = useCallback(async () => {
+    let res;
     try {
-      const res = await files.getRemoteClipboard();
-      if (!res.success) {
-        toast.error(res.message ?? 'Uzak pano alınamadı.');
-        return;
-      }
+      res = await files.getRemoteClipboard();
+    } catch {
+      toast.error('Uzak pano alınamadı.');
+      return;
+    }
+    if (!res.success) {
+      toast.error(res.message ?? 'Uzak pano alınamadı.');
+      return;
+    }
+    if (!hasAsyncClipboard()) {
+      setClipboardDialog({ mode: 'import', text: res.text ?? '' });
+      return;
+    }
+    try {
       await navigator.clipboard.writeText(res.text ?? '');
       toast.success(res.text ? 'Uzak pano yerele alındı.' : 'Uzak panoda metin yok.');
     } catch {
-      toast.error('Yerel panoya yazılamadı (tarayıcı izni / HTTPS gerekir).');
+      setClipboardDialog({ mode: 'import', text: res.text ?? '' });
     }
   }, [files]);
 
@@ -299,6 +321,7 @@ function PcPlayer({ deviceId, monitorIndex, control }: { deviceId: string; monit
                   <ControlBar
                     status={remote.status}
                     message={remote.message}
+                    inputState={remote.inputState}
                     control={control}
                     onRequest={remote.request}
                     onRelease={remote.release}
@@ -350,6 +373,12 @@ function PcPlayer({ deviceId, monitorIndex, control }: { deviceId: string; monit
       )}
 
       {canFiles && filesOpen && <FileTransferDialog deviceId={deviceId} files={files} onClose={() => setFilesOpen(false)} />}
+      {canFiles && clipboardDialog?.mode === 'export' && (
+        <ClipboardDialog mode='export' onSend={files.setRemoteClipboard} onClose={() => setClipboardDialog(null)} />
+      )}
+      {canFiles && clipboardDialog?.mode === 'import' && (
+        <ClipboardDialog mode='import' text={clipboardDialog.text} onClose={() => setClipboardDialog(null)} />
+      )}
     </div>
   );
 }
@@ -357,6 +386,7 @@ function PcPlayer({ deviceId, monitorIndex, control }: { deviceId: string; monit
 function ControlBar({
   status,
   message,
+  inputState,
   control,
   onRequest,
   onRelease,
@@ -365,6 +395,7 @@ function ControlBar({
 }: {
   status: 'idle' | 'requesting' | 'active';
   message?: string;
+  inputState: ControlInputState;
   control: PcControlDto | null;
   onRequest: () => void;
   onRelease: () => void;
@@ -395,6 +426,7 @@ function ControlBar({
           <span className='text-xs text-muted-foreground' title='Klavye için görüntüye bir kez tıklayın. Ctrl+Alt+Del gönderilemez.'>
             Klavye için tıklayın · Ctrl+Alt+Del yok
           </span>
+          {inputState !== ControlInputState.Ok && <InputStateNote state={inputState} />}
         </>
       ) : (
         <>
@@ -407,5 +439,22 @@ function ControlBar({
         </>
       )}
     </div>
+  );
+}
+
+/** Kontrol sürerken PC'deki girdinin durumu (readiness P1.5): operatör "tıklamam neden gitmiyor"u görür. */
+function InputStateNote({ state }: { state: Exclude<ControlInputState, 1> }) {
+  const { text, tone } = ControlInputStateLabels[state];
+  const Icon = tone === 'info' ? LockIcon : TriangleAlertIcon;
+  return (
+    <span
+      role='status'
+      className={cn(
+        'flex basis-full items-center gap-1.5 rounded-md px-2 py-1 text-xs',
+        tone === 'info' ? 'bg-amber-500/15 text-amber-700 dark:text-amber-300' : 'bg-destructive/15 text-destructive'
+      )}>
+      <Icon className='size-3.5 shrink-0' />
+      {text}
+    </span>
   );
 }

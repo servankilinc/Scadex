@@ -779,9 +779,11 @@ Silme yoktur (`IActivatableEntity`); pasife alma tek yoldur.
   SCADA'nın tek IP'sini paylaştığı için varsayılan sınır boğardı), `MediaGateway` (300/5 sn).
   **Bir attribute'ta adı geçen politika `Program.cs`'te tanımlı değilse middleware istisna
   atar ve o uç HER istekte 500 döner** — politika adı silmeden/yeniden adlandırmadan önce
-  `RateLimiterKey`'e bakın. **İstisna:** Sinyalizasyon modülünün uçlarına (§ 10) bilinçli olarak
-  politika takılmaz (2026-09-11 kararı); `Program.cs`'te genel bir limit olmadığı için bu uçlar
-  sınırsızdır; kimlik (ve yazan uçlarda § 5.1'deki izin) arkasındadır.
+  `RateLimiterKey`'e bakın (`Scadex.Business/Utils/RateLimiting`). **Modüller (§ 10) de aynı
+  politikadadır (2026-10-26, 2026-09-11'deki "modül uçları sınırsız" kararının yerine):** modül
+  controller tabanı `Default`'u taşır; adlar bu yüzden Business'tadır (modül WebAPI'ye referans
+  veremez). SignalR hub'ları bilerek dışarıdadır — uzun yoklamaya düşen bağlantıda her mesaj bir
+  istek olur; yalnızca RemoteDesk'in `PcHub` negotiate'i kendi IP politikasındadır.
 - `AddJwtBearer`'ın `OnMessageReceived`'ı token'ı query string'den okur, ama **yalnızca
   `/hubs` yolları için** (WebSocket el sıkışması Authorization header taşıyamaz). Bunu
   normal uçlara genişletmeyin.

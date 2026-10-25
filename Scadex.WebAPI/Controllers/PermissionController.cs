@@ -3,7 +3,7 @@ using Microsoft.AspNetCore.RateLimiting;
 using Scadex.Business.Abstract;
 using Scadex.Core.BaseRequestModels;
 using Scadex.WebAPI.Controllers.Base;
-using Scadex.WebAPI.Tools;
+using Scadex.Business.Utils.RateLimiting;
 
 namespace Scadex.WebAPI.Controllers;
 

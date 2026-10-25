@@ -1,14 +1,14 @@
 using System.Windows.Media;
+using Scadex.RemoteDesk.Contracts.Local;
 using Scadex.RemoteDesk.Contracts.Media;
 using Scadex.RemoteDesk.Windows.Helpers;
-using Scadex.RemoteDesk.Windows.Services.Streaming;
 
 namespace Scadex.RemoteDesk.Windows.ViewModels;
 
 /// <summary>
 /// Tek monitörün kartı: donanım bilgisi ve merkezin başlattığı yayının canlı durumu (SALT OKUNUR — yayın yalnızca merkezin isteğiyle
-/// başlar/durur; encoder sınaması ve tercihi <see cref="EncoderPanelVM"/>'dedir). Servis olayları iş parçacığı havuzundan gelir;
-/// <see cref="HomeVM"/> onları Dispatcher'a taşıyıp <see cref="Apply"/>'ı çağırır.
+/// başlar/durur; encoder sınaması ve tercihi <see cref="EncoderPanelVM"/>'dedir). Veri Agent'ın özetinden gelir; <see cref="HomeVM"/>
+/// onu UI iş parçacığında <see cref="Apply"/>'a verir.
 /// </summary>
 public sealed class MonitorVM : BaseViewModel
 {
@@ -18,10 +18,10 @@ public sealed class MonitorVM : BaseViewModel
     private static readonly Brush Muted = Freeze(Color.FromRgb(0x80, 0x88, 0x94));
     private static readonly Brush Info = Freeze(Color.FromRgb(0x2F, 0x6F, 0xC9));
 
-    public MonitorVM(MonitorInfo monitor, StreamStatus status)
+    public MonitorVM(MonitorInfo monitor, StreamView stream)
     {
         Monitor = monitor;
-        Apply(status);
+        Apply(stream);
     }
 
     public MonitorInfo Monitor { get; }
@@ -54,22 +54,22 @@ public sealed class MonitorVM : BaseViewModel
     private string _messageText = "";
     public string MessageText { get => _messageText; private set => SetProperty(ref _messageText, value); }
 
-    public void Apply(StreamStatus s)
+    public void Apply(StreamView s)
     {
-        bool isActive = s.State is not (StreamState.Idle or StreamState.Failed);
+        bool isActive = s.State is not (AgentStreamState.Idle or AgentStreamState.Failed);
         (StateText, StateBrush) = s.State switch
         {
-            StreamState.Idle => ("Yayın yok — merkez izlemek isteyince başlar", Muted),
-            StreamState.Probing => ("Encoder'lar sınanıyor…", Info),
-            StreamState.Starting => ("Başlıyor…", Info),
-            StreamState.Streaming => ("● Yayında", Ok),
-            StreamState.ScreenLocked => ("Ekran kilitli — kilit açılınca sürecek", Warn),
-            StreamState.Retrying => ("Yeniden deneniyor", Warn),
-            StreamState.Failed => ("Başarısız", Bad),
+            AgentStreamState.Idle => ("Yayın yok — merkez izlemek isteyince başlar", Muted),
+            AgentStreamState.Probing => ("Encoder'lar sınanıyor…", Info),
+            AgentStreamState.Starting => ("Başlıyor…", Info),
+            AgentStreamState.Streaming => ("● Yayında", Ok),
+            AgentStreamState.ScreenLocked => ("Ekran kilitli — kilit açılınca sürecek", Warn),
+            AgentStreamState.Retrying => ("Yeniden deneniyor", Warn),
+            AgentStreamState.Failed => ("Başarısız", Bad),
             _ => (s.State.ToString(), Muted),
         };
 
-        if (s.State == StreamState.Idle)
+        if (s.State == AgentStreamState.Idle)
         {
             // Yayın bitti: önceki yayının bilgileri ekranda kalmasın.
             EncoderText = ProfileText = TargetText = "—";
@@ -85,7 +85,7 @@ public sealed class MonitorVM : BaseViewModel
             if (s.Target is not null) TargetText = s.Target;
         }
 
-        if (s.State == StreamState.Streaming)
+        if (s.State == AgentStreamState.Streaming)
         {
             // FFmpeg -progress, RTSP çıkışında bit hızını "N/A" verir; hedef bit hızı profilde görünür.
             string bitrate = s.Bitrate is { } b && b != "N/A" ? $" · {b}" : "";

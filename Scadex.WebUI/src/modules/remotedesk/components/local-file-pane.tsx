@@ -1,14 +1,19 @@
-import { useState } from 'react';
-import { ArrowUpIcon, FileIcon, FolderIcon, FolderOpenIcon, RefreshCwIcon } from 'lucide-react';
+import { useRef, useState } from 'react';
+import { ArrowUpIcon, FileIcon, FileUpIcon, FolderIcon, FolderOpenIcon, RefreshCwIcon } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { cn } from '@/lib/utils';
 import { formatBytes } from '../lib/file-path';
-import { pickDirectory, type FsDirHandle, type FsFileHandle, type LocalState } from '../lib/local-fs';
+import { pickDirectory, type FsDirHandle, type FsFileHandle, type LocalMode, type LocalState } from '../lib/local-fs';
 
 /**
- * Yerel dosya gezgini — dosya transferi penceresinin sol paneli (RemoteDesk.md § 12.8). "Klasör seç" ile seçilen kök altında gezilir;
- * aktif klasör = indirme hedefi, seçili dosya = yükleme kaynağı. File System Access API yalnızca GÜVENLİ BAĞLAMDA (HTTPS/localhost)
- * çalışır; bu dağıtım gereğidir, kodda yedek yoktur (kullanıcı kararı 2026-10-06). Tip yüzeyi `lib/local-fs.ts`'tedir.
+ * Dosya transferi penceresinin sol paneli (RemoteDesk.md § 12.8). İki mod (`lib/local-fs.ts`):
+ * - **Gezgin** — "Klasör seç" ile seçilen kök altında gezilir; aktif klasör = indirme hedefi, seçili dosya = yükleme kaynağı. File System
+ *   Access API ister (güvenli bağlam + Chromium/Edge).
+ * - **Klasik** — HTTPS'siz kurulumda ya da Firefox'ta: dosya seç / sürükle-bırak; indirme tarayıcının indirme klasörüne (2026-10-26).
  */
+export function LocalFilePane({ mode, onChange, disabled }: { mode: LocalMode; onChange: (state: LocalState) => void; disabled: boolean }) {
+  return mode === 'fsa' ? <FsaPane onChange={onChange} disabled={disabled} /> : <ClassicPane onChange={onChange} disabled={disabled} />;
+}
 
 interface LocalEntry {
   name: string;
@@ -17,7 +22,7 @@ interface LocalEntry {
   handle: FsFileHandle | FsDirHandle;
 }
 
-export function LocalFilePane({ onChange, disabled }: { onChange: (state: LocalState) => void; disabled: boolean }) {
+function FsaPane({ onChange, disabled }: { onChange: (state: LocalState) => void; disabled: boolean }) {
   // stack[son] = mevcut klasör; kök seçilene kadar boş.
   const [stack, setStack] = useState<FsDirHandle[]>([]);
   const [entries, setEntries] = useState<LocalEntry[]>([]);
@@ -58,7 +63,7 @@ export function LocalFilePane({ onChange, disabled }: { onChange: (state: LocalS
       const dir = await pickDirectory();
       setStack([dir]);
       setSelected(null);
-      onChange({ dir, selected: null });
+      onChange({ mode: 'fsa', dir, selected: null });
       await list(dir);
     } catch {
       /* kullanıcı iptal etti */
@@ -70,7 +75,7 @@ export function LocalFilePane({ onChange, disabled }: { onChange: (state: LocalS
     const next = [...stack, entry.handle];
     setStack(next);
     setSelected(null);
-    onChange({ dir: entry.handle, selected: null });
+    onChange({ mode: 'fsa', dir: entry.handle, selected: null });
     await list(entry.handle);
   };
 
@@ -80,14 +85,15 @@ export function LocalFilePane({ onChange, disabled }: { onChange: (state: LocalS
     setStack(next);
     setSelected(null);
     const dir = next[next.length - 1]!; // guard: stack.length > 1, bu yüzden boş değil
-    onChange({ dir, selected: null });
+    onChange({ mode: 'fsa', dir, selected: null });
     await list(dir);
   };
 
   const select = (entry: LocalEntry) => {
     if (entry.handle.kind !== 'file') return;
     setSelected(entry.name);
-    onChange({ dir: current, selected: { handle: entry.handle, name: entry.name } });
+    const handle = entry.handle;
+    onChange({ mode: 'fsa', dir: current, selected: { name: entry.name, getFile: () => handle.getFile() } });
   };
 
   const breadcrumb = stack.map(d => d.name).join(' / ');
@@ -151,6 +157,75 @@ export function LocalFilePane({ onChange, disabled }: { onChange: (state: LocalS
         )}
       </div>
       <p className='text-xs text-muted-foreground'>Klasöre çift tıklayın, dosyaya tek tık ile seçin. İndirilenler seçili klasöre yazılır.</p>
+    </div>
+  );
+}
+
+/**
+ * Klasik mod: güvenli bağlam ya da File System Access API yokken (HTTPS'siz kurulum, Firefox). Dosya `<input type="file">` ya da
+ * sürükle-bırak ile seçilir; indirme tarayıcının indirme mekanizmasıyla kaydedilir (`saveBlob`). Klasör gezgini yoktur.
+ */
+function ClassicPane({ onChange, disabled }: { onChange: (state: LocalState) => void; disabled: boolean }) {
+  const inputRef = useRef<HTMLInputElement | null>(null);
+  const [file, setFile] = useState<File | null>(null);
+  const [dragging, setDragging] = useState(false);
+
+  const choose = (next: File | null) => {
+    setFile(next);
+    onChange({ mode: 'classic', dir: null, selected: next ? { name: next.name, getFile: () => Promise.resolve(next) } : null });
+  };
+
+  return (
+    <div className='flex min-h-0 min-w-0 flex-1 flex-col gap-2'>
+      <div className='flex items-center gap-2'>
+        <span className='text-sm font-medium'>Bu bilgisayar</span>
+        <Button size='sm' variant='outline' disabled={disabled} onClick={() => inputRef.current?.click()}>
+          <FileUpIcon />
+          Dosya seç
+        </Button>
+        <input
+          ref={inputRef}
+          type='file'
+          className='hidden'
+          onChange={e => {
+            choose(e.target.files?.[0] ?? null);
+            e.target.value = '';
+          }}
+        />
+      </div>
+
+      <div
+        className={cn(
+          'flex min-h-0 flex-1 flex-col items-center justify-center gap-2 rounded-lg border border-dashed p-6 text-center text-sm',
+          dragging && 'border-primary bg-primary/5'
+        )}
+        onDragOver={e => {
+          if (disabled) return;
+          e.preventDefault();
+          setDragging(true);
+        }}
+        onDragLeave={() => setDragging(false)}
+        onDrop={e => {
+          e.preventDefault();
+          setDragging(false);
+          if (!disabled) choose(e.dataTransfer.files[0] ?? null);
+        }}>
+        {file ? (
+          <>
+            <FileIcon className='size-6 text-muted-foreground' />
+            <span className='max-w-full truncate font-medium' title={file.name}>
+              {file.name}
+            </span>
+            <span className='text-xs text-muted-foreground'>{formatBytes(file.size)} · yüklemeye hazır</span>
+          </>
+        ) : (
+          <span className='text-xs text-muted-foreground'>Yüklenecek dosyayı buraya sürükleyin ya da "Dosya seç" ile seçin.</span>
+        )}
+      </div>
+
+      <p className='text-xs text-muted-foreground'>
+        İndirilen dosyalar tarayıcının indirme klasörüne kaydedilir. Yerel klasör gezgini HTTPS'te ya da tarayıcı ayarıyla açılır (README § 1.4).
+      </p>
     </div>
   );
 }

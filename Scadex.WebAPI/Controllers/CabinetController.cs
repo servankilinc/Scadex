@@ -5,7 +5,7 @@ using Scadex.Business.Utils.Auth;
 using Scadex.Core.BaseRequestModels;
 using Scadex.Model.Dtos.Cabinet.Commands;
 using Scadex.WebAPI.Controllers.Base;
-using Scadex.WebAPI.Tools;
+using Scadex.Business.Utils.RateLimiting;
 using static Scadex.Model.Enums.EntityEnums;
 
 namespace Scadex.WebAPI.Controllers;

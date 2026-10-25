@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { remoteDeskKeys } from '../api/query-keys';
 import { startRemoteControl, type RemoteControlHandle } from '../lib/remote-control-session';
+import { ControlInputState } from '../models/control';
 
 export type RemoteControlStatus = 'idle' | 'requesting' | 'active';
 
@@ -9,6 +10,8 @@ export interface RemoteControl {
   status: RemoteControlStatus;
   /** Son red/bitiş nedeni (kullanıcı kendisi bıraktıysa boş). */
   message?: string;
+  /** Kontrol sürerken PC'deki girdinin durumu (kilit ekranı / UAC, red, monitör yok); kontrol yokken `Ok`. */
+  inputState: ControlInputState;
   request: () => void;
   release: () => void;
   /** Tarayıcının yakalayamadığı tuş kombinasyonunu gönderir (yalnızca kontrol sizdeyken). */
@@ -29,6 +32,7 @@ export function useRemoteControl(
   const handleRef = useRef<RemoteControlHandle | null>(null);
   const [status, setStatus] = useState<RemoteControlStatus>('idle');
   const [message, setMessage] = useState<string | undefined>();
+  const [inputState, setInputState] = useState<ControlInputState>(ControlInputState.Ok);
 
   const release = useCallback(() => {
     handleRef.current?.stop();
@@ -41,16 +45,19 @@ export function useRemoteControl(
     if (!surface || !video || handleRef.current) return;
 
     setMessage(undefined);
+    setInputState(ControlInputState.Ok);
     handleRef.current = startRemoteControl({
       deviceId,
       monitorIndex,
       surface,
       video,
+      onInput: setInputState,
       onState: (state, text) => {
         if (state === 'ended') {
           handleRef.current = null;
           setStatus('idle');
           setMessage(text);
+          setInputState(ControlInputState.Ok);
         } else {
           setStatus(state);
         }
@@ -65,5 +72,5 @@ export function useRemoteControl(
   // Sökülünce ya da PC/monitör değişince bırak.
   useEffect(() => release, [deviceId, monitorIndex, release]);
 
-  return { status, message, request, release, sendCombo };
+  return { status, message, inputState, request, release, sendCombo };
 }

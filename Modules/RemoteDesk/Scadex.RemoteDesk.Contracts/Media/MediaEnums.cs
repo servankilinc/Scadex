@@ -1,6 +1,9 @@
 namespace Scadex.RemoteDesk.Contracts.Media;
 
-/// <summary> Ekran kartı üreticisi — DXGI adaptörünün PCI satıcı kimliğinden çözülür. Kodlayıcı sırasını belirler. </summary>
+/// <summary>
+/// Ekran kartı üreticisi — Windows istemcisi DXGI adaptörünün PCI satıcı kimliğinden çözer ve kodlayıcı sırasını buna göre seçer. Sunucu
+/// yorumlamaz; bilinmeyen platformda <see cref="Unknown"/>.
+/// </summary>
 public enum GpuVendor
 {
     Unknown = 0,
@@ -16,6 +19,11 @@ public enum VideoCodec
     Vp9 = 2,
 }
 
+/// <summary>
+/// Kodlayıcı türü — istemciye özgüdür (bugünkü değerler Windows istemcisinin FFmpeg zincirleri). Sunucu yorumlamaz: yayın durumunda kodlayıcı
+/// adı metin olarak gelir (<c>StreamStateReport.Encoder</c>). Başka platformun istemcisi (VAAPI, MediaCodec…) yeni değer ekler; mevcut
+/// numaralar değişmez.
+/// </summary>
 public enum EncoderKind
 {
     /// <summary> NVIDIA NVENC, H.264 — D3D11 kare doğrudan kodlayıcıya. </summary>

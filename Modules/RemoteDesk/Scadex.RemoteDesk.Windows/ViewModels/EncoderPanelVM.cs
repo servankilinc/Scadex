@@ -1,11 +1,10 @@
 using System.Collections.ObjectModel;
-using System.Windows;
 using System.Windows.Input;
 using System.Windows.Media;
+using Scadex.RemoteDesk.Contracts.Local;
 using Scadex.RemoteDesk.Contracts.Media;
 using Scadex.RemoteDesk.Windows.Helpers;
-using Scadex.RemoteDesk.Windows.Services.Encoding;
-using Scadex.RemoteDesk.Windows.Services.Monitors;
+using Scadex.RemoteDesk.Windows.Services.Agent;
 
 namespace Scadex.RemoteDesk.Windows.ViewModels;
 
@@ -24,9 +23,9 @@ public sealed class EncoderRowVM
 }
 
 /// <summary>
-/// "Encoder" kutucuğu — monitörlerden ayrı: sınama (tüm monitörler), aday listesi ve PC başına tercih (bellekte).
-/// Sınama monitör başına yapılır (yakalama monitörün ekran kartına bağlı); liste adayları birleştirir ve bir aday bazı monitörlerde
-/// çalışmıyorsa bunu satırda söyler. Servis olayları iş parçacığı havuzundan gelir, burada Dispatcher'a taşınır.
+/// "Encoder" kutucuğu — monitörlerden ayrı: sınama (tüm monitörler), aday listesi ve PC başına tercih (Agent'ın belleğinde). Sınama ve tercih
+/// Agent'a pipe komutu olarak gider (arayüzün yapabildiği üç işten ikisi); sonuç Agent'ın özetiyle geri gelir (<see cref="Apply"/>).
+/// Sınama monitör başına yapılır; liste adayları birleştirir ve bir aday bazı monitörlerde çalışmıyorsa bunu satırda söyler.
 /// </summary>
 public sealed class EncoderPanelVM : BaseViewModel
 {
@@ -34,22 +33,14 @@ public sealed class EncoderPanelVM : BaseViewModel
     private static readonly Brush Bad = Freeze(Color.FromRgb(0xD1, 0x43, 0x43));
     private static readonly Brush Warn = Freeze(Color.FromRgb(0xC7, 0x8A, 0x10));
 
-    private readonly IEncoderProbeService _probes;
-    private readonly IMonitorService _monitors;
+    private readonly IAgentLink _agent;
+    private EncoderPanelView? _view;
 
-    public EncoderPanelVM(IEncoderProbeService probes, IMonitorService monitors)
+    public EncoderPanelVM(IAgentLink agent)
     {
-        _probes = probes;
-        _monitors = monitors;
-
-        ProbeCommand = new RelayCommand(async _ => await ProbeAllAsync(), _ => !IsBusy);
-        ResetPreferenceCommand = new RelayCommand(_ => _probes.SetPreferred(null), _ => _probes.Preferred is not null);
-
-        _probes.PreferenceChanged += () => Application.Current?.Dispatcher.BeginInvoke(Refresh);
-        // İlk izlemede kendiliğinden yapılan sınama da listeye yansısın.
-        _probes.Probed += () => Application.Current?.Dispatcher.BeginInvoke(Refresh);
-
-        Refresh();
+        _agent = agent;
+        ProbeCommand = new RelayCommand(_ => _agent.ProbeEncoders(), _ => _view is { IsProbing: false } && _agent.State == AgentLinkState.Connected);
+        ResetPreferenceCommand = new RelayCommand(_ => _agent.SetPreferredEncoder(null), _ => _view?.Preferred is not null);
     }
 
     public ICommand ProbeCommand { get; }
@@ -60,58 +51,44 @@ public sealed class EncoderPanelVM : BaseViewModel
     private string _summary = "";
     public string Summary { get => _summary; private set => SetProperty(ref _summary, value); }
 
-    private bool _isBusy;
-    public bool IsBusy { get => _isBusy; private set { if (SetProperty(ref _isBusy, value)) ((RelayCommand)ProbeCommand).RaiseCanExecuteChanged(); } }
+    public bool HasPreference => _view?.Preferred is not null;
 
-    public bool HasPreference => _probes.Preferred is not null;
-
-    public string PreferenceText => _probes.Preferred is { } kind
-        ? $"Tercih: {EncoderCatalog.Find(kind).DisplayName} — bu PC'deki tüm yayınlar bunu kullanır; çalışmadığı monitörde otomatik seçim. " +
-          "Uygulama kapanınca otomatiğe döner."
+    public string PreferenceText => _view?.Preferred is not null
+        ? $"Tercih: {_view.PreferredName} — bu PC'deki tüm yayınlar bunu kullanır; çalışmadığı monitörde otomatik seçim. " +
+          "Agent yeniden başlayınca otomatiğe döner."
         : "Tercih: otomatik (öncelik sırası). Değiştirmek için listede \"Tercih et\".";
 
-    /// <summary> Monitör listesi değişince (<see cref="HomeVM"/>) ve servis olaylarında çağrılır. </summary>
-    public void Refresh()
+    /// <summary> Agent'ın özetiyle (UI iş parçacığında). <paramref name="view"/> <c>null</c> = Agent'a bağlı değil. </summary>
+    public void Apply(EncoderPanelView? view, IReadOnlyList<MonitorInfo> monitors)
     {
+        _view = view;
         OnPropertyChanged(nameof(HasPreference));
         OnPropertyChanged(nameof(PreferenceText));
+        ((RelayCommand)ProbeCommand).RaiseCanExecuteChanged();
         ((RelayCommand)ResetPreferenceCommand).RaiseCanExecuteChanged();
-        if (!IsBusy) ShowProbes();
-    }
 
-    private async Task ProbeAllAsync()
-    {
-        IsBusy = true;
-        try
+        Rows.Clear();
+        if (view is null)
         {
-            IReadOnlyList<MonitorInfo> monitors = _monitors.GetMonitors();
-            foreach (var monitor in monitors)
-            {
-                Summary = $"Sınanıyor… Monitör {monitor.Index} ({monitors.Count} monitörden) — her aday birkaç kare kodluyor.";
-                await _probes.ProbeAsync(monitor, CancellationToken.None);
-            }
-        }
-        catch (Exception ex)
-        {
-            Summary = $"Sınama yapılamadı: {ex.Message}";
+            Summary = "Agent'a bağlı değil.";
             return;
         }
-        finally
+        if (view.IsProbing)
         {
-            IsBusy = false;
+            Summary = $"Sınanıyor… ({monitors.Count} monitör) — her aday birkaç kare kodluyor.";
+            return;
         }
-        ShowProbes();
+        if (view.ProbeError is { } error)
+        {
+            Summary = $"Sınama yapılamadı: {error}";
+            return;
+        }
+        ShowProbes(view, monitors.Count);
     }
 
-    private void ShowProbes()
+    private void ShowProbes(EncoderPanelView view, int monitorCount)
     {
-        Rows.Clear();
-
-        IReadOnlyList<MonitorInfo> monitors;
-        try { monitors = _monitors.GetMonitors(); }
-        catch (Exception ex) { Summary = $"Monitörler okunamadı: {ex.Message}"; return; }
-
-        var probes = monitors.Select(m => _probes.GetCached(m.Index)).OfType<MonitorProbe>().ToList();
+        var probes = view.Probes;
         if (probes.Count == 0)
         {
             Summary = "Henüz sınanmadı — \"Encoder'ları sına\" ya da ilk izlemede kendiliğinden sınanır.";
@@ -120,20 +97,20 @@ public sealed class EncoderPanelVM : BaseViewModel
 
         // Sıra: birincil monitörün öncelik sırası (yoksa ilk sınanan); diğer monitörlerde olup onda olmayan adaylar sona.
         var primary = probes.FirstOrDefault(p => p.Monitor.IsPrimary) ?? probes[0];
-        var candidates = primary.Results.Select(r => r.Candidate)
-            .Concat(probes.SelectMany(p => p.Results.Select(r => r.Candidate)))
+        var candidates = primary.Results.Select(r => r.Encoder)
+            .Concat(probes.SelectMany(p => p.Results.Select(r => r.Encoder)))
             .DistinctBy(c => c.Kind)
             .ToList();
 
         foreach (var candidate in candidates)
         {
-            var results = probes.Select(p => (p.Monitor, Result: p.Results.FirstOrDefault(r => r.Candidate.Kind == candidate.Kind)))
+            var results = probes.Select(p => (p.Monitor, Result: p.Results.FirstOrDefault(r => r.Encoder.Kind == candidate.Kind)))
                 .Where(x => x.Result is not null)
                 .ToList();
             var working = results.Where(x => x.Result!.Ok).ToList();
             var failing = results.Where(x => !x.Result!.Ok).ToList();
 
-            bool isSelected = probes.All(p => p.Selected?.Candidate.Kind == candidate.Kind);
+            bool isSelected = probes.All(p => p.SelectedKind == candidate.Kind);
             (string symbol, Brush brush) = (working.Count, failing.Count) switch
             {
                 (> 0, 0) => ("✓", Ok),
@@ -141,7 +118,7 @@ public sealed class EncoderPanelVM : BaseViewModel
                 _ => ("◐", Warn),
             };
             string detail = failing.Count == 0
-                ? $"çalışıyor ({working.Max(x => x.Result!.Duration).TotalSeconds:0.0} sn)"
+                ? $"çalışıyor ({working.Max(x => x.Result!.DurationSeconds):0.0} sn)"
                 : working.Count == 0
                     ? failing[0].Result!.Reason ?? ""
                     : string.Join("; ", failing.Select(x => $"Monitör {x.Monitor.Index}'de çalışmadı: {x.Result!.Reason}"));
@@ -157,31 +134,31 @@ public sealed class EncoderPanelVM : BaseViewModel
                 IsSelected = isSelected,
                 CanPrefer = working.Count > 0 && !isSelected,
                 // PC başına tercih: bu PC'deki tüm yayınlar (merkez dahil) bu adayı kullanır, çalışan yayınlar yeniden başlar.
-                PreferCommand = new RelayCommand(_ => _probes.SetPreferred(kind)),
+                PreferCommand = new RelayCommand(_ => _agent.SetPreferredEncoder(kind)),
             });
         }
 
-        Summary = BuildSummary(probes, monitors.Count);
+        Summary = BuildSummary(probes, monitorCount);
     }
 
-    private static string BuildSummary(IReadOnlyList<MonitorProbe> probes, int monitorCount)
+    private static string BuildSummary(IReadOnlyList<MonitorProbeView> probes, int monitorCount)
     {
         string at = $"({probes.Max(p => p.ProbedAt):HH:mm:ss})";
         string notProbed = probes.Count < monitorCount ? $" · {monitorCount - probes.Count} monitör henüz sınanmadı" : "";
 
-        var selections = probes.Select(p => (p.Monitor.Index, p.Selected, p.IsPreferenceApplied, p.PreferenceUnavailable)).ToList();
-        if (selections.All(s => s.Selected is null))
+        EncoderView? Selected(MonitorProbeView p) => p.Results.FirstOrDefault(r => r.Encoder.Kind == p.SelectedKind)?.Encoder;
+        if (probes.All(p => p.SelectedKind is null))
             return $"Hiçbir encoder çalışmadı {at}{notProbed}.";
 
         string Source(bool preferred) => preferred ? "PC tercihi" : "otomatik";
-        var first = selections[0];
-        bool same = selections.All(s => s.Selected?.Candidate.Kind == first.Selected?.Candidate.Kind);
-        string text = same && first.Selected is { } sel
-            ? $"Seçilen: {sel.Candidate.DisplayName} · {CodecText(sel.Candidate.Codec)} — {sel.Candidate.Chain} ({Source(first.IsPreferenceApplied)})"
-            : "Seçilen: " + string.Join(", ", selections.Select(s =>
-                $"Monitör {s.Index} → {(s.Selected is { } r ? $"{r.Candidate.DisplayName} ({Source(s.IsPreferenceApplied)})" : "yok")}"));
+        var first = probes[0];
+        bool same = probes.All(p => p.SelectedKind == first.SelectedKind);
+        string text = same && Selected(first) is { } sel
+            ? $"Seçilen: {sel.DisplayName} · {CodecText(sel.Codec)} — {sel.Chain} ({Source(first.IsPreferenceApplied)})"
+            : "Seçilen: " + string.Join(", ", probes.Select(p =>
+                $"Monitör {p.Monitor.Index} → {(Selected(p) is { } r ? $"{r.DisplayName} ({Source(p.IsPreferenceApplied)})" : "yok")}"));
 
-        var unavailable = selections.Where(s => s.PreferenceUnavailable).Select(s => s.Index).ToList();
+        var unavailable = probes.Where(p => p.PreferenceUnavailable).Select(p => p.Monitor.Index).ToList();
         if (unavailable.Count > 0)
             text += $" — tercih edilen encoder Monitör {string.Join(", ", unavailable)}'de çalışmadı, orada otomatik seçim kullanılıyor";
 

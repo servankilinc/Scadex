@@ -7,9 +7,9 @@ public enum InputEventType
     Down = 2,
     Up = 3,
     Wheel = 4,
-    /// <summary> <c>Code</c> zorunlu ve <see cref="KeyboardScanCodes"/> tablosunda olmalı. </summary>
+    /// <summary> <c>Code</c> zorunlu ve <see cref="KeyboardCodes"/> kümesinde olmalı. </summary>
     KeyDown = 5,
-    /// <summary> <c>Code</c> zorunlu ve <see cref="KeyboardScanCodes"/> tablosunda olmalı. </summary>
+    /// <summary> <c>Code</c> zorunlu ve <see cref="KeyboardCodes"/> kümesinde olmalı. </summary>
     KeyUp = 6
 }
 
@@ -29,10 +29,12 @@ public enum MouseButton
 /// <param name="X">[0, 1] — izlenen monitörün genişliğine göre; <c>Move</c>'da zorunlu, <c>Down/Up</c>'ta verilirse önce oraya gidilir.</param>
 /// <param name="Y">[0, 1] — izlenen monitörün yüksekliğine göre.</param>
 /// <param name="Button"><c>Down/Up</c>'ta zorunlu.</param>
-/// <param name="DeltaX">Yatay tekerlek; DOM yönü (pozitif = sağa), Windows birimi (120 = bir çentik).</param>
-/// <param name="DeltaY">Dikey tekerlek; DOM yönü (pozitif = aşağı/kullanıcıya doğru), Windows birimi (120 = bir çentik). İstemci işaretini çevirir.</param>
+/// <param name="DeltaX">Yatay tekerlek; DOM yönü (pozitif = sağa), protokol birimi (120 = bir çentik — Windows'unkiyle aynı; başka platformun
+/// istemcisi kendi birimine çevirir).</param>
+/// <param name="DeltaY">Dikey tekerlek; DOM yönü (pozitif = aşağı/kullanıcıya doğru), protokol birimi (120 = bir çentik). İstemci işaretini ve
+/// birimini kendi platformuna çevirir.</param>
 /// <param name="Code"><c>KeyDown/KeyUp</c>'ta <c>KeyboardEvent.code</c> (ör. <c>KeyA</c>) — tuşun fiziksel konumu, karakter değil.
-/// Tuşa basılı tutulunca tarayıcının tekrarladığı <c>KeyDown</c>'lar da gönderilir: Windows enjekte edilen tuşu kendisi tekrarlamaz.</param>
+/// Tuşa basılı tutulunca tarayıcının tekrarladığı <c>KeyDown</c>'lar da gönderilir: PC enjekte edilen tuşu kendisi tekrarlamaz (Windows).</param>
 public sealed record InputEvent(
     long Seq,
     long T,
@@ -50,6 +52,28 @@ public sealed record InputEvent(
 /// sıra korunur.
 /// </summary>
 public sealed record InputBatch(Guid ControlSessionId, int MonitorIndex, InputEvent[] Events);
+
+/// <summary>
+/// PC'deki girdinin durumu — operatöre "tıklamam neden çalışmıyor"un cevabı. İstemci yalnızca DEĞİŞİNCE
+/// bildirir (<c>PcHubContract.ReportControlInput</c>); kontrol <see cref="Ok"/> varsayımıyla başlar. Platformdan bağımsızdır: "güvenli masaüstü"
+/// Windows'ta kilit ekranı / UAC onayıdır, başka platform kendi karşılığını bildirir. Numaralar sabittir.
+/// </summary>
+public enum ControlInputState
+{
+    /// <summary> Girdi normal masaüstüne gidiyor. </summary>
+    Ok = 1,
+    /// <summary> Kilit ekranı / UAC onayı açık ve girdi ORAYA gidiyor (bilgi). </summary>
+    SecureDesktop = 2,
+    /// <summary> Kilit ekranı / UAC onayı açık ama istemci oraya erişemiyor — girdi ulaşmıyor. </summary>
+    SecureDesktopUnavailable = 3,
+    /// <summary> İşletim sistemi girdiyi reddetti; nedeni bilinmiyor (ör. bir güvenlik yazılımı). </summary>
+    Rejected = 4,
+    /// <summary> İzlenen monitör PC'de yok (çıkarıldı, düzen değişti). </summary>
+    MonitorMissing = 5
+}
+
+/// <summary> PC → merkez: kontrol oturumunun girdi durumu değişti. Başka/bitmiş oturumun bildirimi sunucuda yok sayılır. </summary>
+public sealed record ControlInputReport(Guid ControlSessionId, ControlInputState State);
 
 /// <summary> PC'ye: uzaktan kontrol başladı — istemci göstergeyi açar, girdi kabul etmeye başlar. </summary>
 public sealed record ControlStartedCommand(Guid ControlSessionId, string UserName);

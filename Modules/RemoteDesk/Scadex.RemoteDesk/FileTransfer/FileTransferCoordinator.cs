@@ -100,7 +100,7 @@ public sealed class FileTransferCoordinator
         await _audit.StartAsync(entry.TransferId, deviceId, userId, FileTransferDirection.FromPc, entry.FileName, pcPath, cancellationToken);
 
         await _pcHub.Clients.Client(pcConnectionId)
-            .UploadFile(new FileUploadCommand(entry.TransferId, pcPath, entry.Ticket));
+            .UploadFile(new FileUploadCommand(entry.TransferId, pcPath, _store.IssueTicket(entry.TransferId)!));
 
         _logger.LogInformation("RemoteDesk: {User} {DeviceId} PC'sinden dosya indirme başlattı: {Path}", userName, deviceId, pcPath);
         return new FileTransferResponse { Accepted = true, TransferId = entry.TransferId };
@@ -125,7 +125,7 @@ public sealed class FileTransferCoordinator
         await _audit.StartAsync(transferId, deviceId, userId, FileTransferDirection.ToPc, entry.FileName, fullDest, cancellationToken);
 
         await _pcHub.Clients.Client(pcConnectionId)
-            .DownloadFile(new FileDownloadCommand(transferId, destinationPath, entry.FileName, entry.Ticket));
+            .DownloadFile(new FileDownloadCommand(transferId, destinationPath, entry.FileName, _store.IssueTicket(transferId)!));
 
         _logger.LogInformation("RemoteDesk: {User} {DeviceId} PC'sine dosya yükleme başlattı: {Dest}", userName, deviceId, fullDest);
         return new FileTransferResponse { Accepted = true, TransferId = transferId };
@@ -168,10 +168,37 @@ public sealed class FileTransferCoordinator
         });
     }
 
-    /// <summary> Hedef klasör + dosya adı (günlük/denetim için tam yol). </summary>
-    private static string CombineDestination(string destinationPath, string fileName)
+    /// <summary>
+    /// "Görmeden iş yapılmaz" kuralının akış boyunca sürmesi: izleme yalnızca istek anında denetlenir; kullanıcı PC'yi
+    /// izlemeyi bırakınca PC'nin dahil olduğu açık transferi burada kesilir — <c>push</c>/<c>pull</c> akışı iptal edilir, bilet kayıtla
+    /// gider (başlamamış ayak 401 alır), denetim başarısız kapanır, tarayıcıya bildirilir. PC'nin sonradan gelen sonucu kayıt olmadığı
+    /// için yok sayılır. Tarayıcı ayakları (merkeze yükleme, merkezden indirme) PC'ye dokunmadığı için kesilmez.
+    /// <see cref="Control.RemoteControlCoordinator.SweepAsync"/> ile aynı kalıp; <c>ScreenStreamWorker</c> turunda çalışır.
+    /// </summary>
+    public async Task SweepAsync(CancellationToken cancellationToken)
     {
-        try { return Path.Combine(destinationPath, fileName); }
-        catch { return destinationPath; }
+        foreach (var entry in _store.Snapshot())
+        {
+            if (entry.DeviceId is not Guid deviceId || !IsPcLegOpen(entry))
+                continue;
+            if (await _streams.IsViewingAsync(deviceId, entry.UserId, cancellationToken))
+                continue;
+
+            const string reason = "İzleme bittiği için aktarım durduruldu.";
+            await entry.Abort.CancelAsync();
+            _store.Remove(entry.TransferId);
+            await _audit.EndAsync(entry.TransferId, false, entry.Bytes, reason);
+            await NotifyViewerAsync(entry, FileTransferStatus.Failed, reason);
+            _logger.LogInformation("RemoteDesk: {User} {DeviceId} PC'sini izlemeyi bıraktı, dosya transferi {TransferId} kesildi",
+                entry.UserName, deviceId, entry.TransferId);
+        }
     }
+
+    /// <summary> PC'nin dahil olduğu ayak açık mı: PC merkeze gönderiyor ya da PC'ye yazma komutu verilmiş (hedef bağlı). </summary>
+    private static bool IsPcLegOpen(FileTransferEntry entry) => entry.Direction == FileTransferDirection.FromPc
+        ? entry.Status == FileTransferStatus.PcSending
+        : entry.Status == FileTransferStatus.ReadyForPc && entry.DestinationPath is not null;
+
+    /// <summary> Hedef klasör + dosya adı (günlük/denetim için tam yol) — PC'nin yol kuralıyla, sunucununkiyle değil. </summary>
+    private static string CombineDestination(string destinationPath, string fileName) => PcPathText.Join(destinationPath, fileName);
 }

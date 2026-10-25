@@ -30,8 +30,10 @@ monitörünü canlı izler. Sonraki aşamada aynı ekrandan fare ve klavye komut
 | Dosya transferi (gezme, indir, yükle) — PC'yi izleyen kullanıcı, ayrı izin | | ✅ |
 | Panolar arası metin aktarımı (içe/dışa) — PC'yi izleyen kullanıcı | | ✅ |
 | Ses, kayıt | ❌ | ✅ |
-| Oturum açılmadan bağlı olma, kapatılamayan istemci (servis + Agent + WPF) | ❌ ([§ 9.7](#97-wpf-seçiminin-bedeli)) | Faz 11a ([§ 9.8](#98-planlanan-süreç-modeli--servis--agent--wpf-faz-11a)) |
-| Kilit ekranı, UAC güvenli masaüstü, oturum açılmamış PC'nin ekranı | ❌ ([§ 9.7](#97-wpf-seçiminin-bedeli)) | Faz 11b ([§ 9.8](#98-planlanan-süreç-modeli--servis--agent--wpf-faz-11a)) |
+| Kapatılamayan istemci, oturum değişiminde kendiliğinden yeniden bağlanma (servis + Agent + WPF) | ✅ Faz 11a ([§ 9.8](#98-süreç-modeli--servis--agent--wpf-faz-11a), 2026-10-25) | |
+| Oturum açılmadan bağlı olma | ❌ (kullanıcı kararı 2026-10-25 — Agent yalnızca kullanıcı oturumunda, [§ 9.1](#91-süreç-modeli-faz-11a-2026-10-25)) | |
+| UAC onay penceresi ve kilit ekranında izleme + kontrol (güvenli masaüstü) | ✅ Faz 11b, dar (2026-10-25, [§ 12.6](#126-uipi-ve-güvenli-masaüstü)) | |
+| Giriş ekranı (oturum açılmamış PC), Ctrl+Alt+Del | ❌ ([§ 9.7](#97-bilinen-sınırlar), kullanıcı kararları) | |
 
 "Tüm monitörler tek görüntüde" ve otomatik güncelleme kapsamdan çıktı (kullanıcı kararı, 2026-10-06).
 
@@ -41,8 +43,8 @@ monitörünü canlı izler. Sonraki aşamada aynı ekrandan fare ve klavye komut
 
 | Konu | Karar | Neden |
 |---|---|---|
-| PC kimliği | **`Device.MacAddress`** | PC kendi MAC'ini bilir; merkezde cihaz zaten tanımlı. Ek tablo, ek kimlik, "ekle" ekranı yok. (2026-09-29) |
-| Kimlik doğrulama | **Yalnızca MAC — ek sır yok** | Kullanıcı kararı (2026-09-29). Kabul edilen risk ve sınırları: [§ 5.3](#53-kabul-edilen-risk-yalnızca-mac). |
+| PC kimliği | **PC cihazının `DeviceId`'si** (Basic Auth kullanıcı adı; sırrın hash'i çekirdeğin `PcDevice.CredentialHash`'inde) | Merkezde cihaz zaten tanımlı; sır diyagramın özellik panelinde üretilir ve PC'ye girilir. Modülde ek tablo, ek kimlik, "ekle" ekranı yok. (2026-09-29; 2026-10-25'e kadar MAC) |
+| Kimlik doğrulama | **HTTP Basic Auth — cihaz Id'si + sistemin ürettiği sır** | Kullanıcı kararı (2026-10-25; önceki "yalnızca MAC" kararının yerine). HTTPS zorunlu değil — kabul edilen risk: [§ 5.3](#53-kabul-edilen-risk-düz-http). |
 | PC istemcisi | **WPF uygulaması** (`Scadex.RemoteDesk.Windows`), kullanıcı oturumunda, oturum açılınca otomatik başlar | Bağlantı durumu ekranda görünür; ekran yakalama ve `SendInput` doğrudan çalışır, servis + yardımcı süreç + named pipe gerekmez. (2026-09-29) |
 | Dil / çatı | **.NET 10** — modül `net10.0`, istemci `net10.0-windows` | Scadex `net10.0`. |
 | Ekran yakalama | **DXGI Desktop Duplication**, FFmpeg `ddagrab`, monitör başına `output_idx` | GPU tarafında, düşük CPU. `gdigrab` yalnızca teşhis. |
@@ -58,7 +60,7 @@ Reddedilen alternatifler (tekrar açılmasın diye):
 
 - **Windows Service + oturum yardımcısı:** Kilit ekranına erişim sağlar ama iki süreç, named pipe ve
   `CreateProcessAsUser` getirir; bağlantı durumu ayrı bir UI ister. WPF tercih edildi (2026-09-29).
-- **Ayrı ajan kimliği / ajan tablosu / "ajan ekle" ekranı:** MAC zaten var; cihaz kopyası tablo istenmiyor.
+- **Ayrı ajan kimliği / ajan tablosu / "ajan ekle" ekranı:** kimlik zaten cihazın kendisi (Id + sır); cihaz kopyası tablo istenmiyor.
 - **WebSocket üzerinden JPEG kareleri:** 1080p'de 5–10 Mbps, tıkanıklık kontrolü sıfırdan yazılır.
 - **PC ↔ tarayıcı doğrudan WebRTC:** Her PC'de WebRTC yığını + STUN/TURN; MediaMTX çoklu izleyiciyi zaten
   tek yayından besliyor.
@@ -71,7 +73,7 @@ Reddedilen alternatifler (tekrar açılmasın diye):
  Saha PC'si (Windows 10/11, kullanıcı oturumu)            Scadex merkez sunucusu
 ┌───────────────────────────────────────┐              ┌───────────────────────────────────────────────┐
 │ Scadex.RemoteDesk.Windows  (WPF, System Tray)│── WS/WSS ──▶│ /hubs/remote-desk/pc  (PcHub)                   │
-│  · MAC'leri + monitörleri bildirir      │◀── komut ────│   Hello(mac'ler) → Device(Pc) eşleşmesi          │
+│  · Basic Auth + monitörleri bildirir    │◀── komut ────│   Basic Auth (Id+sır) → Device(Pc), Hello        │
 │  · bağlantı / yayın durumunu gösterir   │              │   StartScreenStream / StopScreenStream           │
 │  · monitör başına FFmpeg (isteğe bağlı) │              │                                                  │
 │      ddagrab(output_idx) → H.264        │── RTSP/TCP ─▶│ MediaMTX   pc_{deviceId:N}_{monitör}             │
@@ -98,7 +100,7 @@ Reddedilen alternatifler (tekrar açılmasın diye):
 | İstemci → MediaMTX | RTSP/TCP | 8554 | Güvenlik duvarında PC ağlarına açılır |
 | Tarayıcı → MediaMTX | WHEP + ICE | 8889/TCP, 8189/UDP | Mevcut, değişmez |
 
-**Varsayım: PC'ler merkeze kapalı LAN/VPN üzerinden ulaşır** — "yalnızca MAC" kararı ([§ 5.3](#53-kabul-edilen-risk-yalnızca-mac))
+**Varsayım: PC'ler merkeze kapalı LAN/VPN üzerinden ulaşır** — HTTPS zorunlu olmadığı için ([§ 5.3](#53-kabul-edilen-risk-düz-http))
 bununla birlikte anlamlıdır. PC'ler internetten bağlanacaksa bu doküman yeniden açılır: RTSPS
 (`rtspEncryption: "optional"`, `:8322`; `optional` modunda Scadex'in kendi FFmpeg'inin okuduğu
 `LiveRtspUrl` = `rtsp://127.0.0.1:8554` değişmez) ve bir istemci sırrı.
@@ -110,57 +112,58 @@ bununla birlikte anlamlıdır. PC'ler internetten bağlanacaksa bu doküman yeni
 
 ## 5. Kimlik
 
-### 5.1 MAC eşleşmesi
+### 5.1 Basic Auth (2026-10-25 — MAC eşleşmesinin yerine)
 
-İstemci bağlanınca `Hello` ile makinenin **fiziksel** ağ kartlarının MAC'lerini gönderir. Sunucu bunları,
-**aktif** ve şablonunun `DeviceType`'ı `Pc` olan cihazların `MacAddress`'leriyle karşılaştırır.
+PC, `PcHub`'a **HTTP Basic Auth** ile bağlanır (kullanıcı kararı; kontrol kartıyla aynı mekanizma, çekirdekte
+`Scadex.Business/Utils/Auth/DeviceAuthentication.cs`):
+
+- **Kullanıcı adı = diyagramdaki PC cihazının Id'si**, **parola = sistemin ürettiği sır** (32 küçük harf onaltılık, 128 bit).
+  Sırrı tarayıcı üretir: kabin diyagramında PC'yi seçin → özellik paneli "Kimlik bilgisi → Üret" → kaydedin. Sunucu yalnızca
+  SHA-256'sını saklar (`PcDevice.CredentialHash`); sır yalnızca üretildiği anda panelde görünür. Kaybolursa "Yenile" ile yenisi
+  üretilir (eskisi kaydedilince geçersiz), "İptal et" PC'nin bağlanmasını keser.
+- İstemci kimliği `appsettings.json > RemoteDesk:DeviceId` / `DeviceSecret`'ten okur ve `Authorization` başlığını negotiate'e de
+  WebSocket isteğine de koyar (.NET SignalR istemcisi başlık taşıyabilir).
+- Doğrulama negotiate'tedir: aktif cihaz + şablon tipi `Pc` + hash eşleşmesi (`IDeviceCredentialService`, tek PK sorgusu).
+  Yanlış / eksik kimlik **401** — `Hello`'ya hiç gelinmez; istemci "Kimlik bilgisi reddedildi" gösterir ve 60 sn'de bir dener.
+  Reddin nedeni istemciye söylenmez, sunucu günlüğüne cihaz Id'si + IP ile yazılır. Sır asla loglanmaz.
+- Kullanıcı adı birincil anahtar olduğu için **tekillik yönetimi yoktur** (eski `IX_PcDevice_MacAddress`, normalizasyon,
+  `Ambiguous` / `UnknownDevice` durumları kalktı).
+- Açık bağlantı, sır yenilense ya da iptal edilse bile kopana kadar sürer; yeni kimlik bir sonraki bağlantıda geçerlidir.
+- Diyagramda cihaz silinip yeniden çizilirse yeni `DeviceId` + yeni sır PC'ye yeniden girilmelidir.
 
 | Sonuç | Sunucu | İstemci |
 |---|---|---|
-| Tam 1 cihaz | Bağlantıyı o `DeviceId`'ye kaydeder, cihaz/kabin adını döner | "Bağlı — {kabin} / {cihaz}" |
-| 0 cihaz | `UnknownDevice` döner, bağlantıyı kapatır | "Bu PC Scadex'te tanımlı değil" + kendi MAC'leri (teknisyen diyagrama girer); 60 sn'de bir yeniden dener |
-| >1 cihaz | `Ambiguous` (iki kart iki cihaza yazılmış) | Hata + ilgili MAC'ler |
-| Cihaz zaten bağlı | `AlreadyConnected` — **ilk bağlanan kazanır**, deneme loglanır | "Bu cihaz başka bir bağlantıda" ; geri çekilerek yeniden dener |
+| Kimlik doğru | `Hello` bağlantıyı o `DeviceId`'ye kaydeder, cihaz/kabin adını döner | "Bağlı — {kabin} / {cihaz}" |
+| Kimlik yanlış / yok / iptal | Negotiate **401** | "Kimlik bilgisi reddedildi"; 60 sn'de bir yeniden dener |
+| Cihaz zaten bağlı | `AlreadyConnected` — **ilk bağlanan kazanır**, deneme loglanır | "Bu cihaz başka bir bağlantıda"; geri çekilerek yeniden dener |
 
 Bu kural yalnızca **PC'deki istemci** içindir (PC başına tek istemci bağlantısı). **İzleyici sayısını sınırlamaz:** aynı PC'yi,
 aynı ya da farklı monitörlerini istenen sayıda operatör aynı anda izler ([§ 8](#8-yayın-oturumu-ve-izleyiciler); kullanıcı kararı 2026-09-30).
 
-- **MAC karşılaştırması normalize edilir** (yalnızca onaltılık haneler, büyük harf: `AA:BB-cc…` →
-  `AABBCC…`). 2026-09-30'dan beri çekirdek de `Device.MacAddress`'i tek tip saklıyor (`AA:BB:CC:DD:EE:FF`,
-  `Scadex.Core/Utils/MacAddressFormat`), yani diyagramdaki yazım zaten tek biçimde. İstemcinin gönderdiği adresler
-  yine `Contracts/Hub/MacAddress.Normalize` ile karşılaştırılır; Contracts bağımlılıksız kalsın diye kural orada ayrıca
-  yazılıdır. Karşılaştırma, modülün `IUnitOfWork` projeksiyonuyla okuduğu PC cihazları üzerinde bellekte yapılır
-  (PC sayısı küçüktür). `IX_Device_MacAddress` artık farklı ayraçla yazılmış aynı adresi de yakalar; `Ambiguous`
-  yalnızca bir PC'nin iki kartı iki ayrı cihaza yazıldığında görülür.
-- Diyagramda cihaz silinip yeniden çizilirse yeni `DeviceId` bir sonraki `Hello`'da kendiliğinden bulunur;
-  istemcide hiçbir şey değişmez.
-- İstemci MAC listesi: `NetworkInterfaceType` Ethernet / Wireless80211 / GigabitEthernet; sanal
-  (Hyper-V `vEthernet`, VPN/TAP, loopback, tunnel) kartlar dışarıda.
-- **Wi-Fi rastgele donanım adresi** açıksa MAC ağdan ağa değişir. Teknisyen Ethernet MAC'ini girmeli ya da
-  bu özelliği kapatmalı; WPF ekranı hangi MAC'lerin gönderildiğini gösterir.
-- `MacAddress`'i boş PC cihazı hiçbir istemciyle eşleşmez; listede "MAC tanımlı değil" olarak görünür.
+### 5.2 Hub yetkisi
 
-### 5.2 Hub kimlik doğrulaması
+`PcHub` kullanıcı JWT'si istemez; `[Authorize(Policy = DeviceAuthPolicies.Pc)]` ile yalnızca PC kimliğini kabul eder (policy
+`device_type` claim'i ister, kullanıcı token'ı geçmez). Bağlantı `Hello` kabul edilene kadar hiçbir şey yapamaz: kayıtsız
+bağlantıdan gelen her çağrı reddedilir; bağlanıp **10 sn** içinde `Hello`'su kabul edilmeyen bağlantı kapatılır. Hub'ın metotları yalnızca
+istemcinin kendi durumunu bildirmesine izin verir; hiçbir veri okumaz.
 
-`PcHub` **anonimdir** (kullanıcı JWT'si yok, ayrı token ucu yok). Bağlantı `Hello` kabul edilene kadar
-hiçbir şey yapamaz: kayıtsız bağlantıdan gelen her çağrı reddedilir. Hub'ın metotları yalnızca istemcinin
-kendi durumunu bildirmesine izin verir; hiçbir veri okumaz.
+**Rate limit (2026-10-25, readiness P0.2):** negotiate ve bağlantı istekleri IP başına dakikada 60 ile sınırlıdır
+(`RemoteDeskModule.PcHubRateLimitPolicy`, kayan pencere, kuyruk yok, aşımda 429). Bir deneme 2 istektir; Agent'ın geri çekilmesi bunun
+çok altında kalır, NAT arkasında ~30 PC aynı anda yeniden bağlanabilir. Politika modülün kendi kaydındadır. Modülün HTTP uçları
+(PC'nin `push`/`pull`'u dahil, cihaz Id'si başına) 2026-10-26'dan beri çekirdeğin `Default` politikasındadır; `ViewerHub` bilerek
+dışarıdadır. Çekirdekte `UseRateLimiter` yetkilendirmeden önce çalışır — kimliksiz istek seli de sayılır ve Basic Auth doğrulamasına
+(veritabanı) ulaşmadan 429 alır.
 
 Yine de medya yolu korunur: yayın **bileti** olmadan `pc_` yoluna publish edilemez ([§ 7.3](#73-biletler)).
 Bilet yalnızca `Hello`'su kabul edilmiş bağlantıya, yalnızca bir izleme başlatıldığında verilir.
 
-### 5.3 Kabul edilen risk: yalnızca MAC
+### 5.3 Kabul edilen risk: düz HTTP
 
-MAC bir sır değildir. **2026-09-29 kararıyla kabul edilen** sonuçlar:
-
-- Bir PC'nin MAC'ini bilen biri, gerçek PC bağlı değilken onun yerine bağlanıp operatöre **sahte ekran**
-  gösterebilir.
-- Faz 8+'da (fare/klavye) sahte istemci, operatörün o PC'ye yazdığı tuşları (parolalar dahil) alır.
-
-Hafifletmeler (bedava olanlar): ilk bağlanan kazanır; reddedilen ve çakışan `Hello`'lar IP'siyle loglanır;
-isteğe bağlı `Modules:RemoteDesk:AllowedNetworks` (CIDR listesi, boş = herkes) ile hub ve publish yalnızca
-belirli ağlardan kabul edilir. İnternetten erişim ya da Faz 8 bu kararı yeniden değerlendirmek için
-doğal noktalardır.
+**HTTPS zorunlu değildir** (kullanıcı kararı 2026-10-25). Düz HTTP'de sır her istekte base64 ile açık gider; ağı dinleyen biri onu
+alıp gerçek PC bağlı değilken onun yerine bağlanabilir (sahte ekran, operatörün yazdığı tuşları toplama). Hafifletmeler: ilk bağlanan
+kazanır; reddedilen denemeler IP'siyle loglanır; isteğe bağlı `Modules:RemoteDesk:AllowedNetworks` (CIDR listesi, boş = herkes) ile
+hub ve publish yalnızca belirli ağlardan kabul edilir; sır panelden yenilenerek eskisi geçersiz kılınır. 2026-09-29 – 2026-10-25 arasında
+kimlik yalnızca MAC'ti (sır değil, taklit edilebilirdi) — bu risk Basic Auth ile kapandı; HTTPS'e geçiş ayrı bir karardır.
 
 ---
 
@@ -175,26 +178,40 @@ kopunca: 1 → 2 → 5 → 10 → 30 sn (üst sınır 30 sn, sonsuz)
 
 - **Ayrı bir heartbeat yok.** Canlılık SignalR'ın `KeepAliveInterval` (15 sn) / `ClientTimeoutInterval`
   (30 sn) mekanizmasıdır. İstemci yalnızca **bir şey değişince** bildirir (yayın durumu, monitör listesi).
-- Sunucu bağlantıları **bellekte** tutar: `DeviceId → { connectionId, mac'ler, sürüm, monitörler, yayınlar }`.
+- Sunucu bağlantıları **bellekte** tutar: `DeviceId → { connectionId, sürüm, monitörler, yayınlar }`.
   Tek sunucu varsayımı; yatay ölçekleme SignalR backplane ister — kapsam dışı.
 - Aynı PC'de birden fazla Windows oturumu varsa (hızlı kullanıcı değiştirme) **yalnızca etkin konsol
   oturumundaki** istemci bağlanır; oturum değişince (`SystemEvents.SessionSwitch`) bırakır/devralır.
 
 ### 6.2 Sözleşme (`Scadex.RemoteDesk.Contracts`)
 
-Kodda: `Contracts/Hub/PcHubContract.cs` (hub yolu, metot adları, `IPcHubClient`, kayıtlar) ve `Contracts/Hub/MacAddress.cs`
-(normalizasyon — iki taraf aynı kodu kullanır). Aşağıdaki tablo özettir; alan adları koddakidir.
+Kodda: `Contracts/Hub/PcHubContract.cs` (hub yolu, metot adları, `IPcHubClient`, kayıtlar). Aşağıdaki tablo özettir; alan adları
+koddakidir. Kimlik `Hello`'da değil bağlantının `Authorization` başlığındadır (§ 5.1).
 
 İstemci → sunucu:
 
 | Metot | Gövde → Dönüş |
 |---|---|
-| `Hello` | `{ macAddresses[], clientVersion, osVersion, machineName, userName, monitors[] }` → `{ status, deviceId?, deviceName?, cabinetName?, matchedMacAddresses[] }` (`status`: Accepted 1, UnknownDevice 2, Ambiguous 3, AlreadyConnected 4, NetworkNotAllowed 5) |
+| `Hello` | `{ clientVersion, osVersion, machineName, userName, monitors[] }` → `{ status, deviceId?, deviceName?, cabinetName? }` (`status`: Accepted 1, AlreadyConnected 4, NetworkNotAllowed 5; 2 ve 3 MAC eşleşmesiyle kalktı — yeniden kullanılmaz) |
 | `ReportMonitors` | `{ monitors[] }` — ekran eklenince/çıkınca/çözünürlük değişince |
 | `ReportStreamState` | `{ sessionId, monitorIndex, state, encoder?, failureReason? }` — yalnızca durum değişince; PC'de elle durdurulan yayın (`Stopped`) merkezde de biter (`StoppedOnPc`) |
+| `ReportControlInput` *(2026-10-25)* | `{ controlSessionId, state }` — `ControlInputState` (Ok 1, SecureDesktop 2, SecureDesktopUnavailable 3, Rejected 4, MonitorMissing 5); yalnızca değişince, kontrol `Ok` varsayımıyla başlar ([§ 12.6](#126-uipi-ve-güvenli-masaüstü)) |
 
 `monitors[]` öğesi: `MonitorInfo` — `{ index, adapterIndex, outputIndex, deviceName, left, top, width, height, isPrimary,
-gpuVendor, gpuName }`, piksel cinsinden (fiziksel). Yakalama `(adapterIndex, outputIndex)` çiftiyle yapılır (§ 7.4).
+gpuVendor, gpuName }`, piksel cinsinden (fiziksel). Windows istemcisi yakalamayı `(adapterIndex, outputIndex)` çiftiyle yapar (§ 7.4).
+
+**Sözleşme işletim sisteminden bağımsızdır (2026-10-25, kullanıcı hedefi: ileride Linux/Android istemcileri).** Bugün tek istemci
+Windows'tur; yeni bir platformun istemcisi aynı hub'a **sunucu değişmeden** bağlanabilmelidir. Bu yüzden:
+- Telde yalnızca platformdan bağımsız kavramlar taşınır: DOM tuş kodu (`KeyboardCodes`, § 12.4), [0,1] koordinat, tekerlek protokol birimi
+  (120 = bir çentik), RTSP yayın adresi, **opak** dosya yolu metni.
+- Platforma özgü alanlar yalnızca bilgidir, sunucu **yorumlamaz**: `MonitorInfo`'nun `adapterIndex`/`outputIndex`/`deviceName`/`gpuVendor`/
+  `gpuName`'i (başka platform 0/boş gönderir), `EncoderKind`/`GpuVendor` (yeni platform yeni değer ekler), `osVersion`. Windows'a özgü tablolar
+  ve yerel düzen istemcidedir: `WindowsScanCodes` (code → set-1 scan code), `Contracts/Local/AgentPipeContract` (Agent ↔ arayüz pipe'ı).
+- **Sunucu PC yolunu kendi OS kuralıyla işlemez** (`Path.GetFileName`/`Combine`/`GetInvalidFileNameChars` sunucunun OS'una göredir):
+  ad çıkarma, hedef birleştirme ve güvenli ad `FileTransfer/PcPathText`'tedir (hem `\` hem `/` ayırıcı; birleştirmede klasörün kendi
+  ayırıcısı; yasak karakter kümesi sabit). Yazma politikası PC'nindir.
+- Bilinçli olarak YOK: platform/yetenek bildirimi (`Hello`'da platform türü, "klavye/dosya/pano destekleniyor mu"). Tek istemci Windows iken
+  kullanılmayan yüzey olurdu; ikinci platform gelince eklenir (kullanıcı kararı 2026-10-25).
 
 Sunucu → istemci (`IPcHubClient`):
 
@@ -364,7 +381,7 @@ Ortak çıkış: `-b:v/-maxrate/-bufsize <kbps> -g <2×fps> -fps_mode passthroug
   yeniden başlatır ve sunucuya bildirir. `passthrough` sınırsız birikmeyi önler; bekçi, düşük fps'li
   takılan görüntüyü önler.
 - Çözünürlük değişimi, kilit ekranı/UAC geçişi Desktop Duplication'ı düşürür, FFmpeg çıkar; yeniden
-  deneme karşılar. Kilit ekranı süresince görüntü yoktur ([§ 9.7](#97-wpf-seçiminin-bedeli)).
+  deneme karşılar. Kilit ekranı süresince görüntü yoktur ([§ 9.7](#97-bilinen-sınırlar)).
 - Uygulama kapanırken ya da çökerken **sahipsiz FFmpeg kalmaz**: süreçler `KILL_ON_JOB_CLOSE`'lu bir
   Windows Job Object'e bağlanır.
 
@@ -423,113 +440,150 @@ Created → CommandSent → Streaming → Stopping → Stopped
 
 ---
 
-## 9. Windows istemcisi — `Scadex.RemoteDesk.Windows`
+## 9. PC tarafı — servis + Agent + arayüz
 
-### 9.1 Süreç modeli
+### 9.1 Süreç modeli (Faz 11a, 2026-10-25)
 
-Tek bir WPF süreci, **oturum açmış kullanıcının** oturumunda çalışır. Servis, yardımcı süreç ve named pipe
-**yoktur**.
+Üç süreç, iki proje (karar 2026-10-06, uygulama 2026-10-25 — gerekçe ve tablo [§ 9.8](#98-süreç-modeli--servis--agent--wpf-faz-11a)):
 
-- **Otomatik başlatma (karar 2026-09-30, güncel 2026-10-01):** kurulum paketi yok; istemci Program Files altına konur. İki yol:
-  - **Yalnızca izleme + normal pencere kontrolü için:** başlangıç klasörü kısayolu, hedefi `Scadex.RemoteDesk.Windows.exe --tray`
-    (pencere açmadan System Tray'de, normal yetki).
-  - **Yönetici pencerelerini de (Görev Yöneticisi vb.) kontrol için:** `Deploy/Install-StartupTask.ps1` ile oturum açılışında "en
-    yüksek ayrıcalıkla" Görev Zamanlayıcı görevi (UAC sormadan yükseltilmiş başlar — § 12.6). **Önerilen yol budur.**
-  - **İkisi birden kurulmaz:** oturum açılışında hem kısayol (normal) hem görev (yükseltilmiş) açılırsa tek-örnek kilidinde normal
-    örnek kazanabilir ve yükseltilmiş örnek "ikinci örnek" diye kapanır. Görev kurulunca kısayol kaldırılır. Çalışma klasörü her iki
-    yolda da önemsizdir (§ 9.4).
-- **Monitörler kendiliğinden güncellenir (2026-10-01):** algılanan monitör listesi değişince (ekran ayarı, RDP bağlan/kes, konsol
-  geçişi) ve 12 sn'lik uzlaştırmada merkeze bildirilir — elle "yenile" gerekmez. RDP ile ayarlayıp ayrılınca fiziksel monitörlere
-  dönüş birkaç saniyede yansır. Ayrıntı § 9.3.
-- **Tek örnek:** oturum başına `Local\Scadex.RemoteDesk.Windows` mutex'i; ikinci örnek mevcut pencereyi
-  öne getirip çıkar.
-- **Pencere kapatılınca uygulama kapanmaz, System Trayye iner.** Çıkış yalnızca System Tray menüsünden.
-- Uygulama **Per-Monitor DPI Aware v2**'dir (`app.manifest`); monitör boyutları ve (sonra) fare
-  koordinatları fiziksel piksel olarak doğru çıkar.
+| Süreç | Proje / exe | Nerede, kim | İşi |
+|---|---|---|---|
+| **Servis** | `Scadex.RemoteDesk.Windows.Service.exe` (argümansız) | Session 0, LocalSystem; `ScadexRemoteDesk`, otomatik başlar | Yalnızca gözetmen: doğru oturumda tek Agent çalıştırır. Merkezle konuşmaz. |
+| **Agent** | aynı exe, `--session` | Kullanıcının oturumu (`winsta0\default`), **SYSTEM** | Merkez hub'ı (Basic Auth), ekran yakalama + FFmpeg, `SendInput`, dosya, pano, monitör izleme, encoder sınaması |
+| **Arayüz** | `Scadex.RemoteDesk.Windows.exe` (WPF) | Kullanıcının oturumu, **normal yetki**; `HKLM\…\Run` `--tray` | Agent'ın durumunu gösterir (izleniyor şeridi + tepsi ikonu), üç zararsız komut gönderir |
 
-### 9.2 Arayüz
+- **Hedef oturum (kullanıcı kararı 2026-10-25):** aktif ve kullanıcısı olan oturum — önce fiziksel konsol, yoksa en küçük Id'li aktif RDP
+  oturumu. Hiçbiri yoksa **Agent çalışmaz**: kimse oturum açmamışken (giriş ekranı) ya da RDP bağlantısı kesilmiş tek oturumda PC merkezde
+  "bağlı değil" görünür. Kilitli oturum hâlâ aktiftir: Agent kalır, yayın "ekran kilitli" olur.
+- **Servis Agent'ı yeniden başlatır:** Agent'ın oturumunda oturum açılıp kapanınca, hedef oturum değişince (hızlı kullanıcı değiştirme,
+  konsol ↔ RDP) ve Agent beklenmedik bitince (geri çekilme 1/2/5/10/30 sn; 60 sn yaşadıysa sıfırlanır). Oturum olayları SCM'den gelir
+  (`SessionAwareServiceLifetime`); 15 sn'de bir ucuz WTS uzlaştırması kaçan olayları yakalar. Aynı oturumda RDP bağlan/kes ve kilit
+  Agent'ı yeniden başlatmaz — monitör listesini Agent izler.
+- **Başlatma:** servis kendi SYSTEM token'ını çoğaltır, oturum Id'sini hedef oturuma çevirir (SeTcbPrivilege — yalnızca LocalSystem'de),
+  `CreateProcessAsUser` ile askıda başlatır, Job Object'e (`KILL_ON_JOB_CLOSE`) koyar, durdurma olayını
+  (`Global\Scadex.RemoteDesk.Agent.{pid}.Stop`, varsayılan DACL: SYSTEM + Administrators) kurar ve sürdürür. Servis süreci nasıl biterse
+  bitsin Agent ve onun FFmpeg'leri (iç içe job) kalmaz.
+- **Durdurma:** servis olayı işaretler → Agent yayınları nazikçe durdurur (FFmpeg'e `q`), hub'ı kapatır, çıkar; 8 sn'de çıkmazsa sonlandırılır.
+- **Kullanıcı Agent'ı kapatamaz** (SYSTEM süreci; yönetici kapatırsa servis yeniden başlatır). Arayüzün tepsi menüsündeki "Arayüzü kapat"
+  yalnızca arayüzü kapatır, izleme sürer.
+- **Elle başlatılan Agent çıkar** (SYSTEM değilse, çıkış kodu 2). Geliştirmede `DOTNET_ENVIRONMENT=Development` ile normal kullanıcıyla
+  çalışır (launchSettings: "Agent (geliştirme, normal kullanıcı)").
+- **Monitörler kendiliğinden güncellenir (2026-10-01):** Agent `SystemEvents.DisplaySettingsChanged` / `SessionSwitch` (RDP bağlan/kes,
+  konsol geçişi, kilit açılması) ve 12 sn'lik uzlaştırmayla monitör listesini merkeze yalnızca değişince bildirir.
+- **Tek arayüz örneği** oturum başınadır (`Local\Scadex.RemoteDesk.Windows` mutex'i); ikinci örnek mevcut pencereyi öne getirip çıkar.
+  Pencere kapatılınca arayüz System Tray'e iner.
+- Agent **Per-Monitor DPI Aware v2**'dir (`app.manifest`): monitör dikdörtgenleri ve fare koordinatları fiziksel pikseldir.
 
-System Tray ikonu (WinForms `NotifyIcon`, `UseWindowsForms` — üçüncü parti paket yok) + tek pencere:
+### 9.2 Arayüz ve pipe
+
+System Tray ikonu (WinForms `NotifyIcon`) + tek pencere; bütün veri Agent'ın pipe'tan gönderdiği özettir (`AgentSnapshot`):
 
 | Alan | İçerik |
 |---|---|
-| Bağlantı | Bağlı / Bağlanıyor / Bağlantı yok / **Tanımsız cihaz** / Başka bağlantıda — son hata |
+| Bağlantı | Bağlı / Bağlanıyor / Kimlik bilgisi reddedildi / Başka bağlantıda / Ağ izinli değil / Yapılandırma eksik — son hata. Agent yoksa "Servis bağlantısı yok" |
 | Merkez | Sunucu adresi, eşleşilen kabin ve cihaz adı |
-| Bu PC | Gönderilen MAC'ler (kopyalanabilir — teknisyen diyagrama girer), makine adı, sürüm |
-| Monitörler | Liste; izlenen monitör(ler) işaretli, kodlayıcı |
-| İzleniyor | Aktif yayın varken **System Tray ikonu değişir** ve pencerede belirgin gösterge çıkar |
+| Bu PC | Makine adı, cihaz kimliği (`DeviceId`, seçilebilir; sır gösterilmez), Agent sürümü ve oturum kullanıcısı |
+| Monitörler | Liste; yayının salt okunur durumu (encoder/zincir/profil, canlı fps/hız/CPU) |
+| Encoder | Sınama sonuçları, seçilen encoder, "Tercih et" / "Otomatik seçime dön" |
+| İzleniyor | Aktif yayın, uzaktan kontrol ya da dosya aktarımı varken **System Tray ikonu değişir** ve pencerede kırmızı şerit çıkar |
 
-System Tray menüsü: Göster · Yeniden bağlan · Günlük klasörünü aç · Çıkış.
+System Tray menüsü: Göster · Yeniden bağlan · Günlük klasörünü aç (`%ProgramData%`, servis + Agent) · Arayüzü kapat (izleme sürer).
+
+**Pipe (`Contracts/Local/AgentPipeContract.cs`):** `Scadex.RemoteDesk.Agent.{oturumId}`, satır başına bir UTF-8 JSON, protokol sürümü 1.
+- ACL: SYSTEM tam + **o oturumun logon SID'i** okuma/yazma; başka oturumdaki aynı kullanıcı da açamaz. Agent her bağlantıda istemcinin
+  oturumunu doğrular, adı `FirstPipeInstance` ile alır (ad başkasındaysa açmaz ve hata loglar).
+- Arayüz bağlanmadan önce **sunucuyu doğrular**: aynı oturumda olmalı ve süreç yolu kurulumdaki `..\Service\Scadex.RemoteDesk.Windows.Service.exe`
+  olmalı (geliştirme düzeninde yalnızca exe adı). Değilse bağlanmaz, "Agent doğrulanamadı" gösterir — sahte bir "izlenmiyor" göstergesine karşı.
+- Arayüz → Agent **yalnızca** `subscribe` + `reconnect` / `probeEncoders` / `setPreferredEncoder`. Girdi, yayın ve dosya komutu yoktur;
+  bilinmeyen tip, bozuk JSON ya da 64 KB'yi aşan satır bağlantıyı kapatır. Sürüm farkında Agent `unsupportedVersion` gönderir.
+- Agent → arayüz: `snapshot` (değişince, en çok 500 ms'de bir birleştirilerek). **Arayüz bağlı değilken özet hiç kurulmaz** (§ 9.3).
 
 ### 9.3 Minimal kaynak kullanımı
 
-- **Boştayken:** SignalR WebSocket'i (15 sn keep-alive) + 12 sn'de bir monitör uzlaştırması (ucuz DXGI enumerasyonu, liste
-  değişmedikçe ağ trafiği yok). Başka zamanlayıcı/yoklama yok, CPU ≈ 0.
-- **UI yalnızca olayla güncellenir:** servisler durum değişince olay yayar, ViewModel özelliği değişir;
-  gizli pencere çizilmediği için bunun maliyeti yoktur. Zamanlayıcıyla yenilenen kontrol ve animasyon yok.
-- Monitör listesi açılışta, `SystemEvents.DisplaySettingsChanged`'de, `SystemEvents.SessionSwitch`'te (RDP bağlan/kes, konsol
-  bağlan/kes, kilit açılması) ve 12 sn'lik uzlaştırmada okunur; merkeze yalnızca **değişince** bildirilir (§ 9.1). MAC listesi
-  yalnızca bağlanırken.
-- Kodlayıcı denemesi ilk yayında (§ 7.4); FFmpeg yalnızca izlenen monitör için, `BelowNormal` öncelikte.
-- Workstation GC. Hedef: boşta **< 100 MB** bellek, **≈ %0 CPU** — Faz 7'de tuttu: %0,13 CPU, private 29 MB
-  ([§ 16.3](#163-faz-7-ölçümleri-2026-09-30)).
+- **Boştayken (Agent):** SignalR WebSocket'i (15 sn keep-alive) + 12 sn'de bir monitör uzlaştırması (ucuz DXGI enumerasyonu, liste
+  değişmedikçe ağ trafiği yok). Arayüz bağlı değilken pipe özeti kurulmaz. **Servis:** olay bekler + 15 sn'de bir WTS sorgusu.
+- **Arayüz** yalnızca Agent'ın özetiyle güncellenir; gizli pencere çizilmediği için maliyeti yoktur. Zamanlayıcıyla yenilenen kontrol yok.
+- Kodlayıcı denemesi ilk yayında (§ 7.4) ya da arayüzden istenince; FFmpeg yalnızca izlenen monitör için, `BelowNormal` öncelikte.
+- Hedef: Agent boşta **< 100 MB** bellek, **≈ %0 CPU** (Faz 7 ölçümü tek WPF süreciyle yapıldı — [§ 16.3](#163-faz-7-ölçümleri-2026-09-30);
+  Faz 11a sonrası yeniden ölçülmedi).
 
 ### 9.4 Yapılandırma
 
-Uygulama klasöründeki `appsettings.json` (publish klasörüyle gelir; dağıtırken `CentralApiUrl` sahanın merkez
-adresine elle yazılır). Generic Host'un içerik kökü **`AppContext.BaseDirectory`**'dir; çalışma klasörüne güvenilmez
-(oturum açılışında başlatılan süreçte `System32` olur).
+Servis klasöründeki `appsettings.json` (Agent okur; içerik kökü **`AppContext.BaseDirectory`** — servis System32'de başlar):
 
 ```json
-{ "RemoteDesk": { "CentralApiUrl": "http://10.0.0.5:5208" } }
+{ "RemoteDesk": { "CentralApiUrl": "http://10.0.0.5:5208", "DeviceId": "<diyagramdaki PC cihazının Id'si>", "DeviceSecret": "<panelde üretilen sır>" } }
 ```
 
-Tek ayar budur; `IOptions<RemoteDeskClientOptions>` ile okunur. MAC'ler makineden okunur; video profili ve
-yayın adresi sunucudan gelir. FFmpeg yolu uygulama klasörüne göreli sabittir (`tools\ffmpeg\ffmpeg.exe`).
+`DeviceId` + `DeviceSecret` PC'nin Basic Auth kimliğidir (§ 5.1); biri boşsa Agent "Yapılandırma eksik" der ve bağlanmaz. Dosya cihaz
+sırrını taşır ve varsayılan izinlerle standart kullanıcılarca okunabilir — kısmak elle yapılır (§ 9.6); arayüzün yapılandırması yoktur. Video profili ve yayın adresi sunucudan gelir. FFmpeg yolu servis klasörüne göreli sabittir (`tools\ffmpeg\ffmpeg.exe`).
 
 ### 9.5 Loglama
 
-Serilog (Faz 7, `Services/Shell/ClientLog.cs`): `%LocalAppData%\Scadex\RemoteDesk\logs\client-YYYYMMDD.log` (kullanıcı
-başına — uygulama klasörü yazılabilir olmayabilir; günlük döner, 14 dosya, dosya başına 10 MB), seviye Information,
-`Microsoft`/`System` Warning. System Tray menüsünde "Günlük klasörünü aç". Olaylar: açılış (sürüm, System Tray/pencere,
-**yetki yükseltilmiş/normal** — § 12.6), merkeze bağlandı/kapandı/kabul etmedi, merkez yayın istedi/durdurdu, encoder sınama
-sonuçları, yayın başladı (encoder, profil, maskeli adres), profil düşürme, FFmpeg çıktısı (çıkış kodu), monitör listesi değişti
-(tetikleyici), tercih değişimi, System Tray'den çıkış; işlenmeyen hatalar
-`Critical` (davranış değişmez, uygulama yine kapanır). **Bilet asla loglanmaz**; FFmpeg adresi `rtsp://***@` ile maskelenir
-(Faz 7'de günlükte bilet araması 0 sonuç).
+Serilog. **Servis ve Agent:** `%ProgramData%\Scadex\RemoteDesk\logs\{service,agent}-YYYYMMDD.log` (SYSTEM'in `LocalAppData`'sı systemprofile
+olurdu; satırda süreç Id'si; günlük döner, 14 dosya, dosya başına 10 MB; `%ProgramData%`'nın varsayılan izinleri). **Arayüz:**
+`%LocalAppData%\Scadex\RemoteDesk\logs\ui-*.log` (yalnızca arayüz olayları). Seviye Information, `Microsoft`/`System` Warning.
+
+Servis olayları: açılış, oturum olayları, Agent başlatıldı/durdu/beklenmedik bitti (çıkış kodu, geri çekilme). Agent olayları: açılış
+(sürüm, oturum, kullanıcı, **kimlik SYSTEM/geliştirme**), merkeze bağlandı/kapandı/kimlik reddedildi (401), merkez yayın istedi/durdurdu,
+encoder sınamaları, yayın başladı (encoder, profil, maskeli adres), FFmpeg çıktısı, monitör listesi değişti, arayüzün komutları, dosya
+transferi (reddedilen yazmalar nedenle). **Bilet ve cihaz sırrı asla loglanmaz**; FFmpeg adresi `rtsp://***@` ile maskelenir; pano içeriği
+loglanmaz.
 
 ### 9.6 Kurulum
 
-- **Kurulum paketi yok (karar 2026-09-30):** Inno Setup/MSI yazılmadı. Proje sahibi klasöre publish alıp elle dağıtır:
-  `dotnet publish Modules/RemoteDesk/Scadex.RemoteDesk.Windows -c Release -r win-x64 --self-contained true -o <klasör>`
-  (≈ 300 MB: .NET gömülü, kurulum gerekmez + 134 MB FFmpeg). Klasörde `tools\ffmpeg\ffmpeg.exe` ve LGPL `LICENSE.txt` gelir;
-  **ikisinden biri geliştirme ortamında yoksa publish hata verip durur** (`RequireFfmpegForPublish`, csproj) — FFmpeg'siz
-  istemci sahaya gitmesin. `*.pubxml` depoda yok sayıldığı için publish profili yok; komut budur. Sahada: klasörü **Program Files**
-  altına kopyala → `appsettings.json > CentralApiUrl` → otomatik başlatma (§ 9.1): yönetici pencerelerini de kontrol için publish'le
-  gelen `Deploy/Install-StartupTask.ps1` (yönetici PowerShell'de bir kez; oturum açılışında yükseltilmiş başlatır — § 12.6), yalnızca
-  izleme yetecekse `--tray` kısayolu. Ekranda "Encoder" kutucuğu (sınama, seçilen encoder, "Tercih et" —
-  § 7.4) ve her monitörün kartında merkez yayınının salt okunur durumu (encoder/zincir/profil, canlı fps/hız/CPU) görünür.
-  Sahadaki test yayını 2026-09-30'da kaldırıldı: yayın yalnızca merkezin isteğiyle başlar ve durur.
-- Binary'ler kod imzalı olmalı (uzaktan erişim yazılımları AV'lerce sık işaretlenir) — sertifika gelince; Faz 11a'dan sonra
-  (SYSTEM + ekran yakalama + girdi) daha da önemli.
+**Kurulum paketi ve kurulum betiği yok (kullanıcı kararları 2026-09-30, 2026-10-25):** iki projenin yayını alınır, client'a kopyalanır,
+servis bir kez `sc create` ile tanıtılır. (Bir süre `Deploy/Publish-Client.ps1` + `Install-Service.ps1` vardı; süreci karmaşıklaştırdığı için
+kaldırıldı.)
+
+1. **Yayın (geliştirme makinesi)** — ikisi de self-contained win-x64 (.NET gömülü, client'ta kurulum gerekmez; toplam ≈ 420 MB):
+   ```
+   dotnet publish Modules\RemoteDesk\Scadex.RemoteDesk.Windows.Service -c Release -r win-x64 --self-contained true -o <paket>\Service
+   dotnet publish Modules\RemoteDesk\Scadex.RemoteDesk.Windows -c Release -r win-x64 --self-contained true -o <paket>\Tray
+   ```
+   **İki ayrı klasör** bilerek: iki self-contained yayın aynı klasöre konursa ortak paket DLL'leri birbirinin üstüne yazılırdı.
+   `tools\ffmpeg\ffmpeg.exe` ya da LGPL `LICENSE.txt` geliştirme ortamında yoksa servis yayını bilerek hata verir (`RequireFfmpegForPublish`).
+2. **Client'a kopyala:** `Service\` ve `Tray\` **yan yana**, ör. `C:\Program Files\Scadex\RemoteDesk\{Service,Tray}`. Arayüz Agent'ı
+   `..\Service\Scadex.RemoteDesk.Windows.Service.exe` yolundan doğrular (§ 9.2); yan yana değilse yalnızca exe adıyla doğrular.
+3. **Ayar:** `Service\appsettings.json` → `CentralApiUrl`, `DeviceId`, `DeviceSecret` (§ 9.4).
+4. **Servis (yönetici komut istemi, bir kez):**
+   ```
+   sc create ScadexRemoteDesk binPath= "C:\Program Files\Scadex\RemoteDesk\Service\Scadex.RemoteDesk.Windows.Service.exe" start= auto DisplayName= "Scadex RemoteDesk"
+   sc failure ScadexRemoteDesk reset= 86400 actions= restart/5000/restart/10000/restart/30000
+   sc start ScadexRemoteDesk
+   ```
+   Servis LocalSystem'dir (varsayılan) ve kullanıcı oturumunda Agent'ı birkaç saniyede başlatır. `sc failure` isteğe bağlıdır: servis sürecinin
+   kendisi çökerse Windows yeniden başlatsın diye (Agent'ın çökmesini servis zaten kendisi toparlar). Servis exe'si elle çalıştırılmaz —
+   Agent yalnızca LocalSystem servisten SYSTEM olarak başlayabilir.
+5. **Arayüz (isteğe bağlı, yalnızca gösterge):** `Tray\Scadex.RemoteDesk.Windows.exe --tray` kısayolu ortak Başlangıç klasörüne
+   (`shell:common startup`). İzleme ve kontrol arayüz olmadan da çalışır.
+
+- **Güncelleme:** `sc stop ScadexRemoteDesk` → klasörleri yenisiyle değiştir (`appsettings.json`'ı koru) → `sc start ScadexRemoteDesk`.
+  **Kaldırma:** `sc stop ScadexRemoteDesk` + `sc delete ScadexRemoteDesk`, klasörü ve kısayolu sil. Eski sürümden (Görev Zamanlayıcı ile
+  yükseltilmiş WPF) geçen PC'de "Scadex RemoteDesk Client" görevi ve eski kısayol elle kaldırılır — yoksa eski istemci hub'ı tutar, yeni Agent
+  "başka bağlantıda" kalır.
+- **Kabul edilen eksik (kullanıcı kararı):** `appsettings.json` ve günlük klasörü varsayılan izinlerle kalır — `Program Files` altında standart
+  kullanıcılar cihaz sırrını **okuyabilir**. İstenirse elle kısılır:
+  `icacls "…\Service\appsettings.json" /inheritance:r /grant:r *S-1-5-18:F *S-1-5-32-544:F`.
+- Binary'ler kod imzalı olmalı (uzaktan erişim yazılımları AV'lerce sık işaretlenir; Agent SYSTEM + ekran + girdi) — sertifika gelince.
 - Otomatik güncelleme **yapılmayacak** (kullanıcı kararı, 2026-10-06).
+- Temiz (geliştirme araçsız) bir PC'de kurulum denemesi Faz 11a'nın açık kalan maddesidir (§ 14).
 
-### 9.7 WPF seçiminin bedeli
+### 9.7 Bilinen sınırlar
 
-Kullanıcı oturumunda çalışan bir uygulama şunları **göremez / yapamaz**: kilit ekranı, oturum açılmamış PC,
-UAC güvenli masaüstü, Ctrl+Alt+Del. Kullanıcı uygulamayı System Trayden kapatırsa PC bir sonraki oturum açılışına
-kadar bağlı değildir (listede "bağlı değil" görünür). **Planlandı:** [§ 9.8](#98-planlanan-süreç-modeli--servis--agent--wpf-faz-11a)
-(Faz 11a: servis + Agent + WPF; Faz 11b: kilit ekranı / UAC / Ctrl+Alt+Del).
+UAC onay penceresi ve kilit ekranı (güvenli masaüstü, `Winlogon`) **2026-10-25'ten beri desteklenir** (Faz 11b, dar — § 12.6). Hâlâ
+**yapılamayanlar:** oturum açılmamış PC (giriş ekranı — Agent yalnızca kullanıcı oturumunda çalışır, kullanıcı kararı) ve Ctrl+Alt+Del
+(kullanıcı kararı; gerekirse `SendSAS` + `SoftwareSASGeneration` ilkesiyle eklenir). RDP bağlantısı kesilmiş tek oturumda da Agent durur
+(yakalanacak masaüstü yok). Geliştirme modunda (normal kullanıcı) güvenli masaüstü açılamaz; davranış "ekran kilitli"dir.
 
-### 9.8 Planlanan süreç modeli — servis + Agent + WPF (Faz 11a)
+### 9.8 Süreç modeli — servis + Agent + WPF (Faz 11a)
 
-> **Durum (2026-10-06): karar verildi, uygulanmadı.** Bugün geçerli olan § 9.1'deki düzendir (tek WPF süreci +
-> `Deploy/Install-StartupTask.ps1`). Faz 11a'nın Agent'ı kullanıcı oturumuna başlatan bileşeni henüz yazılmadı; o hazır
-> olana kadar Görev Zamanlayıcı yolu silinmez.
+> **Durum (2026-10-25): uygulandı** (kullanıcı kararı 2026-10-06). Görev Zamanlayıcı yolu ve `Install-StartupTask.ps1` kaldırıldı.
+> Oturum açılmamış PC'de bağlanma kapsamdan çıktı (kullanıcı kararı 2026-10-25 — Agent yalnızca kullanıcı oturumunda).
 
-**Neden (kullanıcı önerisi):** Windows açılınca ve oturum açılmadan merkeze bağlı olmak; logout/login'de kendiliğinden yeniden
-bağlanmak; çökünce yeniden başlamak; kullanıcının istemciyi kapatamaması; kurulumun kullanıcıdan bağımsız olması (`-ForUser` yok);
-Görev Zamanlayıcı'nın kalkması.
+**Neden (kullanıcı önerisi):** logout/login'de kendiliğinden yeniden bağlanmak; çökünce yeniden başlamak; kullanıcının istemciyi
+kapatamaması; kurulumun kullanıcıdan bağımsız olması (`-ForUser` yok); yönetici pencerelerine görev/UAC olmadan girdi; Görev
+Zamanlayıcı'nın kalkması.
 
 **Temel kısıt:** Windows servisi Session 0'da çalışır, kullanıcı masaüstünü göremez ve girdi gönderemez. Bu yüzden ekran ve girdi
 işini servis değil, servisin kullanıcı oturumunda başlattığı ayrı bir süreç (**Agent**) yapar. WPF kullanıcı yetkisinde kalır:
@@ -540,41 +594,22 @@ SYSTEM yetkili bir pencere (ör. dosya diyaloğu) yerel yetki yükseltme açığ
 | Uygulama türü | Windows Service (.NET Worker) | Penceresiz süreç (Generic Host) | WPF + System Tray |
 | Kim başlatır | Windows, açılışta otomatik | Servis | Oturum açılışında `HKLM\…\Run` |
 | Nerede / kimlik | Session 0, LocalSystem | Kullanıcının oturumu, SYSTEM | Kullanıcının oturumu, normal yetki |
-| Merkez hub bağlantısı | — | **Var** (`PcHub`, Hello, MAC) | — |
+| Merkez hub bağlantısı | — | **Var** (`PcHub`, Basic Auth, Hello) | — |
 | Ekran yakalama (ddagrab/FFmpeg) | — | **Var** | — |
 | Fare/klavye (`SendInput`) | — | **Var** (yükseltilmiş pencereler dahil) | — |
-| Dosya transferi, pano | — | **Var** (sistem klasörü reddi aynen) | — |
+| Dosya transferi, pano | — | **Var** (yol politikası § 12.8) | — |
 | Monitör listesi, encoder sınaması | — | **Var** | Agent'tan gösterir |
 | Oturum değişimi (login/logout/RDP) | **İzler**, Agent'ı yeni oturumda kurar | Kapanır, yenisi başlar | Yeni oturumda yeniden açılır |
 | Çökme kurtarma | SCM kurtarma ayarı | Servis yeniden başlatır (geri çekilmeli) | Gerekmez |
-| Kapatma | Yalnızca yönetici durdurur | Kullanıcı kapatamaz | "Çıkış" yalnızca arayüzü kapatır |
+| Kapatma | Yalnızca yönetici durdurur | Kullanıcı kapatamaz | "Arayüzü kapat" yalnızca arayüzü kapatır |
 | "İzleniyor / kontrol ediliyor" | — | Durumu üretir | **Gösterir** (şerit + tepsi ikonu) |
 | Kullanıcıdan komut | — | Pipe'tan yalnızca Yeniden bağlan / Encoder sına / Tercih et | Bu üçünü gönderir |
-| Günlük | `%ProgramData%\Scadex\RemoteDesk\logs` | `%ProgramData%\…\logs` | `%LocalAppData%` (yalnızca arayüz) |
-| Bugünkü karşılığı | Yok (Görev Zamanlayıcı görevi) | Bugünkü `Services/` klasörü | Bugünkü `Views/` + `ViewModels/` + `TrayIcon` |
+| Günlük | `%ProgramData%\…\logs\service-*` | `%ProgramData%\…\logs\agent-*` | `%LocalAppData%\…\ui-*` |
+| Kod | `Supervisor/`, `Native/` | `Agent/`, `Services/` (eski WPF `Services/`) | `Views/`, `ViewModels/`, `Services/Agent`, `Services/Shell` |
 
-**Projeler:** `Scadex.RemoteDesk.Windows.Service` — servis + Agent tek exe (`Scadex.RemoteDesk.Windows.Service.exe`; "Agent" bu
-exe'nin `--session` modunun adıdır, ayrı proje değildir) · `Scadex.RemoteDesk.Windows` — yalnızca arayüz · yerel IPC kayıtları
-`Scadex.RemoteDesk.Contracts` içinde.
-
-**Kararlar (kullanıcı, 2026-10-06):**
-- Hub bağlantısını Agent tutar; servis yalnızca gözetmendir, merkezle konuşmaz.
-- Oturumdaki kullanıcı Agent'ı kapatamaz.
-- Dosya transferi Agent kimliğiyle yapılır; sistem klasörü reddi (§ 12.8) aynen kalır.
-- WPF ↔ Agent named pipe'ı yalnızca durum + üç zararsız komut taşır; girdi, yayın ve dosya komutu taşımaz. Pipe yalnızca SYSTEM'e ve
-  o oturumun kullanıcısına açıktır.
-- **Görev Zamanlayıcı kalkar.** `Deploy/Install-Service.ps1` (yönetici PowerShell'de bir kez, tekrar çalıştırılabilir) eski görevi
-  ve başlangıç kısayolunu siler, servisi otomatik başlangıç + SCM kurtarma ile kurar, arayüzü `HKLM\…\Run`'a `--tray` ile ekler;
-  `-Uninstall` geri alır. Kurulum paketi yine yok.
-- **Seviye karma:** servis/Agent/pipe/günlük/geçiş/test production seviyesinde; kurulum betik kalır, kod imzası sertifika gelince,
-  otomatik güncelleme yok. Temiz (geliştirme araçsız) bir PC'de kurulum denemesi şart.
-
-**SYSTEM kimliği yüzünden değişecekler:** günlük `%ProgramData%` altına taşınır (SYSTEM'in `LocalAppData`'sı systemprofile'dır);
-Hello'daki kullanıcı adı oturumdaki kullanıcıdan alınır (oturum yoksa boş); dosya transferinin reddettiği Startup klasörü oturumdaki
-kullanıcınınki olur.
-
-**Faz 11b (11a'nın üzerine):** kilit ekranı, login ekranı, UAC güvenli masaüstü, Ctrl+Alt+Del. Giriş masaüstü değişince yakalama
-ve girdinin yeni masaüstüne taşınması gerekir; ayrı adım.
+**SYSTEM kimliği yüzünden değişenler:** günlük `%ProgramData%` altında; Hello'daki kullanıcı adı oturumdaki kullanıcıdan
+(`WTSQuerySessionInformation`); dosya transferinin reddettiği Startup klasörü oturumdaki kullanıcınınki (`SHGetKnownFolderPath` + kullanıcı
+token'ı); pano WPF dispatcher yerine Agent'ın kendi STA iş parçacığında; ağ/aygıt yolları reddedilir (SYSTEM ağa makine hesabıyla çıkar).
 
 ---
 
@@ -599,8 +634,8 @@ Signalization modülünün kalıbı birebir izlenir (CLAUDE.md § "Müşteri mod
 | `ScreenViewLog` | `Id`, `ScreenSessionId`, `DeviceId`, `MonitorIndex`, `UserId`, `StartedUtc`, `EndedUtc` | **Kim, hangi PC'nin hangi monitörünü, ne zaman izledi** |
 | `RemoteControlSession` *(Faz 8)* | `Id`, `DeviceId`, `UserId`, `StartedUtc`, `EndedUtc`, `EndReason`, `InputEventCount` | Kim, hangi PC'yi, ne kadar kontrol etti; girdinin kendisi kaydedilmez |
 
-`DeviceId`/`UserId` FK değildir (modül kuralı). PC'nin adı, kabini ve MAC'i her zaman çekirdekteki
-`Device`'tan okunur; bağlantı durumu, istemci sürümü ve monitör listesi **bellektedir** — hiçbiri tabloya
+`DeviceId`/`UserId` FK değildir (modül kuralı). PC'nin adı, kabini ve kimlik durumu her zaman çekirdekteki
+`Device` / `PcDevice`'tan okunur; bağlantı durumu, istemci sürümü ve monitör listesi **bellektedir** — hiçbiri tabloya
 kopyalanmaz. Saklama/temizlik işi yok (Scadex'in genel kararı; proje sahibi sonra ekler).
 
 ### 10.3 Çekirdekte gereken minimum değişiklik
@@ -635,7 +670,7 @@ değişikliği yoktur.
 
 | Uç | İş |
 |---|---|
-| `GET /api/RemoteDesk/pcs` | Aktif `DeviceType.Pc` cihazları: ad, kabin, MAC, bağlı mı, istemci sürümü, monitör sayısı, izleyen sayısı |
+| `GET /api/RemoteDesk/pcs` | Aktif `DeviceType.Pc` cihazları: ad, kabin, kimlik bilgisi var mı (`hasCredential`), bağlı mı, istemci sürümü, monitör sayısı, izleyen sayısı |
 | `GET /api/RemoteDesk/pcs/{deviceId}` | Aynısı + monitör listesi ve her monitörün yayın durumu |
 | `POST /api/RemoteDesk/pcs/{deviceId}/monitors/{index}/view` | İzlemeyi başlat ([§ 8.2](#82-başlatma)) |
 | `POST /api/RemoteDesk/views/{viewId}/renew` · `DELETE /api/RemoteDesk/views/{viewId}` | Kiralama |
@@ -649,12 +684,12 @@ Dışa aktarma (2026-10-12) sunucuda ayrı uç DEĞİLDİR: ekran etkin sekmenin
 tarayıcıda CSV yazar (`lib/csv-export.ts`, 10.000 satır tavanı — aşılırsa uyarı, filtre daraltılır).
 
 Kurallar: `Result<T>` → çıplak DTO, hatalar ProblemDetails; controller'lar modülün temel sınıfından türer
-(`SignalizationControllerBase` kalıbı); rate limit takılmaz (modül kararı); hiçbir metot `companyId` almaz;
+(`SignalizationControllerBase` kalıbı); taban çekirdeğin `Default` rate limit'ini taşır (2026-10-26; hub'lar hariç); hiçbir metot `companyId` almaz;
 C# DTO değişince TS aynası elle güncellenir.
 
 ### 10.6 Frontend (`src/modules/remotedesk/`)
 
-- **PC listesi** (modül menüsü): kamera listesi ekranı kalıbında; bağlantı durumu rozeti, kabin, MAC
+- **PC listesi** (modül menüsü): kamera listesi ekranı kalıbında; bağlantı durumu rozeti, kabin, kimlik durumu
   ("tanımlı değil" uyarısı), monitör sayısı, izleyen sayısı. Durum `refetchInterval` ile 10 sn'de bir
   yenilenir (MVP'de ayrı bir tarayıcı hub'ı yok).
 - **PC ekranı:** monitör seçici (her monitör: numara, çözünürlük, birincil işareti) + oynatıcı. Mevcut
@@ -674,18 +709,20 @@ C# DTO değişince TS aynası elle güncellenir.
 
 | Tehdit | Önlem |
 |---|---|
-| Sahte PC istemcisi | **Kabul edilmiş risk** ([§ 5.3](#53-kabul-edilen-risk-yalnızca-mac)); ilk bağlanan kazanır, loglama, `AllowedNetworks` |
+| Sahte PC istemcisi | Basic Auth sırrı gerekir (2026-10-25); düz HTTP'de sırrın dinlenmesi **kabul edilmiş risk** ([§ 5.3](#53-kabul-edilen-risk-düz-http)); ilk bağlanan kazanır, loglama, `AllowedNetworks` |
 | Hub üzerinden veri sızdırma | `PcHub` hiçbir veri döndürmez; `Hello` öncesi her çağrı reddedilir |
 | Biletsiz / başka yola / kamera yoluna yayın | Yayın bileti yol + oturuma bağlı; `cam_*` publish her zaman 401 |
 | Okuma biletiyle yayın ya da tersi | Ayrı cache anahtar uzayları |
-| Bilet sızıntısı | Loglarda maske; ağ LAN/VPN varsayımı |
+| Bilet sızıntısı | Loglarda maske; ağ LAN/VPN varsayımı. Dosya transferi bileti PC kimliğine bağlı, 2 dk, tek kullanımlık (§ 12.8) |
+| Bağlantı seli | `PcHub` IP başına dakikada 60 istek (429), Hello'suz bağlantı 10 sn'de kapanır (§ 5.2) |
+| Uzaktan UAC onayı / kilit açma | **Bilinçli izinli** (kullanıcı kararı 2026-10-25): `RemotePcControl` izni + canlı izleme şartı; Agent zaten SYSTEM. Her kontrol `RemoteControlSession` denetimidir (§ 12.6) |
 | İzlemenin fark edilmemesi | `ScreenViewLog`; PC'de System Tray ve pencere göstergesi |
 | Dosya ile veri sızdırma / sistem bozma | Ayrı izin + izleme şartı; sistem klasörlerine yazma kapalı; `FileTransferLog` denetimi; 1 GB sınır |
 
 > **Yetki (2026-09-30):** Modülün tüm HTTP uçları `RemotePcView` iznini ister (`Permission.RemotePcView = 10`,
 > seed'de Admin rolüne verilir); yoksa 403. Policy modülün kaydında tanımlanır (`RemoteDeskModule.ViewPolicy`), claim
 > girişte token'a yazıldığı için rol izni değişince kullanıcı yeniden giriş yapmalıdır. Okuma bileti yalnızca `view`
-> ucundan çıktığı için WHEP de dolaylı olarak bu izne bağlıdır. `PcHub` (PC istemcisi) anonim kalır.
+> ucundan çıktığı için WHEP de dolaylı olarak bu izne bağlıdır. `PcHub` (PC istemcisi) kullanıcı JWT'si değil PC'nin Basic Auth kimliğini ister (§ 5.2).
 >
 > **Uzaktan kontrol ayrı izindir (Faz 8):** `RemotePcControl = 11` (Admin'e seed). Viewer hub'ı (`/hubs/remote-desk/viewer`) bu izni
 > ister — izinsiz kullanıcı bağlanamaz (negotiate 403). Kontrol için izlemek de gerekir (`RemotePcView` + canlı kiralama).
@@ -748,34 +785,65 @@ Tarayıcı ── /hubs/remote-desk/viewer (kullanıcı JWT) ──▶ sunucu: R
 
 - Tarayıcıdan **`KeyboardEvent.code`** gönderilir (`key` değil); istemci **scan code**'a çevirip
   `KEYEVENTF_SCANCODE` ile basar — tuş PC'nin kendi düzeniyle yorumlanır (Türkçe Q'da `ğ, ş, ı` doğru).
-  `code → scan code` tablosu `Scadex.RemoteDesk.Contracts`'tadır.
+- **Tablo ikiye bölünür (2026-10-25):** telde kabul edilen kod kümesi OS'tan bağımsızdır ve sözleşmededir
+  (`Contracts/Hub/KeyboardCodes.cs`; sunucu yalnızca `IsKnown` ile süzer). Kodun platform tuş kimliğine çevrilmesi istemcinindir — Windows:
+  `Scadex.RemoteDesk.Windows.Service/Services/Input/WindowsScanCodes.cs` (set 1); ileride Linux evdev, Android `KeyEvent`. İstemci tablosu
+  kümedeki her kodu karşılamalıdır; küme genişlerse istemci tabloları da genişler.
 - Win, Alt+Tab, Ctrl+W tarayıcıda yakalanamaz: tam ekranda Keyboard Lock API (Chromium), yoksa araç
   çubuğunda özel düğmeler.
-- Ctrl+Alt+Del `SendInput` ile gönderilemez ([§ 9.7](#97-wpf-seçiminin-bedeli)).
+- Ctrl+Alt+Del `SendInput` ile gönderilemez ([§ 9.7](#97-bilinen-sınırlar)).
 
 ### 12.5 Takılı tuş emniyeti
 
 İstemci basılı tuş/düğmeleri izler; kontrol bittiğinde, bağlantı koptuğunda ya da 5 sn olay gelmezken
 basılı bir şey kalmışsa **hepsini bırakır**. Tarayıcı `blur`/`visibilitychange`'de de bırakma gönderir.
 
-### 12.6 UIPI
+### 12.6 UIPI ve güvenli masaüstü
 
 Normal (medium integrity) yetkiyle çalışan istemci **yönetici olarak çalışan (high integrity) pencerelere** `SendInput` ile girdi
 gönderemez; Windows bunu çoğu zaman **sessizce yutar** (`SendInput` başarı döner, hiçbir şey olmaz). Yönetici hesabında Görev
 Yöneticisi kendiliğinden yükseltilmiş açıldığı için öndeyken uzaktan fare/klavye ona ulaşmaz. Normal yetkiden kod ile aşılamaz (OS
 güvenlik sınırı).
 
-**Çözüm (2026-10-01): istemci yükseltilmiş çalışır.** Dağıtım yolu Görev Zamanlayıcı'da "en yüksek ayrıcalıkla" (RunLevel Highest)
-oturum-açılışı görevidir (`Deploy/Install-StartupTask.ps1`, § 9.1) — UAC sormadan yükseltilmiş başlar, istemci yönetici pencerelerine
-de girdi gönderebilir. Elendi: `app.manifest requireAdministrator` (her açılışta UAC sorar, başlangıç klasöründen otomatik başlamayı
-bozar) ve `uiAccess=true` (kod imzalama sertifikası + Program Files şartı; sertifika yok). İstemcinin yetkisi başlangıç günlüğüne
-yazılır ("yetki yükseltilmiş/normal", `Services/Input/ProcessElevation.cs`), böylece her PC'de görevin yükseltilmiş başlattığı tek
-satırdan doğrulanır. `SendInput` reddedilirse istemci bunu oturum başına bir kez günlüğe yazar.
+**Çözüm (2026-10-25, Faz 11a): girdiyi SYSTEM yetkili Agent gönderir** (§ 9.1). SYSTEM, yönetici pencerelerinden yüksek bütünlüktedir;
+UIPI engeli olmaz — görev, UAC ya da manifest gerekmez. Agent'ın kimliği açılış günlüğüne yazılır ("kimlik SYSTEM"). `SendInput`
+reddedilirse operatöre neden gösterilir (aşağıda "Girdi durumu"). Önceki çözüm (2026-10-01: istemciyi Görev
+Zamanlayıcı'da "en yüksek ayrıcalıkla" başlatan `Install-StartupTask.ps1`) Faz 11a ile kaldırıldı; `requireAdministrator` ve `uiAccess`
+zaten elenmişti (biri her açılışta UAC sorar, biri kod imzası ister).
 
-**Güvenlik:** Yükseltilmiş çalışma, `RemotePcControl` iznine sahip kullanıcıya o PC'de fiilen yönetici düzeyi verir — bilinçli kabul.
-**Yükseltilmiş olsa bile erişilemez:** UAC güvenli masaüstü, kilit ekranı, Ctrl+Alt+Del (Windows tüm uygulamalara kapatır; Faz 11b —
-[§ 9.8](#98-planlanan-süreç-modeli--servis--agent--wpf-faz-11a)). Faz 11a ile girdi SYSTEM yetkili Agent'tan gider; UIPI çözümü için
-Görev Zamanlayıcı görevi gerekmez.
+**Güvenlik:** SYSTEM Agent, `RemotePcControl` iznine sahip kullanıcıya o PC'de fiilen yönetici düzeyi verir — bilinçli kabul.
+**Güvenli masaüstü (Faz 11b, dar — 2026-10-25, kullanıcı kararı):** UAC onay penceresi ve kilit ekranı ayrı bir masaüstündedir
+(`winsta0\Winlogon`). DXGI yakalaması ve `SendInput` çağıran iş parçacığının/sürecin masaüstüne gider; güvenli masaüstüne yalnızca SYSTEM
+bağlanabilir. Agent:
+- **`InputDesktopWatcher`** — `OpenInputDesktop` ile aktif masaüstünü (`Default` / `Winlogon` / `Screen-saver`) yalnızca yayın ya da
+  kontrol sürerken 300 ms'de bir yoklar (boşta yoklamaz).
+- **Yayın:** FFmpeg `DesktopProcess` ile aktif masaüstüne bağlı başlatılır (`CreateProcessW` + `lpDesktop`; `Process.Start` masaüstü
+  seçemez). Masaüstü değişince aynı hedefle yeni masaüstünde yeniden başlar — merkez oturumu kapanmaz, tarayıcı WHEP'i kendiliğinden
+  yeniden bağlar (birkaç yüz ms kesinti). Agent'taki bütün FFmpeg başlatmaları (sınama, sürüm sorgusu dahil) tek kilitle bu başlatıcıdan
+  geçer: kalıtılan pipe uçları başka bir çocuğa sızmasın.
+- **Girdi:** işçi kendi iş parçacığındadır ve her paketten önce aktif masaüstüne `SetThreadDesktop` ile bağlanır; geçişte basılı kalanlar
+  bırakılır.
+
+**Güvenlik (bilinçli karar):** operatör UAC onayı verebilir ve parolayı biliyorsa kilidi açabilir. Readiness raporu "güvenli masaüstünü
+uzaktan tıklamayın" diyordu; kullanıcı AnyDesk davranışını istedi. Agent zaten SYSTEM olduğundan bu yeni bir yetki değildir; `RemotePcControl`
+izni o PC'de fiilen yönetici yetkisi demektir. **Hâlâ yok:** giriş ekranı (Agent kullanıcı oturumunda) ve Ctrl+Alt+Del.
+
+**Girdi durumu operatöre gösterilir (2026-10-25, readiness P1.5).** `SendInput` reddin nedenini söylemez; Agent her girdi turunun sonunda
+durumu çıkarır ve yalnızca **değişince** `ReportControlInput` ile bildirir, merkez kontrol eden tarayıcıya `ControlInputState` olarak iletir
+(başka/bitmiş oturumun ya da başka PC bağlantısının bildirimi yok sayılır). Araç çubuğunda, kontrol sürerken:
+
+| Durum | Ne zaman | Operatörün gördüğü |
+|---|---|---|
+| `Ok` | Normal masaüstü | (gösterim yok) |
+| `SecureDesktop` | Aktif masaüstü `Winlogon`/`Screen-saver` ve Agent oraya bağlı | Sarı: "PC'de kilit ekranı ya da UAC onayı açık — tıklama ve tuşlarınız oraya gider." |
+| `SecureDesktopUnavailable` | Güvenli masaüstü açık ama Agent bağlanamadı / giriş masaüstü açılamıyor | Kırmızı: "…PC istemcisi oraya erişemiyor." |
+| `Rejected` | Gönderim reddedildi, masaüstü erişilebilir (nedeni bilinmiyor) | Kırmızı: "PC girdiyi reddetti — öndeki pencere ya da bir güvenlik yazılımı engelliyor olabilir." |
+| `MonitorMissing` | İzlenen monitör PC'de yok | Kırmızı: "İzlenen monitör PC'de artık yok — monitörü yeniden seçin." |
+
+Ek sistem çağrısı yalnızca bir gönderim reddedilince yapılır (giriş masaüstü açılabiliyor mu); masaüstü değişimi (`InputDesktopWatcher.Changed`)
+kontrol sürerken girdi beklemeden değerlendirilir, böylece UAC açılır açılmaz sarı uyarı görünür. Red bir sonraki başarılı turda kalkar.
+**Bilinçli olarak yok:** öndeki pencerenin bütünlük düzeyini okuyan "yükseltilmiş pencere" tanısı — üretimde Agent hep SYSTEM'dir
+(`Program.cs` SYSTEM olmayan Agent'ı geliştirme dışında çıkarır), UIPI engeli oluşmaz; geliştirmede bu durum `Rejected` görünür.
 
 ### 12.7 Uygulama (fare Faz 8, 2026-09-30; klavye Faz 9, 2026-10-01)
 
@@ -786,7 +854,7 @@ Görev Zamanlayıcı görevi gerekmez.
   `PcNotConnected`, `NotFound`. Aynı bağlantıdan tekrar istek aynı oturumu döndürür; **aynı kullanıcının başka sekmesi devralır**
   (eskisine `Replaced`), başka kullanıcı devralamaz.
 - `SendInput(batch)`: tarayıcı `send` ile (yanıtsız) gönderir. Sunucu yalnızca o bağlantının oturumunu kabul eder, monitörün PC'de
-  olduğunu doğrular, olayları süzer (Move/Down/Up/Wheel; KeyDown/KeyUp yalnızca `code` Contracts'taki `KeyboardScanCodes` tablosundaysa;
+  olduğunu doğrular, olayları süzer (Move/Down/Up/Wheel; KeyDown/KeyUp yalnızca `code` Contracts'taki `KeyboardCodes` kümesindeyse;
   `x,y` [0,1]'e, tekerlek ±20 çentiğe kırpılır; paket
   başına ≤ 256 olay) ve PC'ye hemen iletir — kuyruk ve saklama yoktur. Geçersiz paket sessizce atılır.
 - Bitiş (`RemoteControlEndReason`): `Released` (bırak / ekrandan çıkış), `ViewerDisconnected`, `PcDisconnected`, `Idle` (**5 dk** girdi
@@ -836,24 +904,55 @@ metotları ayrıca `RemotePcControl`, dosya metotları `RemotePcFileTransfer` is
 yalnızca hakkı olan metotları çağırır.
 
 **Mimari — baytlar hub'dan GEÇMEZ.** PC dinleyen port açmaz; her şey merkez üzerinden gider. Küçük veri (dizin listesi, komut) hub'da
-taşınır; **dosyanın baytları tek-kullanımlık biletli HTTP** ile akar (`FileTransferStore`, canlı görüntüdeki `ScreenTicketStore`
-kalıbı — ayrı anahtar uzayı, 1 GB sınır, 30 dk TTL, merkez `%TEMP%\scadex-remotedesk-ft`). Uçlar `FileTransferController`'da: tarayıcı
-yüklemesi `POST filetransfer?fileName=` (gövde = ham baytlar, biletli id döner) + indirmesi `GET filetransfer/{id}` (`DeleteOnClose`);
-PC tarafı `PUT filetransfer/{id}/push?ticket=` ve `GET filetransfer/{id}/pull?ticket=` (`[AllowAnonymous]`, bilet doğrulanır). 1 GB
-akışta zorlanır (`CopyWithLimitAsync`), aşılırsa reddedilir.
+taşınır; **dosyanın baytları biletli HTTP** ile akar (`FileTransferStore` — 1 GB sınır, yarım kalan transfer 30 dk'da süpürülür, merkez
+`%TEMP%\scadex-remotedesk-ft`). Tarayıcı uçları `FileTransferController`'da (kullanıcı JWT'si + `RemotePcFileTransfer`): yükleme
+`POST filetransfer?fileName=` (gövde = ham baytlar, transfer id döner) + indirme `GET filetransfer/{id}` (`DeleteOnClose`). PC uçları
+`PcFileTransferController`'da: `PUT filetransfer/{id}/push?ticket=` ve `GET filetransfer/{id}/pull?ticket=`. 1 GB akışta zorlanır
+(`FileTransferStore.CopyWithLimitAsync`), aşılırsa reddedilir. **IIS'te ayrıca istek filtrelemesi** vardır (varsayılan 30.000.000 bayt —
+~28,6 MB üstü gövde uygulamaya ulaşmadan 404.13 alır; `[DisableRequestSizeLimit]` bunu aşmaz): `Scadex.WebAPI/web.config`
+`requestLimits maxAllowedContentLength` = 1 GB + 1 MB (2026-10-25). İki sınır birlikte değişir.
+
+**Sahipsiz geçici dosyalar süpürülür (2026-10-25, readiness P1.2).** Geçici dosyanın sahibi yalnızca bellekteki kayıttır; sunucu aktarım
+ortasında yeniden başlarsa dosya sahipsiz kalırdı. `FileTransferStore.Sweep` 5 dakikada bir (ilki açılışın hemen ardından) klasörü tarar:
+kaydı olmayan **ve son yazımı 10 dakikadan eski** dosyalar silinir, adet ve boyut günlüğe yazılır. "Açılışta klasörü boşalt" bilerek
+yapılmaz: IIS havuz geri dönüşümünde yeni süreç, eski süreç birkaç saniye daha aktarım sürdürürken açılır; eski sürecin yazdığı dosya bizim
+kayıtlarımızda yoktur ama sürekli tazelenir. Tarayıcıya akmakta olan indirme (kayıt düşmüş, `DeleteOnClose`) silinemez ve atlanır.
+
+**İzleme biterse PC ayağı kesilir (2026-10-25, readiness P1.3).** İzleme yalnızca istek anında denetlenseydi operatör izlemeyi bırakınca
+süren aktarım tamamlanırdı. `FileTransferCoordinator.SweepAsync` (`ScreenStreamWorker` turunda, 5 sn — kontrolün `ViewEnded` kalıbı) PC'nin
+dahil olduğu açık transferi (PC gönderiyor ya da PC'ye yazma komutu verilmiş) kullanıcının o PC'deki son kiralaması düşünce keser:
+`FileTransferEntry.Abort` iptal edilir → `push`/`pull` akışı kopar (yarım geçici dosya silinir; `pull` elle akıtıldığı için ortasında
+kesilebilir, PC `Content-Length` tutmadığı için parçayı atar), kayıt ve bileti düşer (başlamamış ayak 401), denetim başarısız kapanır
+("İzleme bittiği için aktarım durduruldu."), tarayıcıya `Failed`. PC'nin sonradan gelen sonucu yok sayılır. Tarayıcı ayakları (merkeze
+yükleme, merkezden indirme) PC'ye dokunmadığı için kesilmez.
+
+**PC uçlarının yetkisi (2026-10-25, readiness P0.5):** iki şart birden — PC'nin Basic Auth kimliği (`DeviceAuthPolicies.Pc`, `PcHub` ile
+aynı; kullanıcı JWT'si ya da kontrol kartının kimliği geçmez) VE transferin bileti. Bilet transfer açılırken değil **PC'ye komut
+gönderilirken** üretilir (`IssueTicket`; tarayıcıdan 1 GB yükleme uzun sürebilir), **2 dk** geçerlidir, yalnızca **o transferin cihazınca**
+ve **bir kez** kullanılır (`TryConsumeTicket` — atomik, sabit zamanlı karşılaştırma; ikinci istek 401). 2 dk isteğin başlaması içindir,
+başlamış aktarım sürer. PC aktarımı yeniden denemediği için tek kullanım güvenlidir. Red 401'dir; neden günlüğe yazılır (transfer, cihaz,
+IP), bilet yazılmaz. İmzalı (HMAC/JWT) bilet seçilmedi: cihaz kimliğine bağlamak daha sade ve aynı korumayı sağlıyor. Agent bu isteklere
+hub'daki Basic Auth başlığının aynısını koyar (`RemoteDeskClientOptions.BasicAuthorization`).
 
 **Akış.** Gezme: viewer hub `ListPcDirectory(deviceId, path)` → sunucu SignalR **client-result** ile PC'ye sorar
-(`IPcHubClient.ListDirectory` → `DirectoryListing`; path boşsa sürücü kökleri, 20 sn zaman aşımı). İndirme (PC→tarayıcı): hub
-`RequestDownload` → `FileTransferStore` transferId+bilet üretir → PC'ye `UploadFile(id, path, ticket)` → PC dosyayı `push` ucuna
+(`IPcHubClient.ListDirectory` → `DirectoryListing`; path boşsa kökler — Windows'ta sürücüler —, 20 sn zaman aşımı). İndirme (PC→tarayıcı): hub
+`RequestDownload` → `FileTransferStore` transfer açar, bilet üretir → PC'ye `UploadFile(id, path, ticket)` → PC dosyayı `push` ucuna
 akıtır → tarayıcı `GET filetransfer/{id}` ile indirir. Yükleme (tarayıcı→PC): tarayıcı `POST filetransfer` ile merkeze akıtır
 (transferId) → hub `RequestUpload(id, destPath)` → PC'ye `DownloadFile(id, destPath, ticket)` → PC `pull` ucundan çekip `destPath`'e
 yazar. PC her iki yönde sonucu `ReportFileTransfer(FileTransferResult)` ile bildirir; sunucu tarayıcıya `IViewerHubClient.FileTransferState`
 yollar (`FileTransferStatus`: CentralReceiving/ReadyForPc/PcSending/ReadyForBrowser/Completed/Failed).
 
-**Yazma sistem klasörlerine kapalı (kullanıcı kararı).** Gezme/okuma/indirme her yerde serbest; ama **yükleme** `C:\Windows`,
-`Program Files`/`Program Files (x86)` ve başlangıç (Startup/CommonStartup) klasörlerine PC tarafında (yazan taraf) reddedilir —
-hedef yolu `Path.GetFullPath` ile normalize edip (`..`/uzun yol kaçışına karşı) korumalı köklerin altındaysa reddeder, nedeni sonuç
-olarak döner ("Bu klasöre yazma kapalı (sistem klasörü)."). İstemci yükseltilmiş çalıştığı (§ 12.6) için bu denetim şart.
+**Yazma sistem klasörlerine kapalı (kullanıcı kararı).** Gezme/okuma/indirme serbest; ama **yükleme** `C:\Windows`,
+`Program Files`/`Program Files (x86)`, başlangıç klasörleri (CommonStartup + **oturumdaki kullanıcının** Startup'ı), kurulum klasörü ve
+`%ProgramData%\Scadex`'e PC tarafında (yazan taraf) reddedilir; nedeni sonuç olarak döner ("Bu klasöre yazma kapalı (sistem klasörü).").
+**Agent SYSTEM çalıştığı için (Faz 11a, 2026-10-25) denetim sertleşti** — `Services/FileTransfer/FilePathPolicy.cs`:
+- Ağ ve aygıt yolları (`\\sunucu\paylaşım`, `\\?\`, `\\.\`) **gezme ve okumada da** reddedilir: SYSTEM ağa makine hesabıyla çıkar
+  (kullanıcının göremediği paylaşımlar açılırdı), aygıt yoluyla ham disk okunabilirdi. ADS (`dosya:akış`) yolları da reddedilir.
+- Yazmada dosya adı yalın olmalı (ayraç, `..`, `:`, ayrılmış ad `CON`/`NUL`/`COM1`… yok); hedef tam nitelikli yerel yol olmalı; hedef
+  klasörden köke kadar ya da hedef dosyada **junction / sembolik bağ** olmamalı (OneDrive gibi bulut yer tutucuları bağ sayılmaz).
+- Yazma **atomiktir:** önce `<ad>.scadex-part`'a yazılır; açılan dosyanın gerçek yolu (`GetFinalPathNameByHandle`) korumalı köklere karşı
+  yeniden denetlenir (yarış / bilinmeyen yönlendirme); `Content-Length` tutmazsa reddedilir; diske boşaltılıp hedefin yerine taşınır.
+  Hata ya da iptalde parça silinir — mevcut dosya bozulmaz. Bütünlük için SHA-256 merkez desteği istediğinden yapılmadı.
 
 **Denetim.** Dizin listeleme kaydedilmez; her **indirme/yükleme** `remotedesk.FileTransferLog` (`IRemoteAccessRecord`: kim, PC, yön,
 yol, boyut, başlangıç/bitiş, sonuç, hata). Açılışta açık kalan satırlar `ScreenStreamWorker` ile kapatılır; store süpürmesi aynı
@@ -865,13 +964,17 @@ worker'da. Rapor ekranında `reports/transfers` sekmesi (`RemotePcAudit` iznine 
 düğmesi büyük bir modal açar (`components/file-transfer-dialog.tsx`): **sol = yerel**, **sağ = uzak (PC)** gezgin, **ortada Yükle →** (yerel
 seçili dosya → uzak aktif klasör) **ve ← İndir** (uzak seçili dosya → yerel aktif klasör). Sağ panel (`remote-file-pane.tsx`) dizin listesini
 react-query ile çeker (yükleme sonrası dialog aynı anahtarı invalidate eder).
-- **Yerel panel (`local-file-pane.tsx`, `lib/local-fs.ts`)** File System Access API kullanır: "Klasör seç" ile seçilen kök altında gerçek
-  yerel ağaç gezilir, indirme seçili yerel klasöre yazılır. FSA yalnızca **güvenli bağlamda** (HTTPS veya `localhost`, Chromium/Edge) çalışır;
-  bu **dağıtım gereğidir, kodda yedek/dallanma YOKTUR** (kullanıcı kararı 2026-10-06 — sahada HTTPS/localhost sağlanır). Düz `http://LAN-IP`'de
-  pano/dosya panelleri çalışmaz; "sade kod" için klasik fallback bilerek yazılmadı.
+- **Yerel panel (`local-file-pane.tsx`, `lib/local-fs.ts`) iki modludur (2026-10-26, kullanıcı kararı: kapalı ağda HTTPS zorunlu değil —
+  2026-10-06'daki "yedek yok" kararının yerine):**
+  - **Gezgin** — güvenli bağlamda (HTTPS, `localhost` ya da tarayıcı ayarıyla güvenli sayılan adres) ve Chromium/Edge'de File System Access
+    API: "Klasör seç" ile seçilen kök altında yerel ağaç gezilir, indirme seçili yerel klasöre yazılır.
+  - **Klasik** — güvenli bağlam ya da API yoksa (HTTP kurulumu, Firefox): dosya `<input type="file">` ya da sürükle-bırak ile seçilir, indirme
+    tarayıcının indirme mekanizmasıyla (`saveBlob`: blob URL + `<a download>`) İndirilenler'e ya da tarayıcı sorarsa seçilen yere kaydedilir.
+    Klasör gezgini yoktur.
+  Mod pencere açılırken `fsaAvailable()` ile bir kez belirlenir. HTTP'de tam deneyim için tarayıcı ayarı README § 1.4'tedir.
 - **İndirme iki adıma ayrıldı** (`FileTransferApi`): `prepareDownload(pcPath)` (hub `RequestDownload` + `FileTransferState` bekler) +
-  `fetchDownloadBlob(transferId)` (biletli `GET`, tek kullanımlık). Çağıran baytı seçili yerel klasöre FSA ile yazar. `upload(file, destPath)`
-  seçili yerel dosyayı (`FileSystemFileHandle.getFile()`) alır.
+  `fetchDownloadBlob(transferId)` (biletli `GET`, tek kullanımlık). Çağıran baytı gezginde seçili yerel klasöre FSA ile yazar, klasikte
+  `saveBlob` ile kaydeder. `upload(file, destPath)` seçili yerel dosyayı (`LocalSelection.getFile()`) alır.
 - Dosya transferi **kontrol oturumundan ayrı** kendi viewer hub bağlantısını taşır: `lib/file-transfer-session.ts`,
   `hooks/use-file-transfer.ts` (izleme + izin varken açar, kapanınca kapatır), `models/fileTransfer.ts`.
 
@@ -888,9 +991,10 @@ aynı). **Manuel** düğme (oto-senkron yok). İçerik **LOGLANMAZ/denetlenmez**
 - **Metin küçük olduğu için hub'dan geçer** (dosya baytları gibi HTTP'ye gerek yok). Sınır **1.000.000 karakter**: sunucu
   (`ClipboardCoordinator`), istemci okuması (`ClipboardAccess`) ve tarayıcı (dışa aktarma guard'ı) kapar. Varsayılan 32 KB SignalR alım sınırı
   yetmediği için **ViewerHub + PcHub `MaximumReceiveMessageSize` 4 MB'a** çıkarıldı (`ServiceRegistration`; diğer hub'lar varsayılanda).
-- **Güvenli bağlam gerektirir:** `navigator.clipboard` yalnızca HTTPS/localhost'ta vardır; FSA gibi bu da dağıtım gereğidir, **kod yedeği yok**
-  (kullanıcı kararı 2026-10-06). Düğmeler `canFiles` (izleme + izin) iken görünür; aynı viewer hub bağlantısını (`file-transfer-session.ts`)
-  kullanır. Sonuç/hata sonner `toast` ile bildirilir.
+- **İki yol (2026-10-26):** güvenli bağlamda tek tık `navigator.clipboard`. Yoksa (HTTP kurulumu) ya da tarayıcı izni reddedilirse iki adımlı
+  pencere (`components/clipboard-dialog.tsx`): dışa aktarmada metin kutuya Ctrl+V ile yapıştırılıp gönderilir; içe aktarmada uzak metin
+  seçili gelir, "Kopyala" (`document.execCommand('copy')` — güvenli bağlam istemez) ya da Ctrl+C. Düğmeler `canFiles` (izleme + izin) iken
+  görünür; aynı viewer hub bağlantısını (`file-transfer-session.ts`) kullanır. Sonuç/hata sonner `toast` ile bildirilir.
 
 ---
 
@@ -899,21 +1003,30 @@ aynı). **Manuel** düğme (oto-senkron yok). İçerik **LOGLANMAZ/denetlenmez**
 ```text
 Modules/RemoteDesk/
   Scadex.RemoteDesk.Contracts/     net10.0, bağımlılıksız — hub metot adları, komut/durum/monitör tipleri,
-                                   enum'lar, giriş olayları (RemoteInput.cs) + code→scancode tablosu (KeyboardScanCodes.cs)
+                                   enum'lar, giriş olayları (RemoteInput.cs) + OS'tan bağımsız tuş kodu kümesi (KeyboardCodes.cs)
   Scadex.RemoteDesk/               net10.0 class library — merkez modülü
     Controllers/ Hubs/ Realtime/ Services/{Abstract,Concrete}/ Data/ Model/ ServiceRegistration.cs
     → Contracts + Scadex.Business (Signalization ile aynı referans yönü)
-  Scadex.RemoteDesk.Windows/       net10.0-windows, WPF (+ UseWindowsForms: NotifyIcon) → yalnızca Contracts
-    App.xaml(.cs)                  Generic Host: DI kayıtları, açılış/kapanış
-    appsettings.json               RemoteDesk:CentralApiUrl
+    Local/AgentPipeContract.cs     Agent ↔ arayüz pipe sözleşmesi + AgentSnapshot (§ 9.2)
+  Scadex.RemoteDesk.Windows.Service/  net10.0-windows Worker — servis + Agent tek exe (§ 9.1) → yalnızca Contracts
+    Program.cs                     argümansız = servis, --session = Agent; DI kayıtları
+    app.manifest                   Per-Monitor DPI Aware v2
+    appsettings.json               RemoteDesk:CentralApiUrl / DeviceId / DeviceSecret (kurulumda ACL'i kısılır)
+    Supervisor/                    SessionAwareServiceLifetime (SCM oturum olayları), SessionSupervisorService, AgentLauncher
+    Native/                        Win32 (WTS, token, CreateProcessAsUser, pipe), Sessions (hedef oturum seçimi)
+    Agent/                         SessionContext, AgentStateService (özet + 3 komut), AgentPipeServer, AgentLifetimeService
+    Services/                      Connection (PcHub istemcisi), Monitors, Encoding, Streaming (FFmpeg + Job Object),
+                                   Input (SendInput), FileTransfer (+ FilePathPolicy), Clipboard (STA iş parçacığı)
+    Shell/AgentLog.cs              %ProgramData% günlüğü
+    tools/ffmpeg/                  LGPL build, git'te değil (Scadex'teki MediaTools gibi)
+  Scadex.RemoteDesk.Windows/       net10.0-windows, WPF (+ UseWindowsForms: NotifyIcon) — YALNIZCA arayüz → yalnızca Contracts
+    App.xaml(.cs)                  Generic Host: DI kayıtları, açılış/kapanış (yapılandırma dosyası yok)
     Helpers/                       BaseViewModel, ObservableProperty (+ SetProperty), RelayCommand — projenin
                                    kendi MVVM altyapısı; CommunityToolkit.Mvvm kullanılmaz
     Templates/DataTemplate.xaml    VM → View eşlemesi (DataType ile)
     ViewModels/                    MainWindowVM (CurrentView ile gezinme), HomeVM (durum ekranı), …
     Views/                         MainWindow, Home, … — code-behind yalnızca InitializeComponent
-    Services/                      Connection (PcHub istemcisi), Monitors, Streaming (FFmpeg + Job Object),
-                                   Network (MAC), Tray, (Faz 8) Input
-    tools/ffmpeg/                  LGPL build, git'te değil (Scadex'teki MediaTools gibi)
+    Services/                      Agent (AgentPipeClient: pipe + sunucu doğrulaması), Shell (TrayIcon, UiLog)
 RemoteDesk.md                      bu doküman (depo kökü)
 ```
 
@@ -933,7 +1046,7 @@ RemoteDesk.md                      bu doküman (depo kökü)
 - Nullable açık, async + `CancellationToken`, Options, Serilog.
 
 Test: Scadex'te test paketi yoktur; doğrulama `dotnet build Scadex.slnx`, `npm run lint`, `npm run build`
-ve **çalıştırarak** yapılır. İstemcinin saf mantığı (idempotency, MAC normalizasyonu, FFmpeg argüman
+ve **çalıştırarak** yapılır. İstemcinin saf mantığı (idempotency, FFmpeg argüman
 üretimi, maske) ayrı test projesi açılmadan önce kullanıcıya sorulur.
 
 ---
@@ -956,8 +1069,8 @@ Her faz bir öncekinin başarı kriteri sağlanmadan başlamaz.
 | **9** ✅ | Klavye (scan code, değiştirici tuşlar, takılı tuş emniyeti). **2026-10-01:** Contracts `KeyboardScanCodes` (Chromium `code` ↔ set-1), sunucu yalnızca tablodaki kodu iletir, PC `KEYEVENTF_SCANCODE` ile basar; tarayıcıda Win / Alt+Tab / Ctrl+Shift+Esc düğmeleri ve tam ekran + Keyboard Lock; § 12.7. | Sınandı (bu makine, Türkçe Q, başlıksız Chrome + DevTools tuş olayları): Not Defteri'ne uzaktan **tıklayıp** odaklandı, `Shift+M e r h a b a ␣ [ ] ; ' i , . ␣ 1 2 3` → metin birebir "Merhaba ğüşiıöç 123" (UTF-16 kod noktalarıyla doğrulandı); yalnızca Shift basılı bırakılınca PC 5 sn sonra bıraktı ("Basılı kalanlar bırakıldı (5 sn olay gelmedi): ShiftLeft"); özel tuş ve tam ekran düğmeleri görünüyor. **Sınanmadı:** Win / Alt+Tab / Ctrl+Shift+Esc düğmelerinin PC'deki etkisi (kullanıcının masaüstünü bozmamak için), gerçek tam ekran + Keyboard Lock (başlıksız tarayıcıda yok), AltGr kombinasyonları (@, €), sayısal tuş takımı |
 | **Dosya T.** ✅ | Dosya transferi ([§ 12.8](#128-dosya-transferi-2026-10-05)): yeni izin `RemotePcFileTransfer = 13`; her iki yön, PC dosya sistemini gezme, dosya başına 1 GB, **PC'yi izleyen** kullanıcı (kontrol almak gerekmez); baytlar biletli HTTP ile (hub'dan değil); yükleme sistem klasörlerine kapalı; `FileTransferLog` denetimi + rapor sekmesi. **2026-10-05.** | Sınandı (bu makine, node + SignalR, konsol oturumu, **kontrol ALMADAN**): izlemeden önce dosya işlemi reddedildi ("ekranını izliyor olmalısınız"); `POST view` sonrası `ListPcDirectory` klasör/dosya ve sürücü köklerini döndürdü; 2 KB indirme byte-byte eşleşti (ReadyForBrowser); 3 KB yükleme hedefe yazıldı, byte-byte eşleşti (Completed); `C:\Windows`'a yükleme reddedildi (Failed, "sistem klasörü", dosya oluşmadı); üç işlem de `FileTransferLog`'a doğru yön/boyut/sonuçla düştü, `reports/transfers` listeledi. Regresyon: `RequestControl` hâlâ Granted + `SendInput` kabul. **Sınanmadı:** ~1 GB sınır aşımı, izleme transferin ortasında düşerse, gerçek tarayıcı arayüzü (gezgin paneli), izinsiz kullanıcı reddi (tasarımda) |
 | **10** | ~~Tüm monitörler tek görüntü~~ (kapsamdan çıktı, 2026-10-06) · pano: metin olarak yapıldı ([§ 12.9](#129-panolar-arası-aktarım-2026-10-06)) | |
-| **11a** | Servis + Agent + WPF ([§ 9.8](#98-planlanan-süreç-modeli--servis--agent--wpf-faz-11a)) — karar 2026-10-06, uygulanmadı. Görev Zamanlayıcı kalkar, `Install-Service.ps1` | Oturum açmadan merkezde bağlı; login/logout ve RDP'de kendiliğinden yeniden bağlı; Agent öldürülünce servis yeniden başlatır; tepsi "Çıkış" izlemeyi durdurmaz; yükseltilmiş pencereye girdi görevsiz ulaşır; temiz PC'de kurulum |
-| **11b** | Kilit ekranı / login ekranı / UAC güvenli masaüstü / Ctrl+Alt+Del (11a'nın üzerine) | |
+| **11a** | Servis + Agent + WPF ([§ 9.8](#98-süreç-modeli--servis--agent--wpf-faz-11a)) — **2026-10-25 uygulandı.** Servis (gözetmen, SCM oturum olayları, `CreateProcessAsUser`, Job Object, geri çekilmeli yeniden başlatma), Agent (eski WPF servisleri, SYSTEM, `SessionContext`, STA pano, `FilePathPolicy` + atomik yazma), arayüz yalnızca pipe istemcisi; kurulum `dotnet publish` × 2 + `sc create` (§ 9.6; betikler 2026-10-25'te kaldırıldı); Görev Zamanlayıcı yolu kaldırıldı. "Oturum açmadan bağlı" kapsamdan çıktı (kullanıcı kararı). | **Sınandı (bu makine, geliştirme modu — Agent normal kullanıcıyla, merkez kapalı):** `dotnet build Scadex.slnx` temiz; Agent pipe'ı açtı, arayüz sunucuyu doğrulayıp bağlandı (Debug düzeninde exe adıyla, paket düzeninde **tam yolla**); özet geldi (makine, oturum kullanıcısı, FFmpeg LGPL, 2 monitör); pipe'tan "Encoder'ları sına" iki monitörü sınadı (NVENC / QSV / VP9 sonuçları), "Tercih et" VP9 → özet `preferred=10`, "Otomatik" → `null`; yanlış sürüm `unsupportedVersion` aldı, izin verilmeyen mesaj (`sendInput`) bağlantıyı yanıtsız kapattı; Development'sız elle başlatılan Agent çıkış kodu 2 ile kapandı; self-contained yayın paketi üretildi (≈ 420 MB, `tools\ffmpeg` dahil). **Sınanmadı (yönetici + merkez gerekir):** servis modu (`sc create` ile kurulum, SCM, `CreateProcessAsUser` ile SYSTEM Agent), login/logout ve RDP'de yeniden başlatma, Agent öldürülünce kurtarma, SYSTEM'le yükseltilmiş pencereye girdi, pipe'a başka oturumun erişememesi, pano (STA), `FilePathPolicy` (junction/UNC/ADS reddi, atomik yazma), temiz PC'de kurulum, kaynak ölçümü |
+| **11b** (dar) | UAC onay penceresi + kilit ekranı — **2026-10-25 uygulandı** (§ 12.6): `InputDesktopWatcher`, `DesktopProcess` (FFmpeg aktif masaüstünde, masaüstü değişince yeniden başlar), girdi işçisi kendi iş parçacığında masaüstüne bağlanır. Giriş ekranı ve Ctrl+Alt+Del kapsam dışı (kullanıcı kararları). | **Sınandı (bu makine, geliştirme modu):** regresyon — yeni başlatıcıyla sınama + yayın (masaüstü Default), iki yönde dosya aktarımı bayt bayt, girdi işçisi Default'a bağlanıp `SendInput` reddedilmedi, izleme bırakılınca FFmpeg 14 sn'de temiz kapandı. **Sınanmadı (SYSTEM Agent = servis kurulumu gerekir):** UAC onay penceresinin görüntüsü ve uzaktan "Evet", kilit ekranında görüntü ve uzaktan parola, dönüşte kesintisiz devam, yönetici pencerelerine (Görev Yöneticisi, IIS) girdi |
 | **Ses** | PC sesinin aktarımı | |
 | **Kayıt** | İzleme oturumunun video kaydı | |
 
@@ -968,8 +1081,8 @@ Her faz sonunda rapor: değişen dosyalar · eklenen özellik · mimari değişi
 
 ## 15. Test matrisi
 
-**Bağlantı:** config yok/bozuk · merkez erişilemez · tanımsız MAC · iki MAC iki cihazda (`Ambiguous`) ·
-MAC farklı ayraçla girilmiş · aynı PC ikinci kez bağlanıyor · ağ kesintisi · uygulama System Trayden kapatılıp
+**Bağlantı:** config yok/bozuk · merkez erişilemez · yanlış/eksik/iptal edilmiş sır (401) · sır yenilendi ·
+aynı PC ikinci kez bağlanıyor · ağ kesintisi · uygulama System Trayden kapatılıp
 açılıyor · hızlı kullanıcı değiştirme · cihaz diyagramda silinip yeniden çiziliyor.
 
 **Yayın:** başlat · durdur · çift başlat · çift durdur · aynı monitöre farklı oturum · iki monitör aynı anda
@@ -1064,12 +1177,21 @@ Aynı makine; publish edilmiş (Release, self-contained) istemci `--tray` ile, p
 
 | Tarih | Karar |
 |---|---|
+| 2026-10-26 | **HTTPS zorunlu değil — kapalı ağda HTTP kurulumu** (kullanıcı kararı; 2026-10-06 "güvenli bağlam, yedek kod yok" kararının yerine). Dosya aktarımının yerel paneli güvenli bağlam yoksa klasik moda (dosya seç / sürükle-bırak, tarayıcı indirmesi), pano iki adımlı pencereye düşer; HTTPS'te ya da tarayıcı ayarıyla (`OverrideSecurityRestrictionsOnInsecureOrigin`, README § 1.4) bugünkü davranış kalır. Ayrıca HTTP'de girişin hiç yapılamamasına yol açan `crypto.randomUUID` (yalnızca güvenli bağlam) `newId()` ile değiştirildi. README'ye HTTP kurulum varyantı ve riskleri eklendi. Sınandı: lint + build; derlenmiş pakette korumasız `randomUUID` kalmadı. Sınanmadı: HTTP adresinden gerçek tarayıcıda klasik panel ve pano penceresi (tarayıcı otomasyonu yok). |
+| 2026-10-26 | **Modül HTTP uçlarına rate limit** (kullanıcı kararı; 2026-09-11 "modül uçlarına rate limit yok" kararının yerine): `RemoteDeskControllerBase` ve `SignalizationControllerBase` çekirdeğin `Default` politikasını taşır (kullanıcı başına; PC uçlarında cihaz Id'si başına). Politika adları modüllerin erişebilmesi için Business'a taşındı (`Scadex.Business/Utils/RateLimiting/RateLimiterKey.cs`), kayıt `Program.cs`'te kaldı. Hub'lar bilerek dışarıda: uzun yoklamaya düşen bağlantıda 60 Hz girdi sınıra takılırdı. |
+| 2026-10-25 | **Readiness P1.2 + P1.5 kapandı.** Geçici transfer klasöründe kaydı olmayan ve 10 dk'dan eski dosyalar 5 dk'da bir (ilki açılışta) silinir — "açılışta boşalt" IIS'in eski/yeni süreç çakışması yüzünden seçilmedi. Uzaktan kontrolde Agent girdi durumunu (`ControlInputState`: kilit ekranı/UAC, erişilemeyen güvenli masaüstü, red, monitör yok) yalnızca değişince `ReportControlInput` ile bildirir, merkez kontrol eden tarayıcıya iletir, araç çubuğunda gösterilir. "Yükseltilmiş pencere" tanısı (bütünlük düzeyi okuma) yazılmadı: üretimde Agent hep SYSTEM. Sınandı (bu makine): açılışta 6 eski dosya silindi, 10 dk'dan genç dosya kaldı; sahte PC'nin 6 bildiriminden yalnızca 3 değişim tarayıcıya ulaştı (aynı durum, başka oturum, tanımsız durum atıldı); aktarım regresyonu temiz. Sınanmadı: gerçek Agent'ın kilit ekranı/UAC'de durumu üretmesi (servis kurulumu ister). |
+| 2026-10-25 | **Sunucu ve sözleşme OS'tan bağımsız + iki production açığı kapandı** (kullanıcı hedefi: ileride Linux/Android istemcileri). Klavye tablosu bölündü: sözleşmede OS'tan bağımsız `KeyboardCodes` (DOM kod kümesi), Windows set-1 değerleri istemcide `WindowsScanCodes`. Sunucu PC yolunu kendi OS kuralıyla işlemez (`PcPathText`: Windows sunucuda Linux yolu `\` ile birleşir, Linux sunucuda Windows yolu hiç bölünmezdi). Platforma özgü alanlar (DXGI ayrıntıları, `EncoderKind`, `AgentPipeContract`) belgelendi, sunucu yorumlamaz. Platform/yetenek bildirimi bilerek eklenmedi (ikinci platformla gelir). **Readiness P1.3:** izleme biten kullanıcının PC ayağı süpürmede kesilir (`FileTransferCoordinator.SweepAsync`). **IIS gövde sınırı:** `Scadex.WebAPI/web.config` `requestLimits` 1 GB + 1 MB (varsayılan 30 MB'ta transferler 404.13 alıyordu). Sınandı (bu makine, sahte PC): izleme bırakılınca `pull` 40 MB'ın 22,9 MB'ında, `push` 34,5 MB'ta kesildi, tarayıcıya `Failed` + neden; Windows/Linux yolundan ad ve hedef birleştirme doğru; tablo dışı tuş sunucuda atıldı. IIS'te 1 GB aktarım sınanmadı. |
+| 2026-10-25 | **Kurulum betikleri kaldırıldı** (kullanıcı kararı — süreci karmaşıklaştırıyordu): `Deploy/Publish-Client.ps1` ve `Install-Service.ps1` silindi. Kurulum elle: iki `dotnet publish` → `Service` + `Tray` klasörlerini yan yana kopyala → `appsettings.json` → yönetici komut isteminde `sc create` / `sc failure` / `sc start` → isteğe bağlı arayüz kısayolu (§ 9.6). Kabul edilen eksik: `appsettings.json` (cihaz sırrı) ve günlük klasörü varsayılan izinlerle kalır, standart kullanıcı sırrı okuyabilir; istenirse `icacls` ile elle kısılır. |
+| 2026-10-25 | **Faz 11b (dar): UAC onay penceresi + kilit ekranında izleme ve kontrol** (kullanıcı kararı; readiness raporunun "güvenli masaüstünü uzaktan tıklamayın" önerisinin bilerek tersi — AnyDesk davranışı). Agent aktif masaüstünü yalnızca iş varken izler (`InputDesktopWatcher`); FFmpeg `DesktopProcess` ile aktif masaüstünde başlar ve masaüstü değişince aynı hedefle yeniden başlar; girdi işçisi kendi iş parçacığında `SetThreadDesktop` ile aktif masaüstüne bağlanır. Kilit ekranı aynı masaüstünde olduğu için kapsama girdi (kullanıcı kararı). Giriş ekranı ve Ctrl+Alt+Del kapsam dışı. Yönetici pencereleri (Görev Yöneticisi, IIS) 11a'daki SYSTEM Agent ile zaten kapsanıyor. Servis kurulumuyla sınanacak. |
+| 2026-10-25 | **Merkez sertleştirmesi (readiness P0.5 + P0.2):** dosya transferinin PC uçları `PcFileTransferController`'a taşındı ve PC'nin Basic Auth kimliğini ister; bilet PC'ye komut gönderilirken üretilir, 2 dk, cihaza bağlı, tek kullanımlık (imzalı token yerine cihaz kimliğine bağlama seçildi). `PcHub`: IP başına dakikada 60 istek rate limit (modülün kendi politikası) + Hello'suz bağlantı 10 sn'de kapanır. Çekirdekte `UseRateLimiter` yetkilendirmeden önceye alındı (kimliksiz sel de sayılsın). Sınandı (bu makine, Scadex2): gerçek Agent'la iki yönde transfer bayt bayt; bilet ikinci kullanımda, kimliksiz, kart kimliğiyle, kullanıcı JWT'siyle ve yanlış biletle 401; 70 kimliksiz negotiate → 60 × 401 + 10 × 429; Hello'suz bağlantı 10,0 sn'de kapandı; JWT uçları ve SCADA ingest regresyonsuz. Sınanmadı: süresi dolmuş bilet (kodda gözden geçirildi). |
+| 2026-10-25 | **Faz 11a uygulandı — servis + Agent + WPF** (§ 9.1/§ 9.8): `Scadex.RemoteDesk.Windows.Service` tek exe (servis = gözetmen, `--session` = SYSTEM Agent); eski WPF `Services/` Agent'a taşındı; WPF yalnızca pipe istemcisi (durum + üç komut, sunucu yolu doğrulanır). **Agent yalnızca aktif, kullanıcılı oturumda** (kullanıcı kararı — giriş ekranında PC bağlı değil; "oturum açmadan bağlı" kapsamdan çıktı). Görev Zamanlayıcı yolu ve `Install-StartupTask.ps1` kaldırıldı; dağıtım `Deploy/Publish-Client.ps1` + `Install-Service.ps1` (`Service\` + `Tray\` ayrı klasör, `appsettings.json` ACL'i SYSTEM + Administrators). Dosya transferi SYSTEM için sertleşti (kullanıcı kararı): ağ/aygıt yolları her yönde red, yazmada yalın ad + bağsız yol + gerçek yol denetimi + atomik yazma (`FilePathPolicy`); gezme/okuma yerel diskte serbest kaldı. Pano Agent'ın STA iş parçacığında. |
+| 2026-10-25 | **PC kimliği MAC değil HTTP Basic Auth** (kullanıcı kararı; kontrol kartıyla birlikte): kullanıcı adı PC cihazının Id'si, parola tarayıcının ürettiği 32 karakterlik onaltılık sır, sunucuda yalnızca SHA-256 (`PcDevice.CredentialHash`). `PcHub` `DeviceAuthPolicies.Pc` ister; yanlış kimlik negotiate'te 401. `PcDevice.MacAddress`, `IX_PcDevice_MacAddress`, `Contracts/Hub/MacAddress.cs`, istemcinin `NetworkAdapterService`'i, `HelloRequest.MacAddresses`, `HelloResponse.MatchedMacAddresses`, `HelloStatus.UnknownDevice/Ambiguous` silindi. Kesin geçiş (geçiş dönemi yok). HTTPS zorunlu değil — düz HTTP'de sırrın dinlenmesi kabul edilen risk (§ 5.3). 2026-09-29 "yalnızca MAC" kararlarının yerine geçer. |
 | 2026-09-28 | Medya yolu: ekran → FFmpeg (`ddagrab`, H.264) → RTSP publish → MediaMTX → WHEP. Mevcut kamera akışı değişmez. |
 | 2026-09-28 | .NET 10 (Scadex `net10.0`); kamerada publish olmadığı tespit edildi; `pc_*` için `IMediaPathAuthorizer`. |
 | 2026-09-28 | Yayın bileti oturum boyu geçerli (FFmpeg yeniden bağlanınca MediaMTX tekrar sorar); okuma/yayın biletleri ayrı. |
 | 2026-09-28 | Stop = kiralama bırakma; son izleyici gidince durur. Başlatmada yol hazır olana kadar sunucu bekler. |
 | 2026-09-28 | `libx264` yok (GPL) → `h264_mf` yedek (2026-09-29 Faz 1 ile değişti, aşağıda); 4:2:0 ve B-frame yok zorunlu; klavyede `code` → scan code. |
-| 2026-09-29 | Kimlik `Device.MacAddress`; ajan tablosu / `AgentId` / "ajan ekle" ekranı yok; modül şemasında cihaz kopyası yok. |
+| 2026-09-29 | Kimlik `Device.MacAddress` (2026-10-22'den beri çekirdeğin `PcDevice` ek tablosunda); ajan tablosu / `AgentId` / "ajan ekle" ekranı yok; modül şemasında cihaz kopyası yok. |
 | 2026-09-29 | Kimlik doğrulama yalnızca MAC (kabul edilen risk, § 5.3); ayrı JWT şeması ve token ucu yok. |
 | 2026-09-29 | PC istemcisi WPF (`Scadex.RemoteDesk.Windows`), servis/yardımcı/named pipe yok; minimal kaynak; "Agent" adı kullanılmaz. **→ 2026-10-06 ile değişti** (§ 9.8). |
 | 2026-09-29 | Çoklu monitör MVP'de: monitör başına yol ve yayın, izleyici monitör seçer. |
@@ -1106,7 +1228,7 @@ Aynı makine; publish edilmiş (Release, self-contained) istemci `--tray` ile, p
 ## 19. Uygulama kuralları
 
 1. İstemci dinleyen port açmaz; MediaMTX adresi/parolası istemci config'inde yoktur.
-2. PC kimliği yalnızca `Device.MacAddress`'tir; cihaz bilgisi modül tablolarına kopyalanmaz.
+2. PC kimliği çekirdeğin Basic Auth kimliğidir (kullanıcı adı `DeviceId`, hash `PcDevice.CredentialHash` — modül salt okur, doğrulama çekirdekte); cihaz bilgisi modül tablolarına kopyalanmaz.
 3. Video ve kontrol kanalları ayrıdır.
 4. Komutlar `sessionId` ile idempotenttir; monitör başına tek yayın; bağlantılar yeniden bağlanır.
 5. Bilet loglanmaz; FFmpeg stderr maskelenir; sunucuya yalnızca sabit hata metinleri gider.
@@ -1116,4 +1238,4 @@ Aynı makine; publish edilmiş (Release, self-contained) istemci `--tray` ile, p
 9. Boşta istemci iş yapmaz: zamanlayıcı, yoklama, gizli pencerede UI güncellemesi yok.
 10. Fare/klavye MVP'de uygulanmaz; sözleşmesi (§ 12) Contracts'ta hazırdır.
 11. Merkezde CLAUDE.md kuralları geçerlidir: modül kalıbı, `Result<T>`, ProblemDetails, enum sayı, TS aynası
-    elle, modül uçlarında rate limit yok, `companyId`/`IgnoreQueryFilters` yok.
+    elle, modül HTTP uçlarında çekirdeğin `Default` rate limit'i (2026-10-26; hub'lar hariç), `companyId`/`IgnoreQueryFilters` yok.

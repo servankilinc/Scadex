@@ -1,3 +1,4 @@
+using Scadex.RemoteDesk.Contracts.Hub;
 using static Scadex.RemoteDesk.Enums.RemoteDeskEnums;
 
 namespace Scadex.RemoteDesk.Model.Dtos.Control;
@@ -24,6 +25,15 @@ public class ControlEndedNotice
 {
     public Guid ControlSessionId { get; set; }
     public RemoteControlEndReason Reason { get; set; }
+}
+
+/// <summary>
+/// Sunucu → tarayıcı: kontrol edilen PC'de girdinin durumu değişti. Yalnızca kontrol eden tarayıcıya, yalnızca değişince gider; kontrol <c>Ok</c> varsayımıyla başlar.
+/// </summary>
+public class ControlInputNotice
+{
+    public Guid ControlSessionId { get; set; }
+    public ControlInputState State { get; set; }
 }
 
 /// <summary> PC ekranı: şu an kimin kontrol ettiği. </summary>

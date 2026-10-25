@@ -6,7 +6,7 @@ using Scadex.Core.Utils.ResultPattern;
 using Scadex.Model.Dtos.ComponentTemplate.Commands;
 using Scadex.Model.Dtos.ComponentTemplate.Queries;
 using Scadex.WebAPI.Controllers.Base;
-using Scadex.WebAPI.Tools;
+using Scadex.Business.Utils.RateLimiting;
 using static Scadex.Model.Enums.EntityEnums;
 
 namespace Scadex.WebAPI.Controllers;

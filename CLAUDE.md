@@ -11,7 +11,9 @@ bilinçli olarak eksik bırakıldığı** [PROJECT_OVERVIEW.md](PROJECT_OVERVIEW
 asla fark edilemeyecek kurallar.
 
 Ek kaynaklar: [Docs/scada_communication_guide.md](Docs/scada_communication_guide.md) (SCADA
-protokol detayı), [Docs/data-structor.md](Docs/data-structor.md) (veri modeli notları).
+protokol detayı), [Docs/data-structor.md](Docs/data-structor.md) (veri modeli notları),
+[README.md](README.md) (sahaya kurulum rehberi — IIS, migration'lar, `sc.exe` servis kaydı; kurulum adımı
+değiştiren bir iş yaparsanız ilgili bölümü de güncelleyin).
 
 Scadex kısaca: sahadaki bir SCADA'nın **üstünde** çalışan süpervizyon platformu. Modbus/seri
 port konuşmaz; SCADA ile HTTP üzerinden yalnızca `{ kabin, pin adresi (IN7/OUT5), değer }`
@@ -56,9 +58,9 @@ npm run lint
 
 Bilinmesi gerekenler:
 
-- **`Scadex.WebUI` çözüme dahil değildir.** `Scadex.slnx` 9 .NET projesini taşır (5 çekirdek katman +
-  `Scadex.Signalization` + `Modules/RemoteDesk/` altındaki üç proje); frontend ayrı çalıştırılır. Çözümde WPF
-  istemcisi (`Scadex.RemoteDesk.Windows`, `net10.0-windows`) olduğu için `dotnet build Scadex.slnx` yalnızca Windows'ta derlenir.
+- **`Scadex.WebUI` çözüme dahil değildir.** `Scadex.slnx` 10 .NET projesini taşır (5 çekirdek katman +
+  `Scadex.Signalization` + `Modules/RemoteDesk/` altındaki dört proje); frontend ayrı çalıştırılır. Çözümde PC tarafı
+  (`Scadex.RemoteDesk.Windows.Service` + `Scadex.RemoteDesk.Windows`, `net10.0-windows`) olduğu için `dotnet build Scadex.slnx` yalnızca Windows'ta derlenir.
 - **Test paketi yoktur.** Otomatik kontrol yalnızca `dotnet build` ve frontend tarafında
   `npm run lint` + `npm run build`. Davranış, uygulamayı çalıştırarak doğrulanır — bir
   değişikliğin çalıştığını iddia etmeden önce gerçekten çalıştırın. (`npm run lint` ve
@@ -157,7 +159,10 @@ durur. Ayrıntı: PROJECT_OVERVIEW.md § 10.
   bilerek yoktur (gösterge + `ScreenViewLog`). **Modülün HTTP uçları `RemotePcView` iznini ister:** policy adı
   `RemoteDeskModule.ViewPolicy` = izin kodu `Permission.RemotePcView` — enum'u yeniden adlandırmayın. Policy'ler 2026-10-14'ten beri
   modülde değil çekirdekte tek yerde kaydedilir (aşağıdaki "İzin zorlaması"). `PcHub` kullanıcı JWT'si istemez; PC kendi Basic Auth
-  kimliğiyle bağlanır (`DeviceAuthPolicies.Pc`, aşağıdaki "Saha cihazı kimliği").
+  kimliğiyle bağlanır (`DeviceAuthPolicies.Pc`, aşağıdaki "Saha cihazı kimliği"). **`PcHub` negotiate'i kendi IP politikasındadır
+  (2026-10-25, readiness P0.2):** IP başına dakikada 60 istek (`RemoteDeskModule.PcHubRateLimitPolicy`, politika modülün kendi kaydında,
+  `MapHub(...).RequireRateLimiting`); bağlanıp 10 sn içinde `Hello`'su kabul edilmeyen bağlantı kapatılır. Modülün HTTP uçları çekirdeğin
+  `Default` politikasındadır (aşağıdaki "Modül controller'ları"); `ViewerHub` bilerek dışarıdadır.
   **Denetim raporu (`/remote-desk/reports`, 2026-10-05) ayrı izindir: `RemotePcAudit`** (`RemoteDeskModule.AuditPolicy`) — izleyen
   operatör başkalarının geçmişini görmesin diye. Policy bu yüzden **controller başınadır**, `RemoteDeskControllerBase` yalnızca kimlik ister:
   tabana policy koymayın (`[Authorize]`'lar VE ile birleşir, rapor izleme iznini de isterdi). Raporda girdi sayısı bilerek yok.
@@ -165,16 +170,41 @@ durur. Ayrıntı: PROJECT_OVERVIEW.md § 10.
   (`RemoteDeskModule.ControlPolicy`). Kontrol PC başına tek kullanıcıdadır ve yalnızca o PC'yi **izleyene** verilir (canlı kiralama;
   izleme biterse kontrol süpürmede düşer) — bu bağı gevşetmeyin, görmeden tıklamak demektir. Girdi sunucuda saklanmaz/sıraya alınmaz,
   yalnızca `RemoteControlSession` denetim satırı yazılır (RemoteDesk.md § 12.7). Klavye `KeyboardEvent.code` ile taşınır ve PC'de scan
-  code ile basılır (`Contracts/Hub/KeyboardScanCodes.cs`, sunucu tablo dışı kodu atar) — `key`'e (karaktere) çevirmeyin, Türkçe Q bozulur.
-  **Windows istemcisinin kurulum paketi bilerek yoktur (2026-09-30):** `dotnet publish ... -c Release -r win-x64 --self-contained true -o <klasör>`
-  ile klasöre alınıp elle dağıtılır, başlangıç uygulamalarına `--tray` ile eklenir (RemoteDesk.md § 9.6). `tools\ffmpeg\` (LGPL exe +
-  `LICENSE.txt`) git'te yoktur; eksikse publish bilerek hata verir. İstemci günlüğü `%LocalAppData%\Scadex\RemoteDesk\logs`'tadır.
-  **Yönetici pencerelerine (Görev Yöneticisi vb.) uzaktan kontrol için istemci YÜKSELTİLMİŞ çalışmalı (2026-10-01):** normal yetkide Windows
-  (UIPI) girdiyi yükseltilmiş pencereye iletmez, sessizce yutar — kod ile aşılamaz. Dağıtımda `Deploy/Install-StartupTask.ps1` oturum
-  açılışında "en yüksek ayrıcalıkla" görev kurar (UAC sormadan); `requireAdministrator`/`uiAccess` manifest'leri bilerek seçilmedi (biri her
-  açılış UAC sorar, biri kod imzası ister). Yetki başlangıç günlüğüne yazılır (`ProcessElevation.SelfElevated`).
-  **Servis + Agent + WPF geçişi planlandı (Faz 11a, 2026-10-06, RemoteDesk.md § 9.8), uygulanmadı:** Görev Zamanlayıcı yolu kalkacak — bu
-  yolu genişletmeyin; `Scadex.RemoteDesk.Windows.Service` projesi bunun içindir. Geçiş tamamlanana kadar yukarıdaki düzen geçerlidir. **Monitör listesi istemci
+  code ile basılır — `key`'e (karaktere) çevirmeyin, Türkçe Q bozulur. **Sunucu ve sözleşme OS'tan bağımsızdır (2026-10-25; ileride
+  Linux/Android istemcileri sunucu değişmeden bağlanabilmeli, RemoteDesk.md § 6.2):** sözleşmede yalnızca tel üzerindeki kod kümesi durur
+  (`Contracts/Hub/KeyboardCodes.cs`, sunucu `IsKnown` ile süzer), Windows set-1 tablosu istemcidedir (`Services/Input/WindowsScanCodes.cs`) —
+  Windows'a özgü tabloyu sözleşmeye geri taşımayın. Sunucu PC'nin dosya yolunu `Path.*` ile işlemez (sunucunun OS kuralını uygular), ad
+  çıkarma/birleştirme `FileTransfer/PcPathText`'tedir. `MonitorInfo`'nun DXGI alanları, `EncoderKind`/`GpuVendor` ve `Contracts/Local`
+  Windows istemcisine özgüdür; sunucu bunları yorumlamaz, yorumlayan kod eklemeyin.
+  **PC tarafı servis + Agent + WPF'tir (Faz 11a, 2026-10-25, RemoteDesk.md § 9.1/§ 9.8):** `Scadex.RemoteDesk.Windows.Service` tek exe, iki
+  mod — argümansız **Windows servisi** (`ScadexRemoteDesk`, LocalSystem, Session 0; yalnızca gözetmen, merkezle konuşmaz) ve `--session`
+  **Agent** (servisin `CreateProcessAsUser` ile kullanıcı oturumunda başlattığı **SYSTEM** süreci; hub, yakalama, girdi, dosya, pano — eski
+  WPF `Services/` klasörü buraya taşındı). `Scadex.RemoteDesk.Windows` artık **yalnızca arayüzdür** (normal yetki, `HKLM\…\Run` `--tray`):
+  Agent'la named pipe (`Contracts/Local/AgentPipeContract.cs`) üzerinden durum alır ve YALNIZCA üç komut gönderir (yeniden bağlan / encoder sına /
+  tercih et) — girdi, yayın, dosya komutunu pipe'a eklemeyin (yerel kullanıcı SYSTEM Agent'a iş yaptırırdı). Pipe ACL'i SYSTEM + oturumun logon
+  SID'idir; arayüz sunucunun kurulumdaki servis exe'si olduğunu doğrular. **Agent yalnızca aktif, kullanıcılı oturumda çalışır** (önce konsol,
+  yoksa en küçük RDP; kullanıcı kararı) — giriş ekranında PC "bağlı değil"dir. Oturum açılıp kapanınca / hedef oturum değişince servis Agent'ı
+  yeniden başlatır, çökünce geri çekilerek (1/2/5/10/30 sn); servis Job Object'le Agent'ı ve FFmpeg'lerini birlikte öldürür. Agent SYSTEM
+  olduğu için yükseltilmiş pencerelere girdi görev/UAC olmadan ulaşır; Görev Zamanlayıcı yolu ve `Install-StartupTask.ps1` **kaldırıldı** —
+  geri eklemeyin. Elle (servis dışı) başlatılan Agent çıkar; geliştirmede `DOTNET_ENVIRONMENT=Development` ile normal kullanıcıyla çalışır.
+  Agent'ta Hello'daki kullanıcı adı ve dosya transferinin koruduğu Startup klasörü **oturumdaki kullanıcınındır** (`Agent/SessionContext`),
+  `Environment.UserName` / `SpecialFolder.Startup` değil. Pano kendi STA iş parçacığındadır (WPF dispatcher yok).
+  **UAC onay penceresi ve kilit ekranı desteklenir (Faz 11b dar, 2026-10-25, kullanıcı kararı — readiness önerisinin bilerek tersi):** ikisi de
+  güvenli masaüstündedir (`winsta0\Winlogon`). `InputDesktopWatcher` aktif masaüstünü yalnızca yayın/kontrol sürerken yoklar; FFmpeg
+  **`DesktopProcess`** ile aktif masaüstüne bağlı başlatılır ve masaüstü değişince aynı hedefle yeniden başlar — Agent'ta FFmpeg'i
+  `Process.Start` ile başlatmayın (masaüstü seçemez; ayrıca tüm başlatmalar tek kilitte, kalıtılan pipe uçları sızmasın). Girdi işçisi
+  (`RemoteInputService`) havuzda değil **kendi iş parçacığında**dır ve `SetThreadDesktop` ile aktif masaüstüne bağlanır — havuza geri
+  taşımayın. Giriş ekranı ve Ctrl+Alt+Del yok (kullanıcı kararları). **Girdi durumu operatöre gösterilir (readiness P1.5, 2026-10-25):**
+  `RemoteInputService` her turun sonunda `ControlInputState`'i (kilit ekranı/UAC, erişilemeyen güvenli masaüstü, red, monitör yok) çıkarır ve
+  YALNIZCA değişince `ReportControlInput` ile bildirir; merkez kontrol eden tarayıcıya iletir. Paket başına bildirim eklemeyin (60 Hz).
+  **Kurulum paketi ve kurulum betiği bilerek yoktur (2026-10-25, kullanıcı kararı — betikler karmaşık bulundu, silindi):** iki
+  `dotnet publish ... -c Release -r win-x64 --self-contained true` (`Service\` + `Tray\`, client'ta **yan yana** — arayüz Agent'ı `..\Service\`
+  yolundan doğrular), `Service\appsettings.json`'a merkez adresi + `DeviceId` + `DeviceSecret`, yönetici komut isteminde
+  `sc create ScadexRemoteDesk binPath= "…\Service\Scadex.RemoteDesk.Windows.Service.exe" start= auto` + `sc start` (adımlar RemoteDesk.md
+  § 9.6). Servis exe'si elle çalıştırılmaz: Agent'ı yalnızca LocalSystem servis SYSTEM olarak başlatabilir. Kabul edilen eksik:
+  `appsettings.json` varsayılan izinlerle kalır (cihaz sırrı standart kullanıcıca okunabilir). Kurulum betiği geri eklemeyin.
+  `Service\tools\ffmpeg\` (LGPL exe + `LICENSE.txt`) git'te yoktur; eksikse publish bilerek hata verir. Günlükler: servis/Agent
+  `%ProgramData%\Scadex\RemoteDesk\logs\{service,agent}-*.log`, arayüz `%LocalAppData%\…\ui-*.log`. **Monitör listesi Agent
   tarafında kendiliğinden güncellenir (2026-10-01):** `SessionSwitch` (RDP/konsol geçişi) + 12 sn uzlaştırma, merkeze yalnızca değişince
   (`CentralConnectionService.ReportMonitorsIfChangedAsync`) — bu akışı tek-seferlik elle bildirime indirgemeyin.
   **Dosya transferi (2026-10-05) dördüncü ayrı izindir: `RemotePcFileTransfer`** (`RemoteDeskModule.FileTransferPolicy`) — viewer hub
@@ -183,19 +213,34 @@ durur. Ayrıntı: PROJECT_OVERVIEW.md § 10.
   ALMAK gerekmez — salt dosya indirmek için PC'yi tek kullanıcıya kilitlemek aşırıydı. **Viewer hub'ın sınıf politikası `RemotePcView`**
   (bağlanmak için), kontrol metotları (`RequestControl`/`SendInput`/`ReleaseControl`) ayrıca `RemotePcControl`, dosya metotları
   `RemotePcFileTransfer` ister — bu üç-katmanı gevşetmeyin; `GetControlForViewerAsync`/`ControlLease` kaldırıldı, geri eklemeyin. **Dosyanın
-  baytları hub'dan GEÇMEZ** — tek-kullanımlık biletli HTTP ile merkez `%TEMP%` üzerinden akar (`FileTransferStore`, `ScreenTicketStore` kalıbı,
-  1 GB sınır akışta zorlanır); hub yalnızca komut ve küçük dizin listesini (client-result `ListDirectory`) taşır. **Yükleme (PC'ye yazma) sistem
-  klasörlerine (Windows / Program Files / Startup) PC tarafında reddedilir**, gezme/okuma/indirme her yerde serbest (kullanıcı kararı); istemci
-  yükseltilmiş çalıştığı için bu denetim şarttır, gevşetmeyin (RemoteDesk.md § 12.8). Frontend'de dosya transferi kontrol oturumundan ayrı kendi
+  baytları hub'dan GEÇMEZ** — biletli HTTP ile merkez `%TEMP%` üzerinden akar (`FileTransferStore`, 1 GB sınır akışta zorlanır); hub yalnızca
+  komut ve küçük dizin listesini (client-result `ListDirectory`) taşır. **PC uçları (`push`/`pull`, `PcFileTransferController`) iki şart ister
+  (2026-10-25, readiness P0.5):** PC'nin Basic Auth kimliği (`DeviceAuthPolicies.Pc`) VE transferin bileti — bilet PC'ye komut gönderilirken
+  üretilir (`IssueTicket`), 2 dk geçerli, yalnızca o transferin cihazınca ve **bir kez** kullanılır (`TryConsumeTicket`); PC aktarımı yeniden
+  denemediği için tek kullanım güvenlidir. Tarayıcı uçları (`FileTransferController`, kullanıcı JWT'si) ayrı controller'dadır — `[Authorize]`'lar
+  VE ile birleştiği için ikisi aynı sınıfta duramaz. **İzleme biterse PC ayağı kesilir (readiness P1.3, 2026-10-25):**
+  `FileTransferCoordinator.SweepAsync` (`ScreenStreamWorker` turu) izlemesi düşen kullanıcının açık `push`/`pull`'unu `FileTransferEntry.Abort`
+  ile keser; `pull` bu yüzden `File(stream)` değil elle akıtılır — geri çevirmeyin. 1 GB sınırının IIS karşılığı `Scadex.WebAPI/web.config`
+  `requestLimits`'tir (IIS varsayılanı 30 MB, `[DisableRequestSizeLimit]` onu aşmaz); ikisi birlikte değişir. Geçici klasörde kaydı olmayan
+  ve 10 dk'dan eski dosyalar `FileTransferStore.Sweep`'te silinir (readiness P1.2) — "açılışta klasörü boşalt"a çevirmeyin: IIS havuz geri
+  dönüşümünde eski süreç birkaç saniye daha aktarım sürdürür. **Yükleme (PC'ye yazma) sistem
+  klasörlerine (Windows / Program Files / Startup / kurulum klasörü / `%ProgramData%\Scadex`) PC tarafında reddedilir**, gezme/okuma/indirme
+  serbest (kullanıcı kararı) — yalnızca ağ ve aygıt yolları (`\\…`, `\\?\`, `\\.\`) her yönde reddedilir (Agent SYSTEM: makine hesabıyla
+  paylaşım açar, ham disk okurdu). Yazmada yalın dosya adı, ADS/ayrılmış ad yok, yolda junction/sembolik bağ yok, açılan dosyanın gerçek yolu
+  yeniden denetlenir ve yazma atomiktir (`.scadex-part` → bayt sayısı → yerine taşı; yarım aktarım mevcut dosyayı bozmaz) —
+  `FilePathPolicy`. Agent SYSTEM çalıştığı için bu denetimler şarttır, gevşetmeyin (RemoteDesk.md § 12.8). Frontend'de dosya transferi kontrol oturumundan ayrı kendi
   viewer hub bağlantısını taşır (`lib/file-transfer-session.ts` + `hooks/use-file-transfer.ts`). Arayüz iki panelli bir modaldir
-  (`file-transfer-dialog.tsx`: sol yerel / sağ uzak, ortada Yükle/İndir), izlerken "Dosya aktarımı" düğmesiyle açılır. **Sol (yerel) panel
-  File System Access API kullanır ve GÜVENLİ BAĞLAM (HTTPS/localhost) ister; bu bir web platform kısıtıdır, YEDEK KOD YAZILMAZ** — `http://LAN-IP`'de
-  çalışmaz, sahada HTTPS/localhost sağlanır (kullanıcı kararı 2026-10-06; eski klasik fallback + `FSA_SUPPORTED` dallanması kaldırıldı). Her
-  indir/yükle `FileTransferLog` denetimi olur; dizin listeleme kaydedilmez.
+  (`file-transfer-dialog.tsx`: sol yerel / sağ uzak, ortada Yükle/İndir), izlerken "Dosya aktarımı" düğmesiyle açılır. **Sol (yerel) panelin
+  iki modu vardır (2026-10-26, kullanıcı kararı: kapalı ağda HTTPS zorunlu değil — 2026-10-06'daki "yedek kod yok" kararının yerine):**
+  güvenli bağlamda (HTTPS/localhost ya da tarayıcı ayarıyla güvenli sayılan adres) + Chromium'da File System Access API ile klasör gezgini;
+  değilse (HTTP, Firefox) klasik mod — `<input type="file">`/sürükle-bırak ve tarayıcı indirmesi (`lib/local-fs.ts > fsaAvailable`, `saveBlob`).
+  İki modu da koruyun; birini kaldırmak ya HTTP'yi ya klasör gezginini bozar. Her indir/yükle `FileTransferLog` denetimi olur; dizin listeleme
+  kaydedilmez.
   **Panolar arası metin aktarımı (2026-10-06, RemoteDesk.md § 12.9):** üst-orta araç çubuğunda Dışa/İçe aktar; aynı yetki/kapı (`RemotePcFileTransfer`
   + izleme, `ClipboardCoordinator`). Metin hub'dan geçer (küçük; dosya baytlarından farklı), 1.000.000 karakter sınırı — bu yüzden **ViewerHub +
-  PcHub `MaximumReceiveMessageSize` 4 MB** (diğer hub'lar varsayılan 32 KB). İçerik **loglanmaz/denetlenmez** (parola olabilir). Tek-tık
-  `navigator.clipboard` (güvenli bağlam, yedek yok); istemci panosu WPF STA (`Application.Current.Dispatcher`).
+  PcHub `MaximumReceiveMessageSize` 4 MB** (diğer hub'lar varsayılan 32 KB). İçerik **loglanmaz/denetlenmez** (parola olabilir). Güvenli
+  bağlamda tek-tık `navigator.clipboard`; yoksa (HTTP) iki adımlı pencere (`components/clipboard-dialog.tsx`: Ctrl+V ile gönder / seçili
+  metni `execCommand('copy')` ya da Ctrl+C ile al — 2026-10-26). PC panosu Agent'ın kendi STA iş parçacığında (`Services/Clipboard/ClipboardAccess`).
 
 - **Çekirdek modülü bilmez.** Tek temas noktası `IScadaEventObserver` (Business/Utils/ScadaEvents):
   ingest (değer gerçekten değişince), **başarılı çıkış komutu** (kanal değeri değişince, `Direction =
@@ -219,9 +264,13 @@ durur. Ayrıntı: PROJECT_OVERVIEW.md § 10.
 - **"Bu kabin modülün mü" kodda sorulmaz:** `signalization.Cabinet` satırı yoksa olay yok sayılır.
 - **Kapı sanaldır; ilişki `IoChannel`'a kurulur, `Device`'a değil** (Device kartın tamamıdır).
 - Modül controller'ları `BaseController`'ı miras alamaz (WebAPI'de); `SignalizationControllerBase`
-  aynı ProblemDetails sözleşmesini Core'un `GetProblemDetail`'i ile kurar. Modül uçlarına
-  **bilinçli olarak rate limit takılmaz** (2026-09-11 kararı) — `[EnableRateLimiting]` eklemeyin;
-  eklenirse politika adı modülün kendi kaydında da tanımlanmalı, yoksa uç her istekte 500 döner.
+  aynı ProblemDetails sözleşmesini Core'un `GetProblemDetail`'i ile kurar. **Modül HTTP uçları çekirdekle aynı rate limit'tedir
+  (2026-10-26, kullanıcı kararı — 2026-09-11'deki "modüle rate limit yok" kararının yerine):** taban sınıf
+  (`SignalizationControllerBase`, `RemoteDeskControllerBase`) `[EnableRateLimiting(RateLimiterKey.Default)]` taşır; politika adları bu yüzden
+  Business'tadır (`Scadex.Business/Utils/RateLimiting/RateLimiterKey.cs` — modül WebAPI'ye referans veremez), politikaların kaydı yine
+  `Program.cs`'tedir. Yeni modül tabanı da aynı özniteliği taşır. **Hub'lar bilerek dışarıdadır** (`DiagramHub`, `SignalizationHub`,
+  `ViewerHub` `[DisableRateLimiting]`): WebSocket yoksa SignalR uzun yoklamaya düşer, her mesaj bir HTTP isteği olur ve 60 Hz uzaktan
+  girdi sınıra takılırdı. İstisna `PcHub` negotiate'idir (her ağdan bağlantı alan saha cihazı ucu; IP politikası modülün kaydında).
 
 **Büyük servisler `#region` ile değil, partial sınıflara bölünür** — gruplama birimi dosyadır:
 `CameraService.cs` + `.Streaming` + `.Snapshot` + `.Capture` + `.Monitoring`,
@@ -394,9 +443,12 @@ Bunlar tek bir dosyaya bakarak görülemez; gerekçeleri PROJECT_OVERVIEW.md §5
   `rtsp://***@` maskesiyle loglanır — bu ayrımı bozmayın. Klip bilinçli olarak iki adımdır
   (ham kayıt + tam süreye kırpma); tek `-t` klibi anahtar kare beklemesi kadar kısa keser.
 - **Rate limit politika adı `Program.cs`'te tanımlı değilse o uç HER istekte 500 döner.**
-  Bir `[EnableRateLimiting]` adını silmeden/değiştirmeden önce `RateLimiterKey`'e bakın.
-  Politikalar: `Default`, `Scada`, `MediaGateway`. Sinyalizasyon modülünün uçlarında politika
-  yoktur (bilinçli).
+  Bir `[EnableRateLimiting]` adını silmeden/değiştirmeden önce `RateLimiterKey`'e bakın (`Scadex.Business/Utils/RateLimiting`).
+  Politikalar: `Default`, `Scada`, `MediaGateway` (+ modülün kendi kaydında `RemoteDesk.PcHub`). Modül controller'ları tabanlarından
+  `Default`'u alır (2026-10-26). **`UseRateLimiter` `UseAuthentication` ile `UseAuthorization` ARASINDADIR (2026-10-25):**
+  yetkilendirmeden sonra olsaydı kimliksiz istek seli 401 alıp sınıra hiç takılmazdı ve cihazların Basic Auth doğrulaması (yetkilendirmede
+  çalışır, veritabanına sorar) her istekte çalışırdı. Kullanıcı bazlı bölümleme bozulmaz — `HttpContext.User`'ı JWT ile `UseAuthentication` kurar.
+  Sırayı değiştirmeyin.
 - **Hiçbir servis metodu `companyId` almaz, hiçbir yerde `IgnoreQueryFilters` çağrılmaz** —
   çok kiracılılık sonradan imza değiştirmeden tek bir global query filter olarak gelsin diye.
 - **409 / optimistic concurrency / `rowVersion` yoktur** — son yazan kazanır.
@@ -424,6 +476,11 @@ shadcn + Tailwind 4, react-hook-form + zod, MapLibre, Recharts.
 **Bir C# DTO'sunu değiştirdiğinizde TS aynasını elle güncelleyin** — codegen de test de yok,
 kimse bunu sizin için yakalamaz.
 
+**Arayüz HTTP'de de çalışmalıdır (2026-10-26, kapalı ağ kurulumu — README § 1.4).** Yalnızca güvenli bağlamda (HTTPS/localhost) var olan
+tarayıcı API'lerini (`crypto.randomUUID`, `navigator.clipboard`, File System Access, Keyboard Lock…) korumasız kullanmayın: geliştirme
+`localhost`'ta çalıştığı için hata görünmez, sahada HTTP'de ekran kırılır (`crypto.randomUUID` yüzünden HTTP'de giriş hiç yapılamıyordu).
+Guid için `newId()` (`lib/sequential-id.ts`), diğerleri için `window.isSecureContext` kontrolü + HTTP yolu.
+
 **Sanal kabin çizimi `src/assets/signalization/` altındaki Figma dışa aktarımlarıdır ve ekranın tek
 kaynağıdır (2026-09-28).** `cabinet-inside.svg` kasa + konumlardır: her cihaz kutusu (`<g id="…-Box">`)
 yalnızca dolgusuz bir `<rect>` çerçeve taşır. Cihazın görünümü ayrı dosyadadır, her durum ayrı dosya
@@ -441,8 +498,7 @@ Bir şeyin çalıştığını varsaymadan önce doğrulayın:
 - **Kanonik API adresi `http://localhost:5208`.** `mediamtx.yml > authHTTPAddress`,
   `Scadex.WebUI/.env.development`, `.env.production` ve
   [axios-helper.ts:7](Scadex.WebUI/src/lib/axios-helper.ts#L7) bu adreste birleştirildi.
-  Portu değiştirirseniz dördünü birden güncelleyin. (`src/lib/diagram/template-image.ts`
-  içindeki bir yorum hâlâ eski `:7042`'yi anıyor — yalnızca yorum.) IIS'te HTTPS bağlaması
+  Portu değiştirirseniz dördünü birden güncelleyin. IIS'te HTTPS bağlaması
   varsa `UseHttpsRedirection` MediaMTX'in HTTP auth isteğini yönlendirir: yml'de doğrudan https
   adresi verin (kendinden imzalıysa `authHTTPFingerprint`).
 - **FFmpeg'in okuduğu RTSP adresi `rtsp://127.0.0.1:{MediaGateway:RtspPort}`'tur**

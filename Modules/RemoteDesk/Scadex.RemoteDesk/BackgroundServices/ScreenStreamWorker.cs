@@ -9,7 +9,8 @@ namespace Scadex.RemoteDesk.BackgroundServices;
 /// <summary>
 /// Açılışta önceki süreçten açık kalan yayın oturumlarını kapatır, sonra <see cref="Interval"/>'da bir koordinatörün süpürmesini çalıştırır
 /// (düşen kiralamalar, izleyicisiz yayınlar, durdurmaya uymayan yayıncılar) ve ardından uzaktan kontrolün süpürmesini (boşta kalan kontrol,
-/// izlemesi biten kontrolcü). Yayın ve kontrol yokken tur boştur (DB/MediaMTX'e gidilmez).
+/// izlemesi biten kontrolcü) ve dosya transferininkini (izlemesi biten kullanıcının PC aktarımı kesilir). Yayın, kontrol ve transfer yokken
+/// tur boştur (DB/MediaMTX'e gidilmez).
 /// </summary>
 public sealed class ScreenStreamWorker : BackgroundService
 {
@@ -24,11 +25,13 @@ public sealed class ScreenStreamWorker : BackgroundService
 
     private readonly FileTransfer.FileTransferStore _fileStore;
     private readonly FileTransfer.FileTransferLogStore _fileLog;
+    private readonly FileTransfer.FileTransferCoordinator _fileTransfer;
 
     public ScreenStreamWorker(ScreenStreamCoordinator coordinator, ScreenSessionStore store, RemoteControlCoordinator control, RemoteControlStore controlStore,
-        FileTransfer.FileTransferStore fileStore, FileTransfer.FileTransferLogStore fileLog,
+        FileTransfer.FileTransferStore fileStore, FileTransfer.FileTransferLogStore fileLog, FileTransfer.FileTransferCoordinator fileTransfer,
         IOptions<RemoteDeskOptions> options, ILogger<ScreenStreamWorker> logger)
     {
+        _fileTransfer = fileTransfer;
         _control = control;
         _controlStore = controlStore;
         _fileStore = fileStore;
@@ -71,6 +74,7 @@ public sealed class ScreenStreamWorker : BackgroundService
             {
                 await _coordinator.SweepAsync(stoppingToken);
                 await _control.SweepAsync(stoppingToken);
+                await _fileTransfer.SweepAsync(stoppingToken);
                 _fileStore.Sweep();
             }
             catch (Exception ex) when (ex is not OperationCanceledException)

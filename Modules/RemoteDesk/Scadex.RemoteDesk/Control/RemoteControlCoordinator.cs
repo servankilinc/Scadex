@@ -16,7 +16,8 @@ namespace Scadex.RemoteDesk.Control;
 /// <item>Kontrol yalnızca o PC'yi İZLEYENE verilir (canlı kiralama); izleme biterse kontrol de biter — görmeden tıklanmaz.</item>
 /// <item>Girdi sunucuda saklanmaz, sıraya alınmaz: doğrulanıp PC'ye hemen iletilir. Tarayıcının bağlantısı başına hub çağrıları sıralı
 /// işlendiği için (SignalR varsayılanı) olay sırası korunur.</item>
-/// <item>Tuş yalnızca <c>KeyboardScanCodes</c> tablosundaysa iletilir; Ctrl+Alt+Del Windows'ta <c>SendInput</c> ile gönderilemez (güvenli dikkat dizisi).</item>
+/// <item>Tuş yalnızca <c>KeyboardCodes</c> kümesindeyse iletilir (OS'tan bağımsız DOM kodu; PC kendi tuş kimliğine çevirir). Ctrl+Alt+Del
+/// bilerek yok (Windows'ta güvenli dikkat dizisi, <c>SendInput</c> ile gönderilemez).</item>
 /// </list>
 /// </summary>
 public sealed class RemoteControlCoordinator
@@ -177,6 +178,37 @@ public sealed class RemoteControlCoordinator
         }
     }
 
+    /// <summary>
+    /// PC girdinin durumunu bildirdi (readiness P1.5): kilit ekranı / UAC açık, girdi reddedildi, monitör yok… Yalnızca o PC bağlantısının o
+    /// anki oturumu için kabul edilir ve yalnızca değişince kontrol eden tarayıcıya iletilir — operatör "tıklamam neden gitmiyor"u görür.
+    /// </summary>
+    public async Task OnPcInputStateAsync(Guid deviceId, string pcConnectionId, ControlInputReport report)
+    {
+        if (!Enum.IsDefined(report.State))
+            return;
+
+        string viewerConnectionId;
+        await _lock.WaitAsync();
+        try
+        {
+            if (!_byDevice.TryGetValue(deviceId, out var session) || session.Id != report.ControlSessionId
+                || session.PcConnectionId != pcConnectionId || session.InputState == report.State)
+                return;
+
+            session.InputState = report.State;
+            viewerConnectionId = session.ViewerConnectionId;
+            _logger.LogInformation("RemoteDesk: {DeviceId} kontrol girdisi durumu {State} (oturum {ControlSessionId}, {User})",
+                deviceId, report.State, session.Id, session.UserName);
+        }
+        finally
+        {
+            _lock.Release();
+        }
+
+        await _viewerHub.Clients.Client(viewerConnectionId)
+            .ControlInputState(new ControlInputNotice { ControlSessionId = report.ControlSessionId, State = report.State });
+    }
+
     /// <summary> PC ekranı için: şu an kimin kontrol ettiği. </summary>
     public async Task<PcControlDto?> GetControllerAsync(Guid deviceId, CancellationToken cancellationToken = default)
     {
@@ -292,7 +324,7 @@ public sealed class RemoteControlCoordinator
                         DeltaY = e.DeltaY is { } dy ? Math.Clamp(dy, -MaxWheelDelta, MaxWheelDelta) : null
                     });
                     break;
-                case InputEventType.KeyDown or InputEventType.KeyUp when KeyboardScanCodes.IsKnown(e.Code):
+                case InputEventType.KeyDown or InputEventType.KeyUp when KeyboardCodes.IsKnown(e.Code):
                     result.Add(e with { X = null, Y = null, Button = null, DeltaX = null, DeltaY = null });
                     break;
                 // Bilinmeyen tür ya da eksik alanlı olay atılır.
@@ -328,5 +360,7 @@ public sealed class RemoteControlCoordinator
         public DateTime StartedUtc { get; } = startedUtc;
         public DateTime LastInputUtc { get; set; } = startedUtc;
         public int InputEventCount { get; set; }
+        /// <summary> PC'nin son bildirdiği girdi durumu; kontrol <c>Ok</c> varsayımıyla başlar (PC de öyle başlar). </summary>
+        public ControlInputState InputState { get; set; } = ControlInputState.Ok;
     }
 }

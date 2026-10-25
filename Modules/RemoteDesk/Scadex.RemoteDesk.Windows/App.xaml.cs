@@ -1,14 +1,8 @@
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
-using Scadex.RemoteDesk.Windows.Services;
-using Scadex.RemoteDesk.Windows.Services.Connection;
-using Scadex.RemoteDesk.Windows.Services.Encoding;
-using Scadex.RemoteDesk.Windows.Services.Ffmpeg;
-using Scadex.RemoteDesk.Windows.Services.Input;
-using Scadex.RemoteDesk.Windows.Services.Monitors;
+using Scadex.RemoteDesk.Windows.Services.Agent;
 using Scadex.RemoteDesk.Windows.Services.Shell;
-using Scadex.RemoteDesk.Windows.Services.Streaming;
 using Scadex.RemoteDesk.Windows.ViewModels;
 using Scadex.RemoteDesk.Windows.Views;
 using Serilog;
@@ -17,16 +11,21 @@ using System.Windows;
 
 namespace Scadex.RemoteDesk.Windows;
 
+/// <summary>
+/// Yalnızca arayüz: normal yetkiyle, oturum açılışında <c>HKLM\…\Run</c>'dan <c>--tray</c> ile başlar. Merkez bağlantısı,
+/// yakalama, girdi, dosya ve pano Agent'tadır (servisin kullanıcı oturumunda başlattığı SYSTEM süreci); arayüz yalnızca onun durumunu
+/// gösterir ve üç zararsız komut gönderir. Arayüzü kapatmak izlemeyi DURDURMAZ.
+/// </summary>
 public partial class App : Application
 {
     /// <summary> Host durdurulurken beklenecek en uzun süre; aşılırsa süreç yine de kapanır. </summary>
-    private static readonly TimeSpan ShutdownTimeout = TimeSpan.FromSeconds(5);
+    private static readonly TimeSpan ShutdownTimeout = TimeSpan.FromSeconds(3);
 
-    // Tek örnek oturum başınadır (Local\): hızlı kullanıcı değiştirmede her oturumun kendi istemcisi olur (§ 9.1).
+    // Tek örnek oturum başınadır (Local\): hızlı kullanıcı değiştirmede her oturumun kendi arayüzü olur.
     private const string SingleInstanceName = @"Local\Scadex.RemoteDesk.Windows";
     private const string ShowSignalName = @"Local\Scadex.RemoteDesk.Windows.Show";
 
-    /// <summary> Oturum açılışında başlatan görev bu argümanı verir: pencere açılmaz, uygulama System Tray'de başlar. </summary>
+    /// <summary> Oturum açılışında Run anahtarı bu argümanı verir: pencere açılmaz, arayüz System Tray'de başlar. </summary>
     private const string TrayArgument = "--tray";
 
     private Mutex? _singleInstance;
@@ -40,34 +39,14 @@ public partial class App : Application
     public App()
     {
         AppHost = Host.CreateDefaultBuilder()
-            // İçerik kökü exe'nin klasörüdür, çalışma klasörü değil: oturum açılışında Görev Zamanlayıcı ile
-            // başlatılan süreçte çalışma klasörü System32 olur ve appsettings.json bulunamazdı.
             .UseContentRoot(AppContext.BaseDirectory)
-            .UseSerilog((_, config) => ClientLog.Configure(config))
-            .ConfigureServices((hostContext, services) =>
+            .UseSerilog((_, config) => UiLog.Configure(config))
+            .ConfigureServices(services =>
             {
-                services.Configure<RemoteDeskClientOptions>(hostContext.Configuration.GetSection(RemoteDeskClientOptions.Section));
-
-                // Services
-                services.AddSingleton<ChildProcessJob>();   // tek Job Object: uygulama ölünce tüm FFmpeg'ler ölür
-                services.AddSingleton<IFfmpegLocator, FfmpegLocator>();
-                services.AddSingleton<IMonitorService, MonitorService>();
-                services.AddSingleton<IEncoderProbeService, EncoderProbeService>();
-                services.AddSingleton<IScreenStreamService, ScreenStreamService>();
-
-                // Uzaktan kontrol: tek örnek hem IRemoteInputService (kuyruk, durum) hem hosted service (SendInput işçisi).
-                services.AddSingleton<RemoteInputService>();
-                services.AddSingleton<IRemoteInputService>(sp => sp.GetRequiredService<RemoteInputService>());
-                services.AddHostedService(sp => sp.GetRequiredService<RemoteInputService>());
-
-                // Dosya transferi: dizin listesi + biletli HTTP yükle/indir.
-                services.AddSingleton<Services.FileTransfer.IFileTransferService, Services.FileTransfer.FileTransferService>();
-                services.AddSingleton<Services.Clipboard.IClipboardAccess, Services.Clipboard.ClipboardAccess>();
-
-                // Merkez bağlantısı: tek örnek hem hosted service (döngü) hem ICentralConnection (durum, "yeniden bağlan").
-                services.AddSingleton<CentralConnectionService>();
-                services.AddSingleton<ICentralConnection>(sp => sp.GetRequiredService<CentralConnectionService>());
-                services.AddHostedService(sp => sp.GetRequiredService<CentralConnectionService>());
+                // Agent bağlantısı: tek örnek hem hosted service (döngü) hem IAgentLink (durum, komutlar).
+                services.AddSingleton<AgentPipeClient>();
+                services.AddSingleton<IAgentLink>(sp => sp.GetRequiredService<AgentPipeClient>());
+                services.AddHostedService(sp => sp.GetRequiredService<AgentPipeClient>());
 
                 // ViewModels
                 services.AddSingleton<ConnectionVM>();
@@ -99,27 +78,27 @@ public partial class App : Application
         _showWait = ThreadPool.RegisterWaitForSingleObject(_showSignal, (_, _) => Dispatcher.BeginInvoke(ShowMainWindow), null, Timeout.Infinite, false);
 
         var log = AppHost.Services.GetRequiredService<ILogger<App>>();
-        log.LogInformation("İstemci başladı: sürüm {Version}, {Mode}, yetki {Elevation}, günlük {Folder}",
+        log.LogInformation("Arayüz başladı: sürüm {Version}, {Mode}, günlük {Folder}",
             typeof(App).Assembly.GetName().Version,
             e.Args.Contains(TrayArgument, StringComparer.OrdinalIgnoreCase) ? "System Tray'de" : "pencereli",
-            Services.Input.ProcessElevation.SelfElevated ? "yükseltilmiş" : "normal",
-            ClientLog.Folder);
+            UiLog.Folder);
 
         // Beklenmeyen hatalar yalnızca günlüğe yazılır; davranış değişmez (işlenmeyen hata yine uygulamayı kapatır).
         DispatcherUnhandledException += (_, args) => log.LogCritical(args.Exception, "Arayüzde işlenmeyen hata");
-        AppDomain.CurrentDomain.UnhandledException += (_, args) => log.LogCritical(args.ExceptionObject as Exception, "İşlenmeyen hata, uygulama kapanıyor");
+        AppDomain.CurrentDomain.UnhandledException += (_, args) => log.LogCritical(args.ExceptionObject as Exception, "İşlenmeyen hata, arayüz kapanıyor");
         TaskScheduler.UnobservedTaskException += (_, args) => log.LogError(args.Exception, "Gözlenmeyen görev hatası");
 
         await AppHost.StartAsync();
 
         var mainWindow = AppHost.Services.GetRequiredService<MainWindow>();
-        // Pencereyi kapatmak uygulamayı kapatmaz, System Tray'ye indirir; çıkış yalnızca System Tray menüsünden.
+        // Pencereyi kapatmak arayüzü kapatmaz, System Tray'ye indirir.
         mainWindow.Closing += OnMainWindowClosing;
-        // Oturum kapanırken / Windows kapanırken pencere gizlenmeye çalışmasın, uygulama kapansın.
+        // Oturum kapanırken / Windows kapanırken pencere gizlenmeye çalışmasın, arayüz kapansın.
         SessionEnding += (_, _) => _exiting = true;
 
         var connection = AppHost.Services.GetRequiredService<ConnectionVM>();
-        _tray = new TrayIcon(ShowMainWindow, () => AppHost.Services.GetRequiredService<ICentralConnection>().Reconnect(), ExitApplication);
+        var agent = AppHost.Services.GetRequiredService<IAgentLink>();
+        _tray = new TrayIcon(ShowMainWindow, agent.Reconnect, CloseUi);
         _tray.SetStatus(connection.ShortText);
         connection.PropertyChanged += (_, args) =>
         {
@@ -149,10 +128,10 @@ public partial class App : Application
         window.Activate();
     }
 
-    /// <summary> Tek çıkış yolu: System Tray menüsü. Host ve yayınlar <see cref="OnExit"/>'te durdurulur. </summary>
-    private void ExitApplication()
+    /// <summary> Yalnızca arayüz kapanır; Agent (izleme, uzaktan kontrol) servisin yönetiminde sürer. </summary>
+    private void CloseUi()
     {
-        AppHost?.Services.GetService<ILogger<App>>()?.LogInformation("Kullanıcı System Tray'den çıktı");
+        AppHost?.Services.GetService<ILogger<App>>()?.LogInformation("Kullanıcı arayüzü System Tray'den kapattı (izleme sürer)");
         _exiting = true;
         Shutdown();
     }
@@ -163,20 +142,11 @@ public partial class App : Application
         _showWait?.Unregister(null);
         _showSignal?.Dispose();
 
-        // Burada await KULLANILMAZ: async void OnExit'te WPF ilk await'te kapanmaya devam eder ve süreç, hosted
-        // service'ler (bağlantı, FFmpeg) durmadan biter. Eşzamanlı ve zaman aşımlı bekleniyor; Task.Run, StopAsync'in
+        // Burada await KULLANILMAZ: async void OnExit'te WPF ilk await'te kapanmaya devam ederdi. Task.Run, StopAsync'in
         // devamlarının UI bağlamını beklemesini (kilitlenme) önler.
         if (AppHost is not null && _singleInstance is not null)
         {
-            try
-            {
-                // Yayınlar önce nazikçe durur (FFmpeg'e 'q'); yetişmezse Job Object süreç kapanınca yine öldürür.
-                Task.Run(async () =>
-                {
-                    await AppHost.Services.GetRequiredService<IScreenStreamService>().StopAllAsync();
-                    await AppHost.StopAsync(CancellationToken.None);
-                }).Wait(ShutdownTimeout);
-            }
+            try { Task.Run(() => AppHost.StopAsync(CancellationToken.None)).Wait(ShutdownTimeout); }
             catch (AggregateException ex)
             {
                 AppHost.Services.GetService<ILogger<App>>()?.LogError(ex.InnerException ?? ex, "Kapanışta host durdurulamadı.");

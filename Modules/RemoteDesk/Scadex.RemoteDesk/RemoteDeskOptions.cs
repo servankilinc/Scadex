@@ -9,7 +9,7 @@ public sealed class RemoteDeskOptions
     public bool Enabled { get; set; }
 
     /// <summary>
-    /// Windows istemcisine verilen yayın adresinin kökü, ör. <c>rtsp://10.0.0.5:8554</c>. PC'lerin MediaMTX'e ulaştığı adrestir;
+    /// PC istemcisine verilen yayın adresinin kökü, ör. <c>rtsp://10.0.0.5:8554</c>. PC'lerin MediaMTX'e ulaştığı adrestir;
     /// <c>mediamtx.yml &gt; rtspAddress</c> portuyla eşleşmeli. Sunucu içi <c>LiveRtspUrl</c>'den (<c>127.0.0.1</c>) bilerek ayrıdır.
     /// </summary>
     public string PublishRtspBaseUrl { get; set; } = "rtsp://127.0.0.1:8554";

@@ -1,5 +1,7 @@
 using Microsoft.AspNetCore.Builder;
+using System.Threading.RateLimiting;
 using Microsoft.AspNetCore.Mvc.ApplicationParts;
+using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
@@ -39,6 +41,19 @@ public static class RemoteDeskModule
 
     /// <summary> Dosya transferi izni (<c>Permission.RemotePcFileTransfer</c>) — en hassas yetenek; izleme/kontrolden ayrı verilir. </summary>
     public const string FileTransferPolicy = nameof(Permission.RemotePcFileTransfer);
+
+    /// <summary>
+    /// <c>PcHub</c>'ın (negotiate + bağlantı isteği) rate limit politikası — IP başına dakikada <see cref="PcHubRequestsPerMinute"/> istek
+    /// Modül uçlarına "bilerek rate limit yok" kuralının TEK istisnasıdır; politika modülün kendi kaydında
+    /// tanımlanır (<c>AddRemoteDeskServices</c>) — adı burada olup kaydı olmasaydı hub her istekte 500 dönerdi.
+    /// </summary>
+    public const string PcHubRateLimitPolicy = "RemoteDesk.PcHub";
+
+    /// <summary>
+    /// Bir bağlantı denemesi 2 istektir (negotiate + bağlantı). Agent'ın geri çekilmesi (1/2/5/10/30 sn) bunun çok altında kalır; NAT
+    /// arkasında aynı anda ~30 PC yeniden bağlanabilir, fazlası 429 alıp geri çekilir.
+    /// </summary>
+    public const int PcHubRequestsPerMinute = 60;
 }
 
 public static class ServiceRegistration
@@ -69,7 +84,7 @@ public static class ServiceRegistration
     }
 
     /// <summary>
-    /// Modülün hub'larını eşler: <c>/hubs/remote-desk/pc</c> (Windows istemcileri) ve <c>/hubs/remote-desk/viewer</c> (tarayıcı, uzaktan kontrol).
+    /// Modülün hub'larını eşler: <c>/hubs/remote-desk/pc</c> (PC istemcileri) ve <c>/hubs/remote-desk/viewer</c> (tarayıcı, uzaktan kontrol).
     /// Kapalıyken eşlenmez → negotiate 404
     /// (servisleri kayıtlı olmadığı için eşlenseydi her bağlantıda DI hatası olurdu).
     /// </summary>
@@ -77,7 +92,7 @@ public static class ServiceRegistration
     {
         if (RemoteDeskModule.IsEnabled(configuration))
         {
-            app.MapHub<PcHub>(PcHubContract.Path);
+            app.MapHub<PcHub>(PcHubContract.Path).RequireRateLimiting(RemoteDeskModule.PcHubRateLimitPolicy);
             app.MapHub<ViewerHub>(ViewerHub.Path);
         }
 
@@ -99,6 +114,19 @@ public static class ServiceRegistration
         #region BAGLANTILAR
         // Bağlı PC'ler bellekte (tek sunucu varsayımı); tabloya yazılmaz.
         services.AddSingleton<PcConnectionRegistry>();
+
+        // PcHub'ın rate limit'i (RemoteDeskModule.PcHubRateLimitPolicy). Reddetme gövdesi çekirdeğin OnRejected'ından gelir (ProblemDetails 429).
+        services.AddRateLimiter(options => options.AddPolicy(RemoteDeskModule.PcHubRateLimitPolicy, httpContext =>
+            RateLimitPartition.GetSlidingWindowLimiter(
+                $"remotedesk_pchub:{httpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown"}",
+                _ => new SlidingWindowRateLimiterOptions
+                {
+                    PermitLimit = RemoteDeskModule.PcHubRequestsPerMinute,
+                    Window = TimeSpan.FromMinutes(1),
+                    SegmentsPerWindow = 6,
+                    QueueLimit = 0,
+                    QueueProcessingOrder = QueueProcessingOrder.OldestFirst
+                })));
         #endregion
 
         #region MEDYA

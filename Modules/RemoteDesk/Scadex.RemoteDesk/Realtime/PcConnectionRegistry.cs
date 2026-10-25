@@ -3,7 +3,7 @@ using Scadex.RemoteDesk.Contracts.Media;
 
 namespace Scadex.RemoteDesk.Realtime;
 
-/// <summary> Kabul edilmiş bir Windows istemcisi bağlantısı. Tabloya YAZILMAZ — bağlantı durumu, sürüm ve monitörler bellektedir). </summary>
+/// <summary> Kabul edilmiş bir PC istemcisi bağlantısı. Tabloya YAZILMAZ — bağlantı durumu, sürüm ve monitörler bellektedir). </summary>
 public sealed record PcConnection(
     Guid DeviceId,
     string ConnectionId,
@@ -17,7 +17,7 @@ public sealed record PcConnection(
 
 /// <summary>
 /// <c>DeviceId → bağlantı</c>, SINGLETON. Tek sunucu varsayımı.
-/// Burada tutulan, PC'deki <b>Windows Pc'nin</b> bağlantısıdır — izleyiciler DEĞİL: aynı PC'yi istediği kadar operatör aynı anda izleyebilir.
+/// Burada tutulan, PC'deki <b>istemcinin</b> bağlantısıdır — izleyiciler DEĞİL: aynı PC'yi istediği kadar operatör aynı anda izleyebilir.
 /// PC başına tek istemci bağlantısı: <b>ilk bağlanan kazanır</b>; kopan bağlantı SignalR zaman aşımıyla (≈30 sn) düşünce yer açılır.
 /// </summary>
 public sealed class PcConnectionRegistry
