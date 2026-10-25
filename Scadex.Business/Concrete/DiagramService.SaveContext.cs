@@ -17,7 +17,7 @@ namespace Scadex.Business.Concrete;
 /// <code>
 /// Istek -> 1. FluentValidation (DiagramSaveRequest.cs)  — sekil / uzunluk / enum
 ///          2. Kabin var mi + IsEmpty kisa devresi       — Save.cs
-///          3. LoadSaveContextAsync                      — TEK okuma turu (en fazla 17 sorgu)
+///          3. LoadSaveContextAsync                      — TEK okuma turu (en fazla 15 sorgu)
 ///          4. ValidateReferences                        — DB kisitlarinin on kontrolu -> 400
 ///          -- transaction --
 ///          5. ApplyDeletions  -> SaveChangesAsync       — kablo -> pin -> cihaz -> not
@@ -28,7 +28,7 @@ namespace Scadex.Business.Concrete;
 /// <b>Adimlarin govdeleri aile bazli uc dosyada</b>, her biri kendi
 /// yukleme -> dogrulama -> uygulama dikey dilimini tasir:
 /// <c>DiagramService.SaveDevices.cs</c> (cihaz govdesi),
-/// <c>DiagramService.SaveDeviceExtensions.cs</c> (1-1 ek tablolar: kamera / kontrol karti / PC; MAC ve kimlik bilgileri),
+/// <c>DiagramService.SaveDeviceExtensions.cs</c> (1-1 ek tablolar: kamera / kontrol karti / PC; kimlik bilgileri),
 /// <c>DiagramService.SaveDevicePins.cs</c> (pin / kanal alt ailesi),
 /// <c>DiagramService.SaveConnections.cs</c> (kablo + uc cozumleme),
 /// <c>DiagramService.SaveAnnotations.cs</c> (not).
@@ -102,8 +102,6 @@ public partial class DiagramService
             CascadeConnections = await LoadCascadeConnectionsAsync(cabinetId, deletedDeviceIds, cancellationToken),
             PinPairCandidates = await LoadPinPairCandidatesAsync(cabinetId, referencedPinIds, cancellationToken),
             TemplateDeviceTypes = await LoadTemplateDeviceTypesAsync(request, cancellationToken),
-            ControlCardMacAddresses = await LoadControlCardMacAddressesAsync(request, cancellationToken),
-            PcMacAddresses = await LoadPcMacAddressesAsync(request, cancellationToken),
             CameraIpAddresses = await LoadCameraIpAddressesAsync(cabinetId, request, cancellationToken),
             MonitorableTemplateIds = await LoadMonitorableTemplateIdsAsync(request, cancellationToken),
             NewPins = BuildNewPinRefs(newDevices, templatePins),
@@ -156,7 +154,6 @@ public partial class DiagramService
         ApplyConnectionDeletions(request, context);   // 1) kablolar (+ cihazi kalkanlar)
         ApplyPinDeletions(context);                   // 2) pinler
         ApplyDeviceDeletions(context);                // 3) cihazlar (IsActive = false)
-        ApplyDeviceExtensionDeletions(context);       //    + ek tablolardaki MAC'ler serbest
         ApplyAnnotationDeletions(request, context);   // 4) notlar (sistemdeki TEK hard delete)
     }
 
@@ -262,10 +259,6 @@ public partial class DiagramService
         public required List<Connection> CascadeConnections { get; init; }
         /// <summary>Gonderilen taslaklarin sablon -> DeviceTypeId haritasi (ek tablo tutarliligi icin; pasif sablonlar dahil).</summary>
         public required Dictionary<Guid, int> TemplateDeviceTypes { get; init; }
-        /// <summary>Gonderilen kontrol karti MAC'lerinin sahipleri — KABIN GENELI DEGIL, SISTEM GENELI.</summary>
-        public required Dictionary<Guid, string> ControlCardMacAddresses { get; init; }
-        /// <summary>Gonderilen PC MAC'lerinin sahipleri — SISTEM GENELI.</summary>
-        public required Dictionary<Guid, string> PcMacAddresses { get; init; }
         /// <summary>Kabindeki aktif kameralarin IP'leri (kamera IP'si kabin icinde tekil; yalnizca gerektiginde okunur).</summary>
         public required Dictionary<Guid, string> CameraIpAddresses { get; init; }
         /// <summary>Izlemesi acik gonderilen taslaklarin sablonlarindan izlenebilir olanlar (yalnizca gerektiginde okunur).</summary>

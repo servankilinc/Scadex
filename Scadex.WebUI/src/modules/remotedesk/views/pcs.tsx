@@ -12,7 +12,7 @@ import type { PcListItemDto } from '../models/pc';
  * PC listesi — `/remote-desk/pcs`.
  *
  * Aktif ve tipi "Bilgisayar" (`DeviceType.Pc`) olan cihazlar. PC eklemek için ayrı bir ekran YOK: cihaz kabin diyagramına
- * çizilir, MAC adresi girilir; PC'deki Windows istemcisi bu adresle kendiliğinden eşlenir (RemoteDesk.md § 5).
+ * çizilir, özellik panelinde kimlik bilgisi (Basic Auth: cihaz Id'si + sır) üretilir ve PC'deki istemciye girilir (RemoteDesk.md § 5).
  */
 export default function RemoteDeskPcs() {
   const pcs = usePcs();
@@ -21,36 +21,36 @@ export default function RemoteDeskPcs() {
   const filtered = useMemo(() => {
     const term = search.trim().toLocaleLowerCase('tr');
     if (!term) return pcs.data ?? [];
-    return (pcs.data ?? []).filter(pc => [pc.deviceName, pc.cabinetName, pc.macAddress].some(v => v?.toLocaleLowerCase('tr').includes(term)));
+    return (pcs.data ?? []).filter(pc => [pc.deviceName, pc.cabinetName].some(v => v?.toLocaleLowerCase('tr').includes(term)));
   }, [pcs.data, search]);
 
   const connected = pcs.data?.filter(pc => pc.isConnected).length ?? 0;
-  const withoutMac = pcs.data?.filter(pc => !pc.macAddress).length ?? 0;
+  const withoutCredential = pcs.data?.filter(pc => !pc.hasCredential).length ?? 0;
 
   return (
     <div className='flex max-w-6xl flex-col gap-4 p-4'>
       <div>
         <h1 className='text-lg font-semibold'>PC Ekranları</h1>
         <p className='text-sm text-muted-foreground'>
-          Kabin diyagramlarındaki bilgisayarlar. İzlemek için PC'de Scadex RemoteDesk istemcisi çalışmalı ve cihazın MAC adresi
-          diyagramda girilmiş olmalı. İzlenen PC'nin ekranında bunu belirten bir uyarı görünür.
+          Kabin diyagramlarındaki bilgisayarlar. İzlemek için PC'de Scadex RemoteDesk istemcisi çalışmalı ve diyagramda üretilen kimlik bilgisi
+          istemcinin ayarlarına girilmiş olmalı. İzlenen PC'nin ekranında bunu belirten bir uyarı görünür.
         </p>
       </div>
 
       <div className='flex flex-wrap items-center gap-3'>
         <div className='relative w-full max-w-xs'>
           <SearchIcon className='pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground' />
-          <Input className='pl-8' placeholder='PC, kabin, MAC…' value={search} onChange={e => setSearch(e.target.value)} />
+          <Input className='pl-8' placeholder='PC, kabin…' value={search} onChange={e => setSearch(e.target.value)} />
         </div>
         {pcs.data && (
           <Badge variant='outline'>
             {connected} / {pcs.data.length} bağlı
           </Badge>
         )}
-        {withoutMac > 0 && (
+        {withoutCredential > 0 && (
           <Badge variant='outline'>
             <TriangleAlertIcon />
-            {withoutMac} PC'nin MAC adresi yok
+            {withoutCredential} PC'nin kimlik bilgisi yok
           </Badge>
         )}
       </div>
@@ -64,7 +64,7 @@ export default function RemoteDeskPcs() {
             <thead className='bg-muted/50 text-muted-foreground'>
               <tr className='[&>th]:px-3 [&>th]:py-2 [&>th]:text-left [&>th]:font-medium'>
                 <th>PC</th>
-                <th className='w-44'>MAC</th>
+                <th className='w-36'>Kimlik</th>
                 <th className='w-32'>Durum</th>
                 <th className='w-24'>Monitör</th>
                 <th className='w-24'>İzleyen</th>
@@ -99,7 +99,7 @@ function PcRow({ pc }: { pc: PcListItemDto }) {
         </div>
         <div className='text-xs text-muted-foreground'>{pc.cabinetName}</div>
       </td>
-      <td>{pc.macAddress ? <span className='font-mono text-xs'>{pc.macAddress}</span> : <Badge variant='outline'>MAC tanımlı değil</Badge>}</td>
+      <td>{pc.hasCredential ? <Badge variant='secondary'>Ayarlı</Badge> : <Badge variant='outline'>Kimlik bilgisi yok</Badge>}</td>
       <td>
         {pc.isConnected ? (
           <Badge variant='secondary' title={pc.clientVersion ? `İstemci sürümü ${pc.clientVersion}` : undefined}>

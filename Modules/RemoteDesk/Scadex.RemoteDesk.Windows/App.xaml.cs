@@ -7,7 +7,6 @@ using Scadex.RemoteDesk.Windows.Services.Encoding;
 using Scadex.RemoteDesk.Windows.Services.Ffmpeg;
 using Scadex.RemoteDesk.Windows.Services.Input;
 using Scadex.RemoteDesk.Windows.Services.Monitors;
-using Scadex.RemoteDesk.Windows.Services.Network;
 using Scadex.RemoteDesk.Windows.Services.Shell;
 using Scadex.RemoteDesk.Windows.Services.Streaming;
 using Scadex.RemoteDesk.Windows.ViewModels;
@@ -55,7 +54,6 @@ public partial class App : Application
                 services.AddSingleton<IMonitorService, MonitorService>();
                 services.AddSingleton<IEncoderProbeService, EncoderProbeService>();
                 services.AddSingleton<IScreenStreamService, ScreenStreamService>();
-                services.AddSingleton<INetworkAdapterService, NetworkAdapterService>();
 
                 // Uzaktan kontrol: tek örnek hem IRemoteInputService (kuyruk, durum) hem hosted service (SendInput işçisi).
                 services.AddSingleton<RemoteInputService>();

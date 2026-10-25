@@ -12,7 +12,6 @@ public sealed record PcConnection(
     string MachineName,
     string UserName,
     string? RemoteIp,
-    IReadOnlyList<string> MacAddresses,
     IReadOnlyList<MonitorInfo> Monitors,
     DateTime ConnectedUtc);
 

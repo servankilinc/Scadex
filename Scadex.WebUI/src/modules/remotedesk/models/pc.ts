@@ -27,14 +27,14 @@ export const ScreenStreamStateLabels: Record<ScreenStreamState, string> = {
   [ScreenStreamState.Stopped]: 'Durdu'
 };
 
-/** `GET /api/RemoteDesk/pcs` satırı. Ad/kabin/MAC çekirdekteki cihazdan; bağlantı alanları sunucunun belleğinden. */
+/** `GET /api/RemoteDesk/pcs` satırı. Ad/kabin/kimlik durumu çekirdekteki cihazdan; bağlantı alanları sunucunun belleğinden. */
 export interface PcListItemDto {
   deviceId: string;
   deviceName: string;
   cabinetId: string;
   cabinetName: string;
-  /** `null` = MAC tanımlı değil: bu PC hiçbir istemciyle eşleşemez. */
-  macAddress: string | null;
+  /** `false` = diyagramda Basic Auth sırrı üretilmemiş (ya da iptal edilmiş): istemci bağlanamaz. */
+  hasCredential: boolean;
   isConnected: boolean;
   clientVersion: string | null;
   monitorCount: number;

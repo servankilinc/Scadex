@@ -35,7 +35,8 @@ public static class ServiceRegistration
         services.AddScoped<ICameraCaptureSettingService, CameraCaptureSettingService>();
         #endregion
 
-        services.AddScoped<ICardReadService, CardReadService>();        
+        services.AddScoped<ICardReadService, CardReadService>();
+        services.AddScoped<IDeviceCredentialService, DeviceCredentialService>();   // saha cihazlarinin Basic Auth kimligi (DeviceAuthentication)
 
         services.AddScoped<IDiagramService, DiagramService>();
         services.AddScoped<IChannelEventService, ChannelEventService>();

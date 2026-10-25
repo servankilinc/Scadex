@@ -35,7 +35,7 @@ public class PcDirectoryService : IPcDirectoryService
                 DeviceName = d.Name,
                 CabinetId = d.CabinetId,
                 CabinetName = d.Cabinet!.Name,
-                MacAddress = d.PcDevice != null ? d.PcDevice.MacAddress : null
+                HasCredential = d.PcDevice != null && d.PcDevice.CredentialHash != null
             },
             where: d => d.IsActive && d.ComponentTemplate!.DeviceTypeId == (int)DeviceType.Pc,
             orderBy: q => q.OrderBy(d => d.Cabinet!.Name).ThenBy(d => d.Name),
@@ -57,7 +57,7 @@ public class PcDirectoryService : IPcDirectoryService
                 DeviceName = d.Name,
                 CabinetId = d.CabinetId,
                 CabinetName = d.Cabinet!.Name,
-                MacAddress = d.PcDevice != null ? d.PcDevice.MacAddress : null
+                HasCredential = d.PcDevice != null && d.PcDevice.CredentialHash != null
             },
             where: d => d.Id == deviceId && d.IsActive && d.ComponentTemplate!.DeviceTypeId == (int)DeviceType.Pc,
             cancellationToken: cancellationToken);

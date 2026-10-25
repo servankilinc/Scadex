@@ -212,7 +212,9 @@ builder.Services
                 return Task.CompletedTask;
             }
         };
-    });
+    })
+    // Saha cihazlari (kontrol karti -> /api/Scada, RemoteDesk PC'si -> PcHub): Basic Auth, kullanici adi = cihaz Id'si.
+    .AddDeviceAuthentication();
 #endregion
 
 

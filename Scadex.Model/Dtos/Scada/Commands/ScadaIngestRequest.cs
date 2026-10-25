@@ -1,18 +1,12 @@
 using Scadex.Core.Model;
-using Scadex.Core.Utils;
 using Scadex.Model.Enums;
 using FluentValidation;
 
 namespace Scadex.Model.Dtos.Scada.Commands;
 
-/// <summary> SCADA'nın HTTP uzerinden Bize push ettiği telemetri bilgisi. </summary>
+/// <summary> SCADA'nın HTTP uzerinden Bize push ettiği telemetri bilgisi. Kabin gövdede DEĞİLDİR: isteği gönderen kontrol kartının  Basic Auth kimliğinden çözülür </summary>
 public class ScadaIngestRequest : IDto
 {
-    private string _macAddress = null!;
-
-    /// <summary> Gelirken tek tipe çevrilir (<c>AA:BB:CC:DD:EE:FF</c>, <see cref="MacAddressFormat"/>): SCADA hangi ayraçla gönderirse göndersin eşleşir. </summary>
-    public string MacAddress { get => _macAddress; set => _macAddress = MacAddressFormat.NormalizeOrKeep(value)!; }
-
     /// <summary> <c>"I"</c> dijital giris, <c>"A"</c> analog giris. </summary>
     public string Type { get; set; } = null!;
 
@@ -33,8 +27,6 @@ public class ScadaIngestRequestValidator : AbstractValidator<ScadaIngestRequest>
 {
     public ScadaIngestRequestValidator()
     {
-        RuleFor(v => v.MacAddress).NotEmpty().WithMessage("macAddress zorunlu");
-        RuleFor(v => v.MacAddress).MaximumLength(64).WithMessage("macAddress en fazla 64 karakter olabilir");
         RuleFor(v => v.Type).NotEmpty().WithMessage("type zorunlu");
 
         RuleFor(v => v.Type)

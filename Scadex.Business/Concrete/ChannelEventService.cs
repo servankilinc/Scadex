@@ -66,7 +66,7 @@ public class ChannelEventService : IChannelEventService
     }
 
     /// <inheritdoc />
-    public async Task<Result> IngestAsync(ScadaIngestRequest request, CancellationToken cancellationToken = default)
+    public async Task<Result> IngestAsync(Guid cabinetId, ScadaIngestRequest request, CancellationToken cancellationToken = default)
     {
         // 1) Validation
         var validationResult = await _validationService.ValidateAsync(request, cancellationToken);
@@ -78,15 +78,7 @@ public class ChannelEventService : IChannelEventService
         if (!ScadaPinAddress.CheckAndParseIngestPin(request.Type, out var direction))
             return Result.Failure("Gecersiz tip", "Invalid signal type");
 
-        // 3) SCADA MAC adresiyle eslesen kontrol modülünden bulunur
-        var cabinetId = await _unitOfWork.Devices.GetCabinetIdByControlModuleMacAsync(request.MacAddress, cancellationToken);
-        if (cabinetId == Guid.Empty)
-        {
-            _logger.LogWarning($"MAC {request.MacAddress}: eslesen kontrol modulu yok (ya da pasif); telemetri atlandi.");
-            return Result.NotFound(description: "Bu MAC adresine kayitli kontrol modulu bulunamadi");
-        }
-
-
+        // 3) Kabin, isteği gönderen kontrol kartının kimliğinden gelir (Basic Auth, controller); burada yalnızca durumu denetlenir.
         // 4) Kabin kontrolü
         var cabinet = await _unitOfWork.Cabinets.GetAsync(
             where: c => c.Id == cabinetId && c.IsActive,

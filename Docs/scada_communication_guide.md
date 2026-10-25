@@ -130,11 +130,36 @@ SCADA bu çerçeveleri ayrıştırıp **her çerçeve için bir HTTP isteği** a
 
 | Gelen çerçeve | `POST /api/Scada/ingest` gövdesi |
 |---|---|
-| `'I' 7 1` | `{ "macAddress": "AA:BB:CC:DD:EE:FF", "type": "I", "channelNumber": 7, "value": "1" }` |
-| `'A' 1 235` | `{ "macAddress": "AA:BB:CC:DD:EE:FF", "type": "A", "channelNumber": 1, "value": "235" }` |
+| `'I' 7 1` | `{ "type": "I", "channelNumber": 7, "value": "1" }` |
+| `'A' 1 235` | `{ "type": "A", "channelNumber": 1, "value": "235" }` |
 | `'O' 5 0` | Gönderilmez — gövdede ifade edilemez |
 
-`macAddress` çerçevede yoktur; **kontrol kartının kendi MAC adresidir** (bir kabin = bir kontrol kartı = bir soket). CabinetOS bu adresle eşleşen `DeviceType.ControlModule` cihazını bulup kabini oradan çözer — saha CabinetOS'un ürettiği kabin `Guid`'ini bilemez, ama MAC adresi iki tarafta da bilinen ortak değerdir. Adres **ayraç ve harf farkından bağımsız** eşleşir (2026-09-30): sunucu hem kayıtlı adresi hem gelen adresi `AA:BB:CC:DD:EE:FF` biçimine çevirir, yani `aa-bb-cc-dd-ee-ff`, `AA:BB:CC:DD:EE:FF` ve `AABBCCDDEEFF` aynıdır. Eşleşen kontrol modülü yoksa istek **404** döner. Değer string olarak taşınır. Tam sözleşme, kısıtlar ve hata kodları: **`docs/api-contract/07-scada-ingest.md`**.
+Kart okuması ayrı uçtur: `POST /api/Scada/card` → `{ "cardId": "…", "timestampUtc": "…" }`.
+
+#### Kimlik doğrulama — HTTP Basic Auth (2026-10-25)
+
+Kabin gövdede **yoktur**; isteği gönderen kontrol kartının kimliğinden çözülür (bir kabin = bir kontrol kartı = bir soket). Her istek
+`Authorization: Basic base64(<kullanıcı adı>:<sır>)` başlığı taşımak zorundadır:
+
+- **Kullanıcı adı** = kabin diyagramındaki kontrol modülü cihazının Id'si (Guid, ör. `3f2b…-…`).
+- **Sır** = diyagramın özellik panelinde "Kimlik bilgisi → Üret" ile üretilen 32 karakterlik küçük harf onaltılık değer. Sunucu yalnızca
+  hash'ini saklar; panel sırrı yalnızca üretildiği anda gösterir. Kaybolursa "Yenile" ile yenisi üretilir, eskisi kaydedilince geçersiz olur.
+
+```bash
+curl -u 3f2b0c1e-0000-4000-8000-000000000001:0123456789abcdef0123456789abcdef \
+     -H "Content-Type: application/json" \
+     -d '{ "type": "I", "channelNumber": 7, "value": "1" }' \
+     http://<merkez>:5208/api/Scada/ingest
+```
+
+Başlık yoksa, kullanıcı adı bir cihaz Id'si değilse, sır yanlışsa / iptal edilmişse ya da cihaz silinmiş/pasifse istek **401** döner
+(`WWW-Authenticate: Basic realm="Scadex"`). Reddin nedeni yanıtta söylenmez; sunucu günlüğüne cihaz Id'si ve IP ile yazılır.
+Eskiden kimlik gövdedeki `macAddress`'ti — o alan ve eşleşmeyen MAC'in 404'ü kalktı.
+
+> **HTTPS zorunlu değildir** (kullanıcı kararı 2026-10-25). Düz HTTP'de sır her istekte açık metin olarak (base64) gider ve ağı dinleyen
+> biri okuyabilir — kabul edilen risk. HTTPS'e geçiş ayrı bir karardır.
+
+Değer string olarak taşınır. Tam sözleşme, kısıtlar ve hata kodları: **`docs/api-contract/07-scada-ingest.md`**.
 
 ---
 

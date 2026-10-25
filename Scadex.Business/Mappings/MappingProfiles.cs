@@ -260,12 +260,10 @@ public class MappingProfiles : Profile
             .ForMember(dest => dest.HasPassword, opt => opt.MapFrom(src => src.Password != null && src.Password != ""));
 
         CreateMap<ControlCard, DiagramControlCardDto>()
-            .ForMember(dest => dest.MacAddress, opt => opt.MapFrom(src => src.MacAddress))
-            .ForMember(dest => dest.Username, opt => opt.MapFrom(src => src.Username))
-            .ForMember(dest => dest.HasPassword, opt => opt.MapFrom(src => src.Password != null && src.Password != ""));
+            .ForMember(dest => dest.HasCredential, opt => opt.MapFrom(src => src.CredentialHash != null));
 
         CreateMap<PcDevice, DiagramPcDeviceDto>()
-            .ForMember(dest => dest.MacAddress, opt => opt.MapFrom(src => src.MacAddress));
+            .ForMember(dest => dest.HasCredential, opt => opt.MapFrom(src => src.CredentialHash != null));
 
         CreateMap<ComponentTemplate, DiagramComponentTemplateDto>()
             .ForMember(dest => dest.Id, opt => opt.MapFrom(src => src.Id))

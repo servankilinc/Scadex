@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.AspNetCore.SignalR;
 using Microsoft.Extensions.Logging;
+using Scadex.Business.Utils.Auth;
 using Scadex.DataAccess.UoW;
 using Scadex.RemoteDesk.Contracts.Hub;
 using Scadex.RemoteDesk.Contracts.Media;
@@ -16,10 +17,10 @@ namespace Scadex.RemoteDesk.Hubs;
 /// <summary>
 /// Windows clients kontrol düzlemi — <c>/hubs/remote-desk/pc</c>, yalnızca modül açıkken eşlenir.
 /// <para/>
-/// TODO: clientaların JWT'si vs. yok endpointler AllowAnonymous kaldırılacak 
-/// TODO: Pc kimliği <c>Device.MacAddress</c>'tir  "yalnızca MAC" kabul ediliyor bunun yerine güvenli bir yönteme geçilecek.
+/// PC Basic Auth ile doğrulanır (çekirdeğin <see cref="DeviceAuthPolicies.Pc"/> policy'si; kullanıcı adı = cihaz Id'si, parola =
+/// diyagramda üretilen parola).
 /// </summary>
-[AllowAnonymous]
+[Authorize(Policy = DeviceAuthPolicies.Pc)]
 [DisableRateLimiting]
 public class PcHub : Hub<IPcHubClient>
 {
@@ -45,7 +46,7 @@ public class PcHub : Hub<IPcHubClient>
         _logger = logger;
     }
 
-    /// <summary> MAC'leri aktif <c>DeviceType.Pc</c> cihazlarıyla eşler. </summary>
+    /// <summary> Kimliği doğrulanmış PC'yi bellekteki bağlantı kaydına yazar (cihaz başına ilk bağlanan kazanır). </summary>
     public async Task<HelloResponse> Hello(HelloRequest request)
     {
         string? ip = Context.GetHttpContext()?.Connection.RemoteIpAddress?.ToString();
@@ -56,49 +57,32 @@ public class PcHub : Hub<IPcHubClient>
             return Reject(HelloStatus.NetworkNotAllowed);
         }
 
-        var clientMacs = request.MacAddresses.Select(MacAddress.Normalize).OfType<string>().ToHashSet();
+        // Policy kimliği zorladı: cihaz aktif ve tipi Pc olduğu negotiate'te doğrulandı. Burada yalnızca gösterim alanları okunur.
+        Guid deviceId = Context.User?.GetDeviceId() ?? throw new HubException("PC kimliği yok.");
+        var device = await _unitOfWork.Devices.GetAsync(
+            select: d => new { d.Name, CabinetName = d.Cabinet!.Name },
+            where: d => d.Id == deviceId && d.IsActive && d.ComponentTemplate!.DeviceTypeId == (int)DeviceType.Pc,
+            cancellationToken: Context.ConnectionAborted);
+        if (device is null)
+            throw new HubException("PC bulunamadı.");   // negotiate ile Hello arasında cihaz silindi
 
-        // PC sayısı küçüktür: aday cihazlar projeksiyonla okunup bellekte normalize karşılaştırılır (DB'deki yazım serbest).
-        var candidates = await _unitOfWork.PcDevices.GetAllAsync(
-            select: p => new { Id = p.DeviceId, p.Device!.Name, CabinetName = p.Device.Cabinet!.Name, p.MacAddress },
-            where: p => p.MacAddress != null && p.Device!.IsActive && p.Device.ComponentTemplate!.DeviceTypeId == (int)DeviceType.Pc,
-            cancellationToken: Context.ConnectionAborted) ?? [];
-
-        var matches = candidates
-            .Where(d => MacAddress.Normalize(d.MacAddress) is { } mac && clientMacs.Contains(mac))
-            .ToList();
-
-        if (matches.Count == 0)
-        {
-            _logger.LogInformation("RemoteDesk: tanımsız PC {MachineName} {Ip} MAC'ler: {Macs}", request.MachineName, ip, string.Join(", ", clientMacs));
-            return Reject(HelloStatus.UnknownDevice);
-        }
-
-        if (matches.Count > 1)
-        {
-            _logger.LogWarning("RemoteDesk: MAC'ler birden fazla PC cihazıyla eşleşti {MachineName} {Ip} {Devices}",
-                request.MachineName, ip, string.Join(", ", matches.Select(m => $"{m.Name} ({m.MacAddress})")));
-            return Reject(HelloStatus.Ambiguous, [.. matches.Select(m => m.MacAddress!)]);
-        }
-
-        var device = matches[0];
         var connection = new PcConnection(
-            device.Id, Context.ConnectionId, request.ClientVersion, request.OsVersion, request.MachineName, request.UserName, ip,
-            [.. clientMacs], request.Monitors ?? [], DateTime.UtcNow);
+            deviceId, Context.ConnectionId, request.ClientVersion, request.OsVersion, request.MachineName, request.UserName, ip,
+            request.Monitors ?? [], DateTime.UtcNow);
 
         if (!_registry.TryRegister(connection))
         {
-            _registry.TryGet(device.Id, out var holder);
+            _registry.TryGet(deviceId, out var holder);
             _logger.LogWarning("RemoteDesk: {Device} zaten bağlı ({HolderMachine} {HolderIp}); yeni deneme reddedildi {MachineName} {Ip}",
                 device.Name, holder?.MachineName, holder?.RemoteIp, request.MachineName, ip);
-            return Reject(HelloStatus.AlreadyConnected, [device.MacAddress!]);
+            return Reject(HelloStatus.AlreadyConnected);
         }
 
-        Context.Items[DeviceIdItem] = device.Id;
+        Context.Items[DeviceIdItem] = deviceId;
         _logger.LogInformation("RemoteDesk: {Device} ({Cabinet}) bağlandı — {MachineName} {Ip} sürüm {Version}, {MonitorCount} monitör",
             device.Name, device.CabinetName, request.MachineName, ip, request.ClientVersion, connection.Monitors.Count);
 
-        return new HelloResponse(HelloStatus.Accepted, device.Id, device.Name, device.CabinetName, [device.MacAddress!]);
+        return new HelloResponse(HelloStatus.Accepted, deviceId, device.Name, device.CabinetName);
     }
 
     /// <summary> Monitör takıldı/çıkarıldı ya da çözünürlük değişti. </summary>
@@ -135,6 +119,5 @@ public class PcHub : Hub<IPcHubClient>
             ? deviceId
             : throw new HubException("Önce Hello kabul edilmeli.");
 
-    private static HelloResponse Reject(HelloStatus status, string[]? matchedMacs = null) =>
-        new(status, null, null, null, matchedMacs ?? []);
+    private static HelloResponse Reject(HelloStatus status) => new(status, null, null, null);
 }

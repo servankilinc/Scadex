@@ -2,7 +2,7 @@ using Scadex.Core.Model;
 
 namespace Scadex.RemoteDesk.Model.Dtos.Pc.Queries;
 
-/// <summary> PC listesinin satırı. Ad, kabin ve MAC çekirdekteki <c>Device</c>'tan okunur; bağlantı alanları bellekteki bağlantı kaydından gelir (Faz 3'e kadar hep "bağlı değil"). </summary>
+/// <summary> PC listesinin satırı. Ad, kabin ve kimlik durumu çekirdekteki <c>Device</c> / <c>PcDevice</c>'tan okunur; bağlantı alanları bellekteki bağlantı kaydından gelir (Faz 3'e kadar hep "bağlı değil"). </summary>
 public class PcListItemDto : IDto
 {
     public Guid DeviceId { get; set; }
@@ -10,8 +10,8 @@ public class PcListItemDto : IDto
     public Guid CabinetId { get; set; }
     public string CabinetName { get; set; } = null!;
 
-    /// <summary> <c>null</c> = MAC tanımlı değil; bu PC hiçbir istemciyle eşleşemez (ekranda uyarı). </summary>
-    public string? MacAddress { get; set; }
+    /// <summary> <c>false</c> = diyagramda Basic Auth sırrı üretilmemiş (ya da iptal edilmiş); istemci bağlanamaz (ekranda uyarı). </summary>
+    public bool HasCredential { get; set; }
 
     public bool IsConnected { get; set; }
 

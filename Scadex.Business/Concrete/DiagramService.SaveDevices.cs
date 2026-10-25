@@ -19,7 +19,7 @@ public partial class DiagramService
 
     /// <summary>
     /// Gonderide gecen tum cihaz Id'leri; TAKIPLI, kabin filtresi YOK. Ek tablolar (kamera / kontrol karti / PC)
-    /// birlikte yuklenir: guncellemede yazilir, silmede MAC'leri serbest birakilir (DiagramService.SaveDeviceExtensions.cs).
+    /// birlikte yuklenir ve guncellemede yazilir (DiagramService.SaveDeviceExtensions.cs).
     /// </summary>
     private async Task<EntityLookup<Device>> LoadDevicesAsync(Guid cabinetId, DiagramSaveRequest request, CancellationToken cancellationToken)
     {
@@ -234,7 +234,7 @@ public partial class DiagramService
     ///
     /// <c>DeviceStatusId</c> / <c>LastSeen</c> / <c>LastConnectionError</c> burada DOKUNULMAZ —
     /// taslakta zaten yoklar, yalnizca <c>ICabinetStatusService</c> yazar. <c>IpAddress</c> ise taslakta
-    /// VARDIR (yoklamanin ve kameranin hedefi). MAC / kullanici / parola cihaz govdesinde degil ek tablolardadir:
+    /// VARDIR (yoklamanin ve kameranin hedefi). Kimlik bilgileri (kullanici / parola / sir) cihaz govdesinde degil ek tablolardadir:
     /// <see cref="WriteDeviceExtensions"/>. Izleme ayarlari (<c>MonitoringPort</c>, <c>PingIntervalSec</c>,
     /// <c>IsMonitoringEnabled</c>) da taslaktadir: yoklamanin hedefini operator belirler.
     /// Izlemesi kapatilan cihazin durumu son degerinde kalir; son kaniti 23 saatten eskiyse periyodik tarama

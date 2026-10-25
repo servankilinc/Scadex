@@ -1,52 +1,47 @@
-using System.Collections.ObjectModel;
 using System.Windows;
 using System.Windows.Input;
 using System.Windows.Media;
 using Scadex.RemoteDesk.Windows.Helpers;
 using Scadex.RemoteDesk.Windows.Services.Connection;
 using Scadex.RemoteDesk.Windows.Services.Input;
-using Scadex.RemoteDesk.Windows.Services.Network;
 using Scadex.RemoteDesk.Windows.Services.Streaming;
 
 namespace Scadex.RemoteDesk.Windows.ViewModels;
 
 /// <summary>
-/// Ana ekrandaki merkez bağlantısı kartı: durum, eşlenen kabin/cihaz ve bu PC'nin gönderdiği MAC'ler. Merkez bu PC'nin ekranını
-/// izlerken belirgin "izleniyor" uyarısı da buradadır (tepsi ikonu da buna bakar) — izleme ve uzaktan kontrol fark edilmeden yapılmaz (§ 9.2).
+/// Ana ekrandaki merkez bağlantısı kartı: durum, eşlenen kabin/cihaz ve bu PC'nin cihaz kimliği (Basic Auth kullanıcı adı). Merkez bu PC'nin ekranını
+/// izlerken belirgin "izleniyor" uyarısı da buradadır (tepsi ikonu da buna bakar) — izleme ve uzaktan kontrol fark edilmeden yapılmaz.
 /// </summary>
 public class ConnectionVM : BaseViewModel
 {
     private static readonly Brush Green = Frozen("#1E8E3E"), Amber = Frozen("#C78A10"), Red = Frozen("#C5221F"), Gray = Frozen("#6B7580");
 
     private readonly ICentralConnection _connection;
-    private readonly INetworkAdapterService _adapters;
 
     /// <summary> Merkezin yayın yaptığı monitörler (yalnızca UI iş parçacığında değişir). </summary>
     private readonly SortedSet<int> _watched = [];
     private string _connectionShort = "";
 
-    public ConnectionVM(ICentralConnection connection, INetworkAdapterService adapters, IScreenStreamService streams, IRemoteInputService input, Services.FileTransfer.IFileTransferService files)
+    public ConnectionVM(ICentralConnection connection, IScreenStreamService streams, IRemoteInputService input, Services.FileTransfer.IFileTransferService files)
     {
         files.ActiveChanged += active => Application.Current?.Dispatcher.BeginInvoke(() => ApplyFileTransfer(active));
         streams.StatusChanged += status => Application.Current?.Dispatcher.BeginInvoke(() => ApplyStream(status));
         input.ControllerChanged += user => Application.Current?.Dispatcher.BeginInvoke(() => ApplyController(user));
         _connection = connection;
-        _adapters = adapters;
 
         ReconnectCommand = new RelayCommand(_ => _connection.Reconnect());
-        CopyMacsCommand = new RelayCommand(_ => Clipboard.SetText(string.Join(Environment.NewLine, Adapters.Select(a => a.DisplayMac))));
+        DeviceIdText = connection.DeviceId.Length > 0 ? connection.DeviceId : "(tanımlı değil — appsettings.json > RemoteDesk:DeviceId)";
 
         _connection.StatusChanged += status => Application.Current?.Dispatcher.BeginInvoke(() => Apply(status));
         Apply(_connection.Status);
     }
 
     public ICommand ReconnectCommand { get; }
-    public ICommand CopyMacsCommand { get; }
 
     public string MachineName { get; } = Environment.MachineName;
 
-    /// <summary> Merkeze gönderilen kartlar — teknisyen bunlardan birini diyagramdaki PC cihazına girer. </summary>
-    public ObservableCollection<NetworkAdapter> Adapters { get; } = [];
+    /// <summary> Yapılandırmadaki cihaz kimliği (Basic Auth kullanıcı adı) — diyagramdaki PC cihazının Id'siyle aynı olmalı. Sır gösterilmez. </summary>
+    public string DeviceIdText { get; }
 
     private string _title = "";
     public string Title { get => _title; private set => SetProperty(ref _title, value); }
@@ -59,10 +54,6 @@ public class ConnectionVM : BaseViewModel
 
     private string _centralUrl = "";
     public string CentralUrl { get => _centralUrl; private set => SetProperty(ref _centralUrl, value); }
-
-    private string _matchedText = "";
-    public string MatchedText { get => _matchedText; private set { if (SetProperty(ref _matchedText, value)) OnPropertyChanged(nameof(HasMatched)); } }
-    public bool HasMatched => MatchedText.Length > 0;
 
     /// <summary> System Tray ipucu için kısa özet. </summary>
     public string ShortText => _controller is not null ? "KONTROL EDİLİYOR — " + _connectionShort
@@ -119,35 +110,13 @@ public class ConnectionVM : BaseViewModel
         {
             ConnectionState.Connected => ($"Bağlı — {status.CabinetName} / {status.DeviceName}", Green, $"Bağlı: {status.DeviceName}"),
             ConnectionState.Connecting => ("Bağlanıyor…", Amber, "Bağlanıyor"),
-            ConnectionState.UnknownDevice => ("Bu PC Scadex'te tanımlı değil", Red, "Tanımsız cihaz"),
-            ConnectionState.Ambiguous => ("MAC adresi birden fazla cihazda", Red, "MAC çakışması"),
+            ConnectionState.Unauthorized => ("Kimlik bilgisi reddedildi", Red, "Kimlik reddedildi"),
             ConnectionState.AlreadyConnected => ("Bu cihaz başka bir bağlantıda", Amber, "Başka bağlantıda"),
             ConnectionState.NetworkNotAllowed => ("Bu ağdan bağlantı kabul edilmiyor", Red, "Ağ izinli değil"),
-            ConnectionState.NotConfigured => ("Merkez adresi tanımlı değil", Red, "Yapılandırılmamış"),
+            ConnectionState.NotConfigured => ("Yapılandırma eksik", Red, "Yapılandırılmamış"),
             _ => ("Bağlantı yok", Red, "Bağlantı yok"),
         };
-        MatchedText = status.MatchedMacs is { Count: > 0 } macs
-            ? (status.State == ConnectionState.Connected ? "Eşleşen MAC: " : "İlgili MAC'ler: ") + string.Join(", ", macs)
-            : "";
         OnPropertyChanged(nameof(ShortText));
-
-        // MAC listesi yalnızca bağlanırken/durum değişince okunur (zamanlayıcı yok).
-        if (status.State is ConnectionState.Connecting or ConnectionState.UnknownDevice || Adapters.Count == 0)
-            LoadAdapters();
-    }
-
-    private void LoadAdapters()
-    {
-        Adapters.Clear();
-        try
-        {
-            foreach (var adapter in _adapters.GetPhysicalAdapters())
-                Adapters.Add(adapter);
-        }
-        catch
-        {
-            // Ağ kartı okunamazsa liste boş kalır; bağlantı servisi aynı hatayı loglar.
-        }
     }
 
     private static Brush Frozen(string hex)

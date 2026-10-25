@@ -10,7 +10,12 @@ namespace Scadex.Model.Entities;
 public class PcDevice : IEntity
 {
     public Guid DeviceId { get; set; }
-    public string? MacAddress { get; set; }
+
+    /// <summary>
+    /// RemoteDesk istemcisinin <c>PcHub</c>'a Basic Auth ile bağlanma kimliği: kullanıcı adı <see cref="DeviceId"/>, parola sistemin
+    /// ürettiği sır. Burada sırrın SHA-256'sı durur (<c>DeviceCredential</c>); <c>null</c> = kimlik bilgisi yok, istemci bağlanamaz.
+    /// </summary>
+    public string? CredentialHash { get; set; }
 
     #region *** EF Core Navigation ***
     public virtual Device? Device { get; set; }

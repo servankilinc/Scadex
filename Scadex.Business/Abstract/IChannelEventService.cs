@@ -13,7 +13,8 @@ public interface IChannelEventService
 
     /// <summary>
     /// Bir kabinin telemetri paketini isler.
-    /// Tanınmayan cihaz kodu / kanal numarasi için tum istek reddedilmez devam edilir <c>Warning</c> seviyesinde log kaydı atılır. 
+    /// Tanınmayan cihaz kodu / kanal numarasi için tum istek reddedilmez devam edilir <c>Warning</c> seviyesinde log kaydı atılır.
+    /// <paramref name="cabinetId"/> isteği gönderen kontrol kartının Basic Auth kimliğinden gelir (controller), gövdeden değil.
     /// </summary>
-    Task<Result> IngestAsync(ScadaIngestRequest request, CancellationToken cancellationToken = default);
+    Task<Result> IngestAsync(Guid cabinetId, ScadaIngestRequest request, CancellationToken cancellationToken = default);
 }

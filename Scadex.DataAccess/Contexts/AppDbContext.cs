@@ -193,8 +193,7 @@ public class AppDbContext : IdentityDbContext<User, Role, Guid>
 
         // ---- DEVICE EK TABLOLARI (1-1, ortak birincil anahtar: DeviceId hem PK hem FK) ----
         // Kalitim (TPT/TPH) bilerek yok: Devices sorgulari bu tablolara ancak Include edilirse dokunur.
-        // Cihaz silinmez (IsActive = false) -> Restrict. MAC index'leri Device.IsActive'e bakamaz; bu yuzden
-        // cihaz silinirken ek satirdaki MAC null'a cekilir (DiagramService.SaveDeviceExtensions).
+        // Cihaz silinmez (IsActive = false) -> Restrict.
         modelBuilder.Entity<Camera>(c =>
         {
             c.ToTable("Camera");
@@ -210,8 +209,8 @@ public class AppDbContext : IdentityDbContext<User, Role, Guid>
             c.Property(c => c.DeviceId).ValueGeneratedNever();
             c.HasOne(c => c.Device).WithOne(d => d.ControlCard).HasForeignKey<ControlCard>(c => c.DeviceId).OnDelete(DeleteBehavior.Restrict);
 
-            // Restriction: Bir MAC adresi en fazla bir kontrol kartina ait olabilir (SISTEM GENELI, kabin bazli degil).
-            c.HasIndex(c => c.MacAddress).IsUnique().HasFilter("[MacAddress] IS NOT NULL");
+            // SHA-256 hex. Index yok: kart kullanici adiyla (DeviceId = PK) bulunur, hash yalnizca karsilastirilir.
+            c.Property(c => c.CredentialHash).HasMaxLength(64);
         });
         modelBuilder.Entity<PcDevice>(p =>
         {
@@ -220,8 +219,7 @@ public class AppDbContext : IdentityDbContext<User, Role, Guid>
             p.Property(p => p.DeviceId).ValueGeneratedNever();
             p.HasOne(p => p.Device).WithOne(d => d.PcDevice).HasForeignKey<PcDevice>(p => p.DeviceId).OnDelete(DeleteBehavior.Restrict);
 
-            // Restriction: Bir MAC adresi en fazla bir PC'ye ait olabilir (SISTEM GENELI).
-            p.HasIndex(p => p.MacAddress).IsUnique().HasFilter("[MacAddress] IS NOT NULL");
+            p.Property(p => p.CredentialHash).HasMaxLength(64);
         });
         modelBuilder.Entity<CameraCapture>(p =>
         {

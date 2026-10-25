@@ -14,7 +14,6 @@ using Scadex.RemoteDesk.Contracts.Media;
 using Scadex.RemoteDesk.Windows.Services.FileTransfer;
 using Scadex.RemoteDesk.Windows.Services.Input;
 using Scadex.RemoteDesk.Windows.Services.Monitors;
-using Scadex.RemoteDesk.Windows.Services.Network;
 using Scadex.RemoteDesk.Windows.Services.Streaming;
 
 namespace Scadex.RemoteDesk.Windows.Services.Connection;
@@ -22,6 +21,9 @@ namespace Scadex.RemoteDesk.Windows.Services.Connection;
 public interface ICentralConnection
 {
     ConnectionStatus Status { get; }
+
+    /// <summary> Yapılandırmadaki cihaz kimliği (Basic Auth kullanıcı adı = diyagramdaki PC cihazının Id'si); boş olabilir. </summary>
+    string DeviceId { get; }
 
     /// <summary> Durum değişince — iş parçacığı havuzundan gelir, UI Dispatcher'a taşımalıdır. </summary>
     event Action<ConnectionStatus>? StatusChanged;
@@ -31,8 +33,8 @@ public interface ICentralConnection
 }
 
 /// <summary>
-/// Merkezle tek kalıcı bağlantı — <c>PcHub</c>. Döngü: bağlan → <c>Hello</c> → kabul edildiyse kopana kadar bekle →
-/// geri çekilerek yeniden dene (1 → 2 → 5 → 10 → 30 sn, sonsuz). Tanımsız / çakışan cihazda 60 sn'de bir dener.
+/// Merkezle tek kalıcı bağlantı — <c>PcHub</c>. Döngü: bağlan (Basic Auth: cihaz Id'si + sır) → <c>Hello</c> → kabul edildiyse kopana kadar
+/// bekle → geri çekilerek yeniden dene (1 → 2 → 5 → 10 → 30 sn, sonsuz). Kimlik reddedilince (401) ya da ağ izinli değilse 60 sn'de bir dener.
 /// <para/>
 /// SignalR'ın kendi otomatik yeniden bağlanması KULLANILMAZ: yeni bağlantı her seferinde <c>Hello</c> ile yeniden eşlenmeli.
 /// Ayrı heartbeat yoktur; canlılık SignalR keep-alive'ıdır (15 sn / 30 sn). Boştayken zamanlayıcı ve yoklama yoktur.
@@ -43,7 +45,6 @@ public sealed class CentralConnectionService : BackgroundService, ICentralConnec
     private static readonly TimeSpan RejectedRetry = TimeSpan.FromSeconds(60);
 
     private readonly RemoteDeskClientOptions _options;
-    private readonly INetworkAdapterService _adapters;
     private readonly IMonitorService _monitors;
     private readonly IScreenStreamService _streams;
     private readonly IRemoteInputService _input;
@@ -63,7 +64,7 @@ public sealed class CentralConnectionService : BackgroundService, ICentralConnec
     private readonly SemaphoreSlim _monitorReport = new(1, 1);
     private string _reportedMonitors = "";
 
-    public CentralConnectionService(IOptions<RemoteDeskClientOptions> options, INetworkAdapterService adapters, IMonitorService monitors,
+    public CentralConnectionService(IOptions<RemoteDeskClientOptions> options, IMonitorService monitors,
         IScreenStreamService streams, IRemoteInputService input, IFileTransferService files, Clipboard.IClipboardAccess clip,
         ILogger<CentralConnectionService> logger)
     {
@@ -73,7 +74,6 @@ public sealed class CentralConnectionService : BackgroundService, ICentralConnec
         _streams = streams;
         _streams.StatusChanged += OnStreamStatus;
         _options = options.Value;
-        _adapters = adapters;
         _monitors = monitors;
         _logger = logger;
         Status = new ConnectionStatus(ConnectionState.Connecting, CentralUrl, "Başlatılıyor…");
@@ -82,7 +82,13 @@ public sealed class CentralConnectionService : BackgroundService, ICentralConnec
     public ConnectionStatus Status { get; private set; }
     public event Action<ConnectionStatus>? StatusChanged;
 
+    public string DeviceId => _options.DeviceId.Trim();
+
     private string CentralUrl => _options.CentralApiUrl.Trim().TrimEnd('/');
+
+    /// <summary> <c>Authorization</c> başlığının değeri. Sır loglanmaz, arayüze gitmez. </summary>
+    private string BasicCredential =>
+        "Basic " + Convert.ToBase64String(System.Text.Encoding.UTF8.GetBytes($"{DeviceId}:{_options.DeviceSecret.Trim()}"));
 
     public void Reconnect()
     {
@@ -94,6 +100,13 @@ public sealed class CentralConnectionService : BackgroundService, ICentralConnec
         if (string.IsNullOrEmpty(CentralUrl))
         {
             Publish(new ConnectionStatus(ConnectionState.NotConfigured, "", "appsettings.json > RemoteDesk:CentralApiUrl boş."));
+            return;
+        }
+        if (!Guid.TryParse(DeviceId, out _) || string.IsNullOrWhiteSpace(_options.DeviceSecret))
+        {
+            Publish(new ConnectionStatus(ConnectionState.NotConfigured, CentralUrl,
+                "appsettings.json > RemoteDesk:DeviceId / DeviceSecret eksik. Kabin diyagramında bu PC'nin cihazını seçin, özellik panelinde " +
+                "kimlik bilgisi üretin ve kaydedin; Kullanıcı adı → DeviceId, Sır → DeviceSecret."));
             return;
         }
 
@@ -157,7 +170,8 @@ public sealed class CentralConnectionService : BackgroundService, ICentralConnec
     private async Task<RunOutcome> RunOnceAsync(int failures, CancellationToken wake, CancellationToken stoppingToken)
     {
         await using var hub = new HubConnectionBuilder()
-            .WithUrl(CentralUrl + PcHubContract.Path)
+            // Basic Auth hem negotiate'e hem WebSocket isteğine gider (.NET istemcisi başlık taşıyabilir; tarayıcı taşıyamazdı).
+            .WithUrl(CentralUrl + PcHubContract.Path, o => o.Headers["Authorization"] = BasicCredential)
             .AddJsonProtocol(o =>
             {
                 // Scadex'in JSON'u: camelCase, enum sayı (varsayılan), büyük/küçük harf duyarsız okuma.
@@ -207,10 +221,8 @@ public sealed class CentralConnectionService : BackgroundService, ICentralConnec
             Publish(new ConnectionStatus(ConnectionState.Connecting, CentralUrl, failures == 0 ? "Bağlanıyor…" : $"Bağlanıyor… ({failures + 1}. deneme)"));
             await hub.StartAsync(stoppingToken);
 
-            var adapters = _adapters.GetPhysicalAdapters();
             var helloMonitors = ReadMonitors();
             var request = new HelloRequest(
-                [.. adapters.Select(a => a.Mac)],
                 ClientVersion,
                 Environment.OSVersion.VersionString,
                 Environment.MachineName,
@@ -218,19 +230,18 @@ public sealed class CentralConnectionService : BackgroundService, ICentralConnec
                 helloMonitors);
 
             var response = await hub.InvokeAsync<HelloResponse>(PcHubContract.Hello, request, stoppingToken);
-            var matched = response.MatchedMacAddresses.Select(m => MacAddress.Normalize(m) is { } n ? MacAddress.Format(n) : m).ToList();
 
             if (response.Status != HelloStatus.Accepted)
             {
                 _logger.LogWarning("Merkez bağlantıyı kabul etmedi: {Status}", response.Status);
-                Publish(Rejected(response.Status, matched));
+                Publish(Rejected(response.Status));
                 await hub.StopAsync(CancellationToken.None);
                 return response.Status == HelloStatus.AlreadyConnected ? RunOutcome.Failed : RunOutcome.Rejected;
             }
 
             _logger.LogInformation("Merkeze bağlandı: {Cabinet} / {Device}", response.CabinetName, response.DeviceName);
             Publish(new ConnectionStatus(ConnectionState.Connected, CentralUrl, $"Bağlandı: {DateTime.Now:HH:mm:ss}",
-                response.DeviceId, response.DeviceName, response.CabinetName, matched));
+                response.DeviceName, response.CabinetName));
             lock (_gate) _accepted = hub;
             // Hello'da gönderilen liste başlangıç imzasıdır; sonraki bildirimler yalnızca bundan farklıysa gider.
             await _monitorReport.WaitAsync(stoppingToken);
@@ -263,6 +274,16 @@ public sealed class CentralConnectionService : BackgroundService, ICentralConnec
                 reason is null ? "Yeniden bağlanılıyor…" : $"Bağlantı koptu: {Explain(reason)}"));
             return RunOutcome.WasConnected;
         }
+        catch (HttpRequestException ex) when (ex.StatusCode == HttpStatusCode.Unauthorized && !stoppingToken.IsCancellationRequested)
+        {
+            // Kimlik reddedildi: Id/sır yanlış, sır yenilenmiş ya da iptal edilmiş, cihaz silinmiş. Teknisyen düzeltene kadar seyrek dene.
+            lock (_gate) _accepted = null;
+            _logger.LogWarning("Merkez cihaz kimliğini reddetti (401): cihaz {DeviceId}", DeviceId);
+            Publish(new ConnectionStatus(ConnectionState.Unauthorized, CentralUrl,
+                "Merkez bu PC'nin kimlik bilgisini reddetti. Diyagramda bu PC'nin cihazında yeni bir sır üretip kaydedin ve " +
+                "appsettings.json > RemoteDesk:DeviceId / DeviceSecret'a yazın. 60 sn'de bir yeniden denenir."));
+            return RunOutcome.Rejected;
+        }
         catch (Exception ex) when (!stoppingToken.IsCancellationRequested)
         {
             lock (_gate) _accepted = null;
@@ -273,14 +294,10 @@ public sealed class CentralConnectionService : BackgroundService, ICentralConnec
         }
     }
 
-    private ConnectionStatus Rejected(HelloStatus status, IReadOnlyList<string> matched) => status switch
+    private ConnectionStatus Rejected(HelloStatus status) => status switch
     {
-        HelloStatus.UnknownDevice => new(ConnectionState.UnknownDevice, CentralUrl,
-            "Aşağıdaki MAC adreslerinden birini kabin diyagramında bu PC'nin cihazına (tip: Bilgisayar) girin. 60 sn'de bir yeniden denenir."),
-        HelloStatus.Ambiguous => new(ConnectionState.Ambiguous, CentralUrl,
-            "Bu PC'nin MAC adresleri Scadex'te birden fazla cihaza yazılmış. Fazla olanı diyagramdan silin. 60 sn'de bir yeniden denenir.", MatchedMacs: matched),
         HelloStatus.AlreadyConnected => new(ConnectionState.AlreadyConnected, CentralUrl,
-            "Bu cihaz başka bir bağlantıda (ilk bağlanan kazanır). Az önce kopan bağlantıysa merkez ≈30 sn içinde bırakır.", MatchedMacs: matched),
+            "Bu cihaz başka bir bağlantıda (ilk bağlanan kazanır). Az önce kopan bağlantıysa merkez ≈30 sn içinde bırakır."),
         HelloStatus.NetworkNotAllowed => new(ConnectionState.NetworkNotAllowed, CentralUrl,
             "Merkez bu ağdan bağlantı kabul etmiyor (Modules:RemoteDesk:AllowedNetworks). 60 sn'de bir yeniden denenir."),
         _ => new(ConnectionState.Disconnected, CentralUrl, $"Beklenmeyen yanıt: {status}")

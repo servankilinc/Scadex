@@ -506,8 +506,8 @@ export function useDiagramEditor(cabinetId: string, graph: DiagramDto): DiagramE
         coordinateX: node.position.x + DUPLICATE_OFFSET,
         coordinateY: node.position.y + DUPLICATE_OFFSET,
         zIndex: nextZIndex(nodesRef.current),
-        // Ağ adresleri de KOPYALANMAZ. MAC tekillik index'i (kontrol kartı / PC) sistem genelinde
-        // benzersiz olduğu için kopya zaten çakışırdı; ötesinde bir MAC tek bir fiziksel karta aittir.
+        // IP KOPYALANMAZ (aynı adreste iki cihaz olmaz). Kart / PC kimliği de kopyalanmaz: kullanıcı adı cihazın kendi Id'si,
+        // sır sunucuda yalnızca hash — kopya kimliksiz doğar.
         // Parola da kopyalanamaz (sunucu göndermez) — bkz. `copyDeviceExtensions`.
         ...copyDeviceExtensions(source),
         ipAddress: null,

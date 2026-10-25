@@ -69,8 +69,9 @@ export default function RemoteDeskPcDetail() {
           <MonitorOffIcon className='size-8' />
           <p>Bu PC merkeze bağlı değil.</p>
           <p className='max-w-lg'>
-            PC'de Scadex RemoteDesk istemcisinin çalıştığından ve diyagramdaki MAC adresinin ({pc.data.macAddress ?? 'tanımlı değil'})
-            PC'nin ağ kartıyla aynı olduğundan emin olun. İstemci ekranı gönderdiği MAC'leri gösterir.
+            {pc.data.hasCredential
+              ? "PC'de Scadex RemoteDesk istemcisinin çalıştığından ve ayarlarındaki cihaz kimliğinin (DeviceId + DeviceSecret) diyagramda üretilenle aynı olduğundan emin olun. İstemci ekranı kimliğin reddedildiğini gösterir."
+              : 'Bu PC için kimlik bilgisi üretilmemiş: kabin diyagramında cihazı seçip özellik panelinden sır üretin, kaydedin ve PC’deki istemciye girin.'}
           </p>
         </div>
       ) : (

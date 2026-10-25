@@ -51,8 +51,8 @@ public static class EntityEnums
         /// <summary>
         /// Kart okuyucu — kart ID'sini gönderen modül.
         /// Kendi ingest endpoint'i vardır çünkü taşıdığı veri bir kanal değeri değildir:
-        /// <c>POST /api/Scada/card</c> ile <c>{ macAddress, cardId, timestampUtc }</c> gelir; kabin, ingest'teki gibi
-        /// kontrol modülünün MAC adresinden çözülür.
+        /// <c>POST /api/Scada/card</c> ile <c>{ cardId, timestampUtc }</c> gelir; kabin, ingest'teki gibi
+        /// isteği gönderen kontrol modülünün Basic Auth kimliğinden çözülür.
         /// Kart ID'si IoChannel'a yazılmaz ve ChannelEvent'a gitmez kart ID'si bir ölçüm değildir.
         /// </summary>
         CardReader = 10,

@@ -115,8 +115,8 @@ export interface DeviceDraft {
 }
 
 /**
- * Ayna: `DeviceExtensionDrafts.cs`. Sunucu kuralları: model ≤ 64, açıklama ≤ 512, kullanıcı/parola ≤ 128, MAC 12 harf/rakam
- * (`:`/`-` ayraçlı). `password`: `null` = mevcut parolaya dokunma, `''` = temizle, değer = yaz.
+ * Ayna: `DeviceExtensionDrafts.cs`. Sunucu kuralları: model ≤ 64, açıklama ≤ 512, kullanıcı/parola ≤ 128.
+ * `password`: `null` = mevcut parolaya dokunma, `''` = temizle, değer = yaz.
  */
 export interface CameraDraft {
   brand: CameraBrand;
@@ -126,16 +126,17 @@ export interface CameraDraft {
   password: string | null;
 }
 
+/**
+ * Basic Auth sırrı (kullanıcı adı cihazın Id'si). `null` = mevcut kimliğe dokunma, `''` = iptal, değer = yeni sır —
+ * yalnızca `generateDeviceSecret()`'in ürettiği biçim kabul edilir (32 küçük harf onaltılık), aksi 400 `Devices.Upserted[i].ControlCard.Secret`.
+ */
 export interface ControlCardDraft {
-  /** Tüm kontrol kartları arasında tekil (kabin bazlı değil); çakışırsa 400 `Devices.Upserted[i].ControlCard.MacAddress`. */
-  macAddress: string | null;
-  username: string | null;
-  password: string | null;
+  secret: string | null;
 }
 
+/** `ControlCardDraft` ile aynı kural; hata anahtarı `Devices.Upserted[i].Pc.Secret`. */
 export interface PcDeviceDraft {
-  /** Tüm PC'ler arasında tekil; çakışırsa 400 `Devices.Upserted[i].Pc.MacAddress`. */
-  macAddress: string | null;
+  secret: string | null;
 }
 
 export interface ConnectionDraft {
@@ -187,7 +188,7 @@ export interface AnnotationDraft {
  * dokunulmadan kalır — `deviceStatusId` / `lastSeen` / `lastConnectionError` bilerek
  * dışarıda: onları yoklama ve SCADA teması yazar, kaydetmek bu değerleri ezmemeli.
  *
- * `ipAddress` taslakta VARDIR; MAC / kullanıcı / parola cihazın ek nesnelerindedir (`camera` / `controlCard` / `pc`,
+ * `ipAddress` taslakta VARDIR; kimlik bilgileri cihazın ek nesnelerindedir (`camera` / `controlCard` / `pc`,
  * 2026-10-22) ve operatör onları özellik panelinden girer.
  */
 export interface DiagramSaveRequest {

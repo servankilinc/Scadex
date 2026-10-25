@@ -29,7 +29,7 @@ public class DiagramDeviceDto : IDto
     public bool IsMonitoringEnabled { get; set; }
     public string? LastConnectionError { get; set; }
 
-    /// <summary> Ek tablolar: şablon tipine göre en fazla biri doludur. Parola bilerek yoktur, yalnızca <c>HasPassword</c>. </summary>
+    /// <summary> Ek tablolar: şablon tipine göre en fazla biri doludur. Parola / sır bilerek yoktur, yalnızca <c>HasPassword</c> / <c>HasCredential</c>. </summary>
     public DiagramCameraDto? Camera { get; set; }
     public DiagramControlCardDto? ControlCard { get; set; }
     public DiagramPcDeviceDto? Pc { get; set; }
@@ -48,16 +48,16 @@ public class DiagramCameraDto : IDto
     public bool HasPassword { get; set; }
 }
 
+/// <summary> Basic Auth kullanıcı adı cihazın Id'sidir; sır sunucuda yalnızca hash olarak durur, geri okunamaz. </summary>
 public class DiagramControlCardDto : IDto
 {
-    public string? MacAddress { get; set; }
-    public string? Username { get; set; }
-    public bool HasPassword { get; set; }
+    public bool HasCredential { get; set; }
 }
 
+/// <summary> Basic Auth kullanıcı adı cihazın Id'sidir; sır sunucuda yalnızca hash olarak durur, geri okunamaz. </summary>
 public class DiagramPcDeviceDto : IDto
 {
-    public string? MacAddress { get; set; }
+    public bool HasCredential { get; set; }
 }
 
 public class DiagramComponentTemplateDto : IDto

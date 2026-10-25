@@ -52,8 +52,6 @@
                                    VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
                     </DockPanel>
                     <TextBlock Text="{Binding Detail}" Style="{StaticResource Value}" Margin="0,6,0,0" />
-                    <TextBlock Text="{Binding MatchedText}" Style="{StaticResource Value}" FontWeight="SemiBold"
-                               Visibility="{Binding HasMatched, Converter={StaticResource BoolToVisibility}}" />
                     <Grid Margin="0,6,0,0">
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="Auto" />
@@ -68,24 +66,10 @@
                         <TextBlock Grid.Row="0" Grid.Column="1" Text="{Binding CentralUrl}" Style="{StaticResource Value}" />
                         <TextBlock Grid.Row="1" Text="Bilgisayar" Style="{StaticResource Label}" />
                         <TextBlock Grid.Row="1" Grid.Column="1" Text="{Binding MachineName}" Style="{StaticResource Value}" />
-                        <TextBlock Grid.Row="2" Text="MAC adresleri" Style="{StaticResource Label}" />
-                        <StackPanel Grid.Row="2" Grid.Column="1">
-                            <ItemsControl ItemsSource="{Binding Adapters}">
-                                <ItemsControl.ItemTemplate>
-                                    <DataTemplate>
-                                        <StackPanel Orientation="Horizontal" Margin="0,3,0,0">
-                                            <!-- Seçilebilir: teknisyen kopyalayıp diyagrama yapıştırır. -->
-                                            <TextBox Text="{Binding DisplayMac, Mode=OneWay}" IsReadOnly="True" BorderThickness="0" Background="Transparent"
-                                                     FontFamily="Consolas" Padding="0" Width="140" />
-                                            <TextBlock Foreground="#6B7580">
-                                                <Run Text="{Binding Name, Mode=OneWay}" /><Run Text=" · " /><Run Text="{Binding Description, Mode=OneWay}" />
-                                            </TextBlock>
-                                        </StackPanel>
-                                    </DataTemplate>
-                                </ItemsControl.ItemTemplate>
-                            </ItemsControl>
-                            <Button Content="MAC'leri kopyala" Command="{Binding CopyMacsCommand}" HorizontalAlignment="Left" Margin="0,6,0,0" />
-                        </StackPanel>
+                        <TextBlock Grid.Row="2" Text="Cihaz kimliği" Style="{StaticResource Label}" />
+                        <!-- Seçilebilir: teknisyen diyagramdaki PC cihazının kullanıcı adıyla karşılaştırır. Sır gösterilmez. -->
+                        <TextBox Grid.Row="2" Grid.Column="1" Text="{Binding DeviceIdText, Mode=OneWay}" IsReadOnly="True" BorderThickness="0"
+                                 Background="Transparent" FontFamily="Consolas" Padding="0" Margin="0,3,0,3" />
                     </Grid>
                 </StackPanel>
             </Border>

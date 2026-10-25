@@ -40,10 +40,11 @@ public interface IPcHubClient
     Task SetClipboard(SetClipboardCommand command);
 }
 
-/// <summary> Bağlantının ilk ve zorunlu çağrısı; kabul edilene kadar başka çağrı yapılamaz. </summary>
-/// <param name="MacAddresses">Fiziksel ağ kartlarının MAC'leri (biçim serbest; sunucu <see cref="MacAddress.Normalize"/> ile karşılaştırır).</param>
+/// <summary>
+/// Bağlantının ilk ve zorunlu çağrısı; kabul edilene kadar başka çağrı yapılamaz. PC'nin KİM olduğu burada değil bağlantının kendisindedir:
+/// hub Basic Auth ister (kullanıcı adı = cihaz Id'si, parola = diyagramda üretilen parola); yanlış/eksik kimlik401 alır
+/// </summary>
 public sealed record HelloRequest(
-    string[] MacAddresses,
     string ClientVersion,
     string OsVersion,
     string MachineName,
@@ -52,25 +53,19 @@ public sealed record HelloRequest(
 
 public enum HelloStatus
 {
-    /// <summary> Tam bir PC cihazıyla eşleşti; bağlantı o cihaza kaydedildi. </summary>
+    /// <summary> Bağlantı kimliği doğrulanan cihaza kaydedildi. </summary>
     Accepted = 1,
-    /// <summary> Hiçbir aktif PC cihazının MAC'i eşleşmedi — teknisyen MAC'i diyagrama girmeli. </summary>
-    UnknownDevice = 2,
-    /// <summary> MAC'ler birden fazla PC cihazıyla eşleşti (iki kart iki cihaza yazılmış). </summary>
-    Ambiguous = 3,
     /// <summary> Bu cihaz başka bir bağlantıda — ilk bağlanan kazanır. </summary>
     AlreadyConnected = 4,
     /// <summary> Bağlantı <c>AllowedNetworks</c> dışından geldi. </summary>
     NetworkNotAllowed = 5
 }
 
-/// <param name="MatchedMacAddresses">Eşleşen cihaz(lar)ın MAC'leri — <see cref="HelloStatus.Ambiguous"/>'ta hangi kartların çakıştığını gösterir.</param>
 public sealed record HelloResponse(
     HelloStatus Status,
     Guid? DeviceId,
     string? DeviceName,
-    string? CabinetName,
-    string[] MatchedMacAddresses);
+    string? CabinetName);
 
 /// <summary> Monitörün yayınını başlat. <c>SessionId</c> idempotency anahtarıdır: aynı oturum tekrar gelirse yeni FFmpeg açılmaz. </summary>
 /// <param name="PublishUrl">Bilet parola alanında, tam RTSP adresi (<c>rtsp://pc:{bilet}@merkez:8554/pc_…</c>). Loglanmaz.</param>

@@ -2,14 +2,18 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
 using Scadex.Business.Abstract;
+using Scadex.Business.Utils.Auth;
 using Scadex.Model.Dtos.Scada.Commands;
 using Scadex.WebAPI.Controllers.Base;
 using Scadex.WebAPI.Tools;
 
 namespace Scadex.WebAPI.Controllers;
 
-/// <summary> SCADA'nın bize ulaşacağı endpointler. </summary>
-[AllowAnonymous]
+/// <summary>
+/// SCADA'nın bize ulaşacağı endpointler. Kontrol kartı Basic Auth ile doğrulanır (kullanıcı adı = cihaz Id'si,);
+/// kabin gövdeden değil kartın kimliğinden gelir. Kimliksiz / yanlış kimlikli istek 401.
+/// </summary>
+[Authorize(Policy = DeviceAuthPolicies.ControlCard)]
 [EnableRateLimiting(RateLimiterKey.Scada)]
 public class ScadaController : BaseController
 {
@@ -25,7 +29,7 @@ public class ScadaController : BaseController
     [HttpPost("ingest")]
     public async Task<IActionResult> Ingest(ScadaIngestRequest request, CancellationToken cancellationToken)
     {
-        var result = await _channelEventService.IngestAsync(request, cancellationToken);
+        var result = await _channelEventService.IngestAsync(CabinetId, request, cancellationToken);
         return ToAction(result);
     }
 
@@ -33,7 +37,10 @@ public class ScadaController : BaseController
     [HttpPost("card")]
     public async Task<IActionResult> Card(ScadaCardReadRequest request, CancellationToken cancellationToken)
     {
-        var result = await _cardReadService.IngestAsync(request, cancellationToken);
+        var result = await _cardReadService.IngestAsync(CabinetId, request, cancellationToken);
         return ToAction(result);
     }
+
+    /// <summary> Policy cihaz kimliğini zorladığı için her zaman doludur. </summary>
+    private Guid CabinetId => User.GetDeviceCabinetId() ?? throw new InvalidOperationException("Kontrol kartı kimliğinde kabin yok.");
 }

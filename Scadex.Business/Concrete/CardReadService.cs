@@ -31,7 +31,7 @@ public class CardReadService : ICardReadService
     }
 
     /// <inheritdoc />
-    public async Task<Result> IngestAsync(ScadaCardReadRequest request, CancellationToken cancellationToken = default)
+    public async Task<Result> IngestAsync(Guid cabinetId, ScadaCardReadRequest request, CancellationToken cancellationToken = default)
     {
         // 1) Validation
         var validationResult = await _validationService.ValidateAsync(request, cancellationToken);
@@ -39,15 +39,7 @@ public class CardReadService : ICardReadService
             return Result.Validation(validationResult.Failures, description: "Validation failed for ScadaCardReadRequest");
 
 
-        // 2) Scada kontrolü
-        var cabinetId = await _unitOfWork.Devices.GetCabinetIdByControlModuleMacAsync(request.MacAddress, cancellationToken);
-        if (cabinetId == Guid.Empty)
-        {
-            _logger.LogWarning($"MAC {request.MacAddress}: eslesen kontrol modulu yok (ya da pasif); kart okumasi atlandi.");
-            return Result.NotFound(description: "Bu MAC adresine kayitli kontrol modulu bulunamadi");
-        }
-
-
+        // 2) Kabin, isteği gönderen kontrol kartının kimliğinden gelir (Basic Auth, controller).
         // 3) Kabin kontrolü
         var cabinet = await _unitOfWork.Cabinets.GetAsync(
             select: c => new { c.Id, c.IsActive, c.ScadaIsEnabled },

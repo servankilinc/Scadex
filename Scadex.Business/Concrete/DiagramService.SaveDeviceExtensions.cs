@@ -1,3 +1,4 @@
+using Scadex.Core.Utils;
 using Scadex.Model.Dtos.Diagram.Commands;
 using Scadex.Model.Dtos.Diagram.Commands.Items;
 using Scadex.Model.Entities;
@@ -34,39 +35,6 @@ public partial class DiagramService
     }
 
     /// <summary>
-    /// Gonderilen kontrol karti MAC adreslerinin SAHIPLERI — <c>IX_ControlCard_MacAddress</c>.
-    /// <b>Kabinle daraltilmaz:</b> index SISTEM GENELIDIR (ingest kabini bu adresten cozer), carpisma baska kabindeki
-    /// kartla da olabilir; sorgu GONDERILEN ADRESLERLE daraltilir. Gonderide adres yoksa sorgu atilmaz.
-    /// Pasif cihaz filtresi gerekmez: cihaz silinirken MAC'i null'a cekilir (<see cref="ApplyDeviceExtensionDeletions"/>).
-    /// </summary>
-    private async Task<Dictionary<Guid, string>> LoadControlCardMacAddressesAsync(DiagramSaveRequest request, CancellationToken cancellationToken)
-    {
-        var submitted = SubmittedMacAddresses(request.Devices.Upserted.Select(d => d.ControlCard?.MacAddress));
-        if (submitted.Count == 0) return [];
-
-        var rows = await _unitOfWork.ControlCards.GetAllAsync(
-            select: c => new ExtensionValueRow(c.DeviceId, c.MacAddress!),
-            where: c => c.MacAddress != null && submitted.Contains(c.MacAddress),
-            cancellationToken: cancellationToken) ?? [];
-
-        return rows.ToDictionary(r => r.DeviceId, r => r.Value);
-    }
-
-    /// <summary> <see cref="LoadControlCardMacAddressesAsync"/>'in PC karsiligi — <c>IX_PcDevice_MacAddress</c>, sistem geneli. </summary>
-    private async Task<Dictionary<Guid, string>> LoadPcMacAddressesAsync(DiagramSaveRequest request, CancellationToken cancellationToken)
-    {
-        var submitted = SubmittedMacAddresses(request.Devices.Upserted.Select(d => d.Pc?.MacAddress));
-        if (submitted.Count == 0) return [];
-
-        var rows = await _unitOfWork.PcDevices.GetAllAsync(
-            select: p => new ExtensionValueRow(p.DeviceId, p.MacAddress!),
-            where: p => p.MacAddress != null && submitted.Contains(p.MacAddress),
-            cancellationToken: cancellationToken) ?? [];
-
-        return rows.ToDictionary(r => r.DeviceId, r => r.Value);
-    }
-
-    /// <summary>
     /// Kabindeki aktif kameralarin IP adresleri — kamera IP'si KABIN ICINDE tekildir (eski <c>Camera</c> tablosundaki
     /// unique index'in yerine; CabinetId ve IsActive artik Device'ta oldugu icin DB'de ifade edilemiyor).
     /// Gonderide kamera taslagi yoksa sorgu atilmaz.
@@ -82,13 +50,6 @@ public partial class DiagramService
 
         return rows.ToDictionary(r => r.DeviceId, r => r.Value);
     }
-
-    private static List<string> SubmittedMacAddresses(IEnumerable<string?> macAddresses) =>
-        macAddresses
-            .Where(mac => !string.IsNullOrWhiteSpace(mac))
-            .Select(mac => mac!)
-            .Distinct(StringComparer.OrdinalIgnoreCase)
-            .ToList();
 
     // ==================== REFERANS DOGRULAMA ====================
 
@@ -122,12 +83,7 @@ public partial class DiagramService
         ValidateUniqueValues(request, context, d => d.Camera != null ? d.IpAddress : null, context.CameraIpAddresses,
             i => $"Devices.Upserted[{i}].IpAddress", "Bu kabinde aynı IP adresine sahip bir kamera zaten var", errors);
 
-        // MAC tekilligi TIP BASINADIR ve SISTEM GENELIDIR: ingest yalnizca ControlCard'a, PcHub yalnizca PcDevice'a bakar.
-        // Mesaj "bu kabinde" demez — carpisan cihaz baska bir kabinde olabilir.
-        ValidateUniqueValues(request, context, d => d.ControlCard?.MacAddress, context.ControlCardMacAddresses,
-            i => $"Devices.Upserted[{i}].ControlCard.MacAddress", "Bu MAC adresi başka bir kontrol kartına kayıtlı", errors);
-        ValidateUniqueValues(request, context, d => d.Pc?.MacAddress, context.PcMacAddresses,
-            i => $"Devices.Upserted[{i}].Pc.MacAddress", "Bu MAC adresi başka bir bilgisayara kayıtlı", errors);
+        // Kontrol karti ve PC kimligi tekillik denetimi ISTEMEZ: Basic Auth kullanici adi cihazin Id'sidir.
     }
 
     private static void CheckExtension(bool sent, bool expected, string key, string label, Dictionary<string, List<string>> errors)
@@ -137,10 +93,9 @@ public partial class DiagramService
     }
 
     /// <summary>
-    /// Bir degerin (MAC / kamera IP'si) mevcut sahipler ve ayni gonderideki diger taslaklar arasinda tekil olmasi.
-    /// Silinen cihaz ve yazilan cihazin ESKI degeri mevcut sayilmaz (silinenin MAC'i null'a cekilir, yazilanin yeni
-    /// degeri asagida eklenir). <c>OrdinalIgnoreCase</c>: SQL Server'in varsayilan collation'i buyuk/kucuk harf duyarsiz,
-    /// index'te "aa:bb.." ile "AA:BB.." ayni satirdir.
+    /// Bir degerin (bugun yalnizca kamera IP'si) mevcut sahipler ve ayni gonderideki diger taslaklar arasinda tekil olmasi.
+    /// Silinen cihaz ve yazilan cihazin ESKI degeri mevcut sayilmaz (yazilanin yeni degeri asagida eklenir).
+    /// <c>OrdinalIgnoreCase</c>: SQL Server'in varsayilan collation'i buyuk/kucuk harf duyarsizdir.
     /// </summary>
     private static void ValidateUniqueValues(
         DiagramSaveRequest request,
@@ -170,22 +125,6 @@ public partial class DiagramService
     }
 
     // ==================== UYGULAMA ====================
-
-    /// <summary>
-    /// Silinen cihazlarin ek tablolarindaki MAC'ler <c>null</c>'a cekilir. Filtreli MAC index'i <c>Device.IsActive</c>'e
-    /// bakamaz; cekilmezse pasif cihaz adresi sonsuza dek isgal ederdi. Ilk SaveChanges'te (silmeler) akar, bu yuzden ayni
-    /// gonderide eklenen yeni cihaz ayni adresi alabilir. Eski deger <c>Archive</c>'da kalir.
-    /// Ek satir <see cref="LoadDevicesAsync"/>'te cihazla birlikte takipli yuklenir.
-    /// </summary>
-    private static void ApplyDeviceExtensionDeletions(SaveContext context)
-    {
-        foreach (var id in context.DeletedDeviceIds)
-        {
-            var device = context.Devices.Live[id];
-            if (device.ControlCard != null) device.ControlCard.MacAddress = null;
-            if (device.PcDevice != null) device.PcDevice.MacAddress = null;
-        }
-    }
 
     /// <summary>
     /// Cihazin ek satirini yazar: yoksa olusturur, varsa takipli satiri gunceller (EF degisen kolonu kendisi bulur).
@@ -222,9 +161,7 @@ public partial class DiagramService
                 device.ControlCard = card;
                 _unitOfWork.ControlCards.Add(card);
             }
-            card.MacAddress = cardDraft.MacAddress;
-            card.Username = cardDraft.Username;
-            card.Password = ApplyPassword(card.Password, cardDraft.Password);
+            card.CredentialHash = ApplySecret(card.CredentialHash, cardDraft.Secret);
         }
 
         if (draft.Pc is { } pcDraft)
@@ -236,7 +173,7 @@ public partial class DiagramService
                 device.PcDevice = pc;
                 _unitOfWork.PcDevices.Add(pc);
             }
-            pc.MacAddress = pcDraft.MacAddress;
+            pc.CredentialHash = ApplySecret(pc.CredentialHash, pcDraft.Secret);
         }
     }
 
@@ -248,8 +185,19 @@ public partial class DiagramService
         _ => submitted
     };
 
+    /// <summary>
+    /// Basic Auth sirri (kontrol karti / PC): <c>null</c> "dokunma", <c>""</c> "iptal", deger yeni sirdir ve yalnizca HASH'i
+    /// saklanir — sir geri okunamaz, eskisi aninda gecersiz olur. Bicim taslak validator'unda zorlandi.
+    /// </summary>
+    private static string? ApplySecret(string? currentHash, string? submitted) => submitted switch
+    {
+        null => currentHash,
+        "" => null,
+        _ => DeviceCredential.Hash(submitted)
+    };
+
     // ==================== YARDIMCI TIPLER ====================
 
-    /// <summary> Ek tablodaki tekil bir degerin (MAC / kamera IP'si) sahibi. </summary>
+    /// <summary> Ek tablodaki tekil bir degerin (kamera IP'si) sahibi. </summary>
     private sealed record ExtensionValueRow(Guid DeviceId, string Value);
 }

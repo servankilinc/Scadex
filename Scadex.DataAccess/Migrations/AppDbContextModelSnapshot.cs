@@ -3241,20 +3241,11 @@ namespace Scadex.DataAccess.Migrations
                     b.Property<Guid>("DeviceId")
                         .HasColumnType("uniqueidentifier");
 
-                    b.Property<string>("MacAddress")
-                        .HasColumnType("nvarchar(450)");
-
-                    b.Property<string>("Password")
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<string>("Username")
-                        .HasColumnType("nvarchar(max)");
+                    b.Property<string>("CredentialHash")
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)");
 
                     b.HasKey("DeviceId");
-
-                    b.HasIndex("MacAddress")
-                        .IsUnique()
-                        .HasFilter("[MacAddress] IS NOT NULL");
 
                     b.ToTable("ControlCard", (string)null);
                 });
@@ -3747,14 +3738,11 @@ namespace Scadex.DataAccess.Migrations
                     b.Property<Guid>("DeviceId")
                         .HasColumnType("uniqueidentifier");
 
-                    b.Property<string>("MacAddress")
-                        .HasColumnType("nvarchar(450)");
+                    b.Property<string>("CredentialHash")
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)");
 
                     b.HasKey("DeviceId");
-
-                    b.HasIndex("MacAddress")
-                        .IsUnique()
-                        .HasFilter("[MacAddress] IS NOT NULL");
 
                     b.ToTable("PcDevice", (string)null);
                 });

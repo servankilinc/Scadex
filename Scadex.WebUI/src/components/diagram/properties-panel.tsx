@@ -34,6 +34,7 @@ import type {
 import { useAppSelector } from '@/hooks';
 import type { DiagramEditor } from '@/hooks/use-diagram-editor';
 import { MIN_ALIGN } from '@/lib/diagram/align';
+import { generateDeviceSecret } from '@/lib/diagram/device-credential';
 import { ANNOTATION_FONT_SIZE_MAX, ANNOTATION_FONT_SIZE_MIN, ANNOTATION_TEXT_MAX } from '@/lib/diagram/annotation-defaults';
 import { useLiveChannel, useLiveDevice } from '@/lib/diagram/live-store';
 import { removeWaypoint } from '@/lib/diagram/waypoints';
@@ -47,7 +48,7 @@ import { DeleteButton } from './confirm-delete';
  * Seçili öğenin, canvas üzerinde düzenlenemeyen alanları — ve seçime uygulanan
  * eylemler.
  *
- * Canvas konumu ve bağlantıyı yönetir; ad, MAC adresi, kamera bilgileri, kablo tipi ve rengi gibi
+ * Canvas konumu ve bağlantıyı yönetir; ad, IP, kimlik bilgileri, kamera bilgileri, kablo tipi ve rengi gibi
  * alanların başka bir yeri yok. Kablo için bu kritik: `onConnect` yeni kabloyu
  * nötr bir varsayılanla (gri, düz, Sinyal) doğuruyor — panel olmasaydı çizilen
  * hiçbir kablonun tipi belirlenemezdi.
@@ -200,10 +201,12 @@ function DeviceForm({ node, editor }: { node: Extract<DiagramNode, { type: 'temp
         <TextInput id='device-ip-address' value={device.ipAddress ?? ''} onCommit={value => onChange({ ipAddress: value || null })} />
       </Field>
 
-      {/* Tipe özgü alanlar cihazın ek nesnelerindedir (2026-10-22) — MAC, kullanıcı ve parola cihaz gövdesinde yok. */}
+      {/* Tipe özgü alanlar cihazın ek nesnelerindedir (2026-10-22) — kimlik bilgileri cihaz gövdesinde yok. */}
       {device.camera && <CameraFields camera={device.camera} onChange={camera => onChange({ camera })} />}
-      {device.controlCard && <ControlCardFields card={device.controlCard} onChange={controlCard => onChange({ controlCard })} />}
-      {device.pc && <PcFields pc={device.pc} onChange={pc => onChange({ pc })} />}
+      {device.controlCard && (
+        <ControlCardFields deviceId={device.id} card={device.controlCard} onChange={controlCard => onChange({ controlCard })} />
+      )}
+      {device.pc && <PcFields deviceId={device.id} pc={device.pc} onChange={pc => onChange({ pc })} />}
 
       {/* İzleme yalnızca izlenebilir şablonda (`template.isMonitorable`) sunulur — klemensin, sigortanın yoklanacak bir ağı
           yok. Şablon izlenemezken izleme bir şekilde açık kalmışsa bölüm yine görünür ki kapatılabilsin; aksi halde
@@ -337,8 +340,7 @@ function DeviceForm({ node, editor }: { node: Extract<DiagramNode, { type: 'temp
 }
 
 // Ek nesne alanları. Kurallar sunucudaki `DeviceExtensionDrafts.cs` validator'larının ELLE tutulan aynasıdır (model ≤ 64,
-// açıklama ≤ 512, kullanıcı/parola ≤ 128); MAC biçimini sunucu doğrular ve tek tipe çevirir. Boş girdi `null`'a çevrilir:
-// boş dize MAC tekillik index'inde ikinci bir boş adresle çakışırdı, null'lar çakışmaz.
+// açıklama ≤ 512, kullanıcı/parola ≤ 128; kart / PC sırrı yalnızca `generateDeviceSecret` biçiminde). Boş girdi `null`'a çevrilir.
 
 const CAMERA_BRANDS: CameraBrand[] = Object.values(CameraBrand);
 
@@ -363,28 +365,100 @@ function CameraFields({ camera, onChange }: { camera: DiagramCameraDto; onChange
   );
 }
 
-function ControlCardFields({ card, onChange }: { card: DiagramControlCardDto; onChange: (card: DiagramControlCardDto) => void }) {
-  const patch = (next: Partial<DiagramControlCardDto>) => onChange({ ...card, ...next });
-
+function ControlCardFields({
+  deviceId,
+  card,
+  onChange
+}: {
+  deviceId: string;
+  card: DiagramControlCardDto;
+  onChange: (card: DiagramControlCardDto) => void;
+}) {
   return (
     <div className='flex flex-col gap-3 border-t pt-3'>
       <p className='text-muted-foreground text-xs font-medium'>Kontrol kartı</p>
-      <Field label='MAC adresi' htmlFor='card-mac-address' hint='SCADA kontrol modülünü bu adresle tanır; tüm kartlar arasında tekildir.'>
-        <TextInput id='card-mac-address' value={card.macAddress ?? ''} onCommit={value => patch({ macAddress: value || null })} />
-      </Field>
-      <CredentialFields idPrefix='card' credentials={card} onChange={patch} />
+      <DeviceCredentialFields
+        idPrefix='card'
+        deviceId={deviceId}
+        credential={card}
+        purpose='SCADA kartı ingest ve kart okumalarını bu kimlikle (HTTP Basic Auth) gönderir; kabin kimlikten çözülür.'
+        onChange={patch => onChange({ ...card, ...patch })}
+      />
     </div>
   );
 }
 
-function PcFields({ pc, onChange }: { pc: DiagramPcDeviceDto; onChange: (pc: DiagramPcDeviceDto) => void }) {
+function PcFields({ deviceId, pc, onChange }: { deviceId: string; pc: DiagramPcDeviceDto; onChange: (pc: DiagramPcDeviceDto) => void }) {
   return (
     <div className='flex flex-col gap-3 border-t pt-3'>
       <p className='text-muted-foreground text-xs font-medium'>Bilgisayar</p>
-      <Field label='MAC adresi' htmlFor='pc-mac-address' hint='Uzak masaüstü istemcisi bu adresle eşlenir; tüm PC’ler arasında tekildir.'>
-        <TextInput id='pc-mac-address' value={pc.macAddress ?? ''} onCommit={value => onChange({ macAddress: value || null })} />
-      </Field>
+      <DeviceCredentialFields
+        idPrefix='pc'
+        deviceId={deviceId}
+        credential={pc}
+        purpose='Uzak masaüstü istemcisi bu kimlikle bağlanır: PC’deki appsettings.json > RemoteDesk:DeviceId ve DeviceSecret.'
+        onChange={patch => onChange({ ...pc, ...patch })}
+      />
     </div>
+  );
+}
+
+/**
+ * Saha cihazının Basic Auth kimliği (2026-10-25, MAC'in yerine): kullanıcı adı cihazın Id'si, parola tarayıcının ürettiği sır
+ * (`generateDeviceSecret`). Sunucu sırrı DÖNDÜRMEZ (`hasCredential`); üretilen sır kaydedilene kadar `secret`'ta bekler ve yalnızca o
+ * sırada görünür — operatör onu karta / PC'ye şimdi girmeli. Elle sır yazılmaz: sunucu yalnızca üretilen biçimi kabul eder.
+ */
+function DeviceCredentialFields({
+  idPrefix,
+  deviceId,
+  credential,
+  purpose,
+  onChange
+}: {
+  idPrefix: string;
+  deviceId: string;
+  credential: { hasCredential: boolean; secret?: string | null };
+  purpose: string;
+  onChange: (patch: { secret: string }) => void;
+}) {
+  const pending = credential.secret;
+  const isSet = pending != null ? pending !== '' : credential.hasCredential;
+  const status =
+    pending === ''
+      ? 'Kaydedince kimlik iptal edilir; cihaz bağlanamaz.'
+      : pending
+        ? 'Yeni sır kaydedilince geçerli olur, eskisi geçersizleşir. Sayfa yenilenince bir daha gösterilmez — şimdi cihaza girin.'
+        : credential.hasCredential
+          ? 'Kimlik bilgisi ayarlı. Sır sunucuda saklanmaz; kaybolduysa yenisini üretin.'
+          : 'Kimlik bilgisi yok — cihaz bağlanamaz.';
+
+  return (
+    <>
+      <Field label='Kullanıcı adı' htmlFor={`${idPrefix}-credential-user`} hint={purpose}>
+        <Input id={`${idPrefix}-credential-user`} className='h-7 font-mono text-xs' value={deviceId} readOnly onFocus={e => e.currentTarget.select()} />
+      </Field>
+      <Field label='Sır (parola)' htmlFor={pending ? `${idPrefix}-credential-secret` : undefined} hint={status}>
+        {pending && (
+          <Input
+            id={`${idPrefix}-credential-secret`}
+            className='h-7 font-mono text-xs'
+            value={pending}
+            readOnly
+            onFocus={e => e.currentTarget.select()}
+          />
+        )}
+        <div className='flex items-center gap-2'>
+          <Button size='xs' variant='outline' onClick={() => onChange({ secret: generateDeviceSecret() })}>
+            {isSet ? 'Yenile' : 'Üret'}
+          </Button>
+          {isSet && (
+            <Button size='xs' variant='ghost' onClick={() => onChange({ secret: '' })}>
+              İptal et
+            </Button>
+          )}
+        </div>
+      </Field>
+    </>
   );
 }
 
