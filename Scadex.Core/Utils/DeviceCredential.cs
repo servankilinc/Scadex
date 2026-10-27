@@ -9,7 +9,7 @@ namespace Scadex.Core.Utils;
 /// Sunucuda yalnızca SHA-256 hash'i saklanır. Sır yüksek entropili olduğu için yavaş hash (PBKDF2) gerekmez:
 /// doğrulama ingest'in sıcak yolundadır.
 /// <para/>
-/// Sırrı tarayıcı üretir (diyagram paneli) ve diyagram deltasıyla gönderir; bu sınıf yalnızca BİÇİMİ zorlar ki elle zayıf
+/// Sırrı tarayıcı üretir (diyagram paneli) ve diyagramın cihaz uçlarıyla gönderir; bu sınıf yalnızca BİÇİMİ zorlar ki elle zayıf
 /// parola girilemesin.
 /// </summary>
 public static class DeviceCredential

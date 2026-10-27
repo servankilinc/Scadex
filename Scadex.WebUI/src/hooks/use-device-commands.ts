@@ -3,7 +3,6 @@ import { toast } from 'sonner';
 import { getDeviceCommands, sendDeviceCommand } from '@/api/device-command';
 import { diagramKeys } from '@/api/query-keys';
 import { toApiError } from '@/lib/axios-helper';
-import { useIsUnsaved } from '@/lib/diagram/unsaved-store';
 import { CommandStatus, CommandStatusLabels, DeviceCommandTypeLabels } from '@/models/enums';
 import type { DeviceCommandResultDto, DeviceCommandSendRequest } from '@/models/deviceCommand';
 import type { CommandCompleted } from '@/models/realtime';
@@ -20,15 +19,10 @@ const HISTORY_LIMIT = 20;
 /**
  * Cihazın kumanda geçmişi.
  *
- * Henüz kaydedilmemiş bir cihaz için SORGU AÇILMAZ: o Id'nin sunucuda karşılığı
- * yok ve istek 404'e giderdi.
- *
- * Guid'i istemci ürettiği için bunu Id'ye bakarak anlamak mümkün değil; cevap
- * `unsaved-store`'da. Kayıt yazıldığı anda sorgu kendiliğinden açılır.
+ * Kaydedilmemiş cihaz yoktur: cihaz tuvale sunucu onu oluşturduktan SONRA eklenir (2026-10-27).
  */
 export function useDeviceCommands(deviceId: string | null | undefined) {
-  const isUnsaved = useIsUnsaved(deviceId);
-  const enabled = !!deviceId && !isUnsaved;
+  const enabled = !!deviceId;
 
   return useQuery({
     queryKey: diagramKeys.deviceCommands(deviceId ?? ''),

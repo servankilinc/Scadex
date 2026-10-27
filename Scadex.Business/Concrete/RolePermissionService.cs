@@ -3,7 +3,6 @@ using Scadex.Business.Abstract;
 using Scadex.Core.Utils.ResultPattern;
 using Scadex.Core.Utils.Validation;
 using Scadex.DataAccess.UoW;
-using Scadex.Model.Dtos.RolePermission.Commands;
 using Scadex.Model.Dtos.RolePermission.Queries;
 using Scadex.Model.Entities;
 
@@ -36,7 +35,7 @@ public class RolePermissionService : IRolePermissionService
         var roleIds = await _unitOfWork.Roles.GetAllAsync(select: r => r.Id, cancellationToken: cancellationToken) ?? new List<Guid>();
         var pairs = await _unitOfWork.RolePermissions.GetAllAsync(select: rp => new { rp.RoleId, rp.PermissionId }, cancellationToken: cancellationToken);
 
-        // İzinsiz rol de satır olarak döner: matris her rolü bir sütun olarak çizer.
+        // İzinsiz rol de satır olarak döner: önizleme her rolü bulabilsin.
         var byRole = pairs == null
             ? new Dictionary<Guid, List<int>>()
             : pairs.GroupBy(p => p.RoleId).ToDictionary(g => g.Key, g => g.Select(p => p.PermissionId).OrderBy(id => id).ToList());
@@ -51,32 +50,8 @@ public class RolePermissionService : IRolePermissionService
     public Task<Result> SyncRolePermissionsAsync(Guid roleId, ICollection<int> permissionIds, CancellationToken cancellationToken = default)
         => SyncManyAsync(new Dictionary<Guid, ICollection<int>> { [roleId] = permissionIds ?? Array.Empty<int>() }, cancellationToken);
 
-    /// <inheritdoc />
-    public async Task<Result> SaveMatrixAsync(ICollection<RolePermissionMatrixSaveItem> items, CancellationToken cancellationToken = default)
-    {
-        items ??= Array.Empty<RolePermissionMatrixSaveItem>();
-        foreach (var item in items)
-        {
-            var validationResult = await _validationService.ValidateAsync(item, cancellationToken);
-            if (!validationResult.IsValid)
-                return Result.Validation(validationResult.Failures);
-        }
-
-        var duplicated = items.GroupBy(i => i.RoleId).Where(g => g.Count() > 1).Select(g => g.Key).ToArray();
-        if (duplicated.Length > 0)
-        {
-            var message = $"Aynı rol birden fazla kez gönderildi: {string.Join(", ", duplicated)}";
-            return Result.Validation(new Dictionary<string, string[]> { [PermissionIdsField] = new[] { message } }, message: message);
-        }
-
-        if (items.Count == 0)
-            return Result.Success();
-
-        return await SyncManyAsync(items.ToDictionary(i => i.RoleId, i => i.PermissionIds), cancellationToken);
-    }
-
     /// <summary>
-    /// Verilen her rolün izin kümesini birebir eşitler — hepsi TEK transaction'da: matris ya tamamen yazılır ya hiç.
+    /// Verilen her rolün izin kümesini birebir eşitler — hepsi TEK transaction'da: ya tamamen yazılır ya hiç.
     /// </summary>
     private async Task<Result> SyncManyAsync(IDictionary<Guid, ICollection<int>> requestedByRole, CancellationToken cancellationToken)
     {

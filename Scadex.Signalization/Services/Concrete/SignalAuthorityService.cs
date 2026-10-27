@@ -86,7 +86,7 @@ public class SignalAuthorityService : ISignalAuthorityService
             return Result.Validation(errors, message: errors.Values.First()[0]);
 
         // 4) Esitle: once pasife almalar, sonra yazmalar — filtreli tekil indeksler (RoleId, Name) ayni batch'te
-        //    siralama garantisi olmadigi icin cakisabilirdi (DiagramService.SaveAsync ile ayni gerekce).
+        //    siralama garantisi olmadigi icin cakisabilirdi (eski toplu diyagram kaydetmesiyle ayni gerekce).
         await using var transaction = await _db.Database.BeginTransactionAsync(cancellationToken);
 
         foreach (var authority in toDeactivate)

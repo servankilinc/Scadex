@@ -2,7 +2,6 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
 using Scadex.Business.Abstract;
 using Scadex.Business.Utils.Auth;
-using Scadex.Model.Dtos.RolePermission.Commands;
 using Scadex.WebAPI.Controllers.Base;
 using Scadex.Business.Utils.RateLimiting;
 using static Scadex.Model.Enums.EntityEnums;
@@ -27,7 +26,7 @@ public class RolePermissionController : BaseController
         return ToAction(result);
     }
 
-    /// <summary> Yetki matrisi: her rol ve izin kimlikleri. Matris ekranı ve kullanıcı rol dialogundaki "etkin izinler" önizlemesi okur. </summary>
+    /// <summary> Her rol ve izin kimlikleri. Kullanıcı rol dialogundaki "etkin izinler" önizlemesi okur. </summary>
     [HttpGet("matrix")]
     [RequirePermission(Permission.ManageUsers)]
     public async Task<IActionResult> GetMatrix(CancellationToken cancellationToken)
@@ -44,15 +43,6 @@ public class RolePermissionController : BaseController
     public async Task<IActionResult> Sync(Guid roleId, [FromBody] ICollection<int> permissionIds)
     {
         var result = await _rolePermissionService.SyncRolePermissionsAsync(roleId, permissionIds);
-        return ToAction(result);
-    }
-
-    /// <summary> Gönderilen rollerin izin kümelerini tek transaction'da eşitler; gönderilmeyen rollere dokunmaz. </summary>
-    [HttpPut("matrix")]
-    [RequirePermission(Permission.ManageUsers)]
-    public async Task<IActionResult> SaveMatrix([FromBody] ICollection<RolePermissionMatrixSaveItem> items, CancellationToken cancellationToken)
-    {
-        var result = await _rolePermissionService.SaveMatrixAsync(items, cancellationToken);
         return ToAction(result);
     }
     #endregion

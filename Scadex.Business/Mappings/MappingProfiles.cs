@@ -11,7 +11,7 @@ using Scadex.Model.Dtos.ChannelEvent.Queries;
 using Scadex.Model.Dtos.Company.Commands;
 using Scadex.Model.Dtos.Company.Queries;
 using Scadex.Model.Dtos.ComponentTemplate.Commands;
-using Scadex.Model.Dtos.Diagram.Commands.Items;
+using Scadex.Model.Dtos.Diagram.Commands;
 using Scadex.Model.Dtos.Diagram.Queries.Items;
 using Scadex.Model.Dtos.Permission.Queries;
 using Scadex.Model.Dtos.Role.Commands;
@@ -324,8 +324,20 @@ public class MappingProfiles : Profile
             .ForMember(dest => dest.MaxZoom, opt => opt.MapFrom(src => src.MaxZoom));
         #endregion
 
-        #region Diagram aggregate yazma (Device ve Connection Draft eklenecek)
-        CreateMap<DiagramAnnotationDraft, DiagramAnnotation>()
+        #region Diagram aggregate yazma
+        // Guncelleme yalnizca ICERIK yazar; yerlesim alanlari (konum, boyut, z, kilit, gorunurluk) DiagramLayoutRequest'tedir.
+        CreateMap<DiagramAnnotationUpdateRequest, DiagramAnnotation>()
+            .ForMember(dest => dest.Name, opt => opt.MapFrom(src => src.Name))
+            .ForMember(dest => dest.Text, opt => opt.MapFrom(src => src.Text))
+            .ForMember(dest => dest.Shape, opt => opt.MapFrom(src => src.Shape))
+            .ForMember(dest => dest.BackgroundColor, opt => opt.MapFrom(src => src.BackgroundColor))
+            .ForMember(dest => dest.FontColor, opt => opt.MapFrom(src => src.FontColor))
+            .ForMember(dest => dest.FontSize, opt => opt.MapFrom(src => src.FontSize))
+            .ForMember(dest => dest.IsBold, opt => opt.MapFrom(src => src.IsBold))
+            .ForMember(dest => dest.BorderColor, opt => opt.MapFrom(src => src.BorderColor));
+
+        CreateMap<DiagramAnnotationCreateRequest, DiagramAnnotation>()
+            .ForMember(dest => dest.Id, opt => opt.MapFrom(src => src.Id))
             .ForMember(dest => dest.Name, opt => opt.MapFrom(src => src.Name))
             .ForMember(dest => dest.CoordinateX, opt => opt.MapFrom(src => src.CoordinateX))
             .ForMember(dest => dest.CoordinateY, opt => opt.MapFrom(src => src.CoordinateY))

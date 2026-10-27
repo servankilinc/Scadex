@@ -4,7 +4,7 @@ namespace Scadex.Model.Entities;
 
 /// <summary>
 /// Bilgisayarın (RemoteDesk) ek alanları — <see cref="Device"/> ile 1-1, ortak birincil anahtar.
-/// Şablon tipi <c>DeviceType.Pc</c> olan her cihazın bir satırı vardır. Tek yazım yolu diyagram deltasıdır (<c>DeviceDraft.Pc</c>);
+/// Şablon tipi <c>DeviceType.Pc</c> olan her cihazın bir satırı vardır. Tek yazım yolu diyagramın cihaz uçlarıdır (<c>DeviceCreateRequest</c> / <c>DeviceUpdateRequest</c>.<c>Pc</c>);
 /// RemoteDesk modülü bu tabloyu yalnızca projeksiyonla okur.
 /// </summary>
 public class PcDevice : IEntity

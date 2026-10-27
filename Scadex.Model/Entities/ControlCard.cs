@@ -4,7 +4,7 @@ namespace Scadex.Model.Entities;
 
 /// <summary>
 /// Kontrol modülünün (SCADA kartı) ek alanları — <see cref="Device"/> ile 1-1, ortak birincil anahtar.
-/// Tek yazım yolu diyagram deltasıdır (<c>DeviceDraft.ControlCard</c>).
+/// Tek yazım yolu diyagramın cihaz uçlarıdır (<c>DeviceCreateRequest</c> / <c>DeviceUpdateRequest</c>.<c>ControlCard</c>).
 /// </summary>
 public class ControlCard : IEntity
 {

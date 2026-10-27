@@ -7,7 +7,7 @@ using static Scadex.Model.Enums.EntityEnums;
 namespace Scadex.Model.Dtos.Diagram.Commands.Items;
 
 // Device ek tablolarinin taslaklari. Hangisinin gonderilecegini sablonun DeviceType'i belirler; eslesmeyen
-// gonderi ya da eksik nesne DiagramService.SaveDeviceExtensions'ta 400'dur. Her kayitta EKSIKSIZ gonderilir (cihaz
+// gonderi ya da eksik nesne DiagramService.Devices'ta 400'dur. Her kayitta EKSIKSIZ gonderilir (cihaz
 // govdesi gibi) — tek istisna parola / sir: null "dokunma", "" "temizle", deger "yaz" demektir; okuma DTO'su onlari
 // dondurmedigi icin istemci geri gonderemez.
 

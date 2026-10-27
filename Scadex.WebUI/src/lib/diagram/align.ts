@@ -29,8 +29,8 @@ export const MIN_DISTRIBUTE = 3;
  *
  * Dağıtmada konumlar toplaya toplaya ilerliyor; son kutu matematiksel olarak
  * yerinde kalsa bile birikmiş hata yüzünden 1e-13 kadar kayabilir. Tolerans
- * olmasaydı o kutu "taşındı" sayılır, günlüğe girer ve hiç kıpırdamamış bir
- * cihaz için sunucuya güncelleme gönderilirdi.
+ * olmasaydı o kutu "taşındı" sayılır ve hiç kıpırdamamış bir cihaz için
+ * sunucuya güncelleme gönderilirdi.
  */
 const EPSILON = 0.01;
 

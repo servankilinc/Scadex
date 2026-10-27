@@ -9,6 +9,10 @@ using static Scadex.Model.Enums.EntityEnums;
 
 namespace Scadex.WebAPI.Controllers;
 
+/// <summary>
+/// Diyagram tablolarının tek yazım yolu. Editör her eylemi anında kendi ucuna gönderir (2026-10-27): cihaz / kablo / not
+/// oluşturma ve özellik formu, tuval yerleşimi ve seçimi silme.
+/// </summary>
 [EnableRateLimiting(RateLimiterKey.Default)]
 public class DiagramController : BaseController
 {
@@ -21,7 +25,6 @@ public class DiagramController : BaseController
         _cameraService = cameraService;
     }
 
-
     [HttpGet("cabinet/{cabinetId:guid}")]
     [RequirePermission(Permission.ViewDiagram)]
     public async Task<IActionResult> GetCabinetDiagram(Guid cabinetId, CancellationToken cancellationToken)
@@ -30,22 +33,87 @@ public class DiagramController : BaseController
         return ToAction(result);
     }
 
-    /// <summary> Diyagram tablolarının tek yazım yolu. </summary>
-    [HttpPost("cabinet/{cabinetId:guid}/save")]
+    #region Cihaz
+    [HttpPost("cabinet/{cabinetId:guid}/devices")]
     [RequirePermission(Permission.EditDiagram)]
-    public async Task<IActionResult> Save(Guid cabinetId, DiagramSaveRequest request, CancellationToken cancellationToken)
+    public async Task<IActionResult> CreateDevice(Guid cabinetId, DeviceCreateRequest request, CancellationToken cancellationToken)
     {
-        var result = await _diagramService.SaveAsync(cabinetId, request, cancellationToken);
-
-        // Commit SONRASI: kamera bilgisi degisen ya da silinen kameralarin MediaMTX yollari dusurulur, acik izleyicinin eski
-        // bilgilerle kurulan oturumu kesilir. Kaydetmenin icinde degil burada, cunku DiagramService.Save.cs'e dokunulmaz ve
-        // yol, geri alinabilecek bir transaction'dan once silinmemeli. Basarisizlik yalnizca loglanir.
-        if (result.IsSuccess)
-        {
-            var touchedDeviceIds = request.Devices.Upserted.Select(d => d.Id).Concat(request.Devices.Deleted).Distinct().ToList();
-            await _cameraService.RefreshStreamPathsAsync(touchedDeviceIds, cancellationToken);
-        }
-
+        var result = await _diagramService.CreateDeviceAsync(cabinetId, request, cancellationToken);
         return ToAction(result);
     }
+
+    [HttpPut("cabinet/{cabinetId:guid}/devices/{deviceId:guid}")]
+    [RequirePermission(Permission.EditDiagram)]
+    public async Task<IActionResult> UpdateDevice(Guid cabinetId, Guid deviceId, DeviceUpdateRequest request, CancellationToken cancellationToken)
+    {
+        var result = await _diagramService.UpdateDeviceAsync(cabinetId, deviceId, request, cancellationToken);
+        if (result.IsSuccess)
+            await RefreshStreamPathsAsync([deviceId], cancellationToken);
+        return ToAction(result);
+    }
+    #endregion
+
+    #region Kablo
+    [HttpPost("cabinet/{cabinetId:guid}/connections")]
+    [RequirePermission(Permission.EditDiagram)]
+    public async Task<IActionResult> CreateConnection(Guid cabinetId, ConnectionCreateRequest request, CancellationToken cancellationToken)
+    {
+        var result = await _diagramService.CreateConnectionAsync(cabinetId, request, cancellationToken);
+        return ToAction(result);
+    }
+
+    [HttpPut("cabinet/{cabinetId:guid}/connections/{connectionId:guid}")]
+    [RequirePermission(Permission.EditDiagram)]
+    public async Task<IActionResult> UpdateConnection(Guid cabinetId, Guid connectionId, ConnectionUpdateRequest request, CancellationToken cancellationToken)
+    {
+        var result = await _diagramService.UpdateConnectionAsync(cabinetId, connectionId, request, cancellationToken);
+        return ToAction(result);
+    }
+    #endregion
+
+    #region Not
+    [HttpPost("cabinet/{cabinetId:guid}/annotations")]
+    [RequirePermission(Permission.EditDiagram)]
+    public async Task<IActionResult> CreateAnnotation(Guid cabinetId, DiagramAnnotationCreateRequest request, CancellationToken cancellationToken)
+    {
+        var result = await _diagramService.CreateAnnotationAsync(cabinetId, request, cancellationToken);
+        return ToAction(result);
+    }
+
+    [HttpPut("cabinet/{cabinetId:guid}/annotations/{annotationId:guid}")]
+    [RequirePermission(Permission.EditDiagram)]
+    public async Task<IActionResult> UpdateAnnotation(Guid cabinetId, Guid annotationId, DiagramAnnotationUpdateRequest request, CancellationToken cancellationToken)
+    {
+        var result = await _diagramService.UpdateAnnotationAsync(cabinetId, annotationId, request, cancellationToken);
+        return ToAction(result);
+    }
+    #endregion
+
+    #region Yerleşim ve silme
+    [HttpPut("cabinet/{cabinetId:guid}/layout")]
+    [RequirePermission(Permission.EditDiagram)]
+    public async Task<IActionResult> UpdateLayout(Guid cabinetId, DiagramLayoutRequest request, CancellationToken cancellationToken)
+    {
+        var result = await _diagramService.UpdateLayoutAsync(cabinetId, request, cancellationToken);
+        return ToAction(result);
+    }
+
+    [HttpPost("cabinet/{cabinetId:guid}/delete")]
+    [RequirePermission(Permission.EditDiagram)]
+    public async Task<IActionResult> Delete(Guid cabinetId, DiagramDeleteRequest request, CancellationToken cancellationToken)
+    {
+        var result = await _diagramService.DeleteAsync(cabinetId, request, cancellationToken);
+        if (result.IsSuccess)
+            await RefreshStreamPathsAsync(request.DeviceIds, cancellationToken);
+        return ToAction(result);
+    }
+    #endregion
+
+    /// <summary>
+    /// Commit SONRASI: kamera bilgisi değişen ya da silinen kameraların MediaMTX yolları düşürülür, açık izleyicinin eski
+    /// bilgilerle kurulan oturumu kesilir. Servisin içinde değil burada, çünkü yol, geri alınabilecek bir yazımdan önce
+    /// silinmemeli. Kamera olmayan Id'ler yok sayılır; başarısızlık yalnızca loglanır.
+    /// </summary>
+    private Task RefreshStreamPathsAsync(IReadOnlyCollection<Guid> deviceIds, CancellationToken cancellationToken) =>
+        deviceIds.Count == 0 ? Task.CompletedTask : _cameraService.RefreshStreamPathsAsync(deviceIds, cancellationToken);
 }

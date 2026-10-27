@@ -126,6 +126,7 @@ export function DiagramCanvas({ editor, settings, devices, readOnly = false }: D
       onNodesChange={editor.onNodesChange}
       onEdgesChange={editor.onEdgesChange}
       onNodeDragStop={editor.onNodeDragStop}
+      onDelete={readOnly ? undefined : editor.onDelete}
       onConnect={readOnly ? undefined : editor.onConnect}
       isValidConnection={editor.isValidConnection}
       onSelectionChange={editor.onSelectionChange}

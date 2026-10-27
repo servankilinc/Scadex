@@ -5,11 +5,10 @@ import type { CabinetStatusChange, ChannelValueChange, DeviceStatusChange } from
 /**
  * Canlı telemetrinin TEK durduğu yer.
  *
- * **TanStack Query cache'ine YAZILMAZ ve editör günlüğüne ASLA girmez.** Bu, kod
- * tabanının en kolay yapılan hatası olurdu: telemetri graf snapshot'ına yazılırsa
- * `useDiagramEditor` onu kullanıcı düzenlemesi sanar — `isDirty` true olur,
- * otomatik kaydetme tetiklenir ve editör SCADA değerlerini sunucuya geri yazmaya
- * çalışır.
+ * **TanStack Query cache'ine ve editör state'ine YAZILMAZ.** Bu, kod tabanının en
+ * kolay yapılan hatası olurdu: telemetri graf snapshot'ına yazılırsa her tick
+ * editörün tuvalini sunucu grafıyla yeniden eşitler (seçim ve sürükleme bozulur)
+ * ve tüm graf her değerde yeniden çizilir.
  *
  * **Anahtar bazlı abonelik.** Dinleyiciler kanal/cihaz kimliği başına tutulur;
  * bir kanal değiştiğinde yalnızca o kanalı okuyan bileşen yeniden render olur.

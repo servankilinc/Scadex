@@ -1,9 +1,7 @@
 /**
- * Ayna: Scadex.Model/Dtos/RolePermission/Queries/RolePermissionMatrixItemDto.cs (okuma) ve
- * Commands/RolePermissionMatrixSaveItem.cs (yazma) — iki DTO aynı biçimdedir.
+ * Ayna: Scadex.Model/Dtos/RolePermission/Queries/RolePermissionMatrixItemDto.cs.
  *
- * Okumada her rol (pasif ve izinsizler dahil) tam bir kez gelir. Yazmada yalnızca DEĞİŞEN roller gönderilir; gönderilmeyen
- * rollere sunucu dokunmaz.
+ * Her rol (pasif ve izinsizler dahil) tam bir kez gelir.
  */
 export interface RolePermissionMatrixItem {
   roleId: string;

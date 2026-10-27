@@ -6,7 +6,6 @@ import {
   CheckIcon,
   ChevronsUpDown,
   CpuIcon,
-  Grid3x3Icon,
   HistoryIcon,
   HouseIcon,
   LogOut,
@@ -80,7 +79,6 @@ const NAV_ITEMS: NavItem[] = [
   { title: 'Firmalar', url: '/admin/companies', icon: Building2Icon, permission: 'ConfigureSystem' },
   { title: 'Kullanıcılar', url: '/admin/users', icon: UsersIcon, permission: 'ManageUsers' },
   { title: 'Roller', url: '/admin/roles', icon: ShieldIcon, permission: 'ManageUsers' },
-  { title: 'Yetki Matrisi', url: '/admin/permissions', icon: Grid3x3Icon, permission: 'ManageUsers' },
   { title: 'Şablonlar', url: '/admin/templates', icon: ShapesIcon, permission: 'ConfigureSystem' },
   { title: 'Ayarlar', url: '/admin/settings', icon: SettingsIcon, permission: 'ConfigureSystem' }
 ];

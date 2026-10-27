@@ -1,6 +1,5 @@
 import { CheckIcon, LoaderCircleIcon, TriangleAlertIcon, WifiOffIcon } from 'lucide-react';
 import { useDeviceCommands } from '@/hooks/use-device-commands';
-import { useIsUnsaved } from '@/lib/diagram/unsaved-store';
 import { CommandStatus, CommandStatusLabels, DeviceCommandTypeLabels } from '@/models/enums';
 import type { DeviceCommandResultDto } from '@/models/deviceCommand';
 import { cn, toUtcDate } from '@/lib/utils';
@@ -18,10 +17,6 @@ import { cn, toUtcDate } from '@/lib/utils';
  */
 export function CommandHistory({ deviceId }: { deviceId: string }) {
   const { data, isPending, isError } = useDeviceCommands(deviceId);
-  const isUnsaved = useIsUnsaved(deviceId);
-
-  // Kaydedilmemiş cihaz için sorgu hiç açılmaz; geçmiş de olamaz.
-  if (isUnsaved) return null;
 
   return (
     <div className='flex flex-col gap-1.5 border-t pt-3'>

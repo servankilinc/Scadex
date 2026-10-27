@@ -35,7 +35,7 @@ export interface DiagramDeviceDto {
   lastSeen: string | null;
   /**
    * İzleme (sunucuda `IMonitoredAsset`). Açıksa cihaz `ipAddress:monitoringPort`'a TCP ile, port boşsa `ipAddress`'e ICMP
-   * ping ile yoklanır ve sonucu kabin durumuna yansır. İlk üçü diyagram deltasıyla yazılır; `lastConnectionError` yalnızca yoklamayla.
+   * ping ile yoklanır ve sonucu kabin durumuna yansır. İlk üçü cihaz formuyla yazılır; `lastConnectionError` yalnızca yoklamayla.
    */
   monitoringPort: number | null;
   pingIntervalSec: number;
@@ -43,8 +43,8 @@ export interface DiagramDeviceDto {
   lastConnectionError: string | null;
   /**
    * 1-1 ek tablolar (2026-10-22): şablon tipine göre en fazla biri doludur — kamera `camera`, kontrol modülü
-   * `controlCard`, PC `pc`. Kimlik bilgileri (kullanıcı adı, parola, sır) cihaz gövdesinde DEĞİL burada. Taslakta da tipiyle eşleşen
-   * nesne gönderilmek ZORUNDA (`lib/diagram/device-extensions.ts`).
+   * `controlCard`, PC `pc`. Kimlik bilgileri (kullanıcı adı, parola, sır) cihaz gövdesinde DEĞİL burada. Oluşturma ve güncelleme
+   * isteğinde de tipiyle eşleşen nesne gönderilmek ZORUNDA (`lib/diagram/diagram-requests.ts`).
    */
   camera: DiagramCameraDto | null;
   controlCard: DiagramControlCardDto | null;

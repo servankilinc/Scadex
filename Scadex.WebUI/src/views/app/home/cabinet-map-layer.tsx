@@ -577,7 +577,7 @@ export function CabinetMapLayer({ cabinets, busyCabinetIds, alertCabinetIds, onC
   const cabinetById = useMemo(() => new Map(cabinets.map(cabinet => [cabinet.id, cabinet])), [cabinets]);
 
   // Kurulum async (ikonlar) ve olay dinleyicileri uzun ömürlü: ikisi de en güncel değerleri ref'ten okur.
-  // Tazeleme render sırasında değil `useLayoutEffect`'te — bkz. `use-diagram-save.ts`.
+  // Tazeleme render sırasında değil `useLayoutEffect`'te: render sırasında ref yazmak React'in kurallarına aykırı.
   const callbacksRef = useRef<LayerCallbacks>({ cabinetById, onCabinetClick, onCabinetDoubleClick, onBackgroundClick });
   const geojsonRef = useRef(geojson);
   useLayoutEffect(() => {

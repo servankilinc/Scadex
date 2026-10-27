@@ -121,6 +121,22 @@ public partial class DiagramService : IDiagramService
     }
 
 
+    // ==================== YAZMA UÇLARININ ORTAK YARDIMCILARI ====================
+    // Uçlar aggregate başına dosyalardadır: .Devices, .Connections, .Annotations, .Layout, .Delete.
+
+    private Task<bool> IsCabinetActiveAsync(Guid cabinetId, CancellationToken cancellationToken) =>
+        _unitOfWork.Cabinets.IsExistAsync(where: c => c.Id == cabinetId && c.IsActive, cancellationToken: cancellationToken);
+
+    /// <summary> Ayni alanda birden fazla hata birikebilsin diye. <c>ProblemDetails.errors</c> sozlugunun sekli: alan -> mesaj dizisi. </summary>
+    private static void AddError(Dictionary<string, List<string>> errors, string key, string message)
+    {
+        if (!errors.TryGetValue(key, out var messages)) errors[key] = messages = [];
+        messages.Add(message);
+    }
+
+    private static Dictionary<string, string[]> ToFailures(Dictionary<string, List<string>> errors) =>
+        errors.ToDictionary(e => e.Key, e => e.Value.ToArray(), StringComparer.Ordinal);
+
     /// <summary> <c>Waypoints</c> JSON string dönüşümü SQL'e cevrilemeyeceği için ara bir model açtık </summary>
     private sealed record ConnectionRow(
         Guid Id,

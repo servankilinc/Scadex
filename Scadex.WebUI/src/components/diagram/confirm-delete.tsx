@@ -6,9 +6,8 @@ import { Dialog, DialogClose, DialogContent, DialogDescription, DialogFooter, Di
 /**
  * Silme onayı.
  *
- * Onay adımı bilinçli bir sürtünme: undo/redo bu turda iptal edildi, dolayısıyla
- * yanlışlıkla silinen bir öğeyi geri getirmenin tek yolu Kaydet'e basmadan
- * sayfadan çıkmak — yani o oturumdaki BÜTÜN işi atmak.
+ * Onay adımı bilinçli bir sürtünme: undo/redo yok ve silme sunucuya ANINDA gider
+ * (2026-10-27) — yanlışlıkla silinen öğeyi geri getirmenin yolu yok.
  *
  * Sağ tık menüsü ve özellikler paneli aynı diyaloğu kullanıyor. İkisine ayrı
  * metin yazmak, aynı işlemin nereden başlatıldığına göre farklı sonuç
@@ -36,12 +35,7 @@ export function ConfirmDeleteDialog({
           <DialogDescription>{summary}</DialogDescription>
         </DialogHeader>
 
-        <p className='text-muted-foreground text-xs'>
-          {/* Silme sunucuya HEMEN gitmiyor: kaydedilene kadar yalnızca canvas'ta
-              yok. Kullanıcının "yanlış sildim" anında elinde bir çıkış olduğunu
-              bilmesi, onayı gereksiz yere korkutucu olmaktan çıkarıyor. */}
-          Değişiklik Kaydet'e basılana kadar sunucuya gönderilmez.
-        </p>
+        <p className='text-muted-foreground text-xs'>Silme hemen kaydedilir ve geri alınamaz.</p>
 
         <DialogFooter>
           <DialogClose render={<Button variant='outline' size='sm' />}>Vazgeç</DialogClose>

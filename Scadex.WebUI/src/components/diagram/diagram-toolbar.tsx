@@ -11,7 +11,7 @@ import type { DiagramCabinetDto, DiagramCanvasSettingsDto } from '@/models/diagr
 import { canvasSettingsUpsertSchema } from '@/models/canvasSettings';
 import { useAppDispatch, useAppSelector } from '@/hooks';
 import { useCanvasSettings } from '@/hooks/use-canvas-settings';
-import type { SaveController } from '@/hooks/use-diagram-save';
+import type { DiagramActivity } from '@/hooks/use-diagram-editor';
 import { useLiveCabinet } from '@/lib/diagram/live-store';
 import type { HubStatus } from '@/lib/signalr/diagram-hub';
 import { cn } from '@/lib/utils';
@@ -22,14 +22,13 @@ import { SaveIndicator } from './save-indicator';
 interface DiagramToolbarProps {
   cabinet: DiagramCabinetDto;
   settings: DiagramCanvasSettingsDto;
-  save: SaveController;
-  isDirty: boolean;
+  activity: DiagramActivity;
   hubStatus: HubStatus;
-  /** `EditDiagram` izni yok: kaydetme göstergesi ve tuval ayarları çizilmez (ikisi de yazar). */
+  /** `EditDiagram` izni yok: istek göstergesi ve tuval ayarları çizilmez (ikisi de yazar). */
   readOnly?: boolean;
 }
 
-export function DiagramToolbar({ cabinet, settings, save, isDirty, hubStatus, readOnly = false }: DiagramToolbarProps) {
+export function DiagramToolbar({ cabinet, settings, activity, hubStatus, readOnly = false }: DiagramToolbarProps) {
   // Canlı değerler sunucu anlık görüntüsünü EZER: snapshot grafın çekildiği andaki
   // durumu taşır, store ondan sonrasını.
   const live = useLiveCabinet(cabinet.id);
@@ -63,7 +62,7 @@ export function DiagramToolbar({ cabinet, settings, save, isDirty, hubStatus, re
             Salt okunur
           </Badge>
         ) : (
-          <SaveIndicator save={save} isDirty={isDirty} />
+          <SaveIndicator activity={activity} />
         )}
         <span className='text-muted-foreground hidden items-center gap-1 text-xs sm:flex'>
           <Grid2X2Icon className='size-3.5' />

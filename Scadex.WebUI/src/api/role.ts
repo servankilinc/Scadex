@@ -46,11 +46,6 @@ export async function getPermissionMatrix(): Promise<RolePermissionMatrixItem[]>
   return http.get<RolePermissionMatrixItem[]>(`${ROLE_PERMISSION_ROUTE}/matrix`);
 }
 
-/** Yalnızca DEĞİŞEN rolleri gönderin: sunucu hepsini tek transaction'da eşitler, gönderilmeyen rollere dokunmaz. */
-export async function savePermissionMatrix(items: RolePermissionMatrixItem[]): Promise<void> {
-  return http.put(`${ROLE_PERMISSION_ROUTE}/matrix`, items);
-}
-
 /** Role atanmış kullanıcılar (pasifler dahil), ada göre sıralı. */
 export async function getRoleMembers(roleId: string): Promise<RoleMemberDto[]> {
   return http.get<RoleMemberDto[]>(`${USER_ROLE_ROUTE}/role/${roleId}/users`);

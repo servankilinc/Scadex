@@ -46,8 +46,8 @@ export function OrthogonalEdge({
   /**
    * Sürükleme sırasındaki geçici konum.
    *
-   * Her `pointermove`'da `onWaypointsChange` çağrılsaydı değişiklik günlüğüne
-   * saniyede onlarca yazma düşerdi. Aynı kural node konumlarında da uygulanıyor:
+   * Her `pointermove`'da `onWaypointsChange` çağrılsaydı sunucuya saniyede
+   * onlarca istek giderdi. Aynı kural node konumlarında da uygulanıyor:
    * konum yalnızca sürükleme BİTTİĞİNDE kaydediliyor (`onNodeDragStop`).
    */
   const [drag, setDrag] = useState<{ index: number; point: PointDto } | null>(null);

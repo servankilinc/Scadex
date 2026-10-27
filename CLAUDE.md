@@ -275,30 +275,27 @@ durur. Ayrıntı: PROJECT_OVERVIEW.md § 10.
 **Büyük servisler `#region` ile değil, partial sınıflara bölünür** — gruplama birimi dosyadır:
 `CameraService.cs` + `.Streaming` + `.Snapshot` + `.Capture` + `.Monitoring`,
 `DeviceCommandService.cs` + `.Comunication`,
-`DiagramService.cs` + `.Save` + `.SaveContext` + `.SaveDevices` + `.SaveDevicePins` +
-`.SaveConnections` + `.SaveAnnotations`.
+`DiagramService.cs` (okuma + ortak yardımcılar) + `.Devices` + `.Connections` + `.Annotations` + `.Layout` + `.Delete`.
 
-Diyagram kaydetme iki eksende bölünür: `.Save` orkestrasyon (transaction, iki
-`SaveChangesAsync`), `.SaveContext` dört dağıtıcı + üç ailenin de okuduğu `SaveContext` +
-**akış haritası**; aile dosyalarının her biri kendi **yükleme → doğrulama → uygulama**
-dikey dilimini taşır. Nereye ne ekleneceğini `.SaveContext` başındaki haritadan okuyun.
-**`.Save` dosyasına tek satır bile eklemeyin** — `Result.Validation` `[CallerLineNumber]`
-ile hata metadata'sı üretiyor, satır kaydırmak üretimdeki kayıtların izini değiştirir.
+Diyagram servisinde her dosya bir uç ailesidir ve dosyalar arasında paylaşılan bağlam yoktur. **Toplu kaydetme deltası
+2026-10-27'de kaldırıldı (kullanıcı kararı):** karmaşıklığı (istemci pin Id'leri, aynı gönderide kaydedilmemiş cihaza kablo,
+`SaveContext`, iki fazlı transaction) referansların kaydedilmemiş kayıtlara gitmesi üretiyordu. Geri getirmeyin; editöre
+"Kaydet / vazgeç" eklemek isteniyorsa önce bu bedeli tartın.
 
 ## Kırılmaması gereken kurallar
 
 Bunlar tek bir dosyaya bakarak görülemez; gerekçeleri PROJECT_OVERVIEW.md §5-§6'dadır.
 
 - **Her tablonun tek bir yazım yolu vardır.** `Device`, `Connection`, `DiagramAnnotation`,
-  `Pin`, `IoChannel`, `ComponentTemplatePin` yalnızca `POST /api/Diagram/cabinet/{id}/save`
-  deltası üzerinden yazılır; `CanvasSettings` yalnızca
+  `Pin`, `IoChannel` yalnızca `DiagramController`'ın yazma uçlarından (`/api/Diagram/cabinet/{id}/` altında `devices`,
+  `connections`, `annotations`, `layout`, `delete`) yazılır; `ComponentTemplatePin` yalnızca `POST /api/ComponentTemplate`; `CanvasSettings` yalnızca
   `PUT /api/CanvasSettings/cabinet/{cabinetId}` üzerinden. Bu tabloların generic
   controller'ları **2026-10-14'te kaldırıldı** (okuma diyagram ucundan gelir) — geri eklemeyin.
   İhtiyaç varsa sahibinin controller'ına ekran bazlı bir uç ekleyin. **Cihazın yaşam döngüsü (oluşturma + kaldırma/pasife
-  alma) YALNIZCA diyagram deltasıdır (2026-10-25, kullanıcı kararı)** — diyagramda olmayan tanımlı cihaz yoktur. Tipe özel
+  alma) YALNIZCA diyagram uçlarıdır (2026-10-25, kullanıcı kararı)** — diyagramda olmayan tanımlı cihaz yoktur. Tipe özel
   ekranlar yalnızca **mevcut, aktif** cihazın bilgisini günceller ve kendi özel okumalarını yapar (kamera: `PUT /api/Camera`,
   `ConfigureSystem` + izleme/kare/klip). PC / POS / alarm gibi tiplere diyagram dışı ekran istenirse aynı kalıp izlenir
-  (sahibinin controller'ında ekran bazlı güncelleme ucu, diyagram kaydetmeyle aynı doğrulamalar); **oluşturma ya da
+  (sahibinin controller'ında ekran bazlı güncelleme ucu, diyagramın cihaz formuyla aynı doğrulamalar); **oluşturma ya da
   `IsActive` yazan uç açılmaz**. Gerekçe: ekrandan pasife alınıp diyagramdan silinmiş bir cihazı geri getirmek onu pinsiz
   diriltiyordu (diyagram silmesi pinleri ve kabloları soft-delete eder, ekran yalnızca `IsActive` yazardı).
 - **Generic CRUD yüzeyi yoktur (2026-10-14).** İstemcinin çağırmadığı uçlar (`{id}/base`, `list/base`, `selectlist`,
@@ -319,32 +316,40 @@ Bunlar tek bir dosyaya bakarak görülemez; gerekçeleri PROJECT_OVERVIEW.md §5
   konan izin okumaları da kilitler). Denetim servis içinde değil **controller'da**: motor (Sinyalizasyon) komutları HTTP kullanıcısı
   olmadan `IDeviceCommandService.SendAsync`'ten gönderir. Ön yüz aynası: `PermissionCode` (`models/enums/entityEnums.ts`),
   rotada `requirePermission(...)` loader'ı (`lib/route-guards.ts`), menüde `permission`, düğmede `usePermission()` — bunlar yalnızca
-  UX'tir. Diyagram editörü `EditDiagram` yoksa **salt okunurdur** (palet/kaydet/tuval ayarı yok, düğümler `draggable/connectable:
+  UX'tir. Diyagram editörü `EditDiagram` yoksa **salt okunurdur** (palet/form Kaydet'i/tuval ayarı yok, düğümler `draggable/connectable:
   false` — düğüm düzeyindeki `draggable` tuvalin `nodesDraggable`'ını ezdiği için orada da kapatılır).
-  **Yetki yönetimi (2026-10-16):** rol→izin (`RolePermission/role/{id}/sync`, Yetki Matrisi `PUT RolePermission/matrix`) ve
+  **Yetki yönetimi (2026-10-16):** rol→izin (`RolePermission/role/{id}/sync`) ve
   kullanıcı↔rol (`UserRole/user/{id}/sync`, Roller → Üyeler `UserRole/role/{roleId}/users/{userId}`) yazımları `ManageUsers` ister.
+  **Yetki Matrisi ekranı ve toplu yazma ucu (`PUT RolePermission/matrix`) 2026-10-28'de kaldırıldı** (kullanılmıyordu) — rol izinleri
+  yalnızca Roller → İzinler'den yazılır. `GET RolePermission/matrix` kullanıcı Roller penceresindeki "etkin izinler" önizlemesi için durur.
   **Bilinçli olarak yoktur** (kullanıcı kararı): son yöneticiyi kilitleme koruması (son `ManageUsers` sahibi yetkisiz kalırsa kurtarma
   veritabanından yapılır), yetki yükseltme kısıtı (ManageUsers sahibi kendinde olmayan izni verebilir), yetki denetim tablosu ve
   anında etki — izinler token'a girişte yazılır, değişiklik **bir sonraki girişte** geçerli olur; "zorla oturum kapat" düğmesi web
   istemcisi refresh kullanmadığı için etkisiz olacağından eklenmedi.
-- **Kaydetme sözleşmesinde `created`/`updated` ayrımı yoktur.** Gövde
-  `{ upserted: [...], deleted: [ids] }`; **Guid'i istemci üretir**, sunucu kimliği arar.
-  Pin ve kanal kimlikleri salt-oluşturmadır; mevcut cihaza `pins`/`ioChannels` göndermek 400'dür.
+- **Diyagram editörü her eylemi anında kendi ucuna gönderir (2026-10-27).** Oluşturma (`POST`, Id'yi istemci üretir,
+  varsa 400) ile güncelleme (`PUT …/{id}`, bulunamazsa 404) ayrıdır. **Pin ve kanalları sunucu üretir** ve cihaz oluşturma
+  yanıtında döndürür; istemci pin kimliği göndermez, cihaz tuvale yanıttan sonra eklenir, kablo yalnızca kalıcı pinlere
+  çizilir. Konum/boyut/dönüş/z/kilit/görünürlük `PUT …/layout`'ta (tek toplu uç, referans taşımaz), silme `POST …/delete`'te
+  (cihazın pinleri ve kabloları sunucuda birlikte kalkar). Her işlem tek `SaveChangesAsync`'tir; transaction yoktur.
+  Ön yüzde istekler **tek kuyrukta sırayla** gider, tuval iyimser güncellenir, hata → toast + graf yeniden çekilir
+  (`hooks/use-diagram-editor.ts`). Kaydet/Vazgeç'i olan tek yer cihaz formudur (`device-form.tsx`: IP + izleme + ek nesne birbirine
+  bağlı); kablo ve not alanları blur'da anında yazılır. Kamera zorunlu alanlarla (IP + marka) pencereden oluşturulur
+  (`create-device-dialog.tsx`).
 - **Kanal adresleri kabin genelinde tekildir**, cihaz genelinde değil. Bir cihazı silmek
   kanallarını serbest bırakmaz (`IN1` işgal edilmeye devam eder).
 - **Tipe özgü alanlar `Device`'ta DEĞİL, 1-1 ek tablolardadır (2026-10-22):** `Camera` (marka, model, açıklama, kullanıcı,
   parola), `ControlCard` (`CredentialHash`), `PcDevice` (`CredentialHash`). Birincil anahtar ortaktır (`DeviceId` hem PK hem FK),
   tip yine `ComponentTemplate.DeviceTypeId`'dir. **Kalıtım bilerek yoktur** — `Camera : Device` / `HasBaseType` yazmayın:
   `HasBaseType` tek başına TPH (tek tablo) kurar, TPT ise her `Devices` sorgusuna tüm alt tabloları JOIN'ler ve parolaları her
-  cihaz okumasında belleğe getirir. Ek satır yalnızca `Include` edilince okunur. Tek yazım yolu yine diyagram deltasıdır:
-  `DeviceDraft.Camera` / `.ControlCard` / `.Pc` — şablon tipiyle eşleşen nesne **zorunludur**, yanlış tipe giden 400'dür
-  (`DiagramService.SaveDeviceExtensions.cs`). Okuma DTO'ları parola döndürmez, `hasPassword` döner; taslakta `password: null` =
-  dokunma, `""` = temizle. **Yeni tip (Alarm, NAS…) = `DeviceType` değeri + sistem şablonu + gerekiyorsa ek tablo + taslak nesnesi
-  + panel bölümü;** alanı `Device`'a eklemeyin, ayrı kök tablo da açmayın, diyagram dışında oluşturma ucu açmayın.
+  cihaz okumasında belleğe getirir. Ek satır yalnızca `Include` edilince okunur. Yazım yolu diyagramın cihaz uçlarıdır:
+  `DeviceCreateRequest` / `DeviceUpdateRequest` `.Camera` / `.ControlCard` / `.Pc` — şablon tipiyle eşleşen nesne **zorunludur**,
+  yanlış tipe giden 400'dür (`DiagramService.Devices.cs > ValidateDeviceAsync`). Okuma DTO'ları parola döndürmez, `hasPassword` döner;
+  istekte `password: null` = dokunma, `""` = temizle. **Yeni tip (Alarm, NAS…) = `DeviceType` değeri + sistem şablonu + gerekiyorsa ek
+  tablo + istekte nesne (`DeviceExtensionDrafts.cs`) + panel bölümü (zorunlu alanı varsa oluşturma penceresi);** alanı `Device`'a eklemeyin, ayrı kök tablo da açmayın, diyagram dışında oluşturma ucu açmayın.
 - **Saha cihazı kimliği HTTP Basic Auth'tur, MAC DEĞİL (2026-10-25, kullanıcı kararı; MAC, index'leri ve `MacAddressFormat`
   silindi — geri eklemeyin).** Kontrol kartı (`/api/Scada/*`) ve RemoteDesk PC'si (`PcHub`) `Authorization: Basic` gönderir:
   **kullanıcı adı = cihazın Id'si**, parola = **sistemin ürettiği sır** (32 küçük harf onaltılık; `Scadex.Core/Utils/DeviceCredential.cs`).
-  Sırrı tarayıcı üretir (`lib/diagram/device-credential.ts`, özellik paneli "Üret/Yenile/İptal et") ve diyagram deltasıyla gönderir
+  Sırrı tarayıcı üretir (`lib/diagram/device-credential.ts`, özellik paneli "Üret/Yenile/İptal et") ve cihaz formunun Kaydet'iyle gönderir
   (`ControlCardDraft.Secret` / `PcDeviceDraft.Secret`: `null` dokunma, `""` iptal, değer yeni sır); sunucu biçimi zorlar ve yalnızca
   **SHA-256'sını** saklar (`CredentialHash`, sabit zamanlı karşılaştırma) — sır geri okunamaz, okuma DTO'su `hasCredential` döner.
   Sır yüksek entropili olduğu için PBKDF2 yoktur (ingest sıcak yolu). Kullanıcı adı PK olduğu için **benzersizlik denetimi yoktur**.
@@ -365,23 +370,19 @@ Bunlar tek bir dosyaya bakarak görülemez; gerekçeleri PROJECT_OVERVIEW.md §5
   **kabin içinde** tekildir (iki yolda da doğrulanır, DB index'i yok; ad tekilliği yalnızca kamera ekranının kuralı); boş izleme
   portu markanın RTSP portuyla dolar. Kamera Id'si cihaz Id'sidir:
   `CameraCapture.CameraId`, `signalization.OuterDoor.CameraId` ve `cam_{id}` yolları onu görür. Kamera bilgisi değişince MediaMTX
-  yolunu düşürmek **commit sonrası** yapılır: diyagramda `DiagramController.Save`, ekranda `CameraService.UpdateAsync`
-  (`ICameraService.RefreshStreamPathsAsync`; yapılandırması güncel kaynakla uyuşmayan ya da pasif kameranın yolu silinir) —
-  `.Save.cs`'e koymayın. Kamera okuma DTO'su parolayı döndürmez (`hasPassword`). RTSP adresi kuran kod entity değil
+  yolunu düşürmek **commit sonrası** yapılır: diyagramda `DiagramController` (`UpdateDevice` + `Delete`), ekranda
+  `CameraService.UpdateAsync` (`ICameraService.RefreshStreamPathsAsync`; yapılandırması güncel kaynakla uyuşmayan ya da pasif
+  kameranın yolu silinir) — `DiagramService`'in içine koymayın. Kamera okuma DTO'su parolayı döndürmez (`hasPassword`). RTSP adresi kuran kod entity değil
   `CameraEndpoint` alır.
 - **Lifecycle interceptor'ları sessizce geçmez, istisna atar.** `IImmutableEntity` güncelleme
   ve silmede, `IActivatableEntity` silmede patlar (`IsActive = false` kullanın);
   `ISoftDeletableEntity` fiziksel silmeyi `IsDeleted = true`'ya çevirir. `IsActive` üzerinde
   global query filter **yoktur**, `IsDeleted` üzerinde **vardır**.
-- **`DiagramService.SaveAsync` projedeki tek istisnadır:** repository'nin `*AndSave*`
-  kısayollarını kullanmaz, transaction açar. İçindeki **iki `SaveChangesAsync`** (önce silmeler,
-  sonra yazmalar) bilinçlidir — filtreli unique index yüzünden tek batch'te sıra garanti değil
-  ve INSERT önce giderse 500 döner. Sıradan CRUD servisleri `*AndSave*` kullanmaya devam eder.
 - **Yanıt zarfı yoktur.** `Result<T>.Success(data)` → `200` + çıplak DTO. Hatalar RFC 7807
   `ProblemDetails`; gövdedeki `code` uzantısı HTTP kodu **değildir**.
 - **Enum'lar sayı olarak serileştirilir** (`JsonStringEnumConverter` bilerek kayıtlı değil) ve
   numaraları boşlukludur. **`DictionaryKeyPolicy` bilerek `null`** — `ProblemDetails.errors`
-  anahtarları PascalCase kalır (`"Devices.Upserted[0].Pins"`); iki taraftan birini "düzeltmeyin".
+  anahtarları PascalCase kalır (`"Camera.Brand"`, `"Devices[0].Id"`); iki taraftan birini "düzeltmeyin".
   `null` alanlar gövdeden düşmez (`DefaultIgnoreCondition = Never`).
 - **Medya geçidi ayarları `appsettings.json > MediaGateway`'dedir, kamera çekim ayarları
   veritabanındadır (2026-09-27).** `MediaGatewaySettings` `IOptions` ile okunur (açılış doğrulaması
@@ -543,13 +544,12 @@ Bir şeyin çalıştığını varsaymadan önce doğrulayın:
   kart 500 üretir. **Kart tanımlama (2026-10-13) çekirdektedir:** her okuma gözlemcilerden önce `DiagramHub`'a `CardRead` olarak
   yayınlanır, Kabinler → "Kart tanımlama" penceresi dinler; atama `PUT /api/User/{id}/identity-card` (`AssignIdentityCardAsync`, yalnızca
   kart alanı — `PUT /api/User` tüm alanları ezer). Pencere okumayı modüllerden **bilerek** saklamaz/baypas etmez (kullanıcı kararı).
-- **`IpAddress` ve ek tablo alanları (kimlik bilgileri, kart / PC sırrı) diyagram deltasıyla yazılır (2026-09-10; ek tablolar
-  2026-10-22'den beri `DeviceDraft.Camera` / `.ControlCard` / `.Pc` içinde).** `WriteDevice` IP'yi, `WriteDeviceExtensions` ek satırı yazar; editörde cihaz
-  özellik panelinden girilir. Bunlar
-  `DeviceStatusId` / `LastSeen` / `LastConnectionError` gibi telemetri alanı **değildir** — o
-  üçü taslakta yok ve `WriteDevice`'ta dokunulmaz. İzleme ayarları (`MonitoringPort`,
-  `PingIntervalSec`, `IsMonitoringEnabled`, 2026-09-24) da deltayla yazılır; izleme açıkken IP
-  zorunludur (port değil — boşsa ping, 2026-10-12), izlenemeyen şablonda açmak 400'dür (`ValidateDeviceMonitoring`). Şablonların
+- **`IpAddress` ve ek tablo alanları (kimlik bilgileri, kart / PC sırrı) diyagramın cihaz uçlarıyla yazılır** (`DeviceCreateRequest` /
+  `DeviceUpdateRequest`; ek nesneler `.Camera` / `.ControlCard` / `.Pc`). `WriteDevice` IP'yi, `WriteDeviceExtensions` ek satırı yazar;
+  editörde cihaz formundan girilir. Bunlar `DeviceStatusId` / `LastSeen` / `LastConnectionError` gibi telemetri alanı **değildir** — o
+  üçü istekte yok ve `WriteDevice`'ta dokunulmaz. İzleme ayarları (`MonitoringPort`, `PingIntervalSec`, `IsMonitoringEnabled`,
+  2026-09-24) da aynı istekle yazılır; izleme açıkken IP zorunludur (port değil — boşsa ping, 2026-10-12), izlenemeyen şablonda
+  açmak 400'dür (`ValidateDeviceAsync`). Şablonların
   güncelleme ucu yoktur: `IsMonitorable` oluşturmada (ve sistem şablonlarında seed'de) belirlenir.
 
 ## Sormadan "düzeltmeyin"

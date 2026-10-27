@@ -6,8 +6,8 @@ import type { PinDirection } from '@/models/enums';
  *
  * `currentValue` / `valueUpdatedAt` BİLEREK yok. Canlı değer SignalR'dan akar ve
  * istemcide TanStack Query cache'ine DEĞİL, ayrı bir harici store'a yazılır —
- * aksi halde editörün değişiklik günlüğü telemetriyi "kullanıcı düzenlemesi"
- * sanıp SCADA değerlerini sunucuya geri yazmaya çalışır.
+ * aksi halde her değer editörün tuvalini sunucu grafıyla yeniden eşitlerdi
+ * (bkz. `lib/diagram/live-store.ts`).
  */
 export interface DiagramIoChannelDto {
   id: string;

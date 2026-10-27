@@ -17,20 +17,18 @@ export type DiagramMode = 'select' | 'pan';
 /**
  * Diyagram editorunun ISTEMCI durumu. Sunucudan gelen graf verisi (device / pin /
  * connection) buraya girmez - o TanStack Query cache'inde durur. Burada yalnizca
- * secim, arac modu ve kaydedilmemis degisiklik bayragi tutulur.
+ * secim ve arac modu tutulur.
  */
 interface StateUI {
   selectedNodeIds: string[];
   selectedEdgeIds: string[];
   mode: DiagramMode;
-  isDirty: boolean;
 }
 
 const initialState: StateUI = {
   selectedNodeIds: [],
   selectedEdgeIds: [],
-  mode: 'select',
-  isDirty: false
+  mode: 'select'
 };
 
 export const diagramSlice = createSlice({
@@ -47,12 +45,9 @@ export const diagramSlice = createSlice({
     },
     setMode: (state, action: PayloadAction<DiagramMode>) => {
       state.mode = action.payload;
-    },
-    setDirty: (state, action: PayloadAction<boolean>) => {
-      state.isDirty = action.payload;
     }
   }
 });
 
-export const { setSelection, clearSelection, setMode, setDirty } = diagramSlice.actions;
+export const { setSelection, clearSelection, setMode } = diagramSlice.actions;
 export default diagramSlice.reducer;

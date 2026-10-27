@@ -80,15 +80,13 @@ bunları sırayla çağırır.
 **Büyük servisler partial sınıflara bölünür, `#region` ile değil — gruplama birimi dosyadır:**
 `CameraService.cs` + `.Streaming` + `.Snapshot` + `.Capture` + `.Monitoring`,
 `DeviceCommandService.cs` + `.Comunication`,
-`DiagramService.cs` + `.Save` + `.SaveContext` + `.SaveDevices` + `.SaveDevicePins` +
-`.SaveConnections` + `.SaveAnnotations`.
+`DiagramService.cs` (okuma + ortak yardımcılar) + `.Devices` + `.Connections` + `.Annotations` +
+`.Layout` + `.Delete`.
 
-Sonuncusu kalıbın nasıl ölçeklendiğini gösterir: büyük bir boru hattı önce **faza**
-(`.Save` orkestrasyon, `.SaveContext` dağıtıcılar + paylaşılan bağlam + akış haritası),
-sonra **aileye** (cihaz / pin-kanal / kablo / not) bölünür. Her aile dosyası kendi
-yükleme → doğrulama → uygulama dilimini baştan sona taşır; böylece "cihaza ne oluyor?"
-sorusunun cevabı tek dosyadadır. Silme sırası ve gerekçesi yalnızca `.SaveContext`
-içindeki `ApplyDeletions` dağıtıcısında yaşar.
+Diyagram servisi 2026-10-27'ye kadar tek bir toplu kaydetme boru hattıydı (8 dosya, ~1.600 satır).
+Karmaşıklığın kaynağı, sunucuya gitmemiş kayıtların aynı gönderide birbirine referans vermesiydi
+(kaydedilmemiş cihaza kablo). Editör her eylemi anında kendi ucuna gönderdiği için bu sorular kalktı.
+Artık her dosya bir uç ailesidir ve dosyalar arasında paylaşılan bağlam yoktur.
 
 ---
 
@@ -205,7 +203,7 @@ her derlemede yeni migration istemesine yol açar):
   |---|---|
   | `ViewDiagram` ("Diyagramı izle") | `GET Diagram/cabinet/{id}`, `GET Device/{id}/commands` |
   | `ControlOutput` ("Diyagramdan komut gönder") | `POST Device/{id}/command` — `ViewDiagram` ile BİRLİKTE (VE) |
-  | `EditDiagram` ("Diyagramı düzenle") | `POST Diagram/cabinet/{id}/save`, `PUT CanvasSettings/cabinet/{id}` |
+  | `EditDiagram` ("Diyagramı düzenle") | `Diagram/cabinet/{id}` altındaki yazma uçları (`devices`, `connections`, `annotations`, `layout`, `delete`), `PUT CanvasSettings/cabinet/{id}` |
   | `SignalVirtualCabinet` ("Sanal kabini aç ve komut gönder", 15) | `GET SignalCabinet/{id}/live`, `POST SignalCabinet/{id}/command`, `GET OperatorSession/cabinet/{id}/card-reads` |
   | `ViewCamera` | `Camera`: kabin listesi, `{id}`, `stream-ticket`, `snapshot`, `capture`, `captures` (DTO kamera parolasını taşır) |
   | `ConfigureSystem` | `Cabinet` POST/PUT/`{id}/update`, `Company` POST/PUT, `Camera` POST/PUT, `ComponentTemplate` POST/`image`, `CameraCaptureSetting` PUT, `PUT SignalCabinet/{id}`, `PUT SignalAuthority` |
@@ -229,29 +227,31 @@ aggregate'in controller'ında durur.
 | Uç | Not |
 |---|---|
 | `GET /api/Diagram/cabinet/{id}` | Tüm aggregate: kabin, cihazlar (+şablon, pinler, kanallar), bağlantılar, notlar, tuval ayarı. **Palet yok, canlı değer yok.** |
-| `POST /api/Diagram/cabinet/{id}/save` | Delta — yalnızca üç aile: `devices`, `connections`, `diagramAnnotations`. Tek transaction. |
+| `POST /api/Diagram/cabinet/{id}/devices` | Cihaz oluştur (paletten bırakma / kopyalama). Pinler + kanallar + ek satır şablondan, tek `SaveChanges`. Yanıt tam `DiagramDeviceDto` |
+| `PUT /api/Diagram/cabinet/{id}/devices/{deviceId}` | Cihaz formunun Kaydet'i: ad, IP, izleme, ek nesne (kamera / kart / PC) |
+| `POST` · `PUT /api/Diagram/cabinet/{id}/connections[/{connectionId}]` | Kablo çiz / görünümünü yaz (uçlar değiştirilemez) |
+| `POST` · `PUT /api/Diagram/cabinet/{id}/annotations[/{annotationId}]` | Not ekle / içeriğini yaz |
+| `PUT /api/Diagram/cabinet/{id}/layout` | Konum, boyut, dönüş, z-sırası, kilit, görünürlük — cihaz ve not, toplu. Referans taşımaz |
+| `POST /api/Diagram/cabinet/{id}/delete` | Seçimi sil: `{ deviceIds, connectionIds, annotationIds }`; cihazın pinleri ve kabloları birlikte kalkar |
 | `GET /api/ComponentTemplate/palette` | Stencil kütüphanesi; kabinden bağımsız olduğu için ayrı cache anahtarı hak eder |
 | `POST /api/ComponentTemplate` | Şablon + pin şeması tek transaction'da (pinsiz şablon kullanılamaz) |
 | `POST /api/ComponentTemplate/image` | Multipart; dosya adı sunucuda üretilir, `wwwroot/uploads/templates` altına yazılır (png/jpg/webp/svg, ≤4 MB) |
 | `PUT /api/CanvasSettings/cabinet/{cabinetId}` | Upsert; `cabinetId` **route'tan** gelir. Grid boyutu değiştirmek bir diyagram düzenlemesi değildir |
 
-**Kaydetme sözleşmesi:**
+**Yazma sözleşmesi (2026-10-27, toplu `save` deltasının yerine):**
 
-- Gövde `{ upserted: [...], deleted: [ids] }` şeklindedir. **`created` / `updated` ayrımı
-  yoktur:** her taslak bir `Guid` taşır, **Guid'i istemci üretir**, sunucu kimliği arar —
-  bulursa günceller, bulamazsa ekler.
-- Aynı kaydın hem `upserted` hem `deleted` içinde olması doğrulamada **400**'dür.
-- Cihazın pin *içeriği* burada yazılmaz: sunucu pinleri her zaman şablonun
-  `ComponentTemplatePin` satırlarından üretir. İstemciden gelen tek şey **kimliklerdir**:
-  `devices.upserted[].pins = [{ id, componentTemplatePinId }]` ve
-  `.ioChannels = [{ id, direction, channelNumber }]`. Kanal adresi bir **çifttir**
-  (`direction` + `channelNumber`), çünkü kartta `IN1` ile `OUT1` ayrı noktalardır. Bu sayede
-  yeni bir cihaz **kaydedilmeden önce kablolanabilir**: bir kablo ucu aynı gönderide doğacak
-  bir pini gösterebilir.
-- Pin ve kanal kimlikleri **salt-oluşturmadır**. Mevcut bir cihaza `pins` ya da `ioChannels`
-  göndermek `400`'dür; şablon değiştirmek de öyle ("silip yeniden ekleyin"). Gönderilen küme
-  şablonun şemasıyla **birebir örtüşmek zorundadır** — eksik göndermek kopuk pinli cihaz,
-  fazla göndermek şablon dışı uydurma pin üretirdi.
+- **Editör her eylemi anında gönderir; "Kaydet" düğmesi yoktur.** Tek istisna cihazın özellik formudur: ad, IP, izleme
+  ve ek nesne alanları birbirine bağlı olduğu için (izleme IP ister, kamera IP'siz olamaz) kendi Kaydet / Vazgeç'i vardır.
+  Kablo ve not alanları blur'da anında yazılır. Tuval iyimser güncellenir. Başarısız istekte toast gösterilir, graf
+  yeniden çekilir ve tuval sunucu gerçeğine döner. İstekler istemcide **tek kuyrukta sırayla** gider
+  (`use-diagram-editor.ts`).
+- Oluşturma ile güncelleme **ayrı uçlardır**. Oluşturmada Id'yi istemci üretir (`newId()`); Id zaten varsa (pasif ya da
+  soft-delete'li satır dahil) 400. Güncelleme/silme hedefi `Id + CabinetId + canlı` ile bulunur, bulunamazsa 404.
+- **Pin ve kanalları sunucu üretir** (şablonun `ComponentTemplatePin` satırlarından, Id'leri EF'in sıralı Guid üreteciyle) ve
+  oluşturma yanıtında döndürür. İstemci pin kimliği göndermez. Kablo yalnızca **kalıcı** pinlere çizilebilir; cihaz tuvale
+  sunucu onu oluşturduktan sonra eklendiği için "kaydedilmemiş pin" yoktur. Şablon değiştirmek yoktur ("silip yeniden ekleyin").
+- Kamera zorunlu alanlarla oluşur: paletten bırakılınca önce IP + marka penceresi açılır (`create-device-dialog.tsx`).
+  Kontrol kartı ve PC kimliksiz oluşur, sır sonradan formdan üretilir.
 - **Kanal adresleri kabin genelinde benzersizdir**, cihaz genelinde değil
   (`IX_IoChannel_CabinetId_Direction_ChannelNumber`). Kabin *bir* kontrol kartıdır ve kartın
   adres uzayı düzdür. Aynı şablonu ikinci kez bırakmak bu yüzden `400` verir; hata mesajı
@@ -260,57 +260,45 @@ aggregate'in controller'ında durur.
   ve kabloları düşer, ama `IoChannel` satırları yerinde kalır — dolayısıyla `IN1` işgal
   edilmeye devam eder.
 - **Tipe özgü alanlar 1-1 ek tablolardadır (2026-10-22):** `Camera` (marka, model, açıklama, kullanıcı, parola),
-  `ControlCard` (`CredentialHash`), `PcDevice` (`CredentialHash`); birincil anahtar ortaktır (`DeviceId`). Deltada cihaz taslağı
-  şablon tipiyle eşleşen nesneyi **zorunlu** taşır (`camera` / `controlCard` / `pc`); yanlış tipe giden nesne 400'dür
-  (`DiagramService.SaveDeviceExtensions.cs`). Parola okuma DTO'suna yazılmaz (`hasPassword`); taslakta `null` = dokunma,
-  `""` = temizle. Kart / PC sırrı da aynı kuralla taşınır (`secret`; okuma `hasCredential`). Kalıtım (TPT/TPH) bilerek
+  `ControlCard` (`CredentialHash`), `PcDevice` (`CredentialHash`); birincil anahtar ortaktır (`DeviceId`). Cihaz oluşturma ve
+  güncelleme isteği şablon tipiyle eşleşen nesneyi **zorunlu** taşır (`camera` / `controlCard` / `pc`); yanlış tipe giden nesne
+  400'dür (`DiagramService.Devices.cs > ValidateDeviceAsync`). Parola okuma DTO'suna yazılmaz (`hasPassword`); istekte `null` =
+  dokunma, `""` = temizle. Kart / PC sırrı da aynı kuralla taşınır (`secret`; okuma `hasCredential`). Kalıtım (TPT/TPH) bilerek
   kullanılmadı: ek satır yalnızca `Include` edilince okunur.
-- **`ipAddress` ve kart / PC sırrı deltada taşınır (2026-09-10; sır 2026-10-25'ten beri, MAC'in yerine).** Kontrol kartının
-  sırrı SCADA ingest'inin kimliğidir (§ 5.3); operatör özellik panelinde üretir ve karta girer. `deviceStatusId` / `lastSeen` / `lastConnectionError` ise **taslakta yoktur**
-  ve `WriteDevice`'ta dokunulmaz — onları yalnızca `ICabinetStatusService` yazar (§ 5.3 "Canlılık").
-- **İzleme ayarları deltada taşınır (2026-09-24).** `monitoringPort`, `pingIntervalSec`,
-  `isMonitoringEnabled` (`Device : IMonitoredAsset`). Kurallar: port 1..65535, periyot 5..86400 sn,
-  izleme açıkken `ipAddress` ve `monitoringPort` zorunlu (FluentValidation); izleme yalnızca şablonu
-  **`ComponentTemplate.IsMonitorable`** olan cihazda açılabilir (`ValidateDeviceMonitoring`, 400
-  anahtarı `Devices.Upserted[i].IsMonitoringEnabled`). Editör izleme bölümünü yalnızca izlenebilir
-  şablonda gösterir.
+- **`ipAddress`, izleme ayarları ve kart / PC sırrı cihaz formuyla yazılır** (`PUT …/devices/{id}`). Kontrol kartının sırrı
+  SCADA ingest'inin kimliğidir (§ 5.3); operatör özellik panelinde üretir ve karta girer. `deviceStatusId` / `lastSeen` /
+  `lastConnectionError` istekte **yoktur** ve `WriteDevice`'ta dokunulmaz; onları yalnızca `ICabinetStatusService` yazar
+  (§ 5.3 "Canlılık").
+- **İzleme kuralları (2026-09-24):** `monitoringPort`, `pingIntervalSec`, `isMonitoringEnabled` (`Device : IMonitoredAsset`).
+  Port 1..65535 (boşsa ICMP ping), periyot 5..86400 sn, izleme açıkken `ipAddress` zorunlu (FluentValidation). İzleme yalnızca
+  şablonu **`ComponentTemplate.IsMonitorable`** olan cihazda açılabilir (400 anahtarı `IsMonitoringEnabled`). Editör izleme
+  bölümünü yalnızca izlenebilir şablonda gösterir.
 - **Saha cihazı kimliği Basic Auth'tur (2026-10-25, MAC'in yerine).** Kontrol kartı ve RemoteDesk PC'si
   `Authorization: Basic` gönderir: kullanıcı adı = cihazın Id'si, parola = tarayıcının ürettiği 32 karakterlik onaltılık sır.
   Sunucu biçimi zorlar ve yalnızca SHA-256'sını saklar (`Scadex.Core/Utils/DeviceCredential.cs`); doğrulama
   `DeviceBasicAuthenticationHandler` + `IDeviceCredentialService`'tedir. Kullanıcı adı birincil anahtar olduğu için eski
   sistem geneli MAC tekillik kuralı (index'ler, yükleyiciler, silmede MAC'i `null`'a çekme) tümüyle kalktı.
 - **Kamera bir cihazdır (2026-10-22, `DeviceType.Camera`, şablon "IP Kamera").** Oluşturma ve kaldırma (pasife alma) her
-  cihaz gibi yalnızca diyagram deltasıdır (`EditDiagram`, 2026-10-25) — diyagramda olmayan tanımlı cihaz yoktur. Kamera ekranı
+  cihaz gibi yalnızca diyagram uçlarıyla yapılır (`EditDiagram`, 2026-10-25); diyagramda olmayan tanımlı cihaz yoktur. Kamera ekranı
   (`PUT /api/Camera`, `ConfigureSystem`) yalnızca aktif kameranın bilgisini günceller ve kameraya özel okumaları (izleme, kare,
   klip) yapar. IP'si zorunlu ve kabin içinde tekildir (iki yolda da doğrulanır); boş izleme portu markanın RTSP
-  portuyla dolar. Commit sonrası değişen/silinen kameraların MediaMTX yolları düşürülür (`ICameraService.RefreshStreamPathsAsync`).
-- Karşılığı bulunamayan `deleted` kimlikleri **sessizce atlanır** ve sayılmaz — istemciyi
-  "bu kayıt sunucuya gitti mi" bilgisini taşımaktan kurtaran karar budur. Buna karşılık
-  `upserted`'da başka kabine ait ya da silinmiş/pasif bir kimlik `400`'dür: soft-delete
-  edilmiş satır birincil anahtar uzayını işgal etmeye devam ettiği için sessizce INSERT'e
-  düşmesi PK ihlaliyle 500 üretirdi.
+  portuyla dolar. Cihaz güncelleme ve silme başarılı olunca `DiagramController` değişen/silinen kameraların MediaMTX yollarını
+  düşürür (`ICameraService.RefreshStreamPathsAsync`).
+- Silme isteğinde bu kabinde karşılığı bulunamayan kimlikler **sessizce atlanır**: iki kez gönderilen silme hata değildir.
+  Silme tek `SaveChanges`'tir: kablo ve pin soft-delete (UPDATE), cihaz `IsActive = false`, not hard delete.
 - Kablo uçları salt-oluşturmadır ve çift kontrolü **yönsüzdür**: DB'deki unique index
   `(SourcePinId, TargetPinId)` sıralı olduğu için ters çizilmiş aynı kabloyu yakalamaz,
   servis daha katıdır. Ayrıca iki ucun gerilim seviyesi **ikisi de belirtilmişse** ve
   farklıysa bağlantı reddedilir; biri `null` ise susulur.
-- `DiagramService.SaveAsync`, repository'nin `*AndSave*` kısayollarını **bilerek kullanmaz**:
-  `BeginTransactionAsync` → kaydetmeyen overload'lar → commit. Aksi halde tek kaydetmede
-  ~8 commit oluşurdu. Bu, projedeki tek istisnadır; sıradan CRUD servisleri `*AndSave*` kullanır.
-  Transaction içinde **iki `SaveChangesAsync`** vardır ve bu bilinçlidir: önce silmeler, sonra
-  yazmalar. Sebep `IX_Connection_SourcePinId_TargetPinId`'in `WHERE IsDeleted = 0` filtresi —
-  kullanıcı bir kabloyu silip aynı iki pin arasına yenisini çizdiğinde silme bir UPDATE,
-  oluşturma bir INSERT'tür; tek batch'te EF'in sırası garanti değildir ve INSERT önce giderse
-  index ihlali 500 döner.
-- Referans doğrulamaları transaction **açılmadan önce** yapılır: açıp geri almak yerine hiç
-  açmamak kilit süresini de log gürültüsünü de azaltır.
+- Her işlem tek bir `SaveChangesAsync`'tir (EF kendi içinde atomik); açık transaction ve iki fazlı yazım **yoktur**.
+  Eski toplu kaydetmedeki iki faz (önce silme, sonra yazma), kablo silinip aynı pinlere yeniden çizildiğinde UPDATE ile
+  INSERT'in aynı batch'e düşmesi yüzündendi; artık silme ve oluşturma ayrı isteklerdir.
 
 **Diyagram tablolarına tek yazım yolu:** `Device`, `Connection`, `DiagramAnnotation`,
-`Pin`, `IoChannel`, `ComponentTemplatePin` yalnızca `DiagramController` deltası üzerinden;
-`ComponentTemplate` yalnızca `POST /api/ComponentTemplate`; `CanvasSettings` yalnızca
-`PUT /api/CanvasSettings/cabinet/{id}` üzerinden yazılır. Bu tabloların generic
-controller'ları **salt okunurdur** (`GET {id}`, `GET {id}/base|detail`, `POST list*`).
-Buraya generic Create/Update/Delete geri eklemeyin; ihtiyaç varsa sahibinin
-controller'ına ekran bazlı bir uç ekleyin.
+`Pin`, `IoChannel` yalnızca `DiagramController`'ın yazma uçları üzerinden;
+`ComponentTemplate` / `ComponentTemplatePin` yalnızca `POST /api/ComponentTemplate`; `CanvasSettings` yalnızca
+`PUT /api/CanvasSettings/cabinet/{id}` üzerinden yazılır. Bu tabloların generic controller'ları 2026-10-14'te kaldırıldı;
+geri eklemeyin, ihtiyaç varsa sahibinin controller'ına ekran bazlı bir uç ekleyin.
 
 ### 5.3 SCADA entegrasyonu
 
@@ -765,7 +753,7 @@ Silme yoktur (`IActivatableEntity`); pasife alma tek yoldur.
   bilerek kayıtlı değil.)
 - **Alan adları camelCase, ama sözlük anahtarları dönüştürülmez** — `DictionaryKeyPolicy`
   bilinçli olarak `null`, bu yüzden `ProblemDetails.errors`'ın anahtarları FluentValidation'dan
-  geldiği gibi **PascalCase** kalır (`"Devices.Upserted[0].Pins"`). İstemci tarafında
+  geldiği gibi **PascalCase** kalır (`"Camera.Brand"`, `"Devices[0].Id"`). İstemci tarafında
   telafi edilir; iki taraftan birini "düzeltmeyin".
 - **`null` alanlar gövdede kalır** (`DefaultIgnoreCondition = Never`), yani bir alanın yokluğu
   ile `null` olması istemci için ayırt edilebilir.
@@ -928,7 +916,7 @@ Alınan kararlar:
 
 - ~~**ICMP dalı yok**~~ — **2026-10-12'de değişti:** `MonitoringPort` doluysa TCP connect, boşsa ICMP
   ping (`System.Net.NetworkInformation.Ping`, aynı `ProbeTimeoutMs`); port artık zorunlu değil
-  (`DeviceDraftValidator`). Ping yalnızca "makine ağda" der, hizmetin ayakta olduğunu kanıtlamaz; ICMP'si
+  (`DeviceUpdateRequestValidator`). Ping yalnızca "makine ağda" der, hizmetin ayakta olduğunu kanıtlamaz; ICMP'si
   güvenlik duvarında kapalı hedef sağlamken Çevrimdışı görünür — öyle bir cihaza port girilir. Eskiden
   portsuz varlık atlanıp `Warning` loglanırdı. Kamerada boş bırakılan izleme portunu `CameraService` (Create/Update) markanın
   RTSP portuyla doldurur (`ICameraProtocolProfile.RtspPort`, 2026-09-25), dolayısıyla API

@@ -1,19 +1,19 @@
-// Bulk save gövdesi: zod YOK — makine tarafından üretilir, bkz. dosyanın başlığı.
-export {
-  emptyDelta,
-  isDeltaEmpty,
-  isSaveRequestEmpty,
-  type EntityDelta,
-  type DiagramSaveRequest,
-  type DeviceDraft,
-  type DevicePinDraft,
-  type DeviceIoChannelDraft,
-  type CameraDraft,
-  type ControlCardDraft,
-  type PcDeviceDraft,
-  type ConnectionDraft,
-  type AnnotationDraft
-} from './commands/diagramSaveRequest';
+// Komutlar: zod YOK — gövdeleri editör üretir, bkz. dosyanın başlığı.
+export type {
+  CameraDraft,
+  ControlCardDraft,
+  PcDeviceDraft,
+  DeviceUpdateRequest,
+  DeviceCreateRequest,
+  ConnectionUpdateRequest,
+  ConnectionCreateRequest,
+  AnnotationUpdateRequest,
+  AnnotationCreateRequest,
+  DeviceLayoutItem,
+  AnnotationLayoutItem,
+  DiagramLayoutRequest,
+  DiagramDeleteRequest
+} from './commands/diagramCommands';
 
 // Queries — sunucu ciktisi, saf interface
 export type { PointDto } from './queries/pointDto';

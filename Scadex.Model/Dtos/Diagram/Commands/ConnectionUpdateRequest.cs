@@ -1,17 +1,16 @@
 using FluentValidation;
 using Scadex.Core.Model;
 using Scadex.Model.Dtos.Common;
-using Scadex.Model.Dtos.Diagram.Commands.Abstract;
 using static Scadex.Model.Enums.EntityEnums;
 
-namespace Scadex.Model.Dtos.Diagram.Commands.Items;
+namespace Scadex.Model.Dtos.Diagram.Commands;
 
-public class ConnectionDraft : IDto, IIdentifiableDraft
+/// <summary>
+/// Kablonun görünümü: <c>PUT /api/Diagram/cabinet/{cabinetId}/connections/{id}</c>. Uçlar burada yoktur — ucu değiştirmek
+/// yeni bir kablodur (silip yeniden çizilir).
+/// </summary>
+public class ConnectionUpdateRequest : IDto
 {
-    public Guid Id { get; set; }
-    public Guid SourcePinId { get; set; }
-    public Guid TargetPinId { get; set; }
-
     public string? Label { get; set; }
     public WireType WireType { get; set; }
     public string Color { get; set; } = null!;
@@ -24,18 +23,10 @@ public class ConnectionDraft : IDto, IIdentifiableDraft
     public int ZIndex { get; set; }
 }
 
-public class ConnectionDraftValidator : AbstractValidator<ConnectionDraft>
+public class ConnectionUpdateRequestValidator : AbstractValidator<ConnectionUpdateRequest>
 {
-    public ConnectionDraftValidator()
+    public ConnectionUpdateRequestValidator()
     {
-        RuleFor(v => v.Id).NotEqual(Guid.Empty).WithMessage("Kablo kimligi zorunlu");
-
-        RuleFor(v => v.SourcePinId).NotEqual(Guid.Empty).WithMessage("Kaynak pin kimligi zorunlu");
-        RuleFor(v => v.TargetPinId).NotEqual(Guid.Empty).WithMessage("Hedef pin kimligi zorunlu");
-        RuleFor(v => v.TargetPinId)
-            .NotEqual(v => v.SourcePinId)
-            .WithMessage("Bir pin kendisine baglanamaz");
-
         RuleFor(v => v.Label).MaximumLength(128).WithMessage("Etiket en fazla 128 karakter olabilir");
         RuleFor(v => v.WireType).IsInEnum().WithMessage("Gecersiz kablo tipi");
         RuleFor(v => v.Color).NotEmpty().WithMessage("Kablo rengi zorunlu");

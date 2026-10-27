@@ -3,8 +3,7 @@ import type { RoleDto } from '@/models/role';
 import type { RolePermissionMatrixItem } from '@/models/rolePermission';
 
 /**
- * İzin kataloğunun ekran yardımcıları — Roller dialogu, kullanıcı Roller dialogu ve Yetki Matrisi aynı gruplamayı ve etiketleri
- * kullanır.
+ * İzin kataloğunun ekran yardımcıları — Roller dialogu ve kullanıcı Roller dialogu aynı gruplamayı ve etiketleri kullanır.
  */
 
 /** Seed'deki `Permission.Category` değerleri (İngilizce anahtar) → ekranda görünen ad. Bilinmeyen kategori olduğu gibi görünür. */

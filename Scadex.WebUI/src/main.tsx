@@ -132,7 +132,6 @@ const router = createBrowserRouter([
                   { path: 'companies', Component: AdminViews.Companies, handle: { crumb: 'Firmalar' }, loader: requirePermission('ConfigureSystem') },
                   { path: 'users', Component: AdminViews.Users, handle: { crumb: 'Kullanıcılar' }, loader: requirePermission('ManageUsers') },
                   { path: 'roles', Component: AdminViews.Roles, handle: { crumb: 'Roller' }, loader: requirePermission('ManageUsers') },
-                  { path: 'permissions', Component: AdminViews.PermissionMatrix, handle: { crumb: 'Yetki Matrisi' }, loader: requirePermission('ManageUsers') },
                   { path: 'templates', Component: AdminViews.ComponentTemplates, handle: { crumb: 'Şablonlar' }, loader: requirePermission('ConfigureSystem') },
                   { path: 'settings', Component: AdminViews.Settings, handle: { crumb: 'Ayarlar' }, loader: requirePermission('ConfigureSystem') }
                 ]

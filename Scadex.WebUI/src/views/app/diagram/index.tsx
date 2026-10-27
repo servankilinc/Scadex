@@ -7,8 +7,8 @@ import { DiagramCanvas } from '@/components/diagram/diagram-canvas';
 import { DiagramToolbar } from '@/components/diagram/diagram-toolbar';
 import { LiveDisconnectedBanner } from '@/components/diagram/live-indicator';
 import { PalettePanel } from '@/components/diagram/palette-panel';
+import { CreateDeviceDialog } from '@/components/diagram/create-device-dialog';
 import { PropertiesPanel } from '@/components/diagram/properties-panel';
-import { UnsavedChangesBlocker } from '@/components/diagram/unsaved-changes-blocker';
 import { useDiagramEditor, type DiagramEditor } from '@/hooks/use-diagram-editor';
 import { useDiagramGraph } from '@/hooks/use-diagram-graph';
 import { useDiagramLive } from '@/hooks/use-diagram-live';
@@ -65,8 +65,7 @@ export default function Diagram() {
   // için yükleme dalları bu bileşenin dışında kalmak zorunda.
   //
   // `key`: başka bir kabine geçildiğinde editör state'i SIFIRLANMALI. Aynı
-  // bileşen örneği kalsaydı, önceki kabinin node'ları ve değişiklik günlüğü
-  // yenisinin üstüne taşınırdı.
+  // bileşen örneği kalsaydı, önceki kabinin node'ları yenisinin üstüne taşınırdı.
   return <DiagramEditorShell key={cabinetId} cabinetId={cabinetId!} graph={data} />;
 }
 
@@ -74,7 +73,7 @@ function DiagramEditorShell({ cabinetId, graph }: { cabinetId: string; graph: Di
   const editor = useDiagramEditor(cabinetId, graph);
 
   // Rota `ViewDiagram` ister; düzenleme ve kumanda ayrı izinlerdir (sunucu ikisini de 403 ile zorlar).
-  // `EditDiagram` yoksa editör salt okunur: palet yok, tuval sürükleme/bağlama/silme kabul etmez, kaydetme çizilmez.
+  // `EditDiagram` yoksa editör salt okunur: palet yok, tuval sürükleme/bağlama/silme kabul etmez, istek göstergesi çizilmez.
   const can = usePermission();
   const canEdit = can('EditDiagram');
   const canControl = can('ControlOutput');
@@ -115,8 +114,7 @@ function DiagramEditorShell({ cabinetId, graph }: { cabinetId: string; graph: Di
           <DiagramToolbar
             cabinet={graph.cabinet}
             settings={graph.canvasSettings}
-            save={editor.save}
-            isDirty={editor.isDirty}
+            activity={editor.activity}
             hubStatus={hubStatus}
             readOnly={!canEdit}
           />
@@ -126,7 +124,14 @@ function DiagramEditorShell({ cabinetId, graph }: { cabinetId: string; graph: Di
           <EditorBody editor={editor} graph={graph} readOnly={!canEdit} />
         </div>
 
-        <UnsavedChangesBlocker isDirty={editor.isDirty} saveNow={editor.save.saveNow} />
+        {editor.pendingCreate && (
+          <CreateDeviceDialog
+            key={editor.pendingCreate.id}
+            request={editor.pendingCreate}
+            onSubmit={editor.submitPendingCreate}
+            onCancel={editor.cancelPendingCreate}
+          />
+        )}
       </DiagramCanvasProvider>
     </ReactFlowProvider>
   );
@@ -154,7 +159,8 @@ function EditorBody({ editor, graph, readOnly }: { editor: DiagramEditor; graph:
         ? {
             ...editor,
             addDeviceFromTemplate: () => {},
-            updateDevice: () => {},
+            saveDevice: async () => false,
+            updateDeviceLayout: () => {},
             updateConnection: () => {},
             deleteElements: () => {},
             duplicateDevice: () => {},

@@ -452,13 +452,13 @@ Hepsi `Backend/CabinetOs.Model/Entities/` altındadır. Audit alanları (`Create
 | `Rotation` / `ZIndex` / `IsLocked` / `IsVisible` | | çizim durumu |
 | `CabinetId` / `ComponentTemplateId` | `Guid` | ikisi de **insert-only** — farklı değer göndermek 400 |
 | `DeviceStatusId` | `int?` | telemetriyle yazılır |
-| `IpAddress` | `string?` | diyagram deltasından yazılır; benzersizlik kısıtı yok (kamerada zorunlu ve kabin içinde tekil — kayıtta doğrulanır) |
+| `IpAddress` | `string?` | diyagramın cihaz formundan yazılır; benzersizlik kısıtı yok (kamerada zorunlu ve kabin içinde tekil — kayıtta doğrulanır) |
 | `LastSeen` | `DateTime?` | bayat süpürücüsünün baktığı alan |
 | `IsActive` | `bool` | |
 
 > **`MacAddress` 2026-10-22'de `Device`'tan kalktı.** Tipe özgü alanlar 1-1 ek tablolardadır (aşağıda); `Device` yalnızca her cihazın ortak alanlarını taşır.
 
-**Device ek tabloları** — 1-1, **ortak birincil anahtar** (`DeviceId` hem PK hem `Device.Id`'ye FK, Restrict). Hangisinin dolu olduğunu `ComponentTemplate.DeviceTypeId` belirler; tutarlılığı DB değil yazım yolları doğrular. Yazım yolu diyagram deltası (`DeviceDraft.Camera` / `.ControlCard` / `.Pc`, `ValidateDeviceExtensions`); **kameranın bilgisi ayrıca kamera ekranından güncellenir** (`PUT /api/Camera`, `ConfigureSystem`, yalnızca aktif kamera). Cihaz oluşturma ve kaldırma (pasife alma) yalnızca diyagramdandır (2026-10-25) — diyagramda olmayan tanımlı cihaz yoktur.
+**Device ek tabloları** — 1-1, **ortak birincil anahtar** (`DeviceId` hem PK hem `Device.Id`'ye FK, Restrict). Hangisinin dolu olduğunu `ComponentTemplate.DeviceTypeId` belirler; tutarlılığı DB değil yazım yolları doğrular. Yazım yolu diyagramın cihaz uçları (`DeviceCreateRequest` / `DeviceUpdateRequest` `.Camera` / `.ControlCard` / `.Pc`, `DiagramService.Devices > ValidateDeviceAsync`); **kameranın bilgisi ayrıca kamera ekranından güncellenir** (`PUT /api/Camera`, `ConfigureSystem`, yalnızca aktif kamera). Cihaz oluşturma ve kaldırma (pasife alma) yalnızca diyagramdandır (2026-10-25) — diyagramda olmayan tanımlı cihaz yoktur.
 
 | Tablo | Tip | Alanlar | Not |
 |---|---|---|---|
@@ -953,7 +953,7 @@ MonitoredDeviceType  Camera, UPS, Switch, Router, …
 
 > `SNMPConfig`'in ayrı tablo olmasının gerekçesi hâlâ öğreticidir: (a) v3 parolaları ana tablodayken her `ToListAsync()` onları belleğe çekiyordu; (b) opsiyonel owned type'ta EF **tüm** kolonları nullable yapmak zorundadır ve "SNMP var mı" sorusu altı kolonun hepsinin null olup olmadığına bakılarak cevaplanır — ayrı tabloda soru **satırın varlığıyla** cevaplanır; (c) şifreleme ve `GRANT` tablo seviyesinde uygulanabilir.
 
-**Yeni bir izlenen tip gerekirse** (ör. UPS, NAS, alarm paneli): `MonitoredDevice`'ı diriltmeyin, ayrı kök tablo da açmayın (2026-10-22 kararı). Reçete: `DeviceType` değeri + sistem şablonu (RJ45 ucu → `IsMonitorable`) + tipe özgü alan varsa `Device` ile 1-1 ek tablo (ortak PK) + `DeviceDraft`'ta taslak nesnesi + `ValidateDeviceExtensions` / `WriteDeviceExtensions` + özellik panelinde bölüm. Yoklama ve kabin durumu ek kod istemez (`DeviceProbeSource`, `CabinetContribution`). Modüle ait bir tipse ek tablo modülün şemasında, `DeviceId` FK'siz durur.
+**Yeni bir izlenen tip gerekirse** (ör. UPS, NAS, alarm paneli): `MonitoredDevice`'ı diriltmeyin, ayrı kök tablo da açmayın (2026-10-22 kararı). Reçete: `DeviceType` değeri + sistem şablonu (RJ45 ucu → `IsMonitorable`) + tipe özgü alan varsa `Device` ile 1-1 ek tablo (ortak PK) + `DeviceUpdateRequest`'te taslak nesnesi + `ValidateDeviceAsync` / `WriteDeviceExtensions` (`DiagramService.Devices.cs`) + özellik panelinde bölüm. Yoklama ve kabin durumu ek kod istemez (`DeviceProbeSource`, `CabinetContribution`). Modüle ait bir tipse ek tablo modülün şemasında, `DeviceId` FK'siz durur.
 
 > **Bugün hiçbir yoklama servisi yok.** `POST /api/Camera/{id}/probe-result` kullanıcının yazacağı hedeftir; bugün `Camera.DeviceStatusId`'yi hiçbir şey yazmadığı için her kamera **"Yoklanmadı"** (`null`, ki bu `Offline` **değildir**) görünür.
 

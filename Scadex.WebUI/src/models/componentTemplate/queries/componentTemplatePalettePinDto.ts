@@ -4,10 +4,8 @@ import type { HandleSide, PinDirection, PinFunction, VoltageLevel } from '@/mode
 /**
  * Palet şablonunun pin şemasındaki tek bir pin.
  *
- * Cihaz bırakılırken istemci bu şemadan gerçek pinleri üretir
- * (`lib/diagram/instantiate-template-pins.ts`): her pin için yeni bir Guid doğar,
- * geri kalan alanlar buradan kopyalanır ve aynı kopyalamayı sunucu da kendi
- * tarafında yapar.
+ * Cihaz bırakılınca gerçek pinleri SUNUCU bu şemadan üretir ve oluşturma
+ * yanıtında döndürür (`POST …/devices`, 2026-10-27); istemci pin üretmez.
  */
 export interface ComponentTemplatePalettePinDto {
   /**

@@ -1,6 +1,6 @@
 /**
  * Saha cihazının (kontrol kartı, RemoteDesk PC'si) Basic Auth sırrı — 2026-10-25, MAC kimliğinin yerine. Kullanıcı adı cihazın Id'sidir.
- * Sırrı TARAYICI üretir ve diyagram deltasıyla gönderir; sunucu yalnızca biçimi zorlar ve SHA-256'sını saklar
+ * Sırrı TARAYICI üretir ve cihaz formunun Kaydet'iyle gönderir (`PUT …/devices/{id}`); sunucu yalnızca biçimi zorlar ve SHA-256'sını saklar
  * (`Scadex.Core/Utils/DeviceCredential.cs`). Biçim iki tarafta aynı olmalı: 32 küçük harf onaltılık karakter (128 bit).
  * `crypto.getRandomValues` güvenli bağlam istemez (düz HTTP'de de çalışır).
  */

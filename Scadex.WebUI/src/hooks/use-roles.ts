@@ -9,14 +9,12 @@ import {
   getRoleMembers,
   getRolePermissions,
   removeRoleMember,
-  savePermissionMatrix,
   syncRolePermissions,
   updateRole
 } from '@/api/role';
 import { permissionKeys, roleKeys, userKeys } from '@/api/query-keys';
 import { getCurrentUser } from '@/lib/auth-session';
 import type { RoleCreateRequest, RoleUpdateRequest } from '@/models/role';
-import type { RolePermissionMatrixItem } from '@/models/rolePermission';
 
 /** Yetki yazımı token'a girişte yansır; başarı bildirimleri bunu söyler. */
 export const RELOGIN_NOTICE = 'Değişiklik, ilgili kullanıcıların bir sonraki girişinde geçerli olur.';
@@ -47,7 +45,7 @@ export function usePermissions() {
   });
 }
 
-/** Her rol × izin kimlikleri — Yetki Matrisi ve kullanıcı Roller dialogundaki "etkin izinler" önizlemesi. */
+/** Her rol × izin kimlikleri — kullanıcı Roller dialogundaki "etkin izinler" önizlemesi. */
 export function usePermissionMatrix() {
   return useQuery({
     queryKey: roleKeys.matrix(),
@@ -110,19 +108,6 @@ export function useSyncRolePermissions() {
     onSuccess: () => {
       invalidate();
       toast.success('İzinler kaydedildi.', { description: RELOGIN_NOTICE });
-    }
-  });
-}
-
-/** Matris kaydı — yalnızca değişen roller gönderilir. Hata politikası ekranda (toast). */
-export function useSavePermissionMatrix() {
-  const invalidate = useInvalidateAuthorization();
-
-  return useMutation({
-    mutationFn: (items: RolePermissionMatrixItem[]) => savePermissionMatrix(items),
-    onSuccess: (_data, items) => {
-      invalidate();
-      toast.success(`${items.length} rolün izinleri kaydedildi.`, { description: RELOGIN_NOTICE });
     }
   });
 }

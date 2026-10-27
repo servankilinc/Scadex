@@ -14,7 +14,6 @@ import {
 } from '@/components/ui/context-menu';
 import { useSendCommand } from '@/hooks/use-device-commands';
 import { useDiagramCanvasContext } from '@/lib/diagram/canvas-context';
-import { useIsUnsaved } from '@/lib/diagram/unsaved-store';
 import type { DiagramDeviceDto } from '@/models/diagram';
 import type { DeviceCommandSendRequest } from '@/models/deviceCommand';
 import { DeviceCommandType, PinDirection } from '@/models/enums';
@@ -23,16 +22,14 @@ import { ConfirmDeleteDialog } from './confirm-delete';
 /**
  * Cihaza sağ tık menüsü: kumanda + düzenleme.
  *
- * **Menü, sunucunun ön kontrollerini ÖNCEDEN söyler.** Kaydedilmemiş bir
- * cihaza ya da SCADA'sı kapalı bir kabine komut göndermek başarısız olur; kullanıcıya
+ * **Menü, sunucunun ön kontrollerini ÖNCEDEN söyler.** SCADA'sı kapalı bir kabine
+ * komut göndermek başarısız olur; kullanıcıya
  * bir hata mesajı yerine sebebi menüde göstermek, tıklanabilir görünüp
  * başarısız olan bir menüden iyidir. Bu doğrulamanın YERİNE GEÇMEZ — sunucu
  * kontrolleri yerinde duruyor ve tek gerçek engel onlar.
  *
- * **Düzenleme bölümü kumanda engellense de görünür.** Engellerin en sık görüleni
- * "cihaz henüz kaydedilmedi" ve yanlışlıkla bırakılmış bir cihazı silmek isteme
- * ihtimalinin en yüksek olduğu an tam olarak orası. İki bölümü aynı koşula
- * bağlamak, yeni bırakılan cihazı menüden silinemez yapardı.
+ * **Düzenleme bölümü kumanda engellense de görünür.** İki bölümü aynı koşula
+ * bağlamak, SCADA'sı kapalı kabindeki cihazı menüden silinemez yapardı.
  *
  * Sözleşme: `Backend/docs/api-contract/08-scada-command.md`
  */
@@ -41,8 +38,6 @@ export function DeviceNodeMenu({ device, children }: { device: DiagramDeviceDto;
   const context = useDiagramCanvasContext();
   const send = useSendCommand(device.id);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
-  // Erken dönüşten ÖNCE: hook sırası koşullu olamaz.
-  const isUnsaved = useIsUnsaved(device.id);
 
   // İki bölüm de izne bağlı (kumanda `ControlOutput`, düzenleme `EditDiagram`); hiçbiri yoksa menü açılmaz.
   if (!context || (!context.canControl && !context.canEdit)) return <>{children}</>;
@@ -53,7 +48,7 @@ export function DeviceNodeMenu({ device, children }: { device: DiagramDeviceDto;
   // butonu görünür yapıp isteği hataya düşürürdü.
   const targets = device.ioChannels.filter(channel => channel.isEnabled && channel.direction === PinDirection.Output);
 
-  const blocker = findBlocker(context.scadaIsEnabled, isUnsaved);
+  const blocker = findBlocker(context.scadaIsEnabled);
 
   const dispatch = (request: DeviceCommandSendRequest) => send.mutate(request);
 
@@ -154,10 +149,7 @@ export function DeviceNodeMenu({ device, children }: { device: DiagramDeviceDto;
  * Sıra sunucudaki ön kontrol sırasıyla aynı tutuldu ki kullanıcı önce hangi
  * engelle karşılaşacaksa onu görsün.
  */
-function findBlocker(scadaIsEnabled: boolean, isUnsaved: boolean): string | null {
-  // Kaydedilmemişlik Id'den OKUNAMAZ (Guid'i istemci üretiyor); çağıran taraf
-  // `useIsUnsaved` ile okuyup buraya geçirir.
-  if (isUnsaved) return 'Cihaz henüz kaydedilmedi. Kaydettikten sonra kumanda gönderilebilir.';
+function findBlocker(scadaIsEnabled: boolean): string | null {
   if (!scadaIsEnabled) return 'Bu kabinde SCADA kapalı; kumanda gönderilemez.';
   return null;
 }
