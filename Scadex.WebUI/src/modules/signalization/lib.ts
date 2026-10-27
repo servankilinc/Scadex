@@ -27,7 +27,7 @@ export function formatDuration(totalSec: number | null | undefined): string {
   return hours > 0 ? `${hours}:${pad(minutes)}:${pad(seconds)}` : `${pad(minutes)}:${pad(seconds)}`;
 }
 
-/** `datetime-local` / `date` girdisi (yerel saat) → sunucunun beklediği UTC ISO. Boşsa `null`. */
+/** `DateTimePicker` değeri (`"YYYY-MM-DDTHH:mm"`, yerel saat) → sunucunun beklediği UTC ISO. Boşsa `null`. */
 export function localToUtcIso(local: string): string | null {
   if (!local) return null;
 

@@ -140,7 +140,7 @@ export default function SessionReport() {
           options={authorityOptions}
         />
         <ReportDateFilter id='report-from' label='Başlangıç' value={from} onChange={value => params.update({ from: value })} />
-        <ReportDateFilter id='report-to' label='Bitiş' value={to} onChange={value => params.update({ to: value })} />
+        <ReportDateFilter id='report-to' label='Bitiş' defaultTime='23:59' value={to} onChange={value => params.update({ to: value })} />
       </ReportFilterBar>
 
       {rangeError && <p className='text-sm text-destructive'>{rangeError}</p>}

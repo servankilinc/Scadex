@@ -1,10 +1,10 @@
 import { useMemo, useState } from 'react';
 import { ChevronLeftIcon, ChevronRightIcon, RotateCcwIcon } from 'lucide-react';
+import { DateTimePicker } from '@/components/custom/date-time-picker';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Field, FieldLabel } from '@/components/ui/field';
-import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useCabinets } from '@/hooks/use-cabinets';
@@ -149,12 +149,11 @@ export default function ChannelEvents() {
           <FieldLabel htmlFor='event-from'>Başlangıç</FieldLabel>
           {/* Yerel saat girilir, sunucuya UTC gider — sunucu `OccurredAtUtc`'yi
               UTC olarak saklıyor ve karşılaştırmayı damga üzerinden yapıyor. */}
-          <Input
+          <DateTimePicker
             id='event-from'
-            type='datetime-local'
             value={from}
-            onChange={e => {
-              setFrom(e.target.value);
+            onChange={value => {
+              setFrom(value);
               setPage(1);
             }}
           />
@@ -162,12 +161,12 @@ export default function ChannelEvents() {
 
         <Field className='w-full max-w-[13rem]'>
           <FieldLabel htmlFor='event-to'>Bitiş</FieldLabel>
-          <Input
+          <DateTimePicker
             id='event-to'
-            type='datetime-local'
+            defaultTime='23:59'
             value={to}
-            onChange={e => {
-              setTo(e.target.value);
+            onChange={value => {
+              setTo(value);
               setPage(1);
             }}
           />
@@ -299,7 +298,7 @@ function formatChannelLabel(channel: { deviceName: string; name: string; directi
   return `${channel.deviceName} · ${channel.name} (${PinDirectionLabels[channel.direction]} ${channel.channelNumber})`;
 }
 
-/** `datetime-local` girdisi (yerel saat) → sunucunun beklediği UTC ISO. Boşsa filtre yok. */
+/** `DateTimePicker` değeri (`"YYYY-MM-DDTHH:mm"`, yerel saat) → sunucunun beklediği UTC ISO. Boşsa filtre yok. */
 function localToUtcIso(local: string): string | null {
   if (!local) return null;
 

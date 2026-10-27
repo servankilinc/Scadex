@@ -2,6 +2,7 @@ import { useState, type ReactNode } from 'react';
 import { toast } from 'sonner';
 import { DownloadIcon, LoaderCircleIcon, RotateCcwIcon, SearchIcon } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { DateTimePicker } from '@/components/custom/date-time-picker';
 import { Card, CardContent } from '@/components/ui/card';
 import { Field, FieldLabel } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
@@ -107,12 +108,24 @@ export function ReportSearchFilter({ id, label, value, onChange, placeholder }: 
   );
 }
 
-/** Yerel tarih-saat girilir; sunucuya UTC gider (`localToUtcIso`). */
-export function ReportDateFilter({ id, label, value, onChange }: { id: string; label: string; value: string; onChange: (value: string) => void }) {
+/** Yerel tarih-saat girilir; sunucuya UTC gider (`localToUtcIso`). Aralığın sonu için `defaultTime='23:59'`. */
+export function ReportDateFilter({
+  id,
+  label,
+  value,
+  onChange,
+  defaultTime
+}: {
+  id: string;
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+  defaultTime?: string;
+}) {
   return (
     <Field className={FIELD_CLASS}>
       <FieldLabel htmlFor={id}>{label}</FieldLabel>
-      <Input id={id} type='datetime-local' value={value} onChange={e => onChange(e.target.value)} />
+      <DateTimePicker id={id} value={value} onChange={onChange} defaultTime={defaultTime} />
     </Field>
   );
 }

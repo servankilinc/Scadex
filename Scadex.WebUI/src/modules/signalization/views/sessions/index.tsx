@@ -1,11 +1,11 @@
 import { useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router';
 import { CameraIcon, ChevronLeftIcon, ChevronRightIcon, RotateCcwIcon, SirenIcon } from 'lucide-react';
+import { DateTimePicker } from '@/components/custom/date-time-picker';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Field, FieldLabel } from '@/components/ui/field';
-import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useCabinets } from '@/hooks/use-cabinets';
@@ -276,24 +276,23 @@ function SessionHistory() {
 
         <Field className='w-full max-w-[13rem]'>
           <FieldLabel htmlFor='session-from'>Başlangıç</FieldLabel>
-          <Input
+          <DateTimePicker
             id='session-from'
-            type='datetime-local'
             value={from}
-            onChange={e => {
-              setFrom(e.target.value);
+            onChange={value => {
+              setFrom(value);
               setPage(1);
             }}
           />
         </Field>
         <Field className='w-full max-w-[13rem]'>
           <FieldLabel htmlFor='session-to'>Bitiş</FieldLabel>
-          <Input
+          <DateTimePicker
             id='session-to'
-            type='datetime-local'
+            defaultTime='23:59'
             value={to}
-            onChange={e => {
-              setTo(e.target.value);
+            onChange={value => {
+              setTo(value);
               setPage(1);
             }}
           />

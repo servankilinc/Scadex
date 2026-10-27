@@ -27,6 +27,7 @@
     "maplibre-gl": "^6.6.0",
     "pmtiles": "^4.5.0",
     "react": "^19.2.8",
+    "react-day-picker": "^10.0.2",
     "react-dom": "^19.2.8",
     "react-hook-form": "^7.85.0",
     "react-redux": "^9.3.0",
