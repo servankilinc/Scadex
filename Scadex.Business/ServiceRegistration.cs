@@ -47,6 +47,7 @@ public static class ServiceRegistration
 
         // Yoklanabilir her entity servisi için buraya bir kayıt ekle;
         services.AddScoped<IMonitoredAssetProbeSource, DeviceProbeSource>();
+        services.AddScoped<IMonitoredAssetProbeSource, ControlCardProbeSource>();     // kontrol karti: TCP/ICMP yerine /status okumasi + kanal senkronu
 
         #region KAMERA / MEDYA
         services.AddSingleton<ICameraProtocolProfile, HikvisionProtocolProfile>();

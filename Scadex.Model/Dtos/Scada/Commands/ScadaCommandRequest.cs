@@ -16,5 +16,5 @@ namespace Scadex.Model.Dtos.Scada.Commands;
 public sealed record ScadaCommandRequest(
     int ChannelNumber,
     string? Value,
-    int? Delay = null
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] int? Delay = null
 );

@@ -22,7 +22,12 @@ public interface IChannelEventService
     /// <summary>
     /// Kabinin kartını okur (<c>GET {ScadaBaseUrl}/status</c>) ve değeri değişen kanalları ingest'le aynı yoldan yazar
     /// (kaynak <c>Sync</c>: sinyalizasyon motoru bunları olay olarak işlemez). Kartın bildirmediği kanala dokunulmaz.
-    /// Kart yanıt vermezse kontrol modülü Offline'a çekilir ve sonuç başarısızdır. Yeniden deneme yoktur.
+    /// Kartın kendisinden gelen başarısızlık (hata yanıtı / yanıt yok) <c>Result</c> hatası DEĞİLDİR, <c>ScadaSyncResultDto.Status</c>'te döner;
+    /// yanıt yoksa kontrol modülü Offline'a çekilir. <c>Result</c> hatası yalnızca kabin/SCADA yapılandırması içindir. Yeniden deneme yoktur.
     /// </summary>
-    Task<Result<ScadaSyncResultDto>> SyncFromScadaAsync(Guid cabinetId, CancellationToken cancellationToken = default);
+    /// <param name="timeout">
+    /// Verilmezse kabinin komut zaman aşımı (<c>IScadaCommandGateway.RequestTimeout</c>, 5 sn – 3 dk). İzleme turu kısa bir süre verir:
+    /// worker kaynakları sırayla yoklar, yanıtsız bir kart tüm turu kabinin komut süresi kadar bekletmesin.
+    /// </param>
+    Task<Result<ScadaSyncResultDto>> SyncFromScadaAsync(Guid cabinetId, TimeSpan? timeout = null, CancellationToken cancellationToken = default);
 }

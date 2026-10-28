@@ -13,7 +13,7 @@ namespace Scadex.Business.Concrete;
 public partial class ChannelEventService
 {
     /// <inheritdoc />
-    public async Task<Result<ScadaSyncResultDto>> SyncFromScadaAsync(Guid cabinetId, CancellationToken cancellationToken = default)
+    public async Task<Result<ScadaSyncResultDto>> SyncFromScadaAsync(Guid cabinetId, TimeSpan? timeout = null, CancellationToken cancellationToken = default)
     {
         // 1) Kabin ve SCADA yapılandırması
         var cabinet = await _unitOfWork.Cabinets.GetAsync(
@@ -31,7 +31,7 @@ public partial class ChannelEventService
 
         // 2) Kart okunur (tüm kanallar). Yeniden deneme yok. Okuma başlamadan önceki an, aradaki yazımları ayırt etmek için (4. adım).
         var readStartedAt = DateTime.UtcNow;
-        var outcome =await _scadaCommandGateway.ReadStatusAsync(cabinet.ScadaBaseUrl, null, IScadaCommandGateway.RequestTimeout(cabinet.ScadaCommandTimeoutMs));
+        var outcome = await _scadaCommandGateway.ReadStatusAsync(cabinet.ScadaBaseUrl, null, timeout ?? IScadaCommandGateway.RequestTimeout(cabinet.ScadaCommandTimeoutMs));
 
 
         // 3) Canlılık: komuttaki kuralın aynısı — yanıt verdiyse temas, zaman aşımı / bağlantı hatası ise kayıp.
@@ -40,8 +40,9 @@ public partial class ChannelEventService
         else if (outcome.Status == CommandStatus.NoResponse)
             await _cabinetStatusService.RecordScadaUnreachableAsync(cabinet.Id, outcome.Message, CancellationToken.None);
 
+        // Kartın kendisinden gelen başarısızlık hata değildir (komut sonucuyla aynı sözleşme): Status'te döner.
         if (outcome.Status != CommandStatus.Succeeded)
-            return Result<ScadaSyncResultDto>.Failure(outcome.Message, outcome.Message);
+            return Result<ScadaSyncResultDto>.Success(new ScadaSyncResultDto { Status = outcome.Status, Message = outcome.Message, SyncedAtUtc = DateTime.UtcNow });
 
 
         // 4) Kartın bildirdiği her kanal kabinin etkin kanalıyla (tip + numara) eşlenir. Kartın BİLDİRMEDİĞİ kanala dokunulmaz:
@@ -90,6 +91,7 @@ public partial class ChannelEventService
 
         return Result<ScadaSyncResultDto>.Success(new ScadaSyncResultDto
         {
+            Status = CommandStatus.Succeeded,
             ReadCount = outcome.Values!.Count,
             ChangedCount = changed,
             UnmatchedCount = unmatched,

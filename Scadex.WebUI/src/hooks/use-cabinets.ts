@@ -4,6 +4,7 @@ import { createCabinet, getCabinetList, getCabinetUpdateModel, syncCabinetFromSc
 import { toApiError } from '@/lib/axios-helper';
 import { cabinetKeys } from '@/api/query-keys';
 import type { CabinetCreateRequest, CabinetUpdateRequest } from '@/models/cabinet';
+import { CommandStatus, CommandStatusLabels } from '@/models/enums';
 
 /** Kabin kartları listesi — diyagram editörünün giriş noktası. */
 export function useCabinets() {
@@ -69,16 +70,27 @@ export function useUpdateCabinet() {
 /**
  * Diyagramdaki "Kartı oku" (`POST /api/Cabinet/{id}/scada-sync`). Önbellek GÜNCELLENMEZ: değişen kanal değerleri sunucudan
  * `DiagramHub` `ChannelValuesChanged` ile tuvale gelir, kontrol modülünün durumu da aynı yoldan. Burada yalnızca özet bildirilir.
- * Kart yanıt vermezse sunucu kontrol modülünü Offline'a çeker ve hata döner.
+ *
+ * **`onSuccess` "kart okundu" DEMEK DEĞİLDİR** (`useSendCommand` ile aynı): kartın hatası / yanıtsızlığı 200 + `status` ile gelir.
+ * Yanıt yoksa sunucu kontrol modülünü Offline'a çeker.
  */
 export function useScadaSync(cabinetId: string) {
   return useMutation({
     mutationFn: () => syncCabinetFromScada(cabinetId),
     onSuccess: result => {
+      if (result.status !== CommandStatus.Succeeded) {
+        toast.error(`Kart okunamadı — ${CommandStatusLabels[result.status]}`, {
+          description: result.message ?? (result.status === CommandStatus.NoResponse ? 'SCADA yanıt vermedi.' : undefined),
+          duration: 8000
+        });
+        return;
+      }
+
       const parts = [`${result.readCount} kanal okundu`, result.changedCount === 0 ? 'değişen yok' : `${result.changedCount} değişti`];
       if (result.unmatchedCount > 0) parts.push(`${result.unmatchedCount} kanalın diyagramda karşılığı yok`);
       toast.success('Kart okundu', { description: parts.join(', ') + '.' });
     },
+    // Yalnızca yapılandırma (SCADA kapalı / adres yok / kabin yok) ve ağ hatası.
     onError: error => toast.error('Kart okunamadı', { description: toApiError(error).message, duration: 8000 })
   });
 }

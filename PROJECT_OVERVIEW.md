@@ -454,15 +454,15 @@ Kabindeki öncelik: Offline > Warning > Maintenance > Online; hiç katkı yoksa 
 *Bağlantı kontrolü — izlenen cihaz* ("izleniyor" = `IsMonitoringEnabled` ve şablon `IsMonitorable`). Kamera 2026-10-22'den
 beri bir cihazdır ve aynı tabloya girer (`CameraProbeSource` kalktı); kamerada boş port kayıtta markanın RTSP portuyla dolar.
 
-| | Cihaz (`DeviceProbeSource`, kameralar dahil) |
-|---|---|
-| Yoklanma şartı | Aktif, izleme açık, şablon izlenebilir, IP dolu, kabin aktif |
-| Port / periyot | `MonitoringPort` (isteğe bağlı; boşsa ping), `PingIntervalSec` (varsayılan 300) |
-| Yöntem | Port varsa TCP connect, yoksa ICMP ping (2026-10-12); 3 sn zaman aşımı, `MonitoredAssetProbeWorker` 30 sn'de bir tur |
-| Başarılı | `LastSeen`, hata temizlenir; `null`/Offline → **Online** (Warning/Maintenance korunur) |
-| Başarısız | Hata yazılır; **ilk** denemede `null`/Online → **Offline** |
-| Başka kanıt | Yalnızca **kontrol kartı**: ingest (tanımsız kanal dahil), kart okuma, başarılı komut → Online; komut `NoResponse` → **anında** Offline (`Failed` dokunmaz) |
-| Yayın | `DeviceStatusChanged` (kabin grubu) + kabin yeniden hesabı |
+| | Cihaz (`DeviceProbeSource`, kameralar dahil, kontrol kartı hariç) | Kontrol kartı (`ControlCardProbeSource`, 2026-10-28) |
+|---|---|---|
+| Yoklanma şartı | Aktif, izleme açık, şablon izlenebilir, IP dolu, kabin aktif | Aynı + kabinin SCADA'sı açık ve adresi dolu |
+| Port / periyot | `MonitoringPort` (isteğe bağlı; boşsa ping), `PingIntervalSec` (varsayılan 300) | Port kullanılmaz; `PingIntervalSec` |
+| Yöntem | Port varsa TCP connect, yoksa ICMP ping (2026-10-12); 3 sn zaman aşımı, `MonitoredAssetProbeWorker` 30 sn'de bir tur | Kabinin SCADA adresine `GET /status` (`SyncFromScadaAsync`): canlılık + kanal senkronu; zaman aşımı `Monitoring:ProbeTimeoutMs` (3 sn) |
+| Başarılı | `LastSeen`, hata temizlenir; `null`/Offline → **Online** (Warning/Maintenance korunur) | Aynı. Kartın **hata yanıtı** da (4xx/5xx) başarılı sayılır — kart ayaktadır |
+| Başarısız | Hata yazılır; **ilk** denemede `null`/Online → **Offline** | Yalnızca yanıt yok / bağlantı hatası |
+| Başka kanıt | — | Ingest (tanımsız kanal dahil), kart okuma, başarılı komut, "Kartı oku" → Online; komut/okuma `NoResponse` → **anında** Offline (`Failed` dokunmaz) |
+| Yayın | `DeviceStatusChanged` (kabin grubu) + kabin yeniden hesabı | Aynı + değişen kanallar `ChannelValuesChanged` |
 
 *İzleme kapalıyken*
 
@@ -926,8 +926,10 @@ mount + `key` ile tazelenmesi.
 `MonitoredAssetProbeWorker` (WebAPI/BackgroundServices) `StatusCleanupWorker` (eski adı `OfflineDeviceChecker`) kalıbını izler.
 **Tipe özel değildir:** kayıtlı her `IMonitoredAssetProbeSource` üzerinden döner, tipleri hiç
 bilmez. Yeni bir izlenen tip eklemek = yeni bir kaynak implementasyonu + tek satırlık DI kaydı;
-worker değişmez. Tek kaynak (2026-09-24) `DeviceProbeSource` — izlemesi açık ve şablonu `IsMonitorable` olan diyagram
-cihazları (kameralar dahil; `CameraProbeSource` 2026-10-22'de kalktı); sonucu `ICabinetStatusService` yazar.
+worker değişmez. Kaynaklar: `DeviceProbeSource` (2026-09-24) — izlemesi açık ve şablonu `IsMonitorable` olan diyagram
+cihazları (kameralar dahil; `CameraProbeSource` 2026-10-22'de kalktı), kontrol kartı hariç; `ControlCardProbeSource` (2026-10-28) —
+kontrol kartı, kendi sondasıyla (`TryProbeAsync`: kartın `/status` okuması, `null` dönen kaynakta worker TCP/ICMP yapar). Sonucu
+`ICabinetStatusService` yazar.
 
 Alınan kararlar:
 

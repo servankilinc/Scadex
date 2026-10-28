@@ -410,8 +410,14 @@ Bunlar tek bir dosyaya bakarak görülemez; gerekçeleri PROJECT_OVERVIEW.md §5
   `MonitoringPort` doluysa **TCP connect**, boşsa **ICMP ping** yapar (2026-10-12; eskiden ICMP dalı yoktu ve
   portsuz varlık atlanırdı). Ping yalnızca "makine ağda" der — hizmetin ayakta olduğunu TCP kanıtlar; ICMP'si
   kapalı hedef sağlamken Çevrimdışı görünür, ona port girilir. Kamerada boş port kayıtta markanın RTSP portuyla
-  dolar (ping'e düşmez). Buraya "şimdi dene" tarzı bir uç eklemeyin. Tek kaynak `DeviceProbeSource`'tur
-  (2026-09-24 — `Device : IMonitoredAsset`; yalnızca izlemesi açık **ve** şablonu `ComponentTemplate.IsMonitorable` olan cihaz).
+  dolar (ping'e düşmez). Buraya "şimdi dene" tarzı bir uç eklemeyin. İki kaynak var: `DeviceProbeSource`
+  (2026-09-24 — `Device : IMonitoredAsset`; yalnızca izlemesi açık **ve** şablonu `ComponentTemplate.IsMonitorable` olan cihaz, kontrol
+  kartı HARİÇ) ve **`ControlCardProbeSource` (2026-10-28)**: kontrol kartı TCP/ICMP yerine kabinin SCADA adresindeki okuma ucuyla yoklanır
+  (`IMonitoredAssetProbeSource.TryProbeAsync` → `IChannelEventService.SyncFromScadaAsync`; varsayılan gövde `null` = worker TCP/ICMP yapar).
+  Her tur hem canlılık hem kanal senkronudur. Zaman aşımı kabinin komut süresi DEĞİL `Monitoring:ProbeTimeoutMs`'tir (worker kaynakları
+  sırayla yoklar). Kart **hata yanıtı** verirse (ör. `/status`'u bilmeyen eski firmware 404) ayakta sayılır — yalnızca yanıtsızlık Offline'dır,
+  yoksa ingest'le Online / turla Offline arasında gidip gelirdi. SCADA'sı kapalı / adresi boş kabinin kartı yoklanmaz. Senkron sonucu bu yüzden
+  komut gibi 200 + `ScadaSyncResultDto.Status` döner; `Result` hatası yalnızca yapılandırma içindir.
   `CameraProbeSource` 2026-10-22'de kalktı: kamera bir cihazdır ve aynı kaynakla yoklanır. Worker son sonda anı olarak sondanın
   bitişini yazar (bilinçli); `PingIntervalSec` tur aralığının tam katıysa hedef bir tur geç
   yoklanır (60 sn → fiilen 90 sn).

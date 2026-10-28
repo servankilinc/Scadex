@@ -73,10 +73,11 @@ public class MonitoredAssetProbeWorker : BackgroundService
                 alive.Add(target.Id);
                 if (!IsDue(target, now)) continue;
 
-                // Port varsa TCP connect (hizmet ayakta mi), yoksa ICMP ping (makine agda mi)
-                var result = target.MonitoringPort is { } port
-                    ? await ProbeTcpAsync(target.IpAddress, port, stoppingToken)
-                    : await ProbeIcmpAsync(target.IpAddress, stoppingToken);
+                // Kaynagin kendi sondasi (kontrol karti: /status okumasi) yoksa port varsa TCP connect (hizmet ayakta mi), yoksa ICMP ping (makine agda mi)
+                var result = await source.TryProbeAsync(target, stoppingToken)
+                    ?? (target.MonitoringPort is { } port
+                        ? await ProbeTcpAsync(target.IpAddress, port, stoppingToken)
+                        : await ProbeIcmpAsync(target.IpAddress, stoppingToken));
                 _lastProbedAt[target.Id] = DateTime.UtcNow;
 
                 var writeResult = await source.RecordProbeResultAsync(target.Id, result, stoppingToken);

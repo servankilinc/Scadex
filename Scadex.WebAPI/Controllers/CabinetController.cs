@@ -42,7 +42,7 @@ public class CabinetController : BaseController
     [RequirePermission(Permission.ViewDiagram)]
     public async Task<IActionResult> SyncFromScada(Guid id, CancellationToken cancellationToken)
     {
-        var result = await _channelEventService.SyncFromScadaAsync(id, cancellationToken);
+        var result = await _channelEventService.SyncFromScadaAsync(id, cancellationToken: cancellationToken);
         return ToAction(result);
     }
     #endregion

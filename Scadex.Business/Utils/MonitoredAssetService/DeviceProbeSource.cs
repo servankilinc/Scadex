@@ -3,6 +3,7 @@ using Scadex.Core.Utils.ResultPattern;
 using Scadex.DataAccess.UoW;
 using Scadex.Model.Dtos.Monitoring.Commands;
 using Scadex.Model.Dtos.Monitoring.Queries;
+using DeviceType = Scadex.Model.Enums.EntityEnums.DeviceType;
 
 namespace Scadex.Business.Utils.MonitoredAssetService;
 
@@ -33,8 +34,10 @@ public class DeviceProbeSource : IMonitoredAssetProbeSource
                 MonitoringPort = d.MonitoringPort,
                 PingIntervalSec = d.PingIntervalSec
             },
-            // ComponentTemplate izlenebilir degilse cihazdaki bool alan yok say
-            where: d => d.IsActive && d.IsMonitoringEnabled && d.ComponentTemplate!.IsMonitorable && d.IpAddress != null && d.IpAddress != "" && d.Cabinet!.IsActive,
+            // ComponentTemplate izlenebilir degilse cihazdaki bool alan yok say. Kontrol karti burada DEGIL: ControlCardProbeSource onu
+            // kartin okuma ucuyla yoklar (ayni cihaz iki kez yoklanmasin).
+            where: d => d.IsActive && d.IsMonitoringEnabled && d.ComponentTemplate!.IsMonitorable && d.IpAddress != null && d.IpAddress != "" && d.Cabinet!.IsActive
+                && d.ComponentTemplate.DeviceTypeId != (int)DeviceType.ControlModule,
             cancellationToken: cancellationToken
         ) ?? [];
 

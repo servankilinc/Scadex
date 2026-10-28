@@ -95,7 +95,12 @@ export function DeviceForm({ node, editor, readOnly }: { node: DeviceNode; edito
         {/* İzleme yalnızca izlenebilir şablonda (`template.isMonitorable`) sunulur — klemensin, sigortanın yoklanacak bir ağı
             yok. Şablon izlenemezken izleme bir şekilde açık kalmışsa bölüm yine görünür ki kapatılabilsin. */}
         {(device.template.isMonitorable || draft.isMonitoringEnabled) && (
-          <MonitoringFields draft={draft} lastConnectionError={device.lastConnectionError} onChange={onChange} />
+          <MonitoringFields
+            draft={draft}
+            isControlCard={device.template.deviceTypeId === DeviceType.ControlModule}
+            lastConnectionError={device.lastConnectionError}
+            onChange={onChange}
+          />
         )}
       </div>
 
@@ -390,13 +395,18 @@ function CredentialSection({
  *
  * Kurallar sunucudaki `DeviceUpdateRequestValidator`'ın ELLE tutulan aynasıdır: port 1..65535 (boş bırakılabilir), periyot
  * 5..86400 sn, izleme açıkken IP zorunlu. Eksik IP burada engellenmez, yalnızca işaretlenir — son söz kaydetmede sunucunundur.
+ *
+ * **Kontrol kartı farklıdır (2026-10-28):** TCP/ICMP yerine kabinin SCADA adresindeki okuma ucu çağrılır (`GET /status`,
+ * `ControlCardProbeSource`): her tur hem canlılık hem kanal senkronudur. Port kullanılmaz, gösterilmez.
  */
 function MonitoringFields({
   draft,
+  isControlCard,
   lastConnectionError,
   onChange
 }: {
   draft: DeviceProperties;
+  isControlCard: boolean;
   lastConnectionError: string | null;
   onChange: (patch: Partial<DeviceProperties>) => void;
 }) {
@@ -415,21 +425,28 @@ function MonitoringFields({
       {draft.isMonitoringEnabled && (
         <>
           <div className='grid grid-cols-2 gap-2'>
-            <Field label='Port (boş = ping)' htmlFor='device-monitoring-port'>
-              <OptionalNumberInput
-                id='device-monitoring-port'
-                value={draft.monitoringPort}
-                min={1}
-                max={65535}
-                onCommit={monitoringPort => onChange({ monitoringPort })}
-              />
-            </Field>
+            {!isControlCard && (
+              <Field label='Port (boş = ping)' htmlFor='device-monitoring-port'>
+                <OptionalNumberInput
+                  id='device-monitoring-port'
+                  value={draft.monitoringPort}
+                  min={1}
+                  max={65535}
+                  onCommit={monitoringPort => onChange({ monitoringPort })}
+                />
+              </Field>
+            )}
             <Field label='Periyot (sn)' htmlFor='device-ping-interval'>
               <NumberInput id='device-ping-interval' value={draft.pingIntervalSec} min={5} max={86400} onCommit={pingIntervalSec => onChange({ pingIntervalSec })} />
             </Field>
           </div>
           {missingTarget ? (
             <p className='text-destructive text-[10px]'>İzleme için IP adresi gerekli; eksikse kaydetme reddedilir.</p>
+          ) : isControlCard ? (
+            <p className='text-muted-foreground text-[10px]'>
+              Her periyotta kabinin SCADA adresinden kartın kanal değerleri okunur (/status): kart yanıt vermezse Çevrimdışı sayılır ve kabin
+              Çevrimdışı'na geçer; değeri farklı çıkan kanallar düzeltilir. SCADA'sı kapalı kabinde yoklama yapılmaz.
+            </p>
           ) : (
             <p className='text-muted-foreground text-[10px]'>
               {usesPing

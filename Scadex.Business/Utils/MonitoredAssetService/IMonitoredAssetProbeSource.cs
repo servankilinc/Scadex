@@ -15,4 +15,11 @@ public interface IMonitoredAssetProbeSource
 
     /// <summary> Yoklama sonucunu ilgili entitye yazar. </summary>
     Task<Result> RecordProbeResultAsync(Guid assetId, MonitoredAssetProbeResultDto result, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Tipe özel sonda. <c>null</c> = kaynağın kendi sondası yok, worker varsayılanı uygular (port varsa TCP connect, yoksa ICMP ping).
+    /// Kontrol kartı bunu kartın okuma ucuyla (<c>GET /status</c>) yapar: hem canlılık hem kanal senkronu.
+    /// </summary>
+    Task<MonitoredAssetProbeResultDto?> TryProbeAsync(MonitoredAssetProbeTargetDto target, CancellationToken cancellationToken = default) =>
+        Task.FromResult<MonitoredAssetProbeResultDto?>(null);
 }
