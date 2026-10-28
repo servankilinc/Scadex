@@ -92,9 +92,11 @@ Content-Type: application/json
 |---|---|---|---|
 | `channelNumber` | int | Evet | Çıkış numarası (röle 1–16, LED 17–24) |
 | `value` | string | Evet | `"1"` aç, `"0"` kapat |
-| `delay` | int | Hayır | Komutu uygulamadan önce beklenecek süre, saniye. Yoksa ya da `0` ise hemen uygulanır. Scadex şimdilik göndermez |
+| `delay` | int | Hayır | Saniye. Verilirse komut **hemen** uygulanır, bu süre kadar beklenir ve çıkış **eski hâline geri alınır**. Yoksa ya da `0` ise çıkış yeni değerde kalır. Scadex şimdilik göndermez |
 
-Kimlik yok. `delay` verildiğinde yanıt bekleme bitince değil, **komut kabul edilince** döner (Merkezin zaman aşımına takılmasın).
+Örnek: `{ "channelNumber": 5, "value": "0", "delay": 10 }` → 5 numaralı çıkışa bağlı cihazın gücü kesilir, 10 sn sonra yeniden verilir (cihaz yeniden başlatılır).
+
+Kimlik yok. `delay` verildiğinde yanıt bekleme bitince değil, **komut uygulanınca** döner (Merkezin zaman aşımına takılmasın).
 
 SCADA'nın döneceği:
 

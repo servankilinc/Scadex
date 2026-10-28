@@ -856,7 +856,7 @@ Her kabinde bir kontrol kartı vardır. Kart ekibine verilen sözleşme: [Docs/s
 | Yön | İstek | Kimlik |
 |---|---|---|
 | Kart → Scadex | `POST /api/Scada/ingest` (giriş/analog değer), `POST /api/Scada/card` (kart okuma) | **`DeviceId: <MAC>` header'ı** |
-| Scadex → Kart | `GET {kabinin SCADA adresi}/updat?output=<n>&state=<0\|1>` (çıkış komutu) | Yok |
+| Scadex → Kart | `POST {kabinin SCADA adresi}/command` + `{ "channelNumber": <n>, "value": "<0\|1>" }` (çıkış komutu) | Yok |
 
 **Diyagramda kimlik bilgisi:**
 

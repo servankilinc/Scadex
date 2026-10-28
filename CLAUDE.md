@@ -538,7 +538,10 @@ Bir şeyin çalıştığını varsaymadan önce doğrulayın:
   Gerçek sözleşme `{ type: "I"|"A", channelNumber, value, timestampUtc }` (`ScadaIngestRequest`) + `DeviceId: <MAC>` header'ı.
   Handler kartın `CabinetId`'sini `cabinet_id` claim'ine yazar, `ScadaController` onu `IChannelEventService.IngestAsync(cabinetId, …)`'a
   verir; header'sız / eşleşmeyen MAC'li istek 401'dir. `ScadaPinAddress.CheckAndParseIngestPin` yalnızca `"I"` ve `"A"`
-  kabul eder; `IN<n>`/`OUT<n>` metni yalnızca **giden** komut gövdesinde (`Format`) kullanılır.
+  kabul eder; `IN<n>`/`OUT<n>` metni (`ScadaPinAddress.Format`) yalnızca ekran ve günlük içindir — tele çıkmaz. **Giden komut
+  (2026-10-28):** `POST {ScadaBaseUrl}/command` + `{ channelNumber, value }` (`ScadaCommandRequest`, Docs/scada-http-api.md § 3);
+  `delay` (sn; kart çıkışı uygular, bekler, ESKİ hâline döndürür — güç döngüsü, gecikmeli başlatma değil) modelde durur ama
+  bugün gönderilmez; `null` tele hiç çıkmaz (`JsonIgnore WhenWritingNull`).
 - **Kart okuma ayrı bir uçtur: `POST /api/Scada/card` → `{ cardId, timestampUtc }`
   (2026-09-11).** Kart numarası ölçüm değildir: `IoChannel`'a yazılmaz, `ChannelEvent` üretmez;
   çekirdeğin yazdığı tek şey SCADA temasıdır (kontrol modülü + kabin `LastSeen`, 2026-09-24).

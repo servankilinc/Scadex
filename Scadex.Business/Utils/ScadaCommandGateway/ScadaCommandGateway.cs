@@ -1,3 +1,4 @@
+using System.Net.Http.Json;
 using System.Text;
 using Scadex.Core.Utils;
 using Scadex.Model.Dtos.Scada.Commands;
@@ -26,12 +27,13 @@ public class ScadaCommandGateway : IScadaCommandGateway
             #region Http request and read body
             var client = _httpClientFactory.CreateClient(IScadaCommandGateway.HttpClientName);
 
-            // using var response = await client.PostAsJsonAsync($"{baseUrl.TrimEnd('/')}/command", envelope, ProjectJsonOptions.SerializerOptions, timeoutToken);
-            string url = $"{baseUrl.TrimEnd('/')}/updat" +
-                         $"?output={envelope.ChannelNumber}" +
-                         $"&state={Uri.EscapeDataString(envelope.Value ?? string.Empty)}";
-
-            using var response = await client.GetAsync(url, timeoutToken);
+            // POST {ScadaBaseUrl}/command + { channelNumber, value } (Docs/scada-http-api.md § 3)
+            using var response = await client.PostAsJsonAsync(
+                $"{baseUrl.TrimEnd('/')}/command",
+                new ScadaCommandRequest(envelope.ChannelNumber, envelope.Value),
+                ProjectJsonOptions.SerializerOptions,
+                timeoutToken
+            );
             await using var stream = await response.Content.ReadAsStreamAsync(timeoutToken);
 
             var buffer = new byte[512]; // en fazla 512 byte okuyup mesajı kısaltacağız. SCADA'nın uzun hata mesajları olabilir.

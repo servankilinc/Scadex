@@ -17,13 +17,13 @@ public class ScadaCommandEnvelope : IDto
     public Guid CommandId { get; set; }
 
 
-    /// <summary> Hedef nokta numarasi — kartin <c>output=</c> parametresine ham olarak gider. Adresler örenğin: <c>1-16</c> role, <c>17-24</c> LED. </summary>
+    /// <summary> Hedef nokta numarasi — gövdedeki <c>channelNumber</c>'a ham olarak gider. Adresler örenğin: <c>1-16</c> role, <c>17-24</c> LED. </summary>
     public int ChannelNumber { get; set; }
 
     /// <summary>Tele cikmaz: tek komut turu (<c>SetOutput</c>) old icin kartin ayrica bilmesine gerek yok.</summary>
     public EntityEnums.DeviceCommandType CommandType { get; set; }
 
-    /// <summary>Kartin <c>state=</c> parametresine giden deger. NO/NC cozumu ustte yapilmistir; burada tersleme YOKTUR.</summary>
+    /// <summary>Gövdedeki <c>value</c>'ya giden deger (<c>"1"</c> / <c>"0"</c>). NO/NC cozumu ustte yapilmistir; burada tersleme YOKTUR.</summary>
     public string? Value { get; set; }
 
     /// <summary>Tele cikmaz. Komutun SUNUCUDA olustugu an.</summary>

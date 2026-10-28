@@ -388,16 +388,16 @@ yanıtımızı beklerken aynı kartın web sunucusunu çağırmak tek iş parça
   `NoResponse`'u `Failed`'dan ayırt edilebilir kılan şey budur.
 - Eşleme: 2xx → `Succeeded`, 4xx/5xx → `Failed` (gövde `ResultMessage`'a), zaman aşımı /
   bağlantı hatası → `NoResponse`. **Resilience/retry handler'ı bilerek kayıtlı değildir.**
-- Komut, kartın kendi web sunucusuna **query string ile** gider — gövde yoktur:
-  `GET {ScadaBaseUrl}/updat?output=<kanal>&state=<0|1>`. Yoldaki `/updat` yazımı firmware'de
-  böyledir, `/update` değildir.
+- Komut, kartın kendi web sunucusuna JSON gövdeyle gider (2026-10-28, [Docs/scada-http-api.md](Docs/scada-http-api.md) § 3):
+  `POST {ScadaBaseUrl}/command` + `{ "channelNumber": 5, "value": "1" }` (`ScadaCommandRequest`). Sözleşmedeki isteğe bağlı
+  `delay` (kart çıkışı uygular, `delay` sn bekler, eski hâline döndürür — güç döngüsü) modelde durur ama gönderilmez. Önceki biçim `GET {ScadaBaseUrl}/updat?output=<kanal>&state=<0|1>` idi.
 - Tele yalnızca **kanal numarası ve değer** çıkar. `ScadaCommandEnvelope`'un taşıdığı
   `cabinetId` (bir kabin = bir kart olduğu için adreste örtük), `commandId`, `commandType` ve
   `issuedAtUtc` karta gitmez; `DeviceCommand` satırında kayıt altında kalır. `commandId`'nin
   tekrar tespiti anlamı, araya böyle bir kontrol yapan bir SCADA katmanı girerse doğar —
   bugün ne o katman ne de retry vardır.
 - Değerdeki NO/NC terslemesi çekirdekte `IOutputPolarityResolver` ile şemanın **şu anki**
-  kablolamasından çözülür; geçit hiçbir tersleme yapmaz, `state` parametresine geleni olduğu gibi
+  kablolamasından çözülür; geçit hiçbir tersleme yapmaz, gövdedeki `value`'ya geleni olduğu gibi
   yazar. Aynı çözücü okuma yolunda da kullanılır (`IIoChannelService.GetOutputStatesAsync` — fiziksel
   değer → "yük açık mı").
 - **Başarılı komut kanalın son değerini yazar (2026-09-21).** `Succeeded` dönen komut, çıkış kanalının
