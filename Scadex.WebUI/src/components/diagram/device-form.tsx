@@ -8,7 +8,7 @@ import { Switch } from '@/components/ui/switch';
 import { CameraBrand, CameraBrandLabels, DeviceType, DeviceTypeLabels, deviceStatusLabel } from '@/models/enums';
 import type { DiagramCameraDto, DiagramControlCardDto, DiagramIoChannelDto, DiagramPcDeviceDto } from '@/models/diagram';
 import type { DiagramEditor } from '@/hooks/use-diagram-editor';
-import { generateDeviceSecret } from '@/lib/diagram/device-credential';
+import { generateDeviceSecret, normalizeMacAddress } from '@/lib/diagram/device-credential';
 import { pickDeviceProperties, savedDeviceProperties, type DeviceProperties } from '@/lib/diagram/diagram-requests';
 import { useLiveChannel, useLiveDevice } from '@/lib/diagram/live-store';
 import { deviceSize, type DeviceNode } from '@/lib/diagram/to-rf-nodes';
@@ -79,17 +79,7 @@ export function DeviceForm({ node, editor, readOnly }: { node: DeviceNode; edito
 
         {/* Tipe özgü alanlar cihazın ek nesnelerindedir (2026-10-22) — kimlik bilgileri cihaz gövdesinde yok. */}
         {draft.camera && <CameraFields camera={draft.camera} onChange={camera => onChange({ camera })} />}
-        {draft.controlCard && (
-          <CredentialSection
-            title='Kontrol kartı'
-            idPrefix='card'
-            deviceId={device.id}
-            credential={draft.controlCard}
-            saved={draft.controlCard.secret === initial.controlCard?.secret}
-            purpose='SCADA kartı ingest ve kart okumalarını bu kimlikle (HTTP Basic Auth) gönderir; kabin kimlikten çözülür.'
-            onChange={patch => onChange({ controlCard: { ...draft.controlCard!, ...patch } })}
-          />
-        )}
+        {draft.controlCard && <ControlCardFields controlCard={draft.controlCard} onChange={controlCard => onChange({ controlCard })} />}
         {draft.pc && (
           <CredentialSection
             title='Bilgisayar'
@@ -308,9 +298,35 @@ function CameraFields({ camera, onChange }: { camera: DiagramCameraDto; onChange
 }
 
 /**
- * Saha cihazının Basic Auth kimliği (2026-10-25, MAC'in yerine): kullanıcı adı cihazın Id'si, parola tarayıcının ürettiği sır
- * (`generateDeviceSecret`). Sunucu sırrı DÖNDÜRMEZ (`hasCredential`); üretilen sır kaydedildikten sonra da bu oturumda
- * görünür kalır — operatör onu karta / PC'ye şimdi girmeli. Elle sır yazılmaz: sunucu yalnızca üretilen biçimi kabul eder.
+ * Kontrol kartının kimliği (2026-10-28): SCADA her istekte `DeviceId` header'ında kartın MAC adresini gönderir, kart ve kabin
+ * buradan çözülür. Yazım blur'da tek tipe (`AA:BB:CC:DD:EE:FF`) çevrilir; çevrilemeyen değer olduğu gibi gider, sunucu reddeder.
+ */
+function ControlCardFields({ controlCard, onChange }: { controlCard: DiagramControlCardDto; onChange: (controlCard: DiagramControlCardDto) => void }) {
+  return (
+    <div className='flex flex-col gap-3 border-t pt-3'>
+      <p className='text-muted-foreground text-xs font-medium'>Kontrol kartı</p>
+      <Field
+        label='MAC adresi'
+        htmlFor='card-mac-address'
+        hint={controlCard.macAddress ? 'SCADA ingest ve kart okumalarını DeviceId header’ında bu adresle gönderir.' : 'MAC adresi yok — kart bağlanamaz.'}
+      >
+        {/* `TextInput` taslağını yalnızca mount'ta kurar: tek tipe çevrilen yazım kutuda görünsün diye değer değişince yeniden doğar. */}
+        <TextInput
+          key={controlCard.macAddress ?? ''}
+          id='card-mac-address'
+          value={controlCard.macAddress ?? ''}
+          maxLength={32}
+          onCommit={value => onChange({ macAddress: value ? (normalizeMacAddress(value) ?? value) : null })}
+        />
+      </Field>
+    </div>
+  );
+}
+
+/**
+ * PC'nin Basic Auth kimliği: kullanıcı adı cihazın Id'si, parola tarayıcının ürettiği sır (`generateDeviceSecret`). Sunucu sırrı
+ * DÖNDÜRMEZ (`hasCredential`); üretilen sır kaydedildikten sonra da bu oturumda görünür kalır — operatör onu PC'ye şimdi girmeli.
+ * Elle sır yazılmaz: sunucu yalnızca üretilen biçimi kabul eder.
  */
 function CredentialSection({
   title,
@@ -324,7 +340,7 @@ function CredentialSection({
   title: string;
   idPrefix: string;
   deviceId: string;
-  credential: DiagramControlCardDto | DiagramPcDeviceDto;
+  credential: DiagramPcDeviceDto;
   /** Bekleyen sır zaten kaydedildi mi (yalnızca gösterim için tutuluyor). */
   saved: boolean;
   purpose: string;

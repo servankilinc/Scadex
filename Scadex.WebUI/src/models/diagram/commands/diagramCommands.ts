@@ -24,14 +24,17 @@ export interface CameraDraft {
 }
 
 /**
- * Basic Auth sırrı (kullanıcı adı cihazın Id'si). `null` = mevcut kimliğe dokunma, `''` = iptal, değer = yeni sır —
- * yalnızca `generateDeviceSecret()`'in ürettiği biçim kabul edilir (32 küçük harf onaltılık), aksi 400 `ControlCard.Secret`.
+ * Kontrol kartının MAC adresi (SCADA `DeviceId` header'ında gönderir). Her kayıtta eksiksiz gider: `null` = MAC yok (kart bağlanamaz).
+ * Sunucu yazımı tek tipe (`AA:BB:CC:DD:EE:FF`) çevirir; çevrilemeyen değer 400 `ControlCard.MacAddress`.
  */
 export interface ControlCardDraft {
-  secret: string | null;
+  macAddress: string | null;
 }
 
-/** `ControlCardDraft` ile aynı kural; hata anahtarı `Pc.Secret`. */
+/**
+ * PC'nin Basic Auth sırrı (kullanıcı adı cihazın Id'si). `null` = mevcut kimliğe dokunma, `''` = iptal, değer = yeni sır —
+ * yalnızca `generateDeviceSecret()`'in ürettiği biçim kabul edilir (32 küçük harf onaltılık), aksi 400 `Pc.Secret`.
+ */
 export interface PcDeviceDraft {
   secret: string | null;
 }

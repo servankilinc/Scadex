@@ -262,7 +262,7 @@ public partial class DiagramService
                 device.ControlCard = card;
                 _unitOfWork.ControlCards.Add(card);
             }
-            card.CredentialHash = ApplySecret(card.CredentialHash, cardDraft.Secret);
+            card.MacAddress = cardDraft.MacAddress;
         }
 
         if (request.Pc is { } pcDraft)
@@ -287,7 +287,7 @@ public partial class DiagramService
     };
 
     /// <summary>
-    /// Basic Auth sirri (kontrol karti / PC): <c>null</c> "dokunma", <c>""</c> "iptal", deger yeni sirdir ve yalnizca HASH'i
+    /// PC'nin Basic Auth sirri: <c>null</c> "dokunma", <c>""</c> "iptal", deger yeni sirdir ve yalnizca HASH'i
     /// saklanir — sir geri okunamaz, eskisi aninda gecersiz olur. Bicim istek validator'unda zorlandi.
     /// </summary>
     private static string? ApplySecret(string? currentHash, string? submitted) => submitted switch

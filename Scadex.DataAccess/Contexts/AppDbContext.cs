@@ -209,8 +209,8 @@ public class AppDbContext : IdentityDbContext<User, Role, Guid>
             c.Property(c => c.DeviceId).ValueGeneratedNever();
             c.HasOne(c => c.Device).WithOne(d => d.ControlCard).HasForeignKey<ControlCard>(c => c.DeviceId).OnDelete(DeleteBehavior.Restrict);
 
-            // SHA-256 hex. Index yok: kart kullanici adiyla (DeviceId = PK) bulunur, hash yalnizca karsilastirilir.
-            c.Property(c => c.CredentialHash).HasMaxLength(64);
+            // AA:BB:CC:DD:EE:FF. Index ve tekillik bilerek yok (2026-10-28, kullanici karari).
+            c.Property(c => c.MacAddress).HasMaxLength(17);
         });
         modelBuilder.Entity<PcDevice>(p =>
         {

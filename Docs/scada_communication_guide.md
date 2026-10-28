@@ -136,28 +136,24 @@ SCADA bu çerçeveleri ayrıştırıp **her çerçeve için bir HTTP isteği** a
 
 Kart okuması ayrı uçtur: `POST /api/Scada/card` → `{ "cardId": "…", "timestampUtc": "…" }`.
 
-#### Kimlik doğrulama — HTTP Basic Auth (2026-10-25)
+#### Kimlik — `DeviceId` (MAC) header'ı (2026-10-28)
 
-Kabin gövdede **yoktur**; isteği gönderen kontrol kartının kimliğinden çözülür (bir kabin = bir kontrol kartı = bir soket). Her istek
-`Authorization: Basic base64(<kullanıcı adı>:<sır>)` başlığı taşımak zorundadır:
-
-- **Kullanıcı adı** = kabin diyagramındaki kontrol modülü cihazının Id'si (Guid, ör. `3f2b…-…`).
-- **Sır** = diyagramın özellik panelinde "Kimlik bilgisi → Üret" ile üretilen 32 karakterlik küçük harf onaltılık değer. Sunucu yalnızca
-  hash'ini saklar; panel sırrı yalnızca üretildiği anda gösterir. Kaybolursa "Yenile" ile yenisi üretilir, eskisi kaydedilince geçersiz olur.
+Kart ekibine verilen güncel sözleşme: [scada-http-api.md](scada-http-api.md). Kabin gövdede **yoktur**; isteği gönderen kontrol kartının
+MAC adresinden çözülür (bir kabin = bir kontrol kartı). Her istek `DeviceId: AA:BB:CC:DD:EE:FF` başlığı taşır; MAC diyagramın özellik
+panelinde **Kontrol kartı → MAC adresi** alanına girilir. Ayraç/harf farkı önemsizdir (iki taraf da tek tipe çevrilir).
 
 ```bash
-curl -u 3f2b0c1e-0000-4000-8000-000000000001:0123456789abcdef0123456789abcdef \
+curl -H "DeviceId: 00:1A:2B:3C:4D:5E" \
      -H "Content-Type: application/json" \
      -d '{ "type": "I", "channelNumber": 7, "value": "1" }' \
      http://<merkez>:5208/api/Scada/ingest
 ```
 
-Başlık yoksa, kullanıcı adı bir cihaz Id'si değilse, sır yanlışsa / iptal edilmişse ya da cihaz silinmiş/pasifse istek **401** döner
-(`WWW-Authenticate: Basic realm="Scadex"`). Reddin nedeni yanıtta söylenmez; sunucu günlüğüne cihaz Id'si ve IP ile yazılır.
-Eskiden kimlik gövdedeki `macAddress`'ti — o alan ve eşleşmeyen MAC'in 404'ü kalktı.
+Başlık yoksa, MAC biçimi bozuksa ya da aktif bir kontrol kartıyla eşleşmiyorsa istek **401** döner. Reddin nedeni yanıtta söylenmez;
+sunucu günlüğüne MAC ve IP ile yazılır. 2026-10-25 – 2026-10-28 arasında kimlik Basic Auth (cihaz Id'si + sır) idi.
 
-> **HTTPS zorunlu değildir** (kullanıcı kararı 2026-10-25). Düz HTTP'de sır her istekte açık metin olarak (base64) gider ve ağı dinleyen
-> biri okuyabilir — kabul edilen risk. HTTPS'e geçiş ayrı bir karardır.
+> MAC gizli bir değer değildir ve **HTTPS zorunlu değildir** (kullanıcı kararları): ağı dinleyen biri MAC'i görüp kart adına istek
+> atabilir — kabul edilen risk. MAC tekilliği denetlenmez; aynı adres iki karta girilirse ilk eşleşen kazanır.
 
 Değer string olarak taşınır. Tam sözleşme, kısıtlar ve hata kodları: **`docs/api-contract/07-scada-ingest.md`**.
 

@@ -338,7 +338,7 @@ Bunlar tek bir dosyaya bakarak görülemez; gerekçeleri PROJECT_OVERVIEW.md §5
 - **Kanal adresleri kabin genelinde tekildir**, cihaz genelinde değil. Bir cihazı silmek
   kanallarını serbest bırakmaz (`IN1` işgal edilmeye devam eder).
 - **Tipe özgü alanlar `Device`'ta DEĞİL, 1-1 ek tablolardadır (2026-10-22):** `Camera` (marka, model, açıklama, kullanıcı,
-  parola), `ControlCard` (`CredentialHash`), `PcDevice` (`CredentialHash`). Birincil anahtar ortaktır (`DeviceId` hem PK hem FK),
+  parola), `ControlCard` (`MacAddress`), `PcDevice` (`CredentialHash`). Birincil anahtar ortaktır (`DeviceId` hem PK hem FK),
   tip yine `ComponentTemplate.DeviceTypeId`'dir. **Kalıtım bilerek yoktur** — `Camera : Device` / `HasBaseType` yazmayın:
   `HasBaseType` tek başına TPH (tek tablo) kurar, TPT ise her `Devices` sorgusuna tüm alt tabloları JOIN'ler ve parolaları her
   cihaz okumasında belleğe getirir. Ek satır yalnızca `Include` edilince okunur. Yazım yolu diyagramın cihaz uçlarıdır:
@@ -346,19 +346,24 @@ Bunlar tek bir dosyaya bakarak görülemez; gerekçeleri PROJECT_OVERVIEW.md §5
   yanlış tipe giden 400'dür (`DiagramService.Devices.cs > ValidateDeviceAsync`). Okuma DTO'ları parola döndürmez, `hasPassword` döner;
   istekte `password: null` = dokunma, `""` = temizle. **Yeni tip (Alarm, NAS…) = `DeviceType` değeri + sistem şablonu + gerekiyorsa ek
   tablo + istekte nesne (`DeviceExtensionDrafts.cs`) + panel bölümü (zorunlu alanı varsa oluşturma penceresi);** alanı `Device`'a eklemeyin, ayrı kök tablo da açmayın, diyagram dışında oluşturma ucu açmayın.
-- **Saha cihazı kimliği HTTP Basic Auth'tur, MAC DEĞİL (2026-10-25, kullanıcı kararı; MAC, index'leri ve `MacAddressFormat`
-  silindi — geri eklemeyin).** Kontrol kartı (`/api/Scada/*`) ve RemoteDesk PC'si (`PcHub`) `Authorization: Basic` gönderir:
-  **kullanıcı adı = cihazın Id'si**, parola = **sistemin ürettiği sır** (32 küçük harf onaltılık; `Scadex.Core/Utils/DeviceCredential.cs`).
-  Sırrı tarayıcı üretir (`lib/diagram/device-credential.ts`, özellik paneli "Üret/Yenile/İptal et") ve cihaz formunun Kaydet'iyle gönderir
-  (`ControlCardDraft.Secret` / `PcDeviceDraft.Secret`: `null` dokunma, `""` iptal, değer yeni sır); sunucu biçimi zorlar ve yalnızca
-  **SHA-256'sını** saklar (`CredentialHash`, sabit zamanlı karşılaştırma) — sır geri okunamaz, okuma DTO'su `hasCredential` döner.
-  Sır yüksek entropili olduğu için PBKDF2 yoktur (ingest sıcak yolu). Kullanıcı adı PK olduğu için **benzersizlik denetimi yoktur**.
-  Doğrulama: `DeviceBasicAuthenticationHandler` + `IDeviceCredentialService` (tek PK sorgusu: aktif cihaz + doğru şablon tipi + hash
-  + kabin), şemalar `ControlCardBasic` / `PcBasic`, policy'ler `DeviceAuthPolicies.ControlCard` / `.Pc` (`Business/Utils/Auth/
-  DeviceAuthentication.cs`, `Program.cs`'te `.AddDeviceAuthentication()`) — modül kendi şemasını kaydetmez. Policy `device_type`
-  claim'i ister: `BaseController`'ın `[Authorize]`'ıyla birleşse de kullanıcı JWT'si cihaz ucuna girmez. Basic Auth **yalnızca
-  gelen** isteklerdedir; Scadex'in karta gönderdiği komut (`ScadaBaseUrl`) kimliksizdir. Reddin nedeni istemciye söylenmez (401),
-  günlüğe cihaz Id'si + IP ile yazılır; sır asla loglanmaz. **HTTPS zorunlu değildir** (kullanıcı kararı): düz HTTP'de sır ağdan
+- **Saha cihazı kimliği: kontrol kartı MAC header'ı, PC Basic Auth (2026-10-28, kullanıcı kararı — 2026-10-25'teki "MAC geri
+  eklenmesin" kararının kontrol kartı için yerine; sözleşme [Docs/scada-http-api.md](Docs/scada-http-api.md)).**
+  **Kontrol kartı** (`/api/Scada/*`) her istekte `DeviceId: AA:BB:CC:DD:EE:FF` header'ı gönderir = kartın MAC adresi; Merkez onu
+  `ControlCard.MacAddress` ile eşleştirir (`ControlCardMacAuthenticationHandler`, şema `ControlCardMac`). İki taraf da tek tipe çevrilir
+  (`Scadex.Core/Utils/MacAddressFormat.cs`, ön yüz aynası `lib/diagram/device-credential.ts > normalizeMacAddress`); MAC cihaz formunda
+  girilir (`ControlCardDraft.MacAddress`, her kayıtta eksiksiz gider, `null` = kart bağlanamaz). **MAC tekilliği bilerek denetlenmez**
+  (index yok, doğrulama yok, silmede null'a çekme yok — kod sade kalsın, kullanıcı kararı): aynı MAC iki aktif kartta varsa ilk eşleşen
+  kazanır. MAC gizli değildir — bilen kart adına yazabilir; kabul edilen risk, sır eklemeyin.
+  **RemoteDesk PC'si** (`PcHub`) `Authorization: Basic` gönderir: **kullanıcı adı = cihazın Id'si**, parola = **sistemin ürettiği sır**
+  (32 küçük harf onaltılık; `Scadex.Core/Utils/DeviceCredential.cs`). Sırrı tarayıcı üretir (`lib/diagram/device-credential.ts`, özellik
+  paneli "Üret/Yenile/İptal et") ve cihaz formunun Kaydet'iyle gönderir (`PcDeviceDraft.Secret`: `null` dokunma, `""` iptal, değer yeni sır);
+  sunucu biçimi zorlar ve yalnızca **SHA-256'sını** saklar (`PcDevice.CredentialHash`, sabit zamanlı karşılaştırma) — sır geri okunamaz,
+  okuma DTO'su `hasCredential` döner. Sır yüksek entropili olduğu için PBKDF2 yoktur. Kullanıcı adı PK olduğu için benzersizlik denetimi yoktur.
+  Ortak: `IDeviceCredentialService` (handler'lar çağırır, HTTP yüzeyi yok), policy'ler `DeviceAuthPolicies.ControlCard` / `.Pc`
+  (`Business/Utils/Auth/DeviceAuthentication.cs`, `Program.cs`'te `.AddDeviceAuthentication()`) — modül kendi şemasını kaydetmez. Policy
+  `device_type` claim'i ister: `BaseController`'ın `[Authorize]`'ıyla birleşse de kullanıcı JWT'si cihaz ucuna girmez. Cihaz kimliği
+  **yalnızca gelen** isteklerdedir; Scadex'in karta gönderdiği komut (`ScadaBaseUrl`) kimliksizdir. Reddin nedeni istemciye söylenmez (401),
+  günlüğe MAC / cihaz Id'si + IP ile yazılır; PC sırrı asla loglanmaz. **HTTPS zorunlu değildir** (kullanıcı kararı): düz HTTP'de kimlik ağdan
   okunabilir — kabul edilen risk, HTTPS denetimi/yönlendirmesi eklemeyin. Açık PcHub bağlantısı sır yenilense de kopana kadar sürer.
 - **Kamera bir `Device`'tır (`DeviceType.Camera = 14`, sistem şablonu "IP Kamera", 2026-10-22).** Diyagramdan eklenir ve
   diyagramdan kaldırılır (şablonla sürükleme + özellik paneli, `EditDiagram`). Kamera ekranı (`/cameras/cabinet/:id`,
@@ -529,10 +534,10 @@ Bir şeyin çalıştığını varsaymadan önce doğrulayın:
   `home` ve `command-history.tsx` içerisinde kullanılmaktadır. Yeni ekranlarda da mutlaka bu
   yardımcıyı kullanın.
 
-- **Ingest gövdesinde `cabinetId` YOKTUR; kabin isteği gönderen kontrol kartının Basic Auth kimliğinden çözülür (2026-10-25).**
-  Gerçek sözleşme `{ type: "I"|"A", channelNumber, value, timestampUtc }` (`ScadaIngestRequest`) + `Authorization: Basic`.
+- **Ingest gövdesinde `cabinetId` YOKTUR; kabin isteği gönderen kontrol kartının MAC kimliğinden çözülür (2026-10-28).**
+  Gerçek sözleşme `{ type: "I"|"A", channelNumber, value, timestampUtc }` (`ScadaIngestRequest`) + `DeviceId: <MAC>` header'ı.
   Handler kartın `CabinetId`'sini `cabinet_id` claim'ine yazar, `ScadaController` onu `IChannelEventService.IngestAsync(cabinetId, …)`'a
-  verir; kimliksiz/yanlış kimlikli istek 401'dir (eskiden eşleşmeyen MAC 404'tü). `ScadaPinAddress.CheckAndParseIngestPin` yalnızca `"I"` ve `"A"`
+  verir; header'sız / eşleşmeyen MAC'li istek 401'dir. `ScadaPinAddress.CheckAndParseIngestPin` yalnızca `"I"` ve `"A"`
   kabul eder; `IN<n>`/`OUT<n>` metni yalnızca **giden** komut gövdesinde (`Format`) kullanılır.
 - **Kart okuma ayrı bir uçtur: `POST /api/Scada/card` → `{ cardId, timestampUtc }`
   (2026-09-11).** Kart numarası ölçüm değildir: `IoChannel`'a yazılmaz, `ChannelEvent` üretmez;
@@ -544,7 +549,7 @@ Bir şeyin çalıştığını varsaymadan önce doğrulayın:
   kart 500 üretir. **Kart tanımlama (2026-10-13) çekirdektedir:** her okuma gözlemcilerden önce `DiagramHub`'a `CardRead` olarak
   yayınlanır, Kabinler → "Kart tanımlama" penceresi dinler; atama `PUT /api/User/{id}/identity-card` (`AssignIdentityCardAsync`, yalnızca
   kart alanı — `PUT /api/User` tüm alanları ezer). Pencere okumayı modüllerden **bilerek** saklamaz/baypas etmez (kullanıcı kararı).
-- **`IpAddress` ve ek tablo alanları (kimlik bilgileri, kart / PC sırrı) diyagramın cihaz uçlarıyla yazılır** (`DeviceCreateRequest` /
+- **`IpAddress` ve ek tablo alanları (kimlik bilgileri, kart MAC'i / PC sırrı) diyagramın cihaz uçlarıyla yazılır** (`DeviceCreateRequest` /
   `DeviceUpdateRequest`; ek nesneler `.Camera` / `.ControlCard` / `.Pc`). `WriteDevice` IP'yi, `WriteDeviceExtensions` ek satırı yazar;
   editörde cihaz formundan girilir. Bunlar `DeviceStatusId` / `LastSeen` / `LastConnectionError` gibi telemetri alanı **değildir** — o
   üçü istekte yok ve `WriteDevice`'ta dokunulmaz. İzleme ayarları (`MonitoringPort`, `PingIntervalSec`, `IsMonitoringEnabled`,

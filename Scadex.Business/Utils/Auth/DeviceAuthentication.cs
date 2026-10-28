@@ -8,18 +8,20 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Microsoft.Net.Http.Headers;
 using Scadex.Business.Abstract;
+using Scadex.Core.Utils;
 using Scadex.Core.Utils.Auth;
 using static Scadex.Model.Enums.EntityEnums;
 
 namespace Scadex.Business.Utils.Auth;
 
-// Saha cihazlarinin (kontrol karti, RemoteDesk PC'si) HTTP Basic Auth kimligi.
-// Kullanici adi cihazin Id'si, parola sistemin urettigi sir (Scadex.Core/Utils/DeviceCredential.cs).
+// Saha cihazlarinin kimligi:
+// - Kontrol karti (SCADA): her istekte "DeviceId: AA:BB:CC:DD:EE:FF" header'i = kartin MAC adresi (Docs/scada-http-api.md).
+// - RemoteDesk PC'si: HTTP Basic Auth; kullanici adi cihazin Id'si, parola sistemin urettigi sir (Scadex.Core/Utils/DeviceCredential.cs).
 
-/// <summary> Cihaz kimliği şemaları. Her şema tek bir cihaz tipini kabul eder: kart sırrı PcHub'a, PC sırrı ingest'e girmez. </summary>
+/// <summary> Cihaz kimliği şemaları. Her şema tek bir cihaz tipini kabul eder: kartın MAC'i PcHub'a, PC sırrı ingest'e girmez. </summary>
 public static class DeviceAuthSchemes
 {
-    public const string ControlCard = "ControlCardBasic";
+    public const string ControlCard = "ControlCardMac";
     public const string Pc = "PcBasic";
 }
 
@@ -101,6 +103,56 @@ public sealed class DeviceBasicAuthenticationHandler : AuthenticationHandler<Dev
     }
 }
 
+/// <summary>
+/// Kontrol kartı (SCADA): <c>DeviceId: AA:BB:CC:DD:EE:FF</c> header'ı = kartın MAC adresi. Header yoksa karışmaz (<c>NoResult</c>);
+/// biçimi bozuk ya da eşleşen aktif kart yoksa 401. Gizli bir değer taşımaz — MAC'i bilen kart adına yazabilir (kabul edilen risk, 2026-10-28).
+/// </summary>
+public sealed class ControlCardMacAuthenticationHandler : AuthenticationHandler<AuthenticationSchemeOptions>
+{
+    public const string HeaderName = "DeviceId";
+
+    private readonly IDeviceCredentialService _credentials;
+
+    public ControlCardMacAuthenticationHandler(IOptionsMonitor<AuthenticationSchemeOptions> options, ILoggerFactory logger, UrlEncoder encoder,
+        IDeviceCredentialService credentials) : base(options, logger, encoder)
+    {
+        _credentials = credentials;
+    }
+
+    protected override async Task<AuthenticateResult> HandleAuthenticateAsync()
+    {
+        string? header = Request.Headers[HeaderName];
+        if (string.IsNullOrWhiteSpace(header))
+            return AuthenticateResult.NoResult();
+
+        // Sahada ayraç/harf farkı olabilir (50-8d-5c-...); karşılaştırma tek tip biçimle yapılır.
+        var macAddress = MacAddressFormat.TryNormalize(header);
+        if (macAddress == null)
+            return Reject(header, "MAC biçimi geçersiz");
+
+        var result = await _credentials.AuthenticateControlCardAsync(macAddress, Context.RequestAborted);
+        if (!result.IsSuccess)
+            return Reject(macAddress, result.Error.Description);
+
+        var device = result.Data;
+        var claims = new[]
+        {
+            new Claim(ClaimTypes.NameIdentifier, device.DeviceId.ToString()),
+            new Claim(AppClaimTypes.DeviceType, ((int)DeviceType.ControlModule).ToString()),
+            new Claim(AppClaimTypes.CabinetId, device.CabinetId.ToString()),
+        };
+        var principal = new ClaimsPrincipal(new ClaimsIdentity(claims, Scheme.Name));
+        return AuthenticateResult.Success(new AuthenticationTicket(principal, Scheme.Name));
+    }
+
+    private AuthenticateResult Reject(string macAddress, string reason)
+    {
+        Logger.LogWarning("Kontrol kartı kimliği reddedildi: MAC {MacAddress}, {Ip} — {Reason}",
+            macAddress.Truncate(32), Context.Connection.RemoteIpAddress?.ToString() ?? "?", reason);
+        return AuthenticateResult.Fail("Cihaz kimliği reddedildi");
+    }
+}
+
 public static class DeviceAuthentication
 {
     /// <summary>
@@ -109,7 +161,7 @@ public static class DeviceAuthentication
     /// </summary>
     public static AuthenticationBuilder AddDeviceAuthentication(this AuthenticationBuilder builder)
     {
-        builder.AddScheme<DeviceBasicAuthenticationOptions, DeviceBasicAuthenticationHandler>(DeviceAuthSchemes.ControlCard, o => o.DeviceType = DeviceType.ControlModule);
+        builder.AddScheme<AuthenticationSchemeOptions, ControlCardMacAuthenticationHandler>(DeviceAuthSchemes.ControlCard, _ => { });
         builder.AddScheme<DeviceBasicAuthenticationOptions, DeviceBasicAuthenticationHandler>(DeviceAuthSchemes.Pc, o => o.DeviceType = DeviceType.Pc);
 
         builder.Services.AddAuthorizationBuilder()

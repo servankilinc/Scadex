@@ -37,21 +37,19 @@ export function pickDeviceProperties(device: DiagramDeviceDto): DeviceProperties
  * aynı sırrı yazar, zararsızdır. İptal edilen sır (`''`) bekleyen değer olarak kalmaz.
  */
 export function savedDeviceProperties(properties: DeviceProperties): DeviceProperties {
-  const { camera, controlCard, pc } = properties;
-  const credential = <T extends { hasCredential: boolean; secret?: string | null }>(value: T | null): T | null =>
-    value && value.secret != null ? { ...value, hasCredential: value.secret !== '', secret: value.secret === '' ? null : value.secret } : value;
+  const { camera, pc } = properties;
 
   return {
     ...properties,
     camera: camera && camera.password != null ? { ...camera, hasPassword: camera.password !== '', password: null } : camera,
-    controlCard: credential(controlCard),
-    pc: credential(pc)
+    pc: pc && pc.secret != null ? { ...pc, hasCredential: pc.secret !== '', secret: pc.secret === '' ? null : pc.secret } : pc
   };
 }
 
 /**
  * Cihaz özellikleri. Ek nesneler (kamera / kontrol kartı / PC) tiplerine göre tam olarak biri dolu gelir; sunucu tipiyle
- * eşleşmeyeni 400'ler. `hasPassword`/`hasCredential` telde yok; bekleyen parola/sır yoksa `null` ("dokunma").
+ * eşleşmeyeni 400'ler. `hasPassword`/`hasCredential` telde yok; bekleyen parola/sır yoksa `null` ("dokunma"). Kartın MAC'i
+ * her seferinde olduğu gibi gider.
  */
 export function toDeviceUpdateRequest(device: DiagramDeviceDto): DeviceUpdateRequest {
   const { camera, controlCard, pc } = device;
@@ -64,7 +62,7 @@ export function toDeviceUpdateRequest(device: DiagramDeviceDto): DeviceUpdateReq
     camera: camera
       ? { brand: camera.brand, model: camera.model, description: camera.description, username: camera.username, password: camera.password ?? null }
       : null,
-    controlCard: controlCard ? { secret: controlCard.secret ?? null } : null,
+    controlCard: controlCard ? { macAddress: controlCard.macAddress } : null,
     pc: pc ? { secret: pc.secret ?? null } : null
   };
 }

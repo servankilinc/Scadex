@@ -10,8 +10,8 @@ using Scadex.Business.Utils.RateLimiting;
 namespace Scadex.WebAPI.Controllers;
 
 /// <summary>
-/// SCADA'nın bize ulaşacağı endpointler. Kontrol kartı Basic Auth ile doğrulanır (kullanıcı adı = cihaz Id'si,);
-/// kabin gövdeden değil kartın kimliğinden gelir. Kimliksiz / yanlış kimlikli istek 401.
+/// SCADA'nın bize ulaşacağı endpointler (Docs/scada-http-api.md). Kontrol kartı <c>DeviceId</c> header'ındaki MAC adresiyle tanınır;
+/// kabin gövdeden değil kartın kimliğinden gelir. Header'sız / eşleşmeyen istek 401.
 /// </summary>
 [Authorize(Policy = DeviceAuthPolicies.ControlCard)]
 [EnableRateLimiting(RateLimiterKey.Scada)]

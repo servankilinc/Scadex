@@ -42,7 +42,7 @@ Geliştirme komutları ve mimari kurallar [CLAUDE.md](CLAUDE.md)'de, sistemin ne
             ───────────► │                         (API başlatır, servis DEĞİL)    │
                          │                         └─► Kameralar (RTSP)            │
                          └─────────────────────────────────────────────────────────┘
- SCADA kontrol kartı ──► API :3009  (Basic Auth: kartın cihaz Id'si + sır)
+ SCADA kontrol kartı ──► API :3009  (DeviceId header'ı: kartın MAC adresi)
  RemoteDesk PC ────────► API :3009 (Basic Auth) + MediaMTX :8554 (ekran yayını)
                          PC'de: ScadexRemoteDesk Windows servisi + Agent + System Tray arayüzü
 ```
@@ -55,7 +55,7 @@ Geliştirme komutları ve mimari kurallar [CLAUDE.md](CLAUDE.md)'de, sistemin ne
 | FFmpeg | Kameradan anlık görüntü / klip | API gerektiğinde çağırır | [2.2.6](#226-mediamtx-ve-ffmpeg) |
 | Arayüz (`Scadex.WebUI`) | React tek sayfalık uygulama | IIS'te statik site | [2.3](#23-arayüz--scadexwebui-iis) |
 | RemoteDesk PC istemcisi | Sahadaki PC'nin ekranını paylaşır | Windows servisi `ScadexRemoteDesk` + oturumda Agent + System Tray arayüzü | [2.4](#24-remotedesk-pc-istemcisi--windows-servisi) |
-| SCADA kontrol kartı | Kabindeki giriş/çıkış kartı | API'ye HTTP Basic Auth ile veri gönderir | [2.5.1](#251-scada-kontrol-kartı) |
+| SCADA kontrol kartı | Kabindeki giriş/çıkış kartı | API'ye `DeviceId` (MAC) header'ıyla veri gönderir | [2.5.1](#251-scada-kontrol-kartı) |
 | Operatör bilgisayarı | Tarayıcı | Kurulum yok, yalnızca Root CA | [2.5.2](#252-operatör-bilgisayarları) |
 
 Sistem alan adı olmadan, sunucunun yerel ağ IP'si üzerinden çalışır. Bu rehber **HTTPS** kurulumunu anlatır (önerilen): sertifikayı kendi
@@ -154,7 +154,7 @@ değerlerin hiçbirini olduğu gibi bırakmayın.
   Yeni PATH yalnızca **yeni açılan** PowerShell pencerelerinde geçerlidir.
 
 **Sahadaki cihazlar:** RemoteDesk PC'leri Windows 10/11 64 bit — önkoşul yok (istemci .NET'i içinde taşır). SCADA kontrol kartları
-API'ye HTTPS + `Authorization: Basic` başlığıyla istek atabilmeli ([2.5.1](#251-scada-kontrol-kartı)).
+API'ye HTTPS + `DeviceId` (MAC adresi) başlığıyla istek atabilmeli ([2.5.1](#251-scada-kontrol-kartı)).
 
 ### 1.2 Sertifikalar
 
@@ -851,44 +851,47 @@ Cihaz sırrı, yayın bileti ve pano içeriği **asla** yazılmaz.
 
 #### 2.5.1 SCADA kontrol kartı
 
-Her kabinde bir kontrol kartı vardır. Protokolün ayrıntısı: [Docs/scada_communication_guide.md](Docs/scada_communication_guide.md).
+Her kabinde bir kontrol kartı vardır. Kart ekibine verilen sözleşme: [Docs/scada-http-api.md](Docs/scada-http-api.md).
 
 | Yön | İstek | Kimlik |
 |---|---|---|
-| Kart → Scadex | `POST /api/Scada/ingest` (giriş/analog değer), `POST /api/Scada/card` (kart okuma) | **HTTP Basic Auth** |
+| Kart → Scadex | `POST /api/Scada/ingest` (giriş/analog değer), `POST /api/Scada/card` (kart okuma) | **`DeviceId: <MAC>` header'ı** |
 | Scadex → Kart | `GET {kabinin SCADA adresi}/updat?output=<n>&state=<0\|1>` (çıkış komutu) | Yok |
 
 **Diyagramda kimlik bilgisi:**
 
 1. Kabinin **diyagram**ına kontrol modülünü ekleyin, kanallarını tanımlayın (`EditDiagram` izni).
-2. Cihazı seçin → özellik paneli → **Kimlik bilgisi → Üret** → **Kaydet**.
-3. İki değeri karta girin: **kullanıcı adı** = cihazın Id'si, **sır** = 32 karakterlik değer. Sunucu yalnızca özetini saklar; **sır
-   yalnızca üretildiği anda görünür**.
+2. Cihazı seçin → özellik paneli → **Kontrol kartı → MAC adresi** alanına kartın MAC adresini yazın → **Kaydet**. Yazım farkı
+   (`50-8d-5c-…`, `508D5C…`) önemsizdir, `AA:BB:CC:DD:EE:FF` biçimine çevrilir.
+3. Kart her istekte bu adresi `DeviceId` header'ında gönderir.
 
 | Durum | Ne yapılır |
 |---|---|
-| Sır kayboldu | **Yenile** → Kaydet → yeni sırrı karta girin (eskisi geçersiz olur) |
-| Kart değişti / çalındı | **İptal et** → Kaydet (kart 401 alır) |
-| Cihaz silinip yeniden çizildi | Yeni Id + yeni sır karta girilir |
+| Kart değişti | Yeni kartın MAC'ini girin → Kaydet (eski kart 401 alır) |
+| Kartı devre dışı bırakmak | MAC alanını boşaltın → Kaydet |
 
-Kabin bu kimlikten çözülür; gövdede kabin ya da MAC yoktur. Yanlış/eksik kimlik **401** döner (nedeni API günlüğünde).
+Kabin bu MAC'ten çözülür; gövdede kabin yoktur. Eşleşmeyen / eksik MAC **401** döner (nedeni API günlüğünde). MAC tekilliği
+denetlenmez: aynı adresi iki karta girmeyin (ilk eşleşen kazanır).
+
+> **Güncelleme notu (2026-10-28):** `ControlCardMacIdentity` migration'ı kontrol kartlarının eski Basic Auth sırlarını siler; her
+> kontrol kartına diyagramdan MAC adresi girilmeden kart 401 alır.
 
 **Kartın ayarları:**
 
 | Kartta | Değer |
 |---|---|
 | Sunucu adresi | `https://172.16.42.106:3009` |
-| Kullanıcı adı / parola | Yukarıdaki cihaz Id'si / sır |
+| `DeviceId` header'ı | Kartın MAC adresi (diyagrama girilenle aynı) |
 | Güvenilen sertifika | `local-root-ca.crt` |
 
 Sahadaki API sitesi yalnızca HTTPS kabul eder ([2.2.2](#222-uygulama-havuzu-ve-site), *Require SSL*). **Kart HTTPS konuşamıyorsa** API'ye
-ayrı bir HTTP bağlaması ve *Require SSL* ayarının gözden geçirilmesi gerekir; düz HTTP'de sır her istekte açık gider (kabul edilmiş risk).
+ayrı bir HTTP bağlaması ve *Require SSL* ayarının gözden geçirilmesi gerekir; düz HTTP'de MAC her istekte açık gider (kabul edilmiş risk).
 Bu düzen sahada karar verilmeden kurulmaz.
 
-Deneme (kanalın değerini gerçekten yazar; kullanılmayan bir kanalla deneyin): `200` = kimlik doğru, `401` = kimlik yanlış/iptal.
+Deneme (kanalın değerini gerçekten yazar; kullanılmayan bir kanalla deneyin): `200` = kimlik doğru, `401` = MAC eşleşmedi.
 
 ```powershell
-curl.exe -u "<cihaz Id>:<sır>" -H "Content-Type: application/json" `
+curl.exe -H "DeviceId: <kartın MAC adresi>" -H "Content-Type: application/json" `
   -d "{ \"type\": \"I\", \"channelNumber\": 1, \"value\": \"1\" }" `
   https://172.16.42.106:3009/api/Scada/ingest
 ```

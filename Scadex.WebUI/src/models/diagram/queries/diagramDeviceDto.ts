@@ -71,17 +71,19 @@ export interface DiagramCameraDto extends PendingPassword {
 }
 
 /**
- * Saha cihazının Basic Auth kimliği (2026-10-25, MAC'in yerine): kullanıcı adı cihazın Id'si, parola sistemin ürettiği sır.
+ * Kontrol kartı (2026-10-28): SCADA ingest'i ve kart okumasını `DeviceId` header'ında bu MAC adresiyle gönderir; kart ve kabin
+ * MAC'ten çözülür. `null` = kart bağlanamaz. Tekillik bilerek denetlenmez.
+ */
+export interface DiagramControlCardDto {
+  macAddress: string | null;
+}
+
+/**
+ * PC: RemoteDesk istemcisi `PcHub`'a Basic Auth ile bağlanır — kullanıcı adı cihazın Id'si, parola sistemin ürettiği sır.
  * Sunucu sırrı DÖNDÜRMEZ (yalnızca hash saklar), yalnızca `hasCredential`. `secret` alanı telde YOKTUR: editörde üretilen,
  * henüz kaydedilmemiş sırrı taşır (`undefined`/`null` = dokunma, `''` = iptal). Yalnızca taslağa yazılır.
  */
-interface PendingCredential {
+export interface DiagramPcDeviceDto {
   hasCredential: boolean;
   secret?: string | null;
 }
-
-/** Kontrol kartı: SCADA ingest'i ve kart okuması bu kimlikle gelir; kabin kimlikten çözülür. */
-export type DiagramControlCardDto = PendingCredential;
-
-/** PC: RemoteDesk istemcisi `PcHub`'a bu kimlikle bağlanır. */
-export type DiagramPcDeviceDto = PendingCredential;

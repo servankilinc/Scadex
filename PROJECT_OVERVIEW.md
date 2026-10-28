@@ -122,7 +122,7 @@ Artık her dosya bir uç ailesidir ve dosyalar arasında paylaşılan bağlam yo
   pini olanları (kontrol modülü, POS, bilgisayar) işaretler. Şablonun güncelleme ucu yoktur —
   değer oluşturmada verilir.
 - **`Device`** — diyagramdaki bir kutu. Şablondan üretilir. SCADA onu bir kodla tanımaz: kabin
-  isteği gönderen kontrol modülünün Basic Auth kimliğinden (2026-10-25'e kadar MAC'inden), kanal kabin içi adresten (`IN3`/`OUT1`) çözülür — eski `ExternalCode`
+  isteği gönderen kontrol modülünün MAC kimliğinden (`DeviceId` header'ı, 2026-10-28), kanal kabin içi adresten (`IN3`/`OUT1`) çözülür — eski `ExternalCode`
   adreslemede kullanılmadığı için 2026-09-27'de kaldırıldı (`RemoveDeviceExternalCode`).
   2026-09-24'ten beri `IMonitoredAsset`'tir: şablonu izlenebilirse
   IP + `MonitoringPort` ile TCP'den, port boşsa IP'ye ICMP ping ile yoklanabilir (SCADA kartı, POS, bilgisayar…).
@@ -260,24 +260,26 @@ aggregate'in controller'ında durur.
   ve kabloları düşer, ama `IoChannel` satırları yerinde kalır — dolayısıyla `IN1` işgal
   edilmeye devam eder.
 - **Tipe özgü alanlar 1-1 ek tablolardadır (2026-10-22):** `Camera` (marka, model, açıklama, kullanıcı, parola),
-  `ControlCard` (`CredentialHash`), `PcDevice` (`CredentialHash`); birincil anahtar ortaktır (`DeviceId`). Cihaz oluşturma ve
+  `ControlCard` (`MacAddress`), `PcDevice` (`CredentialHash`); birincil anahtar ortaktır (`DeviceId`). Cihaz oluşturma ve
   güncelleme isteği şablon tipiyle eşleşen nesneyi **zorunlu** taşır (`camera` / `controlCard` / `pc`); yanlış tipe giden nesne
   400'dür (`DiagramService.Devices.cs > ValidateDeviceAsync`). Parola okuma DTO'suna yazılmaz (`hasPassword`); istekte `null` =
-  dokunma, `""` = temizle. Kart / PC sırrı da aynı kuralla taşınır (`secret`; okuma `hasCredential`). Kalıtım (TPT/TPH) bilerek
+  dokunma, `""` = temizle. PC sırrı da aynı kuralla taşınır (`secret`; okuma `hasCredential`); kartın MAC'i her kayıtta olduğu gibi gider. Kalıtım (TPT/TPH) bilerek
   kullanılmadı: ek satır yalnızca `Include` edilince okunur.
-- **`ipAddress`, izleme ayarları ve kart / PC sırrı cihaz formuyla yazılır** (`PUT …/devices/{id}`). Kontrol kartının sırrı
-  SCADA ingest'inin kimliğidir (§ 5.3); operatör özellik panelinde üretir ve karta girer. `deviceStatusId` / `lastSeen` /
+- **`ipAddress`, izleme ayarları ve kart MAC'i / PC sırrı cihaz formuyla yazılır** (`PUT …/devices/{id}`). Kontrol kartının MAC'i
+  SCADA ingest'inin kimliğidir (§ 5.3); operatör özellik panelinde girer. `deviceStatusId` / `lastSeen` /
   `lastConnectionError` istekte **yoktur** ve `WriteDevice`'ta dokunulmaz; onları yalnızca `ICabinetStatusService` yazar
   (§ 5.3 "Canlılık").
 - **İzleme kuralları (2026-09-24):** `monitoringPort`, `pingIntervalSec`, `isMonitoringEnabled` (`Device : IMonitoredAsset`).
   Port 1..65535 (boşsa ICMP ping), periyot 5..86400 sn, izleme açıkken `ipAddress` zorunlu (FluentValidation). İzleme yalnızca
   şablonu **`ComponentTemplate.IsMonitorable`** olan cihazda açılabilir (400 anahtarı `IsMonitoringEnabled`). Editör izleme
   bölümünü yalnızca izlenebilir şablonda gösterir.
-- **Saha cihazı kimliği Basic Auth'tur (2026-10-25, MAC'in yerine).** Kontrol kartı ve RemoteDesk PC'si
-  `Authorization: Basic` gönderir: kullanıcı adı = cihazın Id'si, parola = tarayıcının ürettiği 32 karakterlik onaltılık sır.
-  Sunucu biçimi zorlar ve yalnızca SHA-256'sını saklar (`Scadex.Core/Utils/DeviceCredential.cs`); doğrulama
-  `DeviceBasicAuthenticationHandler` + `IDeviceCredentialService`'tedir. Kullanıcı adı birincil anahtar olduğu için eski
-  sistem geneli MAC tekillik kuralı (index'ler, yükleyiciler, silmede MAC'i `null`'a çekme) tümüyle kalktı.
+- **Saha cihazı kimliği (2026-10-28):** kontrol kartı her istekte `DeviceId: AA:BB:CC:DD:EE:FF` header'ı gönderir = kartın
+  MAC adresi; Merkez onu `ControlCard.MacAddress` ile eşleştirir (`ControlCardMacAuthenticationHandler`, iki taraf da
+  `MacAddressFormat` ile tek tipe çevrilir). MAC tekilliği bilerek denetlenmez (kod sade kalsın, kullanıcı kararı): aynı MAC iki
+  aktif kartta varsa ilk eşleşen kazanır. RemoteDesk PC'si `Authorization: Basic` gönderir: kullanıcı adı = cihazın Id'si,
+  parola = tarayıcının ürettiği 32 karakterlik onaltılık sır; sunucu yalnızca SHA-256'sını saklar
+  (`Scadex.Core/Utils/DeviceCredential.cs`, `DeviceBasicAuthenticationHandler`). Kontrol kartı 2026-10-25 – 2026-10-28 arasında
+  Basic Auth kullandı; SCADA sözleşmesi ([Docs/scada-http-api.md](Docs/scada-http-api.md)) MAC'e döndü.
 - **Kamera bir cihazdır (2026-10-22, `DeviceType.Camera`, şablon "IP Kamera").** Oluşturma ve kaldırma (pasife alma) her
   cihaz gibi yalnızca diyagram uçlarıyla yapılır (`EditDiagram`, 2026-10-25); diyagramda olmayan tanımlı cihaz yoktur. Kamera ekranı
   (`PUT /api/Camera`, `ConfigureSystem`) yalnızca aktif kameranın bilgisini günceller ve kameraya özel okumaları (izleme, kare,
@@ -304,7 +306,7 @@ geri eklemeyin, ihtiyaç varsa sahibinin controller'ına ekran bazlı bir uç ek
 
 Kuyruk yok, retry yok — tekrarlanan bir röle darbesi, başarısız bir komuttan daha kötüdür.
 
-**Ingest (SCADA → biz):** `POST /api/Scada/ingest`, kontrol kartının Basic Auth kimliğiyle
+**Ingest (SCADA → biz):** `POST /api/Scada/ingest`, kontrol kartının MAC kimliğiyle
 (`DeviceAuthPolicies.ControlCard`), kendi rate-limit politikası ile.
 
 ```json
@@ -312,11 +314,10 @@ Kuyruk yok, retry yok — tekrarlanan bir röle darbesi, başarısız bir komutt
 ```
 
 - **Kabin isteği gönderen kartın kimliğinden çözülür, gövdede `cabinetId` YOKTUR.** Sahadaki SCADA
-  kabin `Guid`'ini bilmek zorunda değildir: `Authorization: Basic base64(<kontrol modülünün Id'si>:<sır>)` gönderir,
-  handler aktif ve şablonu `DeviceType.ControlModule` olan cihazı doğrulayıp `CabinetId`'sini claim'e yazar,
-  `ScadaController` onu servise verir. Kimliksiz / yanlış kimlikli istek **401**'dir. 2026-09-10 – 2026-10-25 arasında
-  kabin gövdedeki `macAddress`'ten çözülüyordu (eşleşmeyen 404); MAC taklit edilebildiği ve tekillik yönetimi gerektirdiği
-  için kaldırıldı. HTTPS zorunlu değildir (kullanıcı kararı): düz HTTP'de sır ağdan okunabilir — kabul edilen risk.
+  kabin `Guid`'ini bilmek zorunda değildir: `DeviceId: <MAC>` header'ı gönderir, handler MAC'i aktif ve şablonu
+  `DeviceType.ControlModule` olan bir kartla eşleştirip `CabinetId`'sini claim'e yazar, `ScadaController` onu servise verir.
+  Header'sız / eşleşmeyen istek **401**'dir. MAC gizli değildir, bilen kart adına yazabilir; HTTPS de zorunlu değildir
+  (kullanıcı kararları) — kabul edilen risk.
 - **İstek başına tek okuma** taşınır (toplu gönderim yoktur).
 - Adres bir **çifttir**: `type` + `channelNumber`. `ScadaPinAddress.TryParseType` yalnızca iki
   başlık tanır — `"I"` dijital giriş (`PinDirection.Input`), `"A"` analog giriş
@@ -340,7 +341,7 @@ Kuyruk yok, retry yok — tekrarlanan bir röle darbesi, başarısız bir komutt
   `CabinetStatusChanged` yayınlanır.
 
 **Kart okuma (SCADA → biz, 2026-09-11):** `POST /api/Scada/card`, ingest ile aynı controller
-(kontrol kartının Basic Auth kimliği, `Scada` rate-limit politikası).
+(kontrol kartının MAC kimliği, `Scada` rate-limit politikası).
 
 ```json
 { "cardId": "04A2B9C1", "timestampUtc": null }
@@ -818,10 +819,9 @@ değil, bilinçli bir karardır; `dotnet build` çıktısındaki 5 uyarı bu yü
 - ~~Ayarlar uzaktan düzenlenemiyor~~ — **veritabanına taşındı ve ekranı yazıldı (2026-09-10)**,
   bkz. (e). `/admin/settings`; kaydedilen değer yeniden başlatma olmadan etkili.
 - **Kiracı izolasyonu yok** (§ 6'daki gerekçeyle sonradan tek noktadan gelecek).
-- ~~**Ingest yalnızca `macAddress` ile "kimlik doğrular"**~~ — **Basic Auth'a geçti (2026-10-25)**: kart cihaz Id'si +
-  sistemin ürettiği sırla doğrulanır (§ 5.3). Kalan risk: **HTTPS zorunlu değil** (kullanıcı kararı) — düz HTTP'de sır ağdan
-  okunabilir. Sırrın SHA-256'sı saklandığı ve MAC index'leri kalktığı için eski "global MAC index'i kiracı izolasyonuyla
-  çakışır" riski de ortadan kalktı.
+- **Kontrol kartı yalnızca MAC ile "kimlik doğrular" (2026-10-28, kullanıcı kararı).** `DeviceId` header'ı gizli bir değer
+  taşımaz; MAC'i bilen (ağı dinleyen) kart adına giriş değeri ve kart okuması gönderebilir. HTTPS de zorunlu değil. MAC tekilliği
+  denetlenmez. 2026-10-25 – 2026-10-28 arasındaki Basic Auth sırrı SCADA sözleşmesine uyum için kaldırıldı.
 - **Ayrı bir `TelemetryRecord` tablosu yok — bilinçli.** 2026-09-10'da analog kanalların
   geçmişinin de `ChannelEvent`'te tutulmasına karar verildi (`ChannelEventService`'teki koşul
   `Input` **ve** `AnalogInput`'u kapsıyor). Analog kanalda tablo artık bir zaman serisi gibi

@@ -309,12 +309,12 @@ export function useDiagramEditor(cabinetId: string, graph: DiagramDto): DiagramE
           monitoringPort: null,
           pingIntervalSec: 300,
           isMonitoringEnabled: false,
-          // Tipine göre boş ek nesne: sunucu tipiyle eşleşen nesneyi zorunlu tutar. Kart ve PC kimliksiz doğar (sır panelden).
+          // Tipine göre boş ek nesne: sunucu tipiyle eşleşen nesneyi zorunlu tutar. Kart MAC'siz, PC kimliksiz doğar (panelden girilir).
           camera:
             template.deviceTypeId === DeviceType.Camera
               ? { brand: CameraBrand.Hikvision, model: null, description: null, username: null, password: null }
               : null,
-          controlCard: template.deviceTypeId === DeviceType.ControlModule ? { secret: null } : null,
+          controlCard: template.deviceTypeId === DeviceType.ControlModule ? { macAddress: null } : null,
           pc: template.deviceTypeId === DeviceType.Pc ? { secret: null } : null
         },
         template.deviceTypeId
@@ -350,11 +350,11 @@ export function useDiagramEditor(cabinetId: string, graph: DiagramDto): DiagramE
           monitoringPort: source.monitoringPort,
           pingIntervalSec: source.pingIntervalSec,
           isMonitoringEnabled: false,
-          // Parola ve sır KOPYALANAMAZ (sunucu onları göndermez; kart/PC kimliği zaten cihazın kendi Id'sine bağlı).
+          // Parola ve sır KOPYALANAMAZ (sunucu onları göndermez; PC kimliği cihazın kendi Id'sine bağlı). Kartın MAC'i de IP gibi kopyalanmaz.
           camera: source.camera
             ? { brand: source.camera.brand, model: source.camera.model, description: source.camera.description, username: source.camera.username, password: null }
             : null,
-          controlCard: source.controlCard ? { secret: null } : null,
+          controlCard: source.controlCard ? { macAddress: null } : null,
           pc: source.pc ? { secret: null } : null
         },
         source.template.deviceTypeId

@@ -40,22 +40,27 @@ public class CameraDraftValidator : AbstractValidator<CameraDraft>
 /// <summary> <see cref="DeviceType.ControlModule"/> sablonlu cihazin ek alanlari. </summary>
 public class ControlCardDraft : IDto
 {
+    private string? _macAddress;
+
     /// <summary>
-    /// Kartın Basic Auth sırrı (kullanıcı adı cihazın Id'si — <see cref="DeviceCredential"/>). Parolayı istemci üretir.
-    /// <c>null</c> = mevcut kimliğe dokunma, <c>""</c> = iptal et (kart bağlanamaz), değer = yeni sır (eskisi geçersiz olur).
+    /// Kartın MAC adresi; SCADA bunu <c>DeviceId</c> header'ında gönderir. Her kayıtta eksiksiz gönderilir (parola gibi "dokunma" anlamı yok):
+    /// boş = <c>null</c> (kart bağlanamaz), biçimlenebilen yazım tek tipe (<c>AA:BB:CC:DD:EE:FF</c>) çevrilir.
     /// </summary>
-    [CriticalData]
-    public string? Secret { get; set; }
+    public string? MacAddress
+    {
+        get => _macAddress;
+        set => _macAddress = MacAddressFormat.NormalizeOrKeep(value);
+    }
 }
 
 public class ControlCardDraftValidator : AbstractValidator<ControlCardDraft>
 {
     public ControlCardDraftValidator()
     {
-        RuleFor(v => v.Secret)
-            .Must(secret => secret == "" || DeviceCredential.IsValidSecret(secret))
-            .When(v => v.Secret is not null)
-            .WithMessage($"Sır {DeviceCredential.SecretLength} karakterlik küçük harf onaltılık olmalı; panelden üretin");
+        RuleFor(v => v.MacAddress)
+            .Must(mac => MacAddressFormat.TryNormalize(mac) != null)
+            .When(v => v.MacAddress is not null)
+            .WithMessage("MAC adresi AA:BB:CC:DD:EE:FF biçiminde olmalı");
     }
 }
 

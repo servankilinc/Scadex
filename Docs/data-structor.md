@@ -240,7 +240,7 @@ classDiagram
 
     class ControlCard {
         +Guid DeviceId
-        +string? CredentialHash
+        +string? MacAddress
     }
 
     class PcDevice {
@@ -334,7 +334,7 @@ classDiagram
 flowchart LR
     subgraph OKUMA["📥 Telemetri"]
         KART["Kontrol kartı<br/>3 baytlık çerçeve"] --> SC["SCADA"]
-        SC -->|"POST /api/Scada/ingest (Basic Auth)<br/>{type, channelNumber, value}"| ING["ChannelEventService<br/>.IngestAsync"]
+        SC -->|"POST /api/Scada/ingest (DeviceId: MAC)<br/>{type, channelNumber, value}"| ING["ChannelEventService<br/>.IngestAsync"]
         ING --> CV["IoChannel.CurrentValue<br/>Device.LastSeen / Status<br/>Cabinet.ScadaLastIngestAt"]
         ING -->|"yalnızca DİJİTAL giriş<br/>ve değer değiştiyse"| CE["ChannelEvent"]
         CV --> HUB["SignalR /hubs/diagram"]
@@ -463,7 +463,7 @@ Hepsi `Backend/CabinetOs.Model/Entities/` altındadır. Audit alanları (`Create
 | Tablo | Tip | Alanlar | Not |
 |---|---|---|---|
 | `Camera` | `Camera` (14) | `Brand` · `Model?` · `Description?` · `Username?` · `Password?` | `CameraCapture.CameraId` → `Camera.DeviceId` |
-| `ControlCard` | `ControlModule` (1) | `CredentialHash?` | Kartın Basic Auth kimliği (kullanıcı adı = `DeviceId`, sırrın SHA-256'sı); **ingest ve kart okuma kabini buradan çözer** (2026-10-25, MAC'in yerine) |
+| `ControlCard` | `ControlModule` (1) | `MacAddress?` | Kartın MAC adresi; SCADA `DeviceId` header'ında gönderir, **ingest ve kart okuma kabini buradan çözer** (2026-10-28; tekillik denetlenmez) |
 | `PcDevice` | `Pc` (13) | `CredentialHash?` | RemoteDesk istemcisinin `PcHub` Basic Auth kimliği (kullanıcı adı = `DeviceId`) |
 
 > **Kalıtım değil kompozisyon.** `Camera : Device` (TPT) her `Devices` sorgusuna tüm alt tabloları JOIN'ler ve parolaları her cihaz okumasında belleğe getirirdi; `HasBaseType` tek başına ise TPH (tek tablo) kurar — § 4.4'te reddedilen tasarım. Ek satır yalnızca `Include` edilince okunur.
@@ -877,7 +877,7 @@ NotificationChannelType  Email=0, SMS=1, Webhook=2, Telegram=3, PushNotification
 >   `OuterDoorId` üzerinde). `Status` + `[Flags]` uyarı bayrakları; aşama türetilir.
 > - `CameraCapture`'a `AccessSessionId` **eklenmedi** (çekirdek kirlenirdi): bağ modülde
 >   `OperatorSessionCapture` tablosunda.
-> - Kart ucu `{ cabinetId, cardId }` değil `{ cardId }` + kartın Basic Auth kimliği (§ 5.3 ingest ile aynı çözüm; 2026-10-25 öncesi `macAddress`).
+> - Kart ucu `{ cabinetId, cardId }` değil `{ cardId }` + kartın MAC kimliği (`DeviceId` header'ı; § 5.3 ingest ile aynı çözüm).
 > - Hareket sensörü yok; oturumu dış kapı anahtarı açar.
 
 **Neden yok.** Kart okuyucu, kapı sensörü ve kilit **kanal olarak** modellenebiliyor (`DeviceType.CardReader = 10` zaten var), ama oturum durum makinesi ve kart yönetimi ayrı bir modüldür.

@@ -29,7 +29,7 @@ public class DiagramDeviceDto : IDto
     public bool IsMonitoringEnabled { get; set; }
     public string? LastConnectionError { get; set; }
 
-    /// <summary> Ek tablolar: şablon tipine göre en fazla biri doludur. Parola / sır bilerek yoktur, yalnızca <c>HasPassword</c> / <c>HasCredential</c>. </summary>
+    /// <summary> Ek tablolar: şablon tipine göre en fazla biri doludur. Parola / sır bilerek yoktur, yalnızca <c>HasPassword</c> / <c>HasCredential</c> (PC). </summary>
     public DiagramCameraDto? Camera { get; set; }
     public DiagramControlCardDto? ControlCard { get; set; }
     public DiagramPcDeviceDto? Pc { get; set; }
@@ -48,10 +48,10 @@ public class DiagramCameraDto : IDto
     public bool HasPassword { get; set; }
 }
 
-/// <summary> Basic Auth kullanıcı adı cihazın Id'sidir; sır sunucuda yalnızca hash olarak durur, geri okunamaz. </summary>
+/// <summary> SCADA'nın <c>DeviceId</c> header'ında gönderdiği MAC adresi; <c>null</c> = kart bağlanamaz. </summary>
 public class DiagramControlCardDto : IDto
 {
-    public bool HasCredential { get; set; }
+    public string? MacAddress { get; set; }
 }
 
 /// <summary> Basic Auth kullanıcı adı cihazın Id'sidir; sır sunucuda yalnızca hash olarak durur, geri okunamaz. </summary>
