@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
-import { createCabinet, getCabinetList, getCabinetUpdateModel, updateCabinet } from '@/api/cabinet';
+import { createCabinet, getCabinetList, getCabinetUpdateModel, syncCabinetFromScada, updateCabinet } from '@/api/cabinet';
+import { toApiError } from '@/lib/axios-helper';
 import { cabinetKeys } from '@/api/query-keys';
 import type { CabinetCreateRequest, CabinetUpdateRequest } from '@/models/cabinet';
 
@@ -62,5 +63,22 @@ export function useUpdateCabinet() {
       void queryClient.invalidateQueries({ queryKey: cabinetKeys.all });
       toast.success('Kabin güncellendi.');
     }
+  });
+}
+
+/**
+ * Diyagramdaki "Kartı oku" (`POST /api/Cabinet/{id}/scada-sync`). Önbellek GÜNCELLENMEZ: değişen kanal değerleri sunucudan
+ * `DiagramHub` `ChannelValuesChanged` ile tuvale gelir, kontrol modülünün durumu da aynı yoldan. Burada yalnızca özet bildirilir.
+ * Kart yanıt vermezse sunucu kontrol modülünü Offline'a çeker ve hata döner.
+ */
+export function useScadaSync(cabinetId: string) {
+  return useMutation({
+    mutationFn: () => syncCabinetFromScada(cabinetId),
+    onSuccess: result => {
+      const parts = [`${result.readCount} kanal okundu`, result.changedCount === 0 ? 'değişen yok' : `${result.changedCount} değişti`];
+      if (result.unmatchedCount > 0) parts.push(`${result.unmatchedCount} kanalın diyagramda karşılığı yok`);
+      toast.success('Kart okundu', { description: parts.join(', ') + '.' });
+    },
+    onError: error => toast.error('Kart okunamadı', { description: toApiError(error).message, duration: 8000 })
   });
 }

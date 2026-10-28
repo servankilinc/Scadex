@@ -353,6 +353,26 @@ export const CommandStatusLabels: Record<CommandStatus, string> = {
   [CommandStatus.NoResponse]: 'Yanıt Yok'
 };
 
+/**
+ * Ayna: `EntityEnums.ChannelChangeSource`. Kanal değişimini kim fark etti — `ChannelEventDto.source`.
+ * `Sync`'te değişimin gerçek anı bilinmez (`occurredAtUtc` = fark edildiği an). `Command` olay tablosuna yazılmaz.
+ */
+export const ChannelChangeSource = {
+  /** Kart değişimi kendisi bildirdi (ingest). */
+  Ingest: 1,
+  /** Scadex'in başarılı çıkış komutu. */
+  Command: 2,
+  /** Karttan okuma kayıtlı değerden farklı çıktı; çıkışta son komuttan sapma. */
+  Sync: 3
+} as const;
+export type ChannelChangeSource = (typeof ChannelChangeSource)[keyof typeof ChannelChangeSource];
+
+export const ChannelChangeSourceLabels: Record<ChannelChangeSource, string> = {
+  [ChannelChangeSource.Ingest]: 'Kart bildirimi',
+  [ChannelChangeSource.Command]: 'Komut',
+  [ChannelChangeSource.Sync]: 'Karttan okuma'
+};
+
 // ─────────────────────────────────────────────────────────────
 //  İzleme (kamera)
 // ─────────────────────────────────────────────────────────────

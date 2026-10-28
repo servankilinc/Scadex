@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
+using Scadex.Business.Utils.ScadaCommandGateway;
 using Scadex.Business.Utils.ScadaObserver;
 using Scadex.Core.Utils;
 using Scadex.Core.Utils.ResultPattern;
@@ -17,10 +18,6 @@ namespace Scadex.Business.Concrete;
 /// <summary> Komutların (Scadex -> SCADA) is akışı </summary>
 public partial class DeviceCommandService
 {
-    // kullanıcı tarafından girilen parametrelere karşı ek güvenlik amacıyla eklendi, 0, veya 900K gibi değerler girememesi adına 
-    private const int MinTimeoutMs = 5000; // 5sn
-    private const int MaxTimeoutMs = 180000; // 3dk
-
     /// <inheritdoc />
     public async Task<Result<DeviceCommandResultDto>> SendAsync(Guid deviceId, DeviceCommandSendRequest request, CancellationToken cancellationToken = default)
     {
@@ -112,7 +109,7 @@ public partial class DeviceCommandService
                 Value = sentValue,
                 IssuedAtUtc = DateTime.UtcNow
             },
-            TimeSpan.FromMilliseconds(Math.Clamp(cabinet.ScadaCommandTimeoutMs, MinTimeoutMs, MaxTimeoutMs))
+            IScadaCommandGateway.RequestTimeout(cabinet.ScadaCommandTimeoutMs)
         );
 
         // 9) Komut bilgileri SCADA'dan gelen yanıta göre güncellenir ve veritabanına yazdırılır
@@ -152,7 +149,8 @@ public partial class DeviceCommandService
                     PreviousValue = previousValue,
                     TurnOn = request.TurnOn!.Value,
                     OccurredAtUtc = now,
-                    ReceivedAtUtc = now
+                    ReceivedAtUtc = now,
+                    Source = ChannelChangeSource.Command
                 };
 
                 channelChange = new ChannelValueChange

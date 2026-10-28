@@ -23,12 +23,15 @@ public sealed class SignalizationScadaObserver : IScadaEventObserver
         switch (notification.Direction)
         {
             // Kapı switch'leri "Dijital Input" ve clinetl'lar ui günceller.
+            // Karttan okumayla (Sync) fark edilen değişim motora GİTMEZ: ne zaman olduğu bilinmiyor, "şimdi kapı açıldı" diye oturum
+            // açılmasın / zorlanmış açılış yazılmasın. Motor durum tutmadığı için sonraki kararlar düzelmiş kanal değerini zaten okur.
             case PinDirection.Input:
-                _queue.Enqueue(new ChannelChangedWork(notification));
+                if (notification.Source != ChannelChangeSource.Sync)
+                    _queue.Enqueue(new ChannelChangedWork(notification));
                 _realtimeQueue.Enqueue(notification);
                 break;
 
-            // Siren / aydınlatma / kilit: başarılı komut kanalın değerini değiştirdi işlenecek bir event yok ve clinetl'lar ui günceller.
+            // Siren / aydınlatma / kilit: kanalın değeri değişti (başarılı komut ya da karttan okuma); işlenecek bir event yok, clinetl'lar ui günceller.
             case PinDirection.Output:
                 _realtimeQueue.Enqueue(notification);
                 break;

@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Grid2X2Icon, HandIcon, MousePointer2Icon, SettingsIcon } from 'lucide-react';
+import { Grid2X2Icon, HandIcon, MousePointer2Icon, RefreshCwIcon, SettingsIcon } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -10,6 +10,7 @@ import { BackgroundVariant, BackgroundVariantLabels, DeviceStatus, deviceStatusL
 import type { DiagramCabinetDto, DiagramCanvasSettingsDto } from '@/models/diagram';
 import { canvasSettingsUpsertSchema } from '@/models/canvasSettings';
 import { useAppDispatch, useAppSelector } from '@/hooks';
+import { useScadaSync } from '@/hooks/use-cabinets';
 import { useCanvasSettings } from '@/hooks/use-canvas-settings';
 import type { DiagramActivity } from '@/hooks/use-diagram-editor';
 import { useLiveCabinet } from '@/lib/diagram/live-store';
@@ -57,6 +58,7 @@ export function DiagramToolbar({ cabinet, settings, activity, hubStatus, readOnl
         {/* SCADA'si kapali kabinde canli gosterge YANILTICI olurdu: hicbir zaman
             veri gelmeyecek, "baglanti yok" ise yanlis teshise goturur. */}
         {cabinet.scadaIsEnabled && <LiveIndicator status={hubStatus} lastIngestAt={lastIngestAt} />}
+        {cabinet.scadaIsEnabled && <ScadaSyncButton cabinetId={cabinet.id} />}
         {readOnly ? (
           <Badge variant='outline' className='shrink-0'>
             Salt okunur
@@ -107,7 +109,29 @@ function ModeSwitch() {
   );
 }
 
-const VARIANTS: BackgroundVariant[] = [BackgroundVariant.None, BackgroundVariant.Dots, BackgroundVariant.Lines, BackgroundVariant.Cross];
+/**
+ * "Kartı oku": kabinin kartındaki anlık kanal değerlerini çeker (`GET {ScadaBaseUrl}/status`). Salt okunur kullanıcıda da görünür —
+ * sahaya komut gitmez, yalnızca telemetri tazelenir. Farklı çıkan değerler tuvale canlı akıştan gelir; çıkışın son komuttan farkı
+ * Olaylar ekranına "Komuttan sapma" olarak düşer.
+ */
+function ScadaSyncButton({ cabinetId }: { cabinetId: string }) {
+  const sync = useScadaSync(cabinetId);
+
+  return (
+    <Button
+      variant='outline'
+      size='sm'
+      className='shrink-0'
+      disabled={sync.isPending}
+      title='Kartın anlık kanal değerlerini okur ve diyagramı onunla eşitler'
+      onClick={() => sync.mutate()}>
+      <RefreshCwIcon className={cn(sync.isPending && 'animate-spin')} />
+      {sync.isPending ? 'Okunuyor…' : 'Kartı oku'}
+    </Button>
+  );
+}
+
+const VARIANTS: BackgroundVariant[] =[BackgroundVariant.None, BackgroundVariant.Dots, BackgroundVariant.Lines, BackgroundVariant.Cross];
 
 function CanvasSettingsPopover({ cabinetId, settings }: { cabinetId: string; settings: DiagramCanvasSettingsDto }) {
   const mutation = useCanvasSettings(cabinetId);

@@ -219,6 +219,21 @@ public static class EntityEnums
     }
 
 
+    /// <summary>
+    /// Kanal değerindeki değişimi kim fark etti — <c>ChannelChangedNotification.Source</c> ve <c>ChannelEvent.Source</c>.
+    /// <see cref="Sync"/>'te değişimin ne zaman olduğu bilinmez; <c>OccurredAtUtc</c> yalnızca fark edildiği andır.
+    /// </summary>
+    public enum ChannelChangeSource
+    {
+        /// <summary> SCADA değişimi kendisi bildirdi (<c>POST /api/Scada/ingest</c>). </summary>
+        Ingest = 1,
+        /// <summary> Scadex'in başarılı çıkış komutu. <c>ChannelEvent</c>'e yazılmaz — komutun kaydı <c>DeviceCommand</c>'dadır. </summary>
+        Command = 2,
+        /// <summary> Karttan okuma (<c>/status</c>) kayıtlı değerden farklı çıktı. Çıkışta bu, rölenin son komuttan sapmasıdır. </summary>
+        Sync = 3
+    }
+
+
     public enum StreamProfile
     {
         /// <summary>Yüksek kalite — tam ekran / tek kamera görünümü.</summary>

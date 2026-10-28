@@ -388,7 +388,9 @@ public class MappingProfiles : Profile
             .ForMember(dest => dest.Value, opt => opt.MapFrom(src => src.Value))
             .ForMember(dest => dest.PreviousValue, opt => opt.MapFrom(src => src.PreviousValue))
             .ForMember(dest => dest.OccurredAtUtc, opt => opt.MapFrom(src => src.OccurredAtUtc))
-            .ForMember(dest => dest.ReceivedAtUtc, opt => opt.MapFrom(src => src.ReceivedAtUtc));
+            .ForMember(dest => dest.ReceivedAtUtc, opt => opt.MapFrom(src => src.ReceivedAtUtc))
+            .ForMember(dest => dest.Source, opt => opt.MapFrom(src => src.Source))
+            .ForMember(dest => dest.Direction, opt => opt.MapFrom(src => src.IoChannel != default ? (Model.Enums.EntityEnums.PinDirection?)src.IoChannel.Direction : default));
         #endregion
 
         #region CameraCapture

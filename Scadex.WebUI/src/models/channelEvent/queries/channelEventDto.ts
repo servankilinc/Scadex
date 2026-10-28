@@ -2,6 +2,7 @@
  * Ayna: Scadex.Model/Dtos/ChannelEvent/Queries/ChannelEventDto.cs
  * Sözleşme: docs/api-contract/12-channel-events.md
  */
+import type { ChannelChangeSource, PinDirection } from '@/models/enums';
 
 export interface ChannelEventDto {
   /**
@@ -24,6 +25,8 @@ export interface ChannelEventDto {
   /** Kanalın diyagramdaki adı — "In7" değil "Kapı Sensörü". */
   channelName: string | null;
   channelNumber: number | null;
+  /** Giriş ve çıkış numaraları çakışır (IN5 / OUT5): adres ancak yönle birlikte okunur. */
+  direction: PinDirection | null;
   deviceId: string | null;
   deviceName: string | null;
 
@@ -39,4 +42,10 @@ export interface ChannelEventDto {
    * `occurredAtUtc` ile EŞİTSE, SCADA damga göndermemiş demektir.
    */
   receivedAtUtc: string;
+
+  /**
+   * `Ingest` = kartın bildirimi, `Sync` = karttan okumanın bulduğu fark. Çıkış kanalındaki satır YALNIZCA `Sync`'tir: rölenin son
+   * komuttan sapması (`previousValue` = son komut, `value` = kartın bildirdiği). `Sync`'te `occurredAtUtc` yalnızca fark edildiği andır.
+   */
+  source: ChannelChangeSource;
 }

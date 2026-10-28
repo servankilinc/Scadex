@@ -28,7 +28,24 @@ public readonly record struct ScadaPinAddress(EntityEnums.PinDirection Direction
         }
     }
 
-    /// <summary>Kanal referansindan metinsel adres — giden komut govdesi icin.</summary>
+    /// <summary>
+    /// Okuma ucunun (<c>/status</c>) tipi: <c>"I"</c> / <c>"A"</c> ingest'teki gibi, ayrica <c>"O"</c> cikis
+    /// (role ve LED ayni baslikla). Buyuk/kucuk harf duyarsiz.
+    /// </summary>
+    public static bool TryParseStatusType(string? type, out EntityEnums.PinDirection direction)
+    {
+        if (CheckAndParseIngestPin(type, out direction))
+            return true;
+
+        if (string.Equals(type?.Trim(), "O", StringComparison.OrdinalIgnoreCase))
+        {
+            direction = EntityEnums.PinDirection.Output;
+            return true;
+        }
+        return false;
+    }
+
+    /// <summary>Kanal referansindan metinsel adres (<c>IN3</c>, <c>OUT1</c>) — ekran ve gunluk icin; tele cikmaz.</summary>
     public static string Format(EntityEnums.PinDirection direction, int channelNumber) =>
         direction switch
         {

@@ -405,7 +405,24 @@ yanıtımızı beklerken aynı kartın web sunucusunu çağırmak tek iş parça
   `ValueUpdatedAt`'e cevap anını yazar; değer değiştiyse `ChannelValuesChanged` ve gözlemciler çağrılır.
   Yazım `SetCurrentValueIfChangedAsync` ile **koşullu tek UPDATE**'tir: komut SCADA'yı dakikalarca
   bekleyebildiği için baştaki okuma bayatlamış olabilir. Başarısız / zaman aşımı değeri değiştirmez.
-  Bu bir **saha ölçümü değildir** — kartın yeniden başlaması ya da röleye elle müdahale görünmez.
+  Bu bir **saha ölçümü değildir** — kartın yeniden başlaması ya da röleye elle müdahale ancak karttan okumayla görünür (aşağıda).
+- **Karttan okuma (2026-10-28, [Docs/scada-http-api.md](Docs/scada-http-api.md) § 4).** `IScadaCommandGateway.ReadStatusAsync`:
+  `GET /status` tüm kanalları, `POST /status` gövdedeki kanalları okur (yanıt `[{ type, channelNumber, value }]`, ≤ 64 KB; `O` rölenin
+  o anki fiziksel durumu). `IChannelEventService.SyncFromScadaAsync(cabinetId)` tümünü okur, `I`/`A`/`O` + numara ile kabinin etkin
+  kanallarına eşler ve **ingest'le aynı yazım yolundan** (`ApplyChannelValuesAsync`) yazar: değişen kanalda `CurrentValue`, giriş/analogda
+  `ChannelEvent`, `ChannelValuesChanged`, gözlemciler (`Source = Sync`). Kartın bildirmediği kanala dokunulmaz. Canlılık komuttaki
+  kuralla aynı (başarı = temas, `NoResponse` = Offline); retry yok. Zaman aşımı komutla ortak: `IScadaCommandGateway.RequestTimeout`
+  (kabinin `ScadaCommandTimeoutMs`'i, 5 sn – 3 dk).
+  **Çağıranlar:** diyagram araç çubuğundaki **"Kartı oku"** (`POST /api/Cabinet/{id}/scada-sync`, `ViewDiagram` — sahaya komut gitmez;
+  yanıt yalnızca özet `ScadaSyncResultDto`, değerler tuvale `DiagramHub`'dan gelir; SCADA'sı kapalı kabinde düğme yok) ve izleme turu
+  (kontrol kartında izleme açıksa).
+  **Çıkış sapması kalıcıdır:** okuma bir çıkışı kayıtlı değerden (son komut) farklı bulursa `ChannelEvent` satırı yazılır
+  (`Source = Sync`, önceki değer = son komut, yeni değer = kartın bildirdiği) ve `Warning` günlüğe düşer; Olaylar ekranında
+  "Komuttan sapma" rozetiyle görünür. Kayıtlı değeri `null` olan (hiç komut görmemiş) çıkışta değer ilk kez öğrenilir: yalnızca
+  kanala yazılır, satır ve `Warning` yok. Komutun kendisi `ChannelEvent`'e yazılmaz (kaydı `DeviceCommand`'da). **Yarış koruması:** okuma
+  başlamadan önceki an not alınır, `ValueUpdatedAt`'i o andan yeni kanala (okuma sürerken tamamlanan komut / gelen ingest) dokunulmaz —
+  yoksa eski okuma başarılı komutu geri alır ve sahte sapma yazardı. `delay`'li komut (güç döngüsü) kullanılırsa süre dolunca okuma bunu
+  sapma olarak kaydeder; beklenen davranıştır.
 - **Komutun sonucu SCADA kartının canlılık kanıtıdır (2026-09-24).** `Succeeded` → kontrol modülü
   temas (`RecordScadaContactAsync`), `NoResponse` → kontrol modülü **anında** Offline
   (`RecordScadaUnreachableAsync`), `Failed` → dokunulmaz. Retry eklenmedi.

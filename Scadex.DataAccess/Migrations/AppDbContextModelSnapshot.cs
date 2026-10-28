@@ -407,6 +407,9 @@ namespace Scadex.DataAccess.Migrations
                     b.Property<DateTime>("ReceivedAtUtc")
                         .HasColumnType("datetime2");
 
+                    b.Property<int>("Source")
+                        .HasColumnType("int");
+
                     b.Property<string>("Value")
                         .IsRequired()
                         .HasColumnType("nvarchar(max)");

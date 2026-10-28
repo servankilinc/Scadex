@@ -15,10 +15,12 @@ public class CabinetController : BaseController
 {
     private readonly ICabinetService _cabinetService;
     private readonly ICabinetStatusService _cabinetStatusService;
-    public CabinetController(ILogger<CabinetController> logger, ICabinetService cabinetService, ICabinetStatusService cabinetStatusService) : base(logger)
+    private readonly IChannelEventService _channelEventService;
+    public CabinetController(ILogger<CabinetController> logger, ICabinetService cabinetService, ICabinetStatusService cabinetStatusService, IChannelEventService channelEventService) : base(logger)
     {
         _cabinetService = cabinetService;
         _cabinetStatusService = cabinetStatusService;
+        _channelEventService = channelEventService;
     }
 
     #region Get
@@ -27,6 +29,20 @@ public class CabinetController : BaseController
     public async Task<IActionResult> GetStatusBreakdown(Guid id, CancellationToken cancellationToken)
     {
         var result = await _cabinetStatusService.GetBreakdownAsync(id, cancellationToken);
+        return ToAction(result);
+    }
+    #endregion
+
+    #region Scada
+    /// <summary>
+    /// Diyagramdaki "Kartı oku": kabinin kartını okur (<c>GET {ScadaBaseUrl}/status</c>) ve farklı çıkan kanal değerlerini yazar; değişenler
+    /// <c>DiagramHub</c>'dan tuvale yayınlanır, yanıt yalnızca özettir. <c>ViewDiagram</c>: sahaya komut gitmez, yalnızca telemetri tazelenir.
+    /// </summary>
+    [HttpPost("{id:guid}/scada-sync")]
+    [RequirePermission(Permission.ViewDiagram)]
+    public async Task<IActionResult> SyncFromScada(Guid id, CancellationToken cancellationToken)
+    {
+        var result = await _channelEventService.SyncFromScadaAsync(id, cancellationToken);
         return ToAction(result);
     }
     #endregion

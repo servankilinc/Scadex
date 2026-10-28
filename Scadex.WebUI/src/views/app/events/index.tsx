@@ -10,7 +10,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { useCabinets } from '@/hooks/use-cabinets';
 import { useChannelEvents } from '@/hooks/use-channel-events';
 import { useDiagramGraph } from '@/hooks/use-diagram-graph';
-import { PinDirectionLabels, type PinDirection } from '@/models/enums';
+import { ChannelChangeSource, ChannelChangeSourceLabels, PinDirection, PinDirectionLabels } from '@/models/enums';
 import type { ChannelEventDto } from '@/models/channelEvent';
 import { formatUtcDateTime } from '@/lib/utils';
 
@@ -203,13 +203,14 @@ export default function ChannelEvents() {
       {events.data && (
         <>
           <div className='scrollbar-thin overflow-x-auto rounded-xl border'>
-            <table className='w-full min-w-[42rem] text-sm'>
+            <table className='w-full min-w-[50rem] text-sm'>
               <thead className='bg-muted/50 text-muted-foreground'>
                 <tr className='[&>th]:px-3 [&>th]:py-2 [&>th]:text-left [&>th]:font-medium'>
                   <th className='w-48'>Gerçekleşme</th>
                   <th>Cihaz</th>
                   <th>Kanal</th>
                   <th className='w-40'>Değişim</th>
+                  <th className='w-36'>Kaynak</th>
                   <th className='w-48'>Alınma</th>
                 </tr>
               </thead>
@@ -256,7 +257,11 @@ function EventRow({ event }: { event: ChannelEventDto }) {
   // Damgasız ingest: sunucu `timestampUtc` gelmediğinde `OccurredAtUtc`'yi
   // `ReceivedAtUtc` ile eşitliyor. Operatör için bu, "sahadaki an bilinmiyor,
   // bu yalnızca bize ulaşma anı" demek.
-  const isStampless = event.occurredAtUtc === event.receivedAtUtc;
+  // Karttan okumada (`Sync`) gerçekleşme anı zaten bilinmiyor: "damgasız" rozeti yerine kaynak sütunu bunu söyler.
+  const isSync = event.source === ChannelChangeSource.Sync;
+  const isStampless = !isSync && event.occurredAtUtc === event.receivedAtUtc;
+  // Çıkışta olay satırı yalnızca okumadan doğar: kayıtlı değer son komuttu, kart başka bir değer bildirdi.
+  const isOutputDrift = isSync && event.direction === PinDirection.Output;
 
   return (
     <tr className='border-t [&>td]:px-3 [&>td]:py-2'>
@@ -270,7 +275,11 @@ function EventRow({ event }: { event: ChannelEventDto }) {
 
       <td className='max-w-[14rem] truncate'>
         {event.channelName ?? <span className='text-muted-foreground italic'>silinmiş kanal</span>}
-        {event.channelNumber != null && <span className='ml-1.5 font-mono text-xs text-muted-foreground'>CH{event.channelNumber}</span>}
+        {event.channelNumber != null && (
+          <span className='ml-1.5 font-mono text-xs text-muted-foreground'>
+            {event.direction != null ? `${PinDirectionLabels[event.direction]} ${event.channelNumber}` : `CH${event.channelNumber}`}
+          </span>
+        )}
       </td>
 
       <td className='font-mono text-xs whitespace-nowrap'>
@@ -278,6 +287,23 @@ function EventRow({ event }: { event: ChannelEventDto }) {
         <span className='text-muted-foreground'>{event.previousValue ?? '—'}</span>
         <span className='mx-1.5'>→</span>
         <span className='font-medium'>{event.value}</span>
+      </td>
+
+      <td className='whitespace-nowrap'>
+        {isOutputDrift ? (
+          <Badge
+            variant='destructive'
+            className='font-normal'
+            title='Röle son komuttan farklı: önceki değer son komut, yeni değer kartın bildirdiği. Gerçek değişim anı bilinmiyor.'>
+            Komuttan sapma
+          </Badge>
+        ) : isSync ? (
+          <Badge variant='secondary' className='font-normal' title='Karttan okumada fark edildi; gerçek değişim anı bilinmiyor.'>
+            {ChannelChangeSourceLabels[event.source]}
+          </Badge>
+        ) : (
+          <span className='text-xs text-muted-foreground'>{ChannelChangeSourceLabels[event.source]}</span>
+        )}
       </td>
 
       <td className='font-mono text-xs whitespace-nowrap'>

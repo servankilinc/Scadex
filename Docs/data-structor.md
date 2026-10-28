@@ -227,6 +227,7 @@ classDiagram
         +string? PreviousValue
         +DateTime OccurredAtUtc
         +DateTime ReceivedAtUtc
+        +ChannelChangeSource Source
     }
 
     class Camera {

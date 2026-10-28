@@ -1,6 +1,6 @@
 import http from '@/lib/axios-helper';
 import type { CreatedDto } from '@/models/common/createdDto';
-import type { CabinetCreateRequest, CabinetDetailDto, CabinetStatusBreakdownDto, CabinetUpdateRequest } from '@/models/cabinet';
+import type { CabinetCreateRequest, CabinetDetailDto, CabinetStatusBreakdownDto, CabinetUpdateRequest, ScadaSyncResultDto } from '@/models/cabinet';
 
 const CABINET_ROUTE = '/api/Cabinet';
 
@@ -35,4 +35,12 @@ export async function updateCabinet(request: CabinetUpdateRequest): Promise<void
 /** Kabin durumunun dökümü: hangi cihaz/kamera kabine ne katkı veriyor. Pasif ya da olmayan kabinde 404. */
 export async function getCabinetStatusBreakdown(id: string): Promise<CabinetStatusBreakdownDto> {
   return http.get<CabinetStatusBreakdownDto>(`${CABINET_ROUTE}/${id}/status-breakdown`);
+}
+
+/**
+ * "Kartı oku": kabinin kartını okuyup (`GET {ScadaBaseUrl}/status`) farklı çıkan kanal değerlerini yazar. Değerler tuvale `DiagramHub`
+ * ile gelir; yanıt yalnızca özettir. Kart yanıt vermezse / hata dönerse / SCADA kapalıysa hata (ProblemDetails) döner. `ViewDiagram`.
+ */
+export async function syncCabinetFromScada(id: string): Promise<ScadaSyncResultDto> {
+  return http.post<ScadaSyncResultDto>(`${CABINET_ROUTE}/${id}/scada-sync`, {});
 }

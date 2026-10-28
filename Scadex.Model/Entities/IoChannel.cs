@@ -15,7 +15,8 @@ public class IoChannel : IEntity, ISoftDeletableEntity, IAuditableEntity
     /// <summary>
     /// Kanalın son değeri; <c>null</c> = bilinmiyor (<c>"0"</c> ile aynı şey DEĞİLDİR).
     /// <para/>
-    /// Input/AnalogInput: SCADA'nın ingest ettiği ham değer. Output: son BAŞARILI komutun karta giden FİZİKSEL değeri (NC kontakta mantıksal isteğin tersi). 
+    /// Input/AnalogInput: SCADA'nın ingest ettiği ham değer. Output: son BAŞARILI komutun karta giden FİZİKSEL değeri (NC kontakta mantıksal isteğin tersi).
+    /// İkisi de karttan okumayla (<c>GET /status</c>, <c>IChannelEventService.SyncFromScadaAsync</c>) kartın bildirdiği değere düzeltilir; kartın bildirmediği kanal olduğu gibi kalır.
     /// Mantıksal "yük açık mı" okuması <c>IIoChannelService.GetOutputStatesAsync</c> ile yapılır.
     /// </summary>
     public string? CurrentValue { get; set; }

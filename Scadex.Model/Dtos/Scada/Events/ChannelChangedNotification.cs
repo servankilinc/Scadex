@@ -20,4 +20,10 @@ public class ChannelChangedNotification : IDto
     /// <summary> Sahada gerceklestigi an (SCADA gondermediyse bize ulaştığı an). </summary>
     public DateTime OccurredAtUtc { get; set; }
     public DateTime ReceivedAtUtc { get; set; }
+
+    /// <summary>
+    /// Değişimi kim fark etti. <see cref="ChannelChangeSource.Sync"/> = karttan okumada (<c>/status</c>) eski değerden farklı çıktı: değişim
+    /// arada bir zaman oldu, <see cref="OccurredAtUtc"/> yalnızca fark edildiği andır — gözlemci onu "şimdi oldu" diye işlememeli.
+    /// </summary>
+    public ChannelChangeSource Source { get; set; }
 }

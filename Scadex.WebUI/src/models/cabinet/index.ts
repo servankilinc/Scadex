@@ -1,6 +1,7 @@
 // Queries — sunucu ciktisi, saf interface
 export type { CabinetDetailDto } from './queries/cabinetDetailDto';
 export type { CabinetStatusBreakdownDto, CabinetStatusContributorDto } from './queries/cabinetStatusBreakdownDto';
+export type { ScadaSyncResultDto } from './queries/scadaSyncResultDto';
 
 // Commands — C# DTO aynalari, saf interface
 export type { CabinetCreateRequest } from './commands/cabinetCreateRequest';
