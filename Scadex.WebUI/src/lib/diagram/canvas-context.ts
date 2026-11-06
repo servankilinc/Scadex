@@ -6,8 +6,8 @@ import type { PointDto } from '@/models/diagram';
  *
  * React Flow node ve edge bileşenlerine yalnızca `data` ulaşır ve
  * `nodeTypes`/`edgeTypes` modül seviyesinde sabittir (değişirse RF hepsini
- * yeniden mount eder). Kabinin SCADA durumunu her cihazın `data`'sına kopyalamak,
- * aynı bilginin node sayısı kadar tekrarı ve her kabin ayarı değişiminde tüm
+ * yeniden mount eder). Otomasyonun SCADA durumunu her cihazın `data`'sına kopyalamak,
+ * aynı bilginin node sayısı kadar tekrarı ve her otomasyon ayarı değişiminde tüm
  * node'ların yeniden üretilmesi olurdu. Düzenleme geri çağrıları için de aynı
  * gerekçe geçerli.
  *
@@ -16,7 +16,7 @@ import type { PointDto } from '@/models/diagram';
  * değeri değişir ve bir tuşa basmak bile grafın tamamını yeniden çizdirirdi.
  */
 export interface DiagramCanvasContextValue {
-  cabinetId: string;
+  automationId: string;
   /** False ise kumanda ucu 400 döner; menü bunu ÖNCEDEN söyler. */
   scadaIsEnabled: boolean;
   /** `EditDiagram` izni. Yoksa editör salt okunurdur: menüde düzenleme bölümü, kabloda kırılma noktası tutamaçları çizilmez. */

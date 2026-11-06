@@ -51,6 +51,11 @@ public class ControlCardDraft : IDto
         get => _macAddress;
         set => _macAddress = MacAddressFormat.NormalizeOrKeep(value);
     }
+
+    /// <summary> Kartın HTTP adresi (komut + okuma). 2026-11-04'e kadar otomasyon formundaydı. </summary>
+    public string? ScadaBaseUrl { get; set; }
+    public bool ScadaIsEnabled { get; set; }
+    public int ScadaCommandTimeoutMs { get; set; }
 }
 
 public class ControlCardDraftValidator : AbstractValidator<ControlCardDraft>
@@ -61,6 +66,11 @@ public class ControlCardDraftValidator : AbstractValidator<ControlCardDraft>
             .Must(mac => MacAddressFormat.TryNormalize(mac) != null)
             .When(v => v.MacAddress is not null)
             .WithMessage("MAC adresi AA:BB:CC:DD:EE:FF biçiminde olmalı");
+        When(v => v.ScadaIsEnabled, () =>
+        {
+            RuleFor(v => v.ScadaBaseUrl).NotEmpty().WithMessage("SCADA acikken adres bilgisi zorunlu");
+            RuleFor(v => v.ScadaCommandTimeoutMs).GreaterThanOrEqualTo(10000).WithMessage("Zaman aşımı en az 10.000ms olabilir");
+        });
     }
 }
 

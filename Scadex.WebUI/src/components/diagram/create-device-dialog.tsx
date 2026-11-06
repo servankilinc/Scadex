@@ -10,7 +10,7 @@ const CAMERA_BRANDS: CameraBrand[] = Object.values(CameraBrand);
 
 /**
  * Zorunlu alanı olan cihazın oluşturma penceresi — bugün yalnızca kamera: RTSP adresi IP'den kurulduğu için sunucu
- * IP'siz kamerayı oluşturmaz (ve IP kabin içinde tekildir). Diğer tipler paletten bırakılınca beklemeden oluşturulur.
+ * IP'siz kamerayı oluşturmaz (ve IP otomasyon içinde tekildir). Diğer tipler paletten bırakılınca beklemeden oluşturulur.
  *
  * Kurallar sunucudaki `DeviceUpdateRequestValidator` + `CameraDraftValidator`'ın ELLE tutulan aynasıdır (IP ≤ 45,
  * model ≤ 64, kullanıcı/parola ≤ 128). Tekillik gibi kontroller sunucudadır; ret toast olarak görünür ve pencere açık kalır.
@@ -61,7 +61,7 @@ export function CreateDeviceDialog({
           <Field label='Ad' htmlFor='create-camera-name'>
             <Input id='create-camera-name' className='h-8' maxLength={128} value={name} onChange={e => setName(e.target.value)} />
           </Field>
-          <Field label='IP adresi' htmlFor='create-camera-ip' hint='Zorunlu; bu kabinde başka bir kamerada olmamalı.'>
+          <Field label='IP adresi' htmlFor='create-camera-ip' hint='Zorunlu; bu otomasyonda başka bir kamerada olmamalı.'>
             <Input id='create-camera-ip' className='h-8' maxLength={45} autoFocus value={ipAddress} onChange={e => setIpAddress(e.target.value)} />
           </Field>
           <Field label='Marka'>

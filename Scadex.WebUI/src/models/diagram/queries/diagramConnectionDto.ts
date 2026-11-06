@@ -1,5 +1,5 @@
 /** Ayna: Scadex.Model/Dtos/Diagram/Queries/DiagramConnectionDto.cs — sözleşme: docs/api-contract/02-diagram-read.md */
-import type { EdgeRouting, LineStyle, WireType } from '@/models/enums';
+import type { EdgeRouting, LineStyle } from '@/models/enums';
 import type { PointDto } from './pointDto';
 
 /**
@@ -16,14 +16,13 @@ import type { PointDto } from './pointDto';
  */
 export interface DiagramConnectionDto {
   id: string;
-  cabinetId: string;
+  automationId: string;
   sourcePinId: string;
   targetPinId: string;
   sourceDeviceId: string;
   targetDeviceId: string;
   /** Null: draw-first UX'te yeni çizilen kablonun henüz etiketi yoktur. */
   label: string | null;
-  wireType: WireType;
   /** CSS renk dizesi (şablon renginden farklı olarak burada string). */
   color: string;
   lineStyle: LineStyle;

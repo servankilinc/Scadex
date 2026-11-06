@@ -2,9 +2,9 @@
 import type { BackgroundVariant } from '@/models/enums';
 
 /**
- * Kabinin canvas tercihleri. Aggregate'in İÇİNDE gelir — ayrı çağrı yoktur.
+ * Otomasyonun canvas tercihleri. Aggregate'in İÇİNDE gelir — ayrı çağrı yoktur.
  *
- * `id` ve audit alanları BİLEREK yok: kabinin kayıtlı ayarı yoksa sunucu
+ * `id` ve audit alanları BİLEREK yok: otomasyonun kayıtlı ayarı yoksa sunucu
  * varsayılan döner ve satır oluşturmaz, o yanıtta bir kimlik olamaz.
  */
 export interface DiagramCanvasSettingsDto {

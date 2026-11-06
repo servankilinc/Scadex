@@ -2,11 +2,11 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
 using Scadex.Business.Abstract;
 using Scadex.Business.Utils.Auth;
-using Scadex.Core.BaseRequestModels;
 using Scadex.Model.Dtos.Role.Commands;
 using Scadex.WebAPI.Controllers.Base;
 using Scadex.Business.Utils.RateLimiting;
 using static Scadex.Model.Enums.EntityEnums;
+using Scadex.Core.Utils.BaseRequestModels;
 
 namespace Scadex.WebAPI.Controllers;
 

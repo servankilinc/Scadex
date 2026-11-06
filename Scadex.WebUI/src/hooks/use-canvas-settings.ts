@@ -9,18 +9,18 @@ import type { DiagramDto } from '@/models/diagram';
 /**
  * Canvas ayarlarını yazar.
  *
- * OKUMA burada yok: ayarlar kabin bazlı olduğu için diyagram aggregate'inin
+ * OKUMA burada yok: ayarlar otomasyon bazlı olduğu için diyagram aggregate'inin
  * içinde geliyor (`useDiagramGraph().data.canvasSettings`). Ayrı bir query
  * açmak aynı veriyi iki kez indirmek ve iki cache'i senkron tutmak olurdu.
  */
-export function useCanvasSettings(cabinetId: string) {
+export function useCanvasSettings(automationId: string) {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: (request: CanvasSettingsUpsertRequest) => upsertCanvasSettings(cabinetId, request),
+    mutationFn: (request: CanvasSettingsUpsertRequest) => upsertCanvasSettings(automationId, request),
     onSuccess: settings => {
       // Sunucu zaten yazdığı değerleri döndürdüğü için cache'i yerinde güncellemek daha doğru
-      queryClient.setQueryData<DiagramDto>(diagramKeys.cabinet(cabinetId), previous =>
+      queryClient.setQueryData<DiagramDto>(diagramKeys.automation(automationId), previous =>
         previous ? { ...previous, canvasSettings: settings } : previous
       );
     },

@@ -6,12 +6,12 @@ using Scadex.Core.Utils;
 using Scadex.Core.Utils.ResultPattern;
 using Scadex.Model.Dtos.DeviceCommand.Commands;
 using Scadex.Model.Dtos.DeviceCommand.Queries;
-using Scadex.Model.Dtos.Realtime.Queries;
-using Scadex.Model.Dtos.Scada.Commands;
-using Scadex.Model.Dtos.Scada.Events;
+using Scadex.Model.Scada.Commands;
+using Scadex.Model.Realtime.Events;
 using Scadex.Model.Entities;
 using System.Text.Json;
 using static Scadex.Model.Enums.EntityEnums;
+using Scadex.Model.Realtime.Notifications;
 
 namespace Scadex.Business.Concrete;
 
@@ -30,7 +30,7 @@ public partial class DeviceCommandService
         // 2) Komutun gönderileceği komponent bulunur
         var device = await _unitOfWork.Devices.GetAsync(
             where: d => d.Id == deviceId && d.IsActive,
-            include: i => i.Include(d => d.Cabinet),
+            include: i => i.Include(d => d.Automation),
             tracking: false,
             cancellationToken: cancellationToken
         );
@@ -38,17 +38,20 @@ public partial class DeviceCommandService
             return Result<DeviceCommandResultDto>.NotFound(description: "Cihaz bulunamadi veya pasif durumda");
 
 
-        // 3) Komutun gönderileceği kabin bulunur
-        var cabinet = device.Cabinet;
-        if (cabinet == null || !cabinet.IsActive)
-            return Result<DeviceCommandResultDto>.NotFound(description: "Cihazin kabini bulunamadi veya pasif durumda");
+        // 3) Komutun gönderileceği otomasyon bulunur
+        var automation = device.Automation;
+        if (automation == null || !automation.IsActive)
+            return Result<DeviceCommandResultDto>.NotFound(description: "Cihazin otomasyonu bulunamadi veya pasif durumda");
 
 
-        // 4) SCADA ve kanal ile iletişim için gerekli kontroller
-        if (!cabinet.ScadaIsEnabled)
-            return Result<DeviceCommandResultDto>.Failure($"Bu kabinde({cabinet.Id}) SCADA kapalı; komut gönderilemez");
-        if (string.IsNullOrWhiteSpace(cabinet.ScadaBaseUrl))
-            return Result<DeviceCommandResultDto>.Failure($"Kabinin({cabinet.Id}) SCADA adresi tanımlı değil");
+        // 4) SCADA (otomasyonun kontrol kartı) ve kanal ile iletişim için gerekli kontroller
+        var card = await _unitOfWork.ControlCards.GetActiveForAutomationAsync(automation.Id, cancellationToken: cancellationToken);
+        if (card == null)
+            return Result<DeviceCommandResultDto>.Failure($"Bu otomasyonda({automation.Id}) kontrol kartı yok; komut gönderilemez");
+        if (!card.ScadaIsEnabled)
+            return Result<DeviceCommandResultDto>.Failure($"Bu otomasyonda({automation.Id}) SCADA kapalı; komut gönderilemez");
+        if (string.IsNullOrWhiteSpace(card.ScadaBaseUrl))
+            return Result<DeviceCommandResultDto>.Failure($"Otomasyonun({automation.Id}) kontrol kartının SCADA adresi tanımlı değil");
         if (request.IoChannelId is not Guid channelId)
             return Result<DeviceCommandResultDto>.Failure("Komut için hedef kanal zorunlu");
 
@@ -87,7 +90,6 @@ public partial class DeviceCommandService
         {
             DeviceId = device.Id,
             IoChannelId = channel.Id,
-            CommandType = request.CommandType,
             PayloadJson = JsonSerializer.Serialize(new ScadaCommandPayload(turnOn, sentValue, polarity.Contact), ProjectJsonOptions.SerializerOptions),
             Status = CommandStatus.Sent,
             RequestedByUserId = requestedByUserId,
@@ -98,18 +100,16 @@ public partial class DeviceCommandService
 
         // 8) SCADA'ya gönderilir ve sonucu beklenir
         var outcome = await _scadaCommandGateway.SendAsync(
-            cabinet.ScadaBaseUrl!,
+            card.ScadaBaseUrl,
             new ScadaCommandEnvelope
             {
-                CommandId = command.Id,
-                CabinetId = cabinet.Id,
+                AutomationId = automation.Id,
                 // Pin = ScadaPinAddress.Format(channel.Direction, channel.ChannelNumber), // "OUT1", "OUT2" gibi SCADA'ya iletilir
                 ChannelNumber = channel.ChannelNumber, // karta "output=1", "output=2" olarak iletilir
-                CommandType = request.CommandType,
                 Value = sentValue,
                 IssuedAtUtc = DateTime.UtcNow
             },
-            IScadaCommandGateway.RequestTimeout(cabinet.ScadaCommandTimeoutMs)
+            IScadaCommandGateway.RequestTimeout(card.ScadaCommandTimeoutMs)
         );
 
         // 9) Komut bilgileri SCADA'dan gelen yanıta göre güncellenir ve veritabanına yazdırılır
@@ -121,13 +121,13 @@ public partial class DeviceCommandService
 
         // 9.0) Komutun sonucu SCADA kartının omline olup olmadığı çıkar: yanıt verdiyse temas, zaman aşımı / bağlantı hatası ise kayıp.
         if (outcome.Status == CommandStatus.Succeeded)
-            await _cabinetStatusService.RecordScadaContactAsync(cabinet.Id, CancellationToken.None);
+            await _automationStatusService.RecordScadaContactAsync(automation.Id, CancellationToken.None);
         else if (outcome.Status == CommandStatus.NoResponse)
-            await _cabinetStatusService.RecordScadaUnreachableAsync(cabinet.Id, outcome.Message, CancellationToken.None);
+            await _automationStatusService.RecordScadaUnreachableAsync(automation.Id, outcome.Message, CancellationToken.None);
 
         // 9.1) Başarılı komut, kanalın mevcut değerini yazar; başarısız/zaman aşımı değeri değiştirmez.
-        ChannelValueChange? channelChange = null;
-        ChannelChangedNotification? observerNotification = null;
+        ChannelValueChangeNotify? channelChange = null;
+        ChannelChangedEvent? observerNotification = null;
 
         if (outcome.Status == CommandStatus.Succeeded)
         {
@@ -138,9 +138,24 @@ public partial class DeviceCommandService
 
             if (changed)
             {
-                observerNotification = new ChannelChangedNotification
+                // Komutun kanal üzerindeki SONUCU olay günlüğüne yazılır (2026-10-31): Olaylar ekranında kanalın zaman çizelgesi
+                // tam olsun, "Komuttan sapma" satırı karşılaştırıldığı komutu da göstersin. Komutun kendisi (kim, aç/kapat, NO/NC,
+                // başarısızlar) DeviceCommand'dadır. Değer fizikseldir (NC'de "aç" = "0"); önceki değer null olabilir (ilk komut).
+                _unitOfWork.ChannelEvents.Add(new ChannelEvent
                 {
-                    CabinetId = cabinet.Id,
+                    IoChannelId = channel.Id,
+                    AutomationId = automation.Id,
+                    Value = sentValue,
+                    PreviousValue = previousValue,
+                    OccurredAtUtc = now,
+                    ReceivedAtUtc = now,
+                    Source = ChannelChangeSource.Command
+                });
+                await _unitOfWork.SaveChangesAsync(CancellationToken.None);
+
+                observerNotification = new ChannelChangedEvent
+                {
+                    AutomationId = automation.Id,
                     IoChannelId = channel.Id,
                     DeviceId = channel.DeviceId,
                     Direction = channel.Direction,
@@ -153,7 +168,7 @@ public partial class DeviceCommandService
                     Source = ChannelChangeSource.Command
                 };
 
-                channelChange = new ChannelValueChange
+                channelChange = new ChannelValueChangeNotify
                 {
                     IoChannelId = channel.Id,
                     DeviceId = channel.DeviceId,
@@ -166,20 +181,19 @@ public partial class DeviceCommandService
 
         // 9.2) Kanal değeri değiştiyse izleyen client'lara bildirilir
         if (channelChange != null)
-            await _notifier.ChannelValuesChangedAsync(cabinet.Id, [channelChange], CancellationToken.None);
+            await _notifier.ChannelValuesChangedAsync(automation.Id, [channelChange], CancellationToken.None);
 
-        // 10) Komutun tamamlandığı, kabindeki diğer izleyici client'lara yayınlanır
+        // 10) Komutun tamamlandığı, otomasyondaki diğer izleyici client'lara yayınlanır
         var userNameResult = _httpContextManager.GetName();
         string? requestedByName = userNameResult.IsSuccess ? userNameResult.Data : null;
 
-        // NOT: Yayın sadece komutu gönderene degil ayni kabini izleyen herkese gider.
-        await _notifier.CommandCompletedAsync(cabinet.Id, new CommandCompleted
+        // NOT: Yayın sadece komutu gönderene degil ayni otomasyonu izleyen herkese gider.
+        await _notifier.CommandCompletedAsync(automation.Id, new CommandCompletedNotify
         {
             CommandId = command.Id,
             DeviceId = device.Id,
             IoChannelId = channel.Id,
             ChannelNumber = channel.ChannelNumber,
-            CommandType = command.CommandType,
             Status = command.Status,
             ResultMessage = command.ResultMessage,
             RespondedAt = command.RespondedAt,
@@ -191,9 +205,9 @@ public partial class DeviceCommandService
             await _observers.PublishAsync(o => o.OnChannelChangedAsync(observerNotification, CancellationToken.None), _logger, nameof(IScadaEventObserver.OnChannelChangedAsync));
 
         // 12) Komutun kendisi (başarılı/başarısız, gönderenle) dış modüllere yayınlanır — ör. elle manuel gönderilen komutun o an açık operatör işlemine yazılması
-        var commandNotification = new OutputCommandNotification
+        var commandNotification = new OutputCommandEvent
         {
-            CabinetId = cabinet.Id,
+            AutomationId = automation.Id,
             DeviceId = device.Id,
             IoChannelId = channel.Id,
             CommandId = command.Id,

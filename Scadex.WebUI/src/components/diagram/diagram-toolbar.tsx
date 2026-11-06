@@ -7,13 +7,13 @@ import { Label } from '@/components/ui/label';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Switch } from '@/components/ui/switch';
 import { BackgroundVariant, BackgroundVariantLabels, DeviceStatus, deviceStatusLabel } from '@/models/enums';
-import type { DiagramCabinetDto, DiagramCanvasSettingsDto } from '@/models/diagram';
+import type { DiagramAutomationDto, DiagramCanvasSettingsDto } from '@/models/diagram';
 import { canvasSettingsUpsertSchema } from '@/models/canvasSettings';
 import { useAppDispatch, useAppSelector } from '@/hooks';
-import { useScadaSync } from '@/hooks/use-cabinets';
+import { useScadaSync } from '@/hooks/use-automations';
 import { useCanvasSettings } from '@/hooks/use-canvas-settings';
 import type { DiagramActivity } from '@/hooks/use-diagram-editor';
-import { useLiveCabinet } from '@/lib/diagram/live-store';
+import { useLiveAutomation } from '@/lib/diagram/live-store';
 import type { HubStatus } from '@/lib/signalr/diagram-hub';
 import { cn } from '@/lib/utils';
 import { setMode } from '@/store/reducers/diagramSlice';
@@ -21,7 +21,7 @@ import { LiveIndicator } from './live-indicator';
 import { SaveIndicator } from './save-indicator';
 
 interface DiagramToolbarProps {
-  cabinet: DiagramCabinetDto;
+  automation: DiagramAutomationDto;
   settings: DiagramCanvasSettingsDto;
   activity: DiagramActivity;
   hubStatus: HubStatus;
@@ -29,24 +29,24 @@ interface DiagramToolbarProps {
   readOnly?: boolean;
 }
 
-export function DiagramToolbar({ cabinet, settings, activity, hubStatus, readOnly = false }: DiagramToolbarProps) {
+export function DiagramToolbar({ automation, settings, activity, hubStatus, readOnly = false }: DiagramToolbarProps) {
   // Canlı değerler sunucu anlık görüntüsünü EZER: snapshot grafın çekildiği andaki
   // durumu taşır, store ondan sonrasını.
-  const live = useLiveCabinet(cabinet.id);
-  const statusId = live ? live.statusId : cabinet.deviceStatusId;
-  const lastIngestAt = live ? live.scadaLastIngestAt : cabinet.scadaLastIngestAt;
+  const live = useLiveAutomation(automation.id);
+  const statusId = live ? live.statusId : automation.deviceStatusId;
+  const lastIngestAt = live ? live.scadaLastIngestAt : automation.scadaLastIngestAt;
 
   return (
     <header className='flex items-center gap-3 border-b px-3 py-2'>
       <div className='min-w-0'>
-        <h1 className='truncate text-sm font-semibold'>{cabinet.name}</h1>
+        <h1 className='truncate text-sm font-semibold'>{automation.name}</h1>
         <p className='text-muted-foreground text-xs'>
           {/* null = bilinmiyor (canlilik kaniti yok); Offline ile AYNI SEY DEGIL */}
           {deviceStatusLabel(statusId)}
         </p>
       </div>
 
-      {!cabinet.scadaIsEnabled && (
+      {!automation.scadaIsEnabled && (
         <Badge variant='secondary' className='shrink-0'>
           SCADA kapalı
         </Badge>
@@ -55,10 +55,10 @@ export function DiagramToolbar({ cabinet, settings, activity, hubStatus, readOnl
       <ModeSwitch />
 
       <div className='ml-auto flex items-center gap-3'>
-        {/* SCADA'si kapali kabinde canli gosterge YANILTICI olurdu: hicbir zaman
+        {/* SCADA'si kapali otomasyonda canli gosterge YANILTICI olurdu: hicbir zaman
             veri gelmeyecek, "baglanti yok" ise yanlis teshise goturur. */}
-        {cabinet.scadaIsEnabled && <LiveIndicator status={hubStatus} lastIngestAt={lastIngestAt} />}
-        {cabinet.scadaIsEnabled && <ScadaSyncButton cabinetId={cabinet.id} />}
+        {automation.scadaIsEnabled && <LiveIndicator status={hubStatus} lastIngestAt={lastIngestAt} />}
+        {automation.scadaIsEnabled && <ScadaSyncButton automationId={automation.id} />}
         {readOnly ? (
           <Badge variant='outline' className='shrink-0'>
             Salt okunur
@@ -70,7 +70,7 @@ export function DiagramToolbar({ cabinet, settings, activity, hubStatus, readOnl
           <Grid2X2Icon className='size-3.5' />
           {settings.gridSize}px
         </span>
-        {!readOnly && <CanvasSettingsPopover cabinetId={cabinet.id} settings={settings} />}
+        {!readOnly && <CanvasSettingsPopover automationId={automation.id} settings={settings} />}
       </div>
     </header>
   );
@@ -110,12 +110,12 @@ function ModeSwitch() {
 }
 
 /**
- * "Kartı oku": kabinin kartındaki anlık kanal değerlerini çeker (`GET {ScadaBaseUrl}/status`). Salt okunur kullanıcıda da görünür —
+ * "Kartı oku": otomasyonun kartındaki anlık kanal değerlerini çeker (`GET {ScadaBaseUrl}/status`). Salt okunur kullanıcıda da görünür —
  * sahaya komut gitmez, yalnızca telemetri tazelenir. Farklı çıkan değerler tuvale canlı akıştan gelir; çıkışın son komuttan farkı
  * Olaylar ekranına "Komuttan sapma" olarak düşer.
  */
-function ScadaSyncButton({ cabinetId }: { cabinetId: string }) {
-  const sync = useScadaSync(cabinetId);
+function ScadaSyncButton({ automationId }: { automationId: string }) {
+  const sync = useScadaSync(automationId);
 
   return (
     <Button
@@ -133,8 +133,8 @@ function ScadaSyncButton({ cabinetId }: { cabinetId: string }) {
 
 const VARIANTS: BackgroundVariant[] =[BackgroundVariant.None, BackgroundVariant.Dots, BackgroundVariant.Lines, BackgroundVariant.Cross];
 
-function CanvasSettingsPopover({ cabinetId, settings }: { cabinetId: string; settings: DiagramCanvasSettingsDto }) {
-  const mutation = useCanvasSettings(cabinetId);
+function CanvasSettingsPopover({ automationId, settings }: { automationId: string; settings: DiagramCanvasSettingsDto }) {
+  const mutation = useCanvasSettings(automationId);
   const [open, setOpen] = useState(false);
   const [draft, setDraft] = useState(settings);
   const [issue, setIssue] = useState<string | null>(null);
@@ -222,8 +222,8 @@ function CanvasSettingsPopover({ cabinetId, settings }: { cabinetId: string; set
   );
 }
 
-/** Kabin durumu rozeti — kabin listesinde de kullanılır. */
-export function CabinetStatusBadge({ statusId, className }: { statusId: DeviceStatus | null; className?: string }) {
+/** Otomasyon durumu rozeti — otomasyon listesinde de kullanılır. */
+export function AutomationStatusBadge({ statusId, className }: { statusId: DeviceStatus | null; className?: string }) {
   if (statusId == null) {
     return (
       <Badge variant='outline' className={cn('shrink-0', className)}>

@@ -7,7 +7,7 @@ namespace Scadex.Business.Concrete;
 // ucudur; her kayıt yalnızca kendi satırını güncellediği için kayıtlar arası tutarlılık ya da sıra sorusu doğmaz.
 public partial class DiagramService
 {
-    public async Task<Result> UpdateLayoutAsync(Guid cabinetId, DiagramLayoutRequest request, CancellationToken cancellationToken = default)
+    public async Task<Result> UpdateLayoutAsync(Guid automationId, DiagramLayoutRequest request, CancellationToken cancellationToken = default)
     {
         var validationResult = await _validationService.ValidateAsync(request, cancellationToken);
         if (!validationResult.IsValid)
@@ -16,17 +16,17 @@ public partial class DiagramService
         if (request.Devices.Count == 0 && request.Annotations.Count == 0)
             return Result.Success();
 
-        if (!await IsCabinetActiveAsync(cabinetId, cancellationToken))
-            return Result.NotFound(description: "Kabin bulunamadi veya pasif durumda");
+        if (!await IsAutomationActiveAsync(automationId, cancellationToken))
+            return Result.NotFound(description: "Otomasyon bulunamadi veya pasif durumda");
 
         var deviceIds = request.Devices.Select(d => d.Id).ToList();
         var devices = deviceIds.Count == 0 ? [] : (await _unitOfWork.Devices.GetAllAsync(
-            where: d => deviceIds.Contains(d.Id) && d.CabinetId == cabinetId && d.IsActive,
+            where: d => deviceIds.Contains(d.Id) && d.AutomationId == automationId && d.IsActive,
             cancellationToken: cancellationToken) ?? []).ToDictionary(d => d.Id);
 
         var annotationIds = request.Annotations.Select(a => a.Id).ToList();
         var annotations = annotationIds.Count == 0 ? [] : (await _unitOfWork.DiagramAnnotations.GetAllAsync(
-            where: a => annotationIds.Contains(a.Id) && a.CabinetId == cabinetId,
+            where: a => annotationIds.Contains(a.Id) && a.AutomationId == automationId,
             cancellationToken: cancellationToken) ?? []).ToDictionary(a => a.Id);
 
         // Bulunamayan kayit sessizce atlanmaz: yerlesimi yazilamayan bir kutu, kullanicinin tuvalde gordugunun
@@ -34,10 +34,10 @@ public partial class DiagramService
         var errors = new Dictionary<string, List<string>>(StringComparer.Ordinal);
         for (int i = 0; i < request.Devices.Count; i++)
             if (!devices.ContainsKey(request.Devices[i].Id))
-                AddError(errors, $"Devices[{i}].Id", "Cihaz bu kabinde bulunamadi");
+                AddError(errors, $"Devices[{i}].Id", "Cihaz bu otomasyonda bulunamadi");
         for (int i = 0; i < request.Annotations.Count; i++)
             if (!annotations.ContainsKey(request.Annotations[i].Id))
-                AddError(errors, $"Annotations[{i}].Id", "Not bu kabinde bulunamadi");
+                AddError(errors, $"Annotations[{i}].Id", "Not bu otomasyonda bulunamadi");
         if (errors.Count > 0)
             return Result.Validation(ToFailures(errors), description: "Yerlesim kaydedilemedi");
 

@@ -1,6 +1,6 @@
 import { XIcon } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { EdgeRouting, EdgeRoutingLabels, LineStyle, LineStyleLabels, WireType, WireTypeLabels } from '@/models/enums';
+import { EdgeRouting, EdgeRoutingLabels, LineStyle, LineStyleLabels } from '@/models/enums';
 import type { DiagramConnectionDto, PointDto } from '@/models/diagram';
 import { removeWaypoint } from '@/lib/diagram/waypoints';
 import { DeleteButton } from './confirm-delete';
@@ -8,11 +8,10 @@ import { ColorInput, EnumSelect, Field, NumberInput, ReadOnly, TextInput } from 
 
 /**
  * Seçili kablonun paneli. Her alan commit'te (blur / seçim) ANINDA yazılır (`PUT …/connections/{id}`): alanlar
- * birbirinden bağımsız, kaydetme düğmesine gerek yok. `onConnect` yeni kabloyu nötr bir varsayılanla (gri, düz, Sinyal)
- * doğuruyor — panel olmasaydı çizilen hiçbir kablonun tipi belirlenemezdi.
+ * birbirinden bağımsız, kaydetme düğmesine gerek yok. `onConnect` yeni kabloyu nötr bir varsayılanla (gri, düz)
+ * doğuruyor — panel olmasaydı çizilen hiçbir kablonun görünümü değiştirilemezdi.
  */
 
-const WIRE_TYPES: WireType[] = [WireType.Power, WireType.Signal, WireType.DataRS485, WireType.DataEthernet, WireType.Relay, WireType.Sensor];
 const LINE_STYLES: LineStyle[] = [LineStyle.Solid, LineStyle.Dashed, LineStyle.Dotted];
 const ROUTINGS: EdgeRouting[] = [EdgeRouting.Orthogonal, EdgeRouting.Straight, EdgeRouting.Curved];
 
@@ -29,10 +28,6 @@ export function ConnectionForm({
     <div className='flex flex-col gap-3'>
       <Field label='Etiket' htmlFor='wire-label'>
         <TextInput id='wire-label' value={connection.label ?? ''} onCommit={value => onChange({ label: value || null })} />
-      </Field>
-
-      <Field label='Kablo tipi'>
-        <EnumSelect value={connection.wireType} options={WIRE_TYPES} labels={WireTypeLabels} onChange={wireType => onChange({ wireType })} />
       </Field>
 
       <Field label='Renk' htmlFor='wire-color'>

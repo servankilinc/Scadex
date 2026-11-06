@@ -104,7 +104,7 @@ public sealed class CentralConnectionService : BackgroundService, ICentralConnec
         if (!Guid.TryParse(DeviceId, out _) || string.IsNullOrWhiteSpace(_options.DeviceSecret))
         {
             Publish(new ConnectionStatus(ConnectionState.NotConfigured, CentralUrl,
-                "appsettings.json > RemoteDesk:DeviceId / DeviceSecret eksik. Kabin diyagramında bu PC'nin cihazını seçin, özellik panelinde " +
+                "appsettings.json > RemoteDesk:DeviceId / DeviceSecret eksik. Otomasyon diyagramında bu PC'nin cihazını seçin, özellik panelinde " +
                 "kimlik bilgisi üretin ve kaydedin; Kullanıcı adı → DeviceId, Sır → DeviceSecret."));
             return;
         }
@@ -238,9 +238,9 @@ public sealed class CentralConnectionService : BackgroundService, ICentralConnec
                 return response.Status == HelloStatus.AlreadyConnected ? RunOutcome.Failed : RunOutcome.Rejected;
             }
 
-            _logger.LogInformation("Merkeze bağlandı: {Cabinet} / {Device}", response.CabinetName, response.DeviceName);
+            _logger.LogInformation("Merkeze bağlandı: {Automation} / {Device}", response.AutomationName, response.DeviceName);
             Publish(new ConnectionStatus(ConnectionState.Connected, CentralUrl, $"Bağlandı: {DateTime.Now:HH:mm:ss}",
-                response.DeviceName, response.CabinetName));
+                response.DeviceName, response.AutomationName));
             lock (_gate) _accepted = hub;
             // Hello'da gönderilen liste başlangıç imzasıdır; sonraki bildirimler yalnızca bundan farklıysa gider.
             await _monitorReport.WaitAsync(stoppingToken);

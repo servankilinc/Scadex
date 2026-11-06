@@ -1,7 +1,7 @@
 using Scadex.Core.Model;
 using Scadex.Core.Utils;
 using Scadex.Model.Dtos.DeviceCommand.Queries;
-using Scadex.Model.Dtos.Scada.Commands;
+using Scadex.Model.Scada.Commands;
 using System.Text.Json;
 using static Scadex.Model.Enums.EntityEnums;
 
@@ -12,7 +12,10 @@ public class DeviceCommand : IEntity, ISoftDeletableEntity, IAuditableEntity
     public Guid Id { get; set; }
     public Guid DeviceId { get; set; }
     public Guid? IoChannelId { get; set; }
-    public DeviceCommandType CommandType { get; set; }
+    /// <summary>
+    /// Tek komut türü vardır: çıkış kanalını aç/kapat. Komut tipi kolonu 2026-10-31'de kaldırıldı (tek değerliydi, hiçbir karar ona
+    /// bakmıyordu). Niyet (<c>turnOn</c>), gönderilen değer ve kutup <see cref="ScadaCommandPayload"/> olarak burada saklanır.
+    /// </summary>
     public string? PayloadJson { get; set; }
     public CommandStatus Status { get; set; }
     public Guid? RequestedByUserId { get; set; }
@@ -56,7 +59,7 @@ public class DeviceCommand : IEntity, ISoftDeletableEntity, IAuditableEntity
             DeviceId = this.DeviceId,
             IoChannelId = this.IoChannelId,
             ChannelNumber = channelNumber,
-            CommandType = this.CommandType,
+            TurnOn = payload?.TurnOn,
             PayloadJson = this.PayloadJson,
             SentValue = payload?.Value,
             ResolvedPolarity = payload?.Polarity,

@@ -48,8 +48,8 @@ export function savedDeviceProperties(properties: DeviceProperties): DevicePrope
 
 /**
  * Cihaz özellikleri. Ek nesneler (kamera / kontrol kartı / PC) tiplerine göre tam olarak biri dolu gelir; sunucu tipiyle
- * eşleşmeyeni 400'ler. `hasPassword`/`hasCredential` telde yok; bekleyen parola/sır yoksa `null` ("dokunma"). Kartın MAC'i
- * her seferinde olduğu gibi gider.
+ * eşleşmeyeni 400'ler. `hasPassword`/`hasCredential` telde yok; bekleyen parola/sır yoksa `null` ("dokunma"). Kartın MAC'i ve
+ * SCADA ayarları her seferinde olduğu gibi gider; `scadaLastIngestAt` telemetridir, gönderilmez.
  */
 export function toDeviceUpdateRequest(device: DiagramDeviceDto): DeviceUpdateRequest {
   const { camera, controlCard, pc } = device;
@@ -62,7 +62,14 @@ export function toDeviceUpdateRequest(device: DiagramDeviceDto): DeviceUpdateReq
     camera: camera
       ? { brand: camera.brand, model: camera.model, description: camera.description, username: camera.username, password: camera.password ?? null }
       : null,
-    controlCard: controlCard ? { macAddress: controlCard.macAddress } : null,
+    controlCard: controlCard
+      ? {
+          macAddress: controlCard.macAddress,
+          scadaBaseUrl: controlCard.scadaBaseUrl,
+          scadaIsEnabled: controlCard.scadaIsEnabled,
+          scadaCommandTimeoutMs: controlCard.scadaCommandTimeoutMs
+        }
+      : null,
     pc: pc ? { secret: pc.secret ?? null } : null
   };
 }
@@ -100,7 +107,6 @@ export function toDeviceLayoutItem(device: DiagramDeviceDto): DeviceLayoutItem {
 export function toConnectionUpdateRequest(connection: DiagramConnectionDto): ConnectionUpdateRequest {
   return {
     label: connection.label,
-    wireType: connection.wireType,
     color: connection.color,
     lineStyle: connection.lineStyle,
     strokeWidth: connection.strokeWidth,

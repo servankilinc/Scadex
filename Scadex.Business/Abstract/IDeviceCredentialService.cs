@@ -3,8 +3,8 @@ using static Scadex.Model.Enums.EntityEnums;
 
 namespace Scadex.Business.Abstract;
 
-/// <summary> Kimliği doğrulanan saha cihazı: kim olduğu ve hangi kabine yazdığı. </summary>
-public sealed record AuthenticatedDevice(Guid DeviceId, Guid CabinetId);
+/// <summary> Kimliği doğrulanan saha cihazı: kim olduğu ve hangi otomasyona yazdığı. </summary>
+public sealed record AuthenticatedDevice(Guid DeviceId, Guid AutomationId);
 
 /// <summary>
 /// Saha cihazlarının kimliğini doğrular: kontrol kartı <c>DeviceId</c> header'ındaki MAC adresiyle, RemoteDesk PC'si Basic Auth ile
@@ -13,8 +13,8 @@ public sealed record AuthenticatedDevice(Guid DeviceId, Guid CabinetId);
 /// </summary>
 public interface IDeviceCredentialService
 {
-    /// <summary> Cihaz aktif, şablonu <paramref name="deviceType"/> ve sırrı saklanan hash'le eşleşiyorsa başarılıdır. Yalnızca <see cref="DeviceType.Pc"/>. </summary>
-    Task<Result<AuthenticatedDevice>> AuthenticateAsync(DeviceType deviceType, Guid deviceId, string secret, CancellationToken cancellationToken = default);
+    /// <summary> RemoteDesk PC'si: cihaz aktif, şablonu <see cref="DeviceType.Pc"/> ve sırrı saklanan hash'le eşleşiyorsa başarılıdır. </summary>
+    Task<Result<AuthenticatedDevice>> AuthenticatePcAsync(Guid deviceId, string secret, CancellationToken cancellationToken = default);
 
     /// <summary> Tek tip MAC adresi (<c>AA:BB:CC:DD:EE:FF</c>) aktif bir kontrol kartına aitse başarılıdır; birden fazla kartta varsa ilki. </summary>
     Task<Result<AuthenticatedDevice>> AuthenticateControlCardAsync(string macAddress, CancellationToken cancellationToken = default);

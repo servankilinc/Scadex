@@ -1,14 +1,14 @@
 import { useState } from 'react';
 import { Link, useParams } from 'react-router';
 import { ArrowLeftIcon, ChevronLeftIcon, ChevronRightIcon, CircleStopIcon, ImageOffIcon, LoaderIcon, ShieldAlertIcon, SirenIcon } from 'lucide-react';
-import { captureFileUrl } from '@/api/camera-stream';
+import { captureFileUrl } from '@/modules/cameramanagement/api/camera-stream';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Skeleton } from '@/components/ui/skeleton';
 import { cn, formatUtcDateTime, toUtcDate } from '@/lib/utils';
-import { CaptureStatus } from '@/models/enums/entityEnums';
+import { CaptureStatus } from '@/modules/cameramanagement/models/enums';
 import { CloseSessionDialog } from '../../components/close-session-dialog';
 import { OperatorIdCard } from '../../components/operator-id-card';
 import { SessionFlagBadges, SessionStatusBadge } from '../../components/session-badges';

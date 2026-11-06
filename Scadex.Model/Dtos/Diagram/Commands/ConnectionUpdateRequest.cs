@@ -6,13 +6,12 @@ using static Scadex.Model.Enums.EntityEnums;
 namespace Scadex.Model.Dtos.Diagram.Commands;
 
 /// <summary>
-/// Kablonun görünümü: <c>PUT /api/Diagram/cabinet/{cabinetId}/connections/{id}</c>. Uçlar burada yoktur — ucu değiştirmek
+/// Kablonun görünümü: <c>PUT /api/Diagram/automation/{automationId}/connections/{id}</c>. Uçlar burada yoktur — ucu değiştirmek
 /// yeni bir kablodur (silip yeniden çizilir).
 /// </summary>
 public class ConnectionUpdateRequest : IDto
 {
     public string? Label { get; set; }
-    public WireType WireType { get; set; }
     public string Color { get; set; } = null!;
     public LineStyle LineStyle { get; set; }
     public double StrokeWidth { get; set; }
@@ -28,7 +27,6 @@ public class ConnectionUpdateRequestValidator : AbstractValidator<ConnectionUpda
     public ConnectionUpdateRequestValidator()
     {
         RuleFor(v => v.Label).MaximumLength(128).WithMessage("Etiket en fazla 128 karakter olabilir");
-        RuleFor(v => v.WireType).IsInEnum().WithMessage("Gecersiz kablo tipi");
         RuleFor(v => v.Color).NotEmpty().WithMessage("Kablo rengi zorunlu");
         RuleFor(v => v.Color).MaximumLength(32).WithMessage("Kablo rengi en fazla 32 karakter olabilir");
         RuleFor(v => v.LineStyle).IsInEnum().WithMessage("Gecersiz cizgi stili");

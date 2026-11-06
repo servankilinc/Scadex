@@ -1,27 +1,29 @@
-using Scadex.Business.Utils.CameraProtocolProfile;
 using Scadex.Core.Utils.ResultPattern;
-using static Scadex.Model.Enums.EntityEnums;
 
 namespace Scadex.Business.Utils.MediaGateway;
 
 /// <summary>
-/// <b>Medya buradan GECMEZ.</b> Bu gecit yalnizca yapilandirma yapar;
-/// Göruntu <c>Kamera -> Media Gateway (MediaMTX) -> Client</c> yolunu izler ve Scadex uzerinden akmaz. <para/>
-/// Anlik görüntü ve klip de <c>ICameraCaptureGateway</c> (FFmpeg) ile ayni canli path'den (<c>cam_{id}_main</c>), token ile okunur. Monitoring açıksa kameraya ikinci oturum acilmaz
+/// <b>Medya buradan GECMEZ.</b> Bu gecit yalnizca MediaMTX'i yapilandirir; goruntu <c>Kaynak -> Media Gateway (MediaMTX) -> Client</c>
+/// yolunu izler ve Scadex uzerinden akmaz. <para/>
+/// Gecit kaynagi BILMEZ: yol adlari ve kaynak adresleri onu kullanan modullerindir (CameraManagement <c>cam_</c>, RemoteDesk <c>pc_</c>).
+/// Yollarin yetkilendirmesi de modullerindir (<see cref="IMediaPathAuthorizer"/>).
 /// </summary>
 public interface IMediaGateway
 {
     public const string HttpClientName = "http_client_media_gateway";
 
-    /// <summary> Live stream path'i kurar (path varsa ve ayarlarında değişiklik yoksa atlar değişiklik varsa günceller). </summary>
-    Task<Result> EnsureLivePathAsync(CameraEndpoint camera, StreamProfile profile, CancellationToken cancellationToken = default);
+    /// <summary>
+    /// Kaynagini MediaMTX'in kendisinin cektigi bir yolu kurar (yol varsa ve yapilandirmasi ayniysa atlar, farkliysa gunceller).
+    /// Talep uzerine baglanir: izleyicisi olmayan yolun kaynak oturumu <c>MediaGatewaySettings.SourceOnDemandCloseAfterSec</c> sonra kapanir.
+    /// </summary>
+    Task<Result> EnsureSourcePathAsync(string pathName, string sourceUrl, CancellationToken cancellationToken = default);
 
     /// <summary>
-    /// Live stream path'i VARSA ve yapılandırması kameranın güncel RTSP kaynağıyla uyuşmuyorsa siler; yoksa ya da güncelse dokunmaz.
-    /// Kamera bilgisi (IP / marka / kimlik) değiştiğinde açık izleyicilerin eski oturumu kesilsin diye — yolu yeniden kurmak
-    /// bir sonraki izleme isteğinin (<see cref="EnsureLivePathAsync"/>) işidir.
+    /// Yol VARSA ve yapilandirmasi verilen kaynakla uyusmuyorsa siler; yoksa ya da guncelse dokunmaz.
+    /// Kaynak bilgisi (IP / marka / kimlik) degistiginde acik izleyicilerin eski oturumu kesilsin diye — yolu yeniden kurmak
+    /// bir sonraki izleme isteginin (<see cref="EnsureSourcePathAsync"/>) isidir.
     /// </summary>
-    Task<Result> DeleteLivePathIfStaleAsync(CameraEndpoint camera, StreamProfile profile, CancellationToken cancellationToken = default);
+    Task<Result> DeleteSourcePathIfStaleAsync(string pathName, string sourceUrl, CancellationToken cancellationToken = default);
 
     /// <summary> Yolu siler. </summary>
     Task<Result> DeletePathAsync(string pathName, CancellationToken cancellationToken = default);
@@ -41,20 +43,12 @@ public interface IMediaGateway
     /// </summary>
     Task<Result> KickPublisherAsync(string pathName, CancellationToken cancellationToken = default);
 
-    #region Static Path Name Generators
-    private const string LivePathPrefix = "cam_";
-
-    /// <summary> Canli izleme yolunun adi. <c>Id</c>'den turetilir </summary>
-    static string LivePathName(Guid cameraId, StreamProfile profile) => $"{LivePathPrefix}{cameraId:N}_{profile.ToString().ToLowerInvariant()}";
-
     /// <summary>
-    /// Sunucu ici okuyucunun (FFmpeg) canli path'e baglandigi adres. Token PAROLA alanindadir: MediaMTX onu auth hook'a (<c>POST /api/MediaGateway/auth</c>) iletir, tarayicinin token gibi dogrulanir. Kullanici adi onemsizdir sabit girildi.
+    /// Sunucu ici okuyucunun (FFmpeg) bir yola baglandigi adres. Token PAROLA alanindadir: MediaMTX onu auth hook'a (<c>POST /api/MediaGateway/auth</c>) iletir,
+    /// yolu ustlenen <see cref="IMediaPathAuthorizer"/> tarayicinin token'i gibi dogrular. Kullanici adi onemsizdir sabit girildi.
     /// Host <c>127.0.0.1</c>: MediaMTX ile API ayni sunucuda. Port <c>MediaGatewaySettings.RtspPort</c> (<c>mediamtx.yml &gt; rtspAddress</c> ile eslesmeli).
     /// </summary>
     // exp => "rtsp://127.0.0.1:8554/path"
     static string LiveRtspUrl(int rtspPort, string pathName, string token) =>
         new UriBuilder("rtsp", "127.0.0.1", rtspPort, pathName) { UserName = "scadex", Password = token }.Uri.ToString();
-    /// <summary> Yol BIZIM urettigimiz bir path m? Gün sonu temizleyici worker servisi yalnızca bunlara uygulanır. </summary>
-    static bool IsManagedPathName(string pathName) => pathName.StartsWith(LivePathPrefix, StringComparison.Ordinal);
-    #endregion
 }

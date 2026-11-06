@@ -9,7 +9,7 @@ using static Scadex.Model.Enums.EntityEnums;
 
 namespace Scadex.WebAPI.Controllers;
 
-/// <summary> Tuval ayarlarının tek yazım yolu. Okuma diyagramla birlikte gelir (<c>GET /api/Diagram/cabinet/{id}</c>). </summary>
+/// <summary> Tuval ayarlarının tek yazım yolu. Okuma diyagramla birlikte gelir (<c>GET /api/Diagram/automation/{id}</c>). </summary>
 [EnableRateLimiting(RateLimiterKey.Default)]
 public class CanvasSettingsController : BaseController
 {
@@ -18,11 +18,11 @@ public class CanvasSettingsController : BaseController
         _canvasSettingsService = canvasSettingsService;
 
 
-    [HttpPut("cabinet/{cabinetId:guid}")]
+    [HttpPut("automation/{automationId:guid}")]
     [RequirePermission(Permission.EditDiagram)]
-    public async Task<IActionResult> Upsert(Guid cabinetId, CanvasSettingsUpsertDto request, CancellationToken cancellationToken)
+    public async Task<IActionResult> Upsert(Guid automationId, CanvasSettingsUpsertDto request, CancellationToken cancellationToken)
     {
-        var result = await _canvasSettingsService.UpsertAsync(cabinetId, request, cancellationToken);
+        var result = await _canvasSettingsService.UpsertAsync(automationId, request, cancellationToken);
         return ToAction(result);
     }
 }

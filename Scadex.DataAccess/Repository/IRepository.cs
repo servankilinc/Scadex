@@ -1,10 +1,7 @@
 using AutoMapper;
 using Microsoft.EntityFrameworkCore.Query;
-using Scadex.Core.BaseRequestModels;
 using Scadex.Core.Model;
-using Scadex.Core.Utils.Datatable;
 using Scadex.Core.Utils.DynamicQuery;
-using Scadex.Core.Utils.Pagination;
 using System.Linq.Expressions;
 
 namespace Scadex.DataAccess.Repository;
@@ -95,84 +92,6 @@ public interface IRepository<TEntity> where TEntity : IEntity
         IConfigurationProvider configurationProvider,
         Filter? filter = null,
         IEnumerable<Sort>? sorts = null,
-        Expression<Func<TEntity, bool>>? where = null,
-        Func<IQueryable<TEntity>, IOrderedQueryable<TEntity>>? orderBy = null,
-        Func<IQueryable<TEntity>, IIncludableQueryable<TEntity, object?>>? include = null,
-        bool ignoreFilters = false
-    );
-    #endregion
-
-    #region Datatable Server-Side
-    DatatableResponseServerSide<TEntity> DatatableServerSide(
-        DynamicDatatableRequest datatableRequest,
-        Expression<Func<TEntity, bool>>? where = null,
-        Func<IQueryable<TEntity>, IOrderedQueryable<TEntity>>? orderBy = null,
-        Func<IQueryable<TEntity>, IIncludableQueryable<TEntity, object?>>? include = null,
-        bool ignoreFilters = false
-    );
-    DatatableResponseServerSide<TResult> DatatableServerSide<TResult>(
-        DynamicDatatableRequest datatableRequest,
-        Expression<Func<TEntity, TResult>> select,
-        Expression<Func<TEntity, bool>>? where = null,
-        Func<IQueryable<TEntity>, IOrderedQueryable<TEntity>>? orderBy = null,
-        Func<IQueryable<TEntity>, IIncludableQueryable<TEntity, object?>>? include = null,
-        bool ignoreFilters = false
-    );
-    DatatableResponseServerSide<TResult> DatatableServerSide<TResult>(
-        DynamicDatatableRequest datatableRequest,
-        IConfigurationProvider configurationProvider,
-        Expression<Func<TEntity, bool>>? where = null,
-        Func<IQueryable<TEntity>, IOrderedQueryable<TEntity>>? orderBy = null,
-        Func<IQueryable<TEntity>, IIncludableQueryable<TEntity, object?>>? include = null,
-        bool ignoreFilters = false
-    );
-    #endregion
-
-    #region Datatable Client-Side
-    DatatableResponseClientSide<TEntity> DatatableClientSide(
-        DynamicDatatableRequest datatableRequest,
-        Expression<Func<TEntity, bool>>? where = null,
-        Func<IQueryable<TEntity>, IOrderedQueryable<TEntity>>? orderBy = null,
-        Func<IQueryable<TEntity>, IIncludableQueryable<TEntity, object?>>? include = null,
-        bool ignoreFilters = false
-    );
-    DatatableResponseClientSide<TResult> DatatableClientSide<TResult>(
-        DynamicDatatableRequest datatableRequest,
-        Expression<Func<TEntity, TResult>> select,
-        Expression<Func<TEntity, bool>>? where = null,
-        Func<IQueryable<TEntity>, IOrderedQueryable<TEntity>>? orderBy = null,
-        Func<IQueryable<TEntity>, IIncludableQueryable<TEntity, object?>>? include = null,
-        bool ignoreFilters = false
-    );
-    DatatableResponseClientSide<TResult> DatatableClientSide<TResult>(
-        DynamicDatatableRequest datatableRequest,
-        IConfigurationProvider configurationProvider,
-        Expression<Func<TEntity, bool>>? where = null,
-        Func<IQueryable<TEntity>, IOrderedQueryable<TEntity>>? orderBy = null,
-        Func<IQueryable<TEntity>, IIncludableQueryable<TEntity, object?>>? include = null,
-        bool ignoreFilters = false
-    );
-    #endregion
-
-    #region Pagination
-    PaginationResponse<TEntity> Pagination(
-        DynamicPaginationRequest paginationRequest,
-        Expression<Func<TEntity, bool>>? where = null,
-        Func<IQueryable<TEntity>, IOrderedQueryable<TEntity>>? orderBy = null,
-        Func<IQueryable<TEntity>, IIncludableQueryable<TEntity, object?>>? include = null,
-        bool ignoreFilters = false
-    );
-    PaginationResponse<TResult> Pagination<TResult>(
-        DynamicPaginationRequest paginationRequest,
-        Expression<Func<TEntity, TResult>> select,
-        Expression<Func<TEntity, bool>>? where = null,
-        Func<IQueryable<TEntity>, IOrderedQueryable<TEntity>>? orderBy = null,
-        Func<IQueryable<TEntity>, IIncludableQueryable<TEntity, object?>>? include = null,
-        bool ignoreFilters = false
-    );
-    PaginationResponse<TResult> Pagination<TResult>(
-        DynamicPaginationRequest paginationRequest,
-        IConfigurationProvider configurationProvider,
         Expression<Func<TEntity, bool>>? where = null,
         Func<IQueryable<TEntity>, IOrderedQueryable<TEntity>>? orderBy = null,
         Func<IQueryable<TEntity>, IIncludableQueryable<TEntity, object?>>? include = null,

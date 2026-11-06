@@ -75,7 +75,7 @@ export default function SignalCabinetConfig() {
         <p className='text-sm text-muted-foreground'>
           Kabinin dış ve iç kapılarını diyagramdaki kanallara bağlayın. Kanal listesi{' '}
           {cabinetId ? (
-            <Link to={`/cabinets/${cabinetId}/diagram`} className='underline underline-offset-4'>
+            <Link to={`/automations/${cabinetId}/diagram`} className='underline underline-offset-4'>
               diyagramdan
             </Link>
           ) : (

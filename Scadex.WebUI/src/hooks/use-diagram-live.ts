@@ -1,27 +1,27 @@
 import { useEffect, useRef } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { diagramKeys } from '@/api/query-keys';
-import { applyCabinetStatus, applyChannelValues, applyDeviceStatuses, resetLiveStore } from '@/lib/diagram/live-store';
-import { subscribeToCabinet, useHubStatus, type HubStatus } from '@/lib/signalr/diagram-hub';
+import { applyAutomationStatus, applyChannelValues, applyDeviceStatuses, resetLiveStore } from '@/lib/diagram/live-store';
+import { subscribeToAutomation, useHubStatus, type HubStatus } from '@/lib/signalr/diagram-hub';
 import { applyCommandCompleted } from './use-device-commands';
 
 /**
- * Bir kabinin canlı yayınını açar ve gelen olayları `live-store`'a yazar.
+ * Bir otomasyonun canlı yayınını açar ve gelen olayları `live-store`'a yazar.
  *
  * Hook'un kendisi HİÇBİR ŞEY DÖNDÜRMEZ (durum dışında): telemetri React state'ine
  * değil harici store'a gider, bileşenler onu kendi kimlikleriyle okur. Değerleri
  * buradan prop olarak aşağı taşımak, her tick'te tüm ağacı yeniden çizdirirdi.
  */
-export function useDiagramLive(cabinetId: string): HubStatus {
+export function useDiagramLive(automationId: string): HubStatus {
   const status = useHubStatus();
   const queryClient = useQueryClient();
 
   useEffect(() => {
-    const dispose = subscribeToCabinet(cabinetId, {
+    const dispose = subscribeToAutomation(automationId, {
       onChannelValues: applyChannelValues,
       onDeviceStatus: applyDeviceStatuses,
-      onCabinetStatus: applyCabinetStatus,
-      // Kumanda sonucu `live-store`'a YAZILMAZ: telemetri gibi "kabinin o anki
+      onAutomationStatus: applyAutomationStatus,
+      // Kumanda sonucu `live-store`'a YAZILMAZ: telemetri gibi "otomasyonun o anki
       // hâli" değil, bir olaydır ve yeri geçmiş listesidir. Store'a konsaydı
       // sonraki komutta üzerine yazılır ve geçmiş diye bir şey kalmazdı.
       onCommandCompleted: change => applyCommandCompleted(queryClient, change)
@@ -29,11 +29,11 @@ export function useDiagramLive(cabinetId: string): HubStatus {
 
     return () => {
       dispose();
-      // Kabin değiştiğinde önceki kabinin değerleri kalmamalı: kimlikler farklı
+      // Otomasyon değiştiğinde önceki otomasyonun değerleri kalmamalı: kimlikler farklı
       // olduğu için yanlış node'a düşmezler, ama bellekte birikirler.
       resetLiveStore();
     };
-  }, [cabinetId, queryClient]);
+  }, [automationId, queryClient]);
 
   // Kopukluk sırasında saha değişmeye devam eder, ekrandaki değerler donar.
   // Bağlantı geri geldiğinde tek doğru telafi TAZELEME'dir: hub bir olay kuyruğu
@@ -56,8 +56,8 @@ export function useDiagramLive(cabinetId: string): HubStatus {
     }
 
     resetLiveStore();
-    void queryClient.invalidateQueries({ queryKey: diagramKeys.cabinet(cabinetId) });
-  }, [status, cabinetId, queryClient]);
+    void queryClient.invalidateQueries({ queryKey: diagramKeys.automation(automationId) });
+  }, [status, automationId, queryClient]);
 
   return status;
 }

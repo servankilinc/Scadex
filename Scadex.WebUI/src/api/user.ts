@@ -69,7 +69,7 @@ export async function getCardHolders(): Promise<UserCardHolderDto[]> {
   return http.get<UserCardHolderDto[]>(`${USER_ROUTE}/card-holders`);
 }
 
-/** Okutulan kartı kullanıcıya yazar — YALNIZCA kart alanı (Kabinler → "Kart tanımlama"). Başarıda gövdesiz 200. */
+/** Okutulan kartı kullanıcıya yazar — YALNIZCA kart alanı (Otomasyonlar → "Kart tanımlama"). Başarıda gövdesiz 200. */
 export async function assignUserIdentityCard(userId: string, request: UserIdentityCardAssignRequest): Promise<void> {
   return http.put(`${USER_ROUTE}/${userId}/identity-card`, request);
 }

@@ -23,7 +23,7 @@ public class ReportPcTotalDto : IDto
 {
     public Guid DeviceId { get; set; }
     public string? DeviceName { get; set; }
-    public string? CabinetName { get; set; }
+    public string? AutomationName { get; set; }
     public long Seconds { get; set; }
 }
 

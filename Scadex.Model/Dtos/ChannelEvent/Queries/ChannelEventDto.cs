@@ -7,7 +7,7 @@ public class ChannelEventDto : IDto
 {
     public long Id { get; set; }
     public Guid IoChannelId { get; set; }
-    public Guid CabinetId { get; set; }
+    public Guid AutomationId { get; set; }
     public string? ChannelName { get; set; }
     public int? ChannelNumber { get; set; }
 
@@ -22,6 +22,6 @@ public class ChannelEventDto : IDto
     public DateTime OccurredAtUtc { get; set; }
     public DateTime ReceivedAtUtc { get; set; }
 
-    /// <summary> <c>Ingest</c> = kartın bildirimi, <c>Sync</c> = karttan okumanın bulduğu fark (çıkışta: son komuttan sapma). </summary>
+    /// <summary> <c>Ingest</c> = kartın bildirimi, <c>Command</c> = Scadex'in başarılı çıkış komutu, <c>Sync</c> = karttan okumanın bulduğu fark (çıkışta: son komuttan sapma). </summary>
     public ChannelChangeSource Source { get; set; }
 }

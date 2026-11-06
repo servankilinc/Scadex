@@ -1,4 +1,4 @@
-using Scadex.Core.BaseRequestModels;
+using Scadex.Core.Utils.BaseRequestModels;
 using Scadex.Core.Utils.ResultPattern;
 using Scadex.Model.Dtos.User.Commands;
 using Scadex.Model.Dtos.User.Queries;

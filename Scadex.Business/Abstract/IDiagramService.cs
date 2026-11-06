@@ -1,7 +1,6 @@
 using Scadex.Core.Utils.ResultPattern;
 using Scadex.Model.Dtos.Diagram.Commands;
 using Scadex.Model.Dtos.Diagram.Queries;
-using Scadex.Model.Dtos.Diagram.Queries.Items;
 
 namespace Scadex.Business.Abstract;
 
@@ -11,19 +10,19 @@ namespace Scadex.Business.Abstract;
 /// </summary>
 public interface IDiagramService
 {
-    Task<Result<DiagramDto>> GetAsync(Guid cabinetId, CancellationToken cancellationToken = default);
+    Task<Result<DiagramDto>> GetAsync(Guid automationId, CancellationToken cancellationToken = default);
 
     /// <summary> Cihaz + şablondan pinler + kanallar + ek satır. Yanıt, sunucunun ürettiği pin/kanal Id'lerini taşır. </summary>
-    Task<Result<DiagramDeviceDto>> CreateDeviceAsync(Guid cabinetId, DeviceCreateRequest request, CancellationToken cancellationToken = default);
-    Task<Result> UpdateDeviceAsync(Guid cabinetId, Guid deviceId, DeviceUpdateRequest request, CancellationToken cancellationToken = default);
+    Task<Result<DiagramDeviceDto>> CreateDeviceAsync(Guid automationId, DeviceCreateRequest request, CancellationToken cancellationToken = default);
+    Task<Result> UpdateDeviceAsync(Guid automationId, Guid deviceId, DeviceUpdateRequest request, CancellationToken cancellationToken = default);
 
-    Task<Result> CreateConnectionAsync(Guid cabinetId, ConnectionCreateRequest request, CancellationToken cancellationToken = default);
-    Task<Result> UpdateConnectionAsync(Guid cabinetId, Guid connectionId, ConnectionUpdateRequest request, CancellationToken cancellationToken = default);
+    Task<Result> CreateConnectionAsync(Guid automationId, ConnectionCreateRequest request, CancellationToken cancellationToken = default);
+    Task<Result> UpdateConnectionAsync(Guid automationId, Guid connectionId, ConnectionUpdateRequest request, CancellationToken cancellationToken = default);
 
-    Task<Result> CreateAnnotationAsync(Guid cabinetId, DiagramAnnotationCreateRequest request, CancellationToken cancellationToken = default);
-    Task<Result> UpdateAnnotationAsync(Guid cabinetId, Guid annotationId, DiagramAnnotationUpdateRequest request, CancellationToken cancellationToken = default);
+    Task<Result> CreateAnnotationAsync(Guid automationId, DiagramAnnotationCreateRequest request, CancellationToken cancellationToken = default);
+    Task<Result> UpdateAnnotationAsync(Guid automationId, Guid annotationId, DiagramAnnotationUpdateRequest request, CancellationToken cancellationToken = default);
 
-    Task<Result> UpdateLayoutAsync(Guid cabinetId, DiagramLayoutRequest request, CancellationToken cancellationToken = default);
+    Task<Result> UpdateLayoutAsync(Guid automationId, DiagramLayoutRequest request, CancellationToken cancellationToken = default);
 
-    Task<Result> DeleteAsync(Guid cabinetId, DiagramDeleteRequest request, CancellationToken cancellationToken = default);
+    Task<Result> DeleteAsync(Guid automationId, DiagramDeleteRequest request, CancellationToken cancellationToken = default);
 }

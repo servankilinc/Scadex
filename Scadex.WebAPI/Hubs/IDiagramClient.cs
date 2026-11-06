@@ -1,17 +1,17 @@
-using Scadex.Model.Dtos.Realtime.Queries;
+using Scadex.Model.Realtime.Notifications;
 
 namespace Scadex.WebAPI.Hubs;
 
 /// <summary> Hub'in Client arayüzü, Client'lara hangi mesajların gönderilebileceğini tanımlıyorum. </summary>
 public interface IDiagramHubClientContract
 {
-    Task ChannelValuesChanged(Guid cabinetId, IReadOnlyList<ChannelValueChange> changes);
+    Task ChannelValuesChanged(Guid automationId, IReadOnlyList<ChannelValueChangeNotify> changes);
 
-    Task DeviceStatusChanged(Guid cabinetId, IReadOnlyList<DeviceStatusChange> changes);
+    Task DeviceStatusChanged(Guid automationId, IReadOnlyList<DeviceStatusChangeNotify> changes);
 
-    Task CabinetStatusChanged(CabinetStatusChange change);
+    Task AutomationStatusChanged(AutomationStatusChangeNotify change);
 
-    Task CommandCompleted(Guid cabinetId, CommandCompleted change);
+    Task CommandCompleted(Guid automationId, CommandCompletedNotify change);
 
-    Task CardRead(Guid cabinetId, CardRead change);
+    Task CardRead(Guid automationId, CardReadNotify change);
 }

@@ -1,55 +1,19 @@
-using Scadex.Business.Utils.CameraCaptureGateway;
 using Scadex.Core.Utils.ResultPattern;
 using Scadex.Model.Dtos.Camera.Commands;
 using Scadex.Model.Dtos.Camera.Queries;
-using static Scadex.Model.Enums.EntityEnums;
 
 namespace Scadex.Business.Abstract;
 
+/// <summary>
+/// Kameranın CİHAZ bilgisi (kamera ekranı: liste, detay, mevcut aktif kameranın bilgisini güncelleme). Kamera bir <c>Device</c>'tır ve
+/// ek tablosu (<c>Camera</c>) çekirdektedir. İzleme, kare/klip çekimi ve MediaMTX yolları CameraManagement modülündedir
+/// (<c>ICameraMediaService</c>); bilgi değişince modül <c>IDeviceChangeObserver</c> ile haberdar edilir.
+/// </summary>
 public interface ICameraService
 {
-    #region CRUD
     Task<Result<CameraDto>> GetAsync(Guid id, CancellationToken cancellationToken = default);
-    Task<Result<ICollection<CameraDto>>> GetListAsync(Guid cabinetId, bool includePassive = false, CancellationToken cancellationToken = default);
+    Task<Result<ICollection<CameraDto>>> GetListAsync(Guid automationId, bool includePassive = false, CancellationToken cancellationToken = default);
+
+    /// <summary> Yalnızca AKTİF kameranın bilgisini günceller; commit sonrası <c>IDeviceChangeObserver</c>'ları çağırır. </summary>
     Task<Result> UpdateAsync(CameraUpdateDto request, CancellationToken cancellationToken = default);
-    #endregion
-
-    #region Streaming (MediaGateway)
-    /// <summary>
-    /// Diyagram kaydi (<c>DiagramController.Save</c>): kaydedildikten sonra cagrilir verilen cihazlardan kamera olanlarin
-    /// canli yollarini medya gecidinde yeniler — pasif kameranin yolunu siler, aktif kamerada yapilandirmasi guncel RTSP
-    /// kaynagiyla uyusmayan yolu siler (acik izleyicilerin eski bilgilerle kurulan oturumu kesilsin diye). Fark takibi
-    /// gerekmez: karsilastirma MediaMTX'teki yapilandirmayla yapilir. Basarisizlik yalnizca loglanir, kaydi geri almaz.
-    /// </summary>
-    Task RefreshStreamPathsAsync(IReadOnlyCollection<Guid> deviceIds, CancellationToken cancellationToken = default);
-
-    /// <summary> Canli izleme token'ı uretir ve MediaMTX ilgili path'i kurar. NOT: Token path'e baglidir ve kisa omurludur. </summary>
-    Task<Result<StreamTokenDto>> CreateStreamTokenAsync(Guid cameraId, StreamProfile profile, CancellationToken cancellationToken = default);
-
-    /// <summary> MediaMTX token'ı dogrular. </summary>
-    Task<bool> ValidateStreamTokenAsync(string? path, string? ticket, CancellationToken cancellationToken = default);
-    #endregion
-
-    #region Snapshot
-    /// <summary> Hiçbir yere kaydedilmeden anlik goruntu(test ve light önzileme için), kisa omurlu onbellek'de tutulur. </summary>
-    /// <param name="fresh"> <c>true</c> ise onbellek atlanir. Tekrar görüntü alınır. NOT: eğer capture alınacaksa güncel görüntü alınmalıdır. </param>
-    Task<Result<SnapshotPayload>> GetSnapshotAsync(Guid cameraId, bool fresh = false, CancellationToken cancellationToken = default);
-    #endregion
-
-    #region Capture
-    /// <summary> Kameranin son cekimleri, yeniden eskiye. </summary>
-    Task<Result<ICollection<CameraCaptureDto>>> GetCapturesAsync(Guid cameraId, int take = 20, CancellationToken cancellationToken = default);
-
-    /// <summary> Anlik görüntü veya video kaydı, senkron tamamlanir; <c>Pending</c> döner ve arka planda devam eder diske yazar. </summary>
-    Task<Result<CameraCaptureDto>> CreateCaptureAsync(Guid cameraId, CameraCaptureCreateDto request, CancellationToken cancellationToken = default);
-
-    /// <summary> 
-    /// Kuyruga alinmis bir klip cekimini yurutur. Yalnizca <c>ClipCaptureWorker</c> cagirir; HTTP yolundan erisilmez. 
-    /// Akis: MediaMTX canli yolundan (token) geciçi bir MP4'e sure kadar kayit (FFmpeg) → dosyayi kalici konuma tasi → gecici klasoru sil.
-    /// </summary>
-    Task RunClipCaptureAsync(long captureId, CancellationToken cancellationToken = default);
-
-    /// <summary> Saklama suresi dolmus cekimlerin DOSYASINI siler ve </summary>
-    Task<int> PurgeExpiredCaptureFilesAsync(CancellationToken cancellationToken = default);
-    #endregion
 }

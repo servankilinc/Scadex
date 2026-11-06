@@ -1,9 +1,9 @@
 using Microsoft.EntityFrameworkCore;
 using Scadex.Core.Utils;
 using Scadex.Core.Utils.ResultPattern;
+using Scadex.Model;
 using Scadex.Model.Dtos.Diagram.Commands;
-using Scadex.Model.Dtos.Diagram.Queries.Items;
-using Scadex.Model.Dtos.Scada.Commands;
+using Scadex.Model.Dtos.Diagram.Queries;
 using Scadex.Model.Entities;
 using static Scadex.Model.Enums.EntityEnums;
 using DeviceType = Scadex.Model.Enums.EntityEnums.DeviceType;
@@ -18,14 +18,14 @@ namespace Scadex.Business.Concrete;
 // bu dosya garanti eder.
 public partial class DiagramService
 {
-    public async Task<Result<DiagramDeviceDto>> CreateDeviceAsync(Guid cabinetId, DeviceCreateRequest request, CancellationToken cancellationToken = default)
+    public async Task<Result<DiagramDeviceDto>> CreateDeviceAsync(Guid automationId, DeviceCreateRequest request, CancellationToken cancellationToken = default)
     {
         var validationResult = await _validationService.ValidateAsync(request, cancellationToken);
         if (!validationResult.IsValid)
             return Result<DiagramDeviceDto>.Validation(validationResult.Failures, description: "Validation failed for DeviceCreateRequest");
 
-        if (!await IsCabinetActiveAsync(cabinetId, cancellationToken))
-            return Result<DiagramDeviceDto>.NotFound(description: "Kabin bulunamadi veya pasif durumda");
+        if (!await IsAutomationActiveAsync(automationId, cancellationToken))
+            return Result<DiagramDeviceDto>.NotFound(description: "Otomasyon bulunamadi veya pasif durumda");
 
         var errors = new Dictionary<string, List<string>>(StringComparer.Ordinal);
 
@@ -52,15 +52,15 @@ public partial class DiagramService
             tracking: false,
             cancellationToken: cancellationToken) ?? [];
 
-        await ValidateDeviceAsync(cabinetId, request.Id, request, template, errors, cancellationToken);
-        await ValidateChannelAddressesAsync(cabinetId, templatePins, errors, cancellationToken);
+        await ValidateDeviceAsync(automationId, request.Id, request, template, errors, cancellationToken);
+        await ValidateChannelAddressesAsync(automationId, templatePins, errors, cancellationToken);
         if (errors.Count > 0)
             return Result<DiagramDeviceDto>.Validation(ToFailures(errors), description: "Cihaz olusturulamadi");
 
         var device = new Device
         {
             Id = request.Id,
-            CabinetId = cabinetId,
+            AutomationId = automationId,
             ComponentTemplateId = request.ComponentTemplateId,
             CoordinateX = request.CoordinateX,
             CoordinateY = request.CoordinateY,
@@ -89,28 +89,28 @@ public partial class DiagramService
         return Result<DiagramDeviceDto>.Success(created!);
     }
 
-    public async Task<Result> UpdateDeviceAsync(Guid cabinetId, Guid deviceId, DeviceUpdateRequest request, CancellationToken cancellationToken = default)
+    public async Task<Result> UpdateDeviceAsync(Guid automationId, Guid deviceId, DeviceUpdateRequest request, CancellationToken cancellationToken = default)
     {
         var validationResult = await _validationService.ValidateAsync(request, cancellationToken);
         if (!validationResult.IsValid)
             return Result.Validation(validationResult.Failures, description: "Validation failed for DeviceUpdateRequest");
 
-        if (!await IsCabinetActiveAsync(cabinetId, cancellationToken))
-            return Result.NotFound(description: "Kabin bulunamadi veya pasif durumda");
+        if (!await IsAutomationActiveAsync(automationId, cancellationToken))
+            return Result.NotFound(description: "Otomasyon bulunamadi veya pasif durumda");
 
         // TAKIPLI okunur: EF degisen kolonu kendisi bulur. Update() cagirmak butun kolonlari degismis isaretler ve
-        // ICabinetStatusService'in yazdigi telemetri alanlarini (DeviceStatusId, LastSeen...) eski degerleriyle geri yazardi.
+        // IAutomationStatusService'in yazdigi telemetri alanlarini (DeviceStatusId, LastSeen...) eski degerleriyle geri yazardi.
         var device = await _unitOfWork.Devices.GetAsync(
-            where: d => d.Id == deviceId && d.CabinetId == cabinetId && d.IsActive,
+            where: d => d.Id == deviceId && d.AutomationId == automationId && d.IsActive,
             include: q => q.Include(d => d.Camera).Include(d => d.ControlCard).Include(d => d.PcDevice).Include(d => d.ComponentTemplate),
             cancellationToken: cancellationToken);
         if (device == null)
-            return Result.NotFound(description: "Cihaz bu kabinde bulunamadi");
+            return Result.NotFound(description: "Cihaz bu otomasyonda bulunamadi");
 
         var errors = new Dictionary<string, List<string>>(StringComparer.Ordinal);
         // Pasif sablon da kabul: mevcut cihazin sablonu sonradan emekliye ayrilmis olabilir, cihaz yine de duzenlenebilmeli.
         var template = new TemplateRow(device.ComponentTemplate!.DeviceTypeId, device.ComponentTemplate.IsMonitorable);
-        await ValidateDeviceAsync(cabinetId, device.Id, request, template, errors, cancellationToken);
+        await ValidateDeviceAsync(automationId, device.Id, request, template, errors, cancellationToken);
         if (errors.Count > 0)
             return Result.Validation(ToFailures(errors), description: "Cihaz guncellenemedi");
 
@@ -128,14 +128,16 @@ public partial class DiagramService
     /// <list type="bullet">
     /// <item>Ek nesne sablon tipiyle eslesmeli: kamera sablonu <c>Camera</c>, kontrol modulu <c>ControlCard</c>, PC <c>Pc</c>
     /// ister; diger tipler hicbirini gondermez. Sessizce yok saymak, yanlis panelden yazilan kimlik bilgisini kaybetmek olurdu.</item>
-    /// <item>Kamera IP'si zorunlu (RTSP adresi ondan kurulur) ve KABIN ICINDE tekil. CabinetId ve IsActive Device'ta oldugu
+    /// <item>Kamera IP'si zorunlu (RTSP adresi ondan kurulur) ve OTOMASYON ICINDE tekil. AutomationId ve IsActive Device'ta oldugu
     /// icin DB index'iyle ifade edilemiyor; kamera ekrani (<c>CameraService</c>) da ayni kurali uygular.</item>
+    /// <item>Otomasyon basina en fazla bir aktif kontrol karti (2026-11-04): kanal adresleri otomasyon genelinde tekildir, SCADA
+    /// adresi kartin uzerindedir; ikinci kart ayni adres uzayini paylasir ve hangi karta komut gidecegi belirsizlesirdi.</item>
     /// <item>Izleme yalnizca izlenebilir sablonda (<c>ComponentTemplate.IsMonitorable</c>) acilabilir: klemensin, sigortanin
     /// yoklanacak bir agi yoktur. Kapatmak her zaman serbesttir.</item>
     /// </list>
     /// </summary>
     private async Task ValidateDeviceAsync(
-        Guid cabinetId,
+        Guid automationId,
         Guid deviceId,
         DeviceUpdateRequest request,
         TemplateRow template,
@@ -143,11 +145,22 @@ public partial class DiagramService
         CancellationToken cancellationToken)
     {
         var isCamera = template.DeviceTypeId == (int)DeviceType.Camera;
+        var isControlCard = template.DeviceTypeId == (int)DeviceType.ControlModule;
 
         CheckExtension(request.Camera != null, isCamera, nameof(request.Camera), "Kamera bilgisi", errors);
-        CheckExtension(request.ControlCard != null, template.DeviceTypeId == (int)DeviceType.ControlModule, nameof(request.ControlCard), "Kontrol kartı bilgisi", errors);
+        CheckExtension(request.ControlCard != null, isControlCard, nameof(request.ControlCard), "Kontrol kartı bilgisi", errors);
         CheckExtension(request.Pc != null, template.DeviceTypeId == (int)DeviceType.Pc, nameof(request.Pc), "Bilgisayar bilgisi", errors);
         // Kontrol karti ve PC kimligi tekillik denetimi ISTEMEZ: Basic Auth kullanici adi cihazin Id'sidir.
+
+        if (isControlCard)
+        {
+            var anotherCard = await _unitOfWork.Devices.IsExistAsync(
+                where: d => d.AutomationId == automationId && d.IsActive && d.Id != deviceId
+                    && d.ComponentTemplate!.DeviceTypeId == (int)DeviceType.ControlModule,
+                cancellationToken: cancellationToken);
+            if (anotherCard)
+                AddError(errors, nameof(request.ControlCard), "Bu otomasyonda zaten bir kontrol kartı var; otomasyon başına tek kart olabilir");
+        }
 
         if (isCamera)
         {
@@ -158,10 +171,10 @@ public partial class DiagramService
                 // SQL Server'in varsayilan collation'i buyuk/kucuk harf duyarsizdir; esitlik orada karsilastirilir.
                 var ipAddress = request.IpAddress;
                 var taken = await _unitOfWork.Devices.IsExistAsync(
-                    where: d => d.CabinetId == cabinetId && d.IsActive && d.Id != deviceId && d.Camera != null && d.IpAddress == ipAddress,
+                    where: d => d.AutomationId == automationId && d.IsActive && d.Id != deviceId && d.Camera != null && d.IpAddress == ipAddress,
                     cancellationToken: cancellationToken);
                 if (taken)
-                    AddError(errors, nameof(request.IpAddress), "Bu kabinde aynı IP adresine sahip bir kamera zaten var");
+                    AddError(errors, nameof(request.IpAddress), "Bu otomasyonda aynı IP adresine sahip bir kamera zaten var");
             }
         }
 
@@ -176,10 +189,10 @@ public partial class DiagramService
     }
 
     /// <summary>
-    /// Yeni cihazin isteyecegi kanal adresleri kabinde bos mu.
+    /// Yeni cihazin isteyecegi kanal adresleri otomasyonda bos mu.
     ///
-    /// <b>Neden kabin geneli.</b> Kabin BIR kontrol kartidir ve kartin adres uzayi duzdur: <c>IN1</c> kabinde tektir,
-    /// cihazda degil (<c>IX_IoChannel_CabinetId_Direction_ChannelNumber</c>). Bu kontrol olmasaydi ayni sablonu ikinci kez
+    /// <b>Neden otomasyon geneli.</b> Otomasyon BIR kontrol kartidir ve kartin adres uzayi duzdur: <c>IN1</c> otomasyonda tektir,
+    /// cihazda degil (<c>IX_IoChannel_AutomationId_Direction_ChannelNumber</c>). Bu kontrol olmasaydi ayni sablonu ikinci kez
     /// birakmak SaveChanges'te benzersiz indeks ihlaliyle 500 verirdi. Cihaz ADI da okunur: "IN1 zaten kullaniliyor" tek
     /// basina operatore hangi kutuya bakacagini soylemez.
     ///
@@ -187,7 +200,7 @@ public partial class DiagramService
     /// dolayisiyla adres isgal edilmeye devam ediyor.
     /// </summary>
     private async Task ValidateChannelAddressesAsync(
-        Guid cabinetId,
+        Guid automationId,
         ICollection<ComponentTemplatePin> templatePins,
         Dictionary<string, List<string>> errors,
         CancellationToken cancellationToken)
@@ -201,14 +214,14 @@ public partial class DiagramService
         var channelNumbers = addresses.Select(a => a.ChannelNumber).Distinct().ToList();
         var rows = await _unitOfWork.IoChannels.GetAllAsync(
             select: c => new ChannelAddressRow(c.Direction, c.ChannelNumber, c.Device!.Name),
-            where: c => c.CabinetId == cabinetId && channelNumbers.Contains(c.ChannelNumber),
+            where: c => c.AutomationId == automationId && channelNumbers.Contains(c.ChannelNumber),
             cancellationToken: cancellationToken) ?? [];
 
         foreach (var row in rows.Where(r => addresses.Contains((r.Direction, r.ChannelNumber))))
         {
             var label = ScadaPinAddress.Format(row.Direction, row.ChannelNumber);
             AddError(errors, "IoChannels",
-                $"{label} bu kabinde zaten kullaniliyor ({row.DeviceName}). Kabin tek bir kontrol kartidir; kanal adresleri kabin genelinde benzersizdir.");
+                $"{label} bu otomasyonda zaten kullaniliyor ({row.DeviceName}). Otomasyon tek bir kontrol kartidir; kanal adresleri otomasyon genelinde benzersizdir.");
         }
     }
 
@@ -216,7 +229,7 @@ public partial class DiagramService
 
     /// <summary>
     /// <c>DeviceStatusId</c> / <c>LastSeen</c> / <c>LastConnectionError</c> burada DOKUNULMAZ — istekte zaten yoklar, yalnizca
-    /// <c>ICabinetStatusService</c> yazar. Izlemesi kapatilan cihazin durumu son degerinde kalir; son kaniti 23 saatten
+    /// <c>IAutomationStatusService</c> yazar. Izlemesi kapatilan cihazin durumu son degerinde kalir; son kaniti 23 saatten
     /// eskiyse periyodik tarama onu <c>null</c>'a (bilinmiyor) ceker — Offline'a degil.
     /// </summary>
     private static void WriteDevice(Device device, DeviceUpdateRequest request)
@@ -263,6 +276,10 @@ public partial class DiagramService
                 _unitOfWork.ControlCards.Add(card);
             }
             card.MacAddress = cardDraft.MacAddress;
+            card.ScadaBaseUrl = string.IsNullOrWhiteSpace(cardDraft.ScadaBaseUrl) ? null : cardDraft.ScadaBaseUrl.Trim();
+            card.ScadaIsEnabled = cardDraft.ScadaIsEnabled;
+            card.ScadaCommandTimeoutMs = cardDraft.ScadaCommandTimeoutMs;
+            // ScadaLastIngestAt telemetridir: yalnızca ingest yazar.
         }
 
         if (request.Pc is { } pcDraft)
@@ -301,7 +318,7 @@ public partial class DiagramService
     /// Sablonun pin semasini cihaza kopyalar ve kanal numarasi tasiyan her pin icin bir <c>IoChannel</c> uretir.
     ///
     /// <b>Kanallar neden burada dogar.</b> Bu olmadan SCADA ingest'inin yazacagi HICBIR SATIR olmazdi: ingest kanali
-    /// <c>(CabinetId, Direction, ChannelNumber)</c> ile cozuyor ve tanimadigi kanali sessizce atliyor. Kanallari ureten
+    /// <c>(AutomationId, Direction, ChannelNumber)</c> ile cozuyor ve tanimadigi kanali sessizce atliyor. Kanallari ureten
     /// baska bir yol da yok — cihaz yaratmanin tek yolu paletten birakmak.
     ///
     /// Pin ve kanalin ICERIGINI sablon, KIMLIGINI EF yazar (Guid anahtarlarda <c>SequentialGuidValueGenerator</c>; Add aninda
@@ -311,7 +328,7 @@ public partial class DiagramService
     {
         // Ayni (yon, kanal numarasi) cifti TEK bir IoChannel'dir. Sablonda iki pin ayni kanali gosteriyorsa (or. bir
         // rolenin COM ve NO uclari) ikisi de ayni kanala baglanir; ayri ayri uretmek
-        // IX_IoChannel_CabinetId_Direction_ChannelNumber'i ihlal ederdi.
+        // IX_IoChannel_AutomationId_Direction_ChannelNumber'i ihlal ederdi.
         var channelsByAddress = new Dictionary<(PinDirection, int), IoChannel>();
 
         foreach (var templatePin in templatePins)
@@ -339,8 +356,8 @@ public partial class DiagramService
                     channel = new IoChannel
                     {
                         Device = device,
-                        // CabinetId denormalize: benzersizlik kabin kapsamli ve bir kolon olmadan indekse dokulemezdi.
-                        CabinetId = device.CabinetId,
+                        // AutomationId denormalize: benzersizlik otomasyon kapsamli ve bir kolon olmadan indekse dokulemezdi.
+                        AutomationId = device.AutomationId,
                         ChannelNumber = channelNumber,
                         Direction = templatePin.Direction,
                         IsEnabled = true,

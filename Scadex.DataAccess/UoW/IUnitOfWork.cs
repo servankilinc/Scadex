@@ -6,7 +6,7 @@ public interface IUnitOfWork : IDisposable, IAsyncDisposable
 {
     #region Repositories
     ICompanyRepository Companies { get; }
-    ICabinetRepository Cabinets { get; }
+    IAutomationRepository Automations { get; }
     IUserRepository Users { get; }
     IRoleRepository Roles { get; }
     IRolePermissionRepository RolePermissions { get; }
@@ -25,9 +25,7 @@ public interface IUnitOfWork : IDisposable, IAsyncDisposable
     ICameraRepository Cameras { get; }
     IControlCardRepository ControlCards { get; }
     IPcDeviceRepository PcDevices { get; }
-    ICameraCaptureRepository CameraCaptures { get; }
     IChannelEventRepository ChannelEvents { get; }
-    ICameraCaptureSettingRepository CameraCaptureSettings { get; }
     IRefreshTokenRepository RefreshTokens { get; }
     #endregion
 

@@ -4,7 +4,6 @@ using Scadex.Business.Abstract;
 using Scadex.Business.Concrete;
 using Scadex.Business.Utils.CameraProtocolProfile;
 using Scadex.Business.Utils.CameraProtocolProfile.Resolver;
-using Scadex.Business.Utils.ClipCaptureQueue;
 using Scadex.Business.Utils.MediaGateway;
 using Scadex.Business.Utils.MonitoredAssetService;
 using Scadex.Business.Utils.OutputPolarity;
@@ -22,7 +21,7 @@ public static class ServiceRegistration
 
         #region ENTITY SERVICES
         services.AddScoped<ICompanyService, CompanyService>();
-        services.AddScoped<ICabinetService, CabinetService>();
+        services.AddScoped<IAutomationService, AutomationService>();
         services.AddScoped<IUserService, UserService>();
         services.AddScoped<IRoleService, RoleService>();
         services.AddScoped<IRolePermissionService, RolePermissionService>();
@@ -32,7 +31,6 @@ public static class ServiceRegistration
         services.AddScoped<IIoChannelService, IoChannelService>();
         services.AddScoped<ICanvasSettingsService, CanvasSettingsService>();
         services.AddScoped<IComponentTemplateService, ComponentTemplateService>();
-        services.AddScoped<ICameraCaptureSettingService, CameraCaptureSettingService>();
         #endregion
 
         services.AddScoped<ICardReadService, CardReadService>();
@@ -40,7 +38,7 @@ public static class ServiceRegistration
 
         services.AddScoped<IDiagramService, DiagramService>();
         services.AddScoped<IChannelEventService, ChannelEventService>();
-        services.AddScoped<ICabinetStatusService, CabinetStatusService>();
+        services.AddScoped<IAutomationStatusService, AutomationStatusService>();
         services.AddScoped<ICameraService, CameraService>();
         services.AddScoped<IScadaCommandGateway, ScadaCommandGateway>();
         services.AddScoped<IOutputPolarityResolver, OutputPolarityResolver>();
@@ -53,11 +51,8 @@ public static class ServiceRegistration
         services.AddSingleton<ICameraProtocolProfile, HikvisionProtocolProfile>();
         services.AddSingleton<ICameraProtocolProfileResolver, CameraProtocolProfileResolver>();
 
+        // Medya gecidi cekirdektedir: CameraManagement (cam_) ve RemoteDesk (pc_) ortak kullanir. Kare/klip cekimi modüldedir.
         services.AddScoped<IMediaGateway, MediaMtxGateway>();
-        // ICameraCaptureGateway (FFmpeg) WebAPI'de kaydedilir: exe yolu ContentRootPath'ten cozulur.
-
-        // Klip kuyrugu SINGLETON olmak zorunda
-        services.AddSingleton<IClipCaptureQueue, ClipCaptureQueue>();
         #endregion
 
         return services;

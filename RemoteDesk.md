@@ -118,7 +118,7 @@ PC, `PcHub`'a **HTTP Basic Auth** ile bağlanır (kullanıcı kararı; kontrol k
 `Scadex.Business/Utils/Auth/DeviceAuthentication.cs`):
 
 - **Kullanıcı adı = diyagramdaki PC cihazının Id'si**, **parola = sistemin ürettiği sır** (32 küçük harf onaltılık, 128 bit).
-  Sırrı tarayıcı üretir: kabin diyagramında PC'yi seçin → özellik paneli "Kimlik bilgisi → Üret" → kaydedin. Sunucu yalnızca
+  Sırrı tarayıcı üretir: otomasyon diyagramında PC'yi seçin → özellik paneli "Kimlik bilgisi → Üret" → kaydedin. Sunucu yalnızca
   SHA-256'sını saklar (`PcDevice.CredentialHash`); sır yalnızca üretildiği anda panelde görünür. Kaybolursa "Yenile" ile yenisi
   üretilir (eskisi kaydedilince geçersiz), "İptal et" PC'nin bağlanmasını keser.
 - İstemci kimliği `appsettings.json > RemoteDesk:DeviceId` / `DeviceSecret`'ten okur ve `Authorization` başlığını negotiate'e de
@@ -133,7 +133,7 @@ PC, `PcHub`'a **HTTP Basic Auth** ile bağlanır (kullanıcı kararı; kontrol k
 
 | Sonuç | Sunucu | İstemci |
 |---|---|---|
-| Kimlik doğru | `Hello` bağlantıyı o `DeviceId`'ye kaydeder, cihaz/kabin adını döner | "Bağlı — {kabin} / {cihaz}" |
+| Kimlik doğru | `Hello` bağlantıyı o `DeviceId`'ye kaydeder, cihaz/otomasyon adını döner | "Bağlı — {otomasyon} / {cihaz}" |
 | Kimlik yanlış / yok / iptal | Negotiate **401** | "Kimlik bilgisi reddedildi"; 60 sn'de bir yeniden dener |
 | Cihaz zaten bağlı | `AlreadyConnected` — **ilk bağlanan kazanır**, deneme loglanır | "Bu cihaz başka bir bağlantıda"; geri çekilerek yeniden dener |
 
@@ -192,7 +192,7 @@ koddakidir. Kimlik `Hello`'da değil bağlantının `Authorization` başlığın
 
 | Metot | Gövde → Dönüş |
 |---|---|
-| `Hello` | `{ clientVersion, osVersion, machineName, userName, monitors[] }` → `{ status, deviceId?, deviceName?, cabinetName? }` (`status`: Accepted 1, AlreadyConnected 4, NetworkNotAllowed 5; 2 ve 3 MAC eşleşmesiyle kalktı — yeniden kullanılmaz) |
+| `Hello` | `{ clientVersion, osVersion, machineName, userName, monitors[] }` → `{ status, deviceId?, deviceName?, automationName? }` (`status`: Accepted 1, AlreadyConnected 4, NetworkNotAllowed 5; 2 ve 3 MAC eşleşmesiyle kalktı — yeniden kullanılmaz) |
 | `ReportMonitors` | `{ monitors[] }` — ekran eklenince/çıkınca/çözünürlük değişince |
 | `ReportStreamState` | `{ sessionId, monitorIndex, state, encoder?, failureReason? }` — yalnızca durum değişince; PC'de elle durdurulan yayın (`Stopped`) merkezde de biter (`StoppedOnPc`) |
 | `ReportControlInput` *(2026-10-25)* | `{ controlSessionId, state }` — `ControlInputState` (Ok 1, SecureDesktop 2, SecureDesktopUnavailable 3, Rejected 4, MonitorMissing 5); yalnızca değişince, kontrol `Ok` varsayımıyla başlar ([§ 12.6](#126-uipi-ve-güvenli-masaüstü)) |
@@ -244,7 +244,8 @@ yoktur, istemci UTC kabul eder.
 `pc_{deviceId:N}_{monitorIndex}` — ör. `pc_2e9f4c8e4f8c4a2d8a9d1d7e5f7c1234_0`. Kameradaki
 `cam_{id:N}_{profil}` ile aynı biçim. `mediamtx.yml`'e yol eklenmez (`all_others` = `source: publisher`).
 
-`MediaPathCleanupWorker` yalnızca `cam_` önekli yolları aday sayar (`IMediaGateway.IsManagedPathName`);
+`MediaPathCleanupWorker` yalnızca `cam_` önekli yolları aday sayar (`IMediaGateway.IsManagedPathName`; 2026-10-29'dan beri worker ve önek
+CameraManagement modülündedir: `CameraMediaPaths.IsManagedPathName`);
 `pc_` yolları ona görünmez. **Bu worker'a dokunulmaz.** Temizlemesi de gerekmez: worker MediaMTX **yapılandırmasındaki** yolları
 siler (`v3/config/paths/delete`). `cam_` yolları API ile yapılandırmaya eklendiği için birikir. `pc_` yolları yapılandırmaya hiç
 eklenmez; `all_others` üzerinden yalnızca yayıncı (PC'deki FFmpeg) bağlıyken vardır ve yayıncı gidince kendiliğinden kalkar.
@@ -266,6 +267,12 @@ diğer her şey (cam_* publish dahil) → 401
 `IMediaPathAuthorizer { bool CanHandle(string path); Task<bool> AuthorizeAsync(action, path, password, ip, ct); }`.
 Controller `cam_` için bugünkü yolu izler, diğerlerini kayıtlı yetkilendiricilere sorar; modül kapalıyken
 kayıt yoktur → 401.
+
+**Güncelleme (2026-10-29, kamera modülleşti):** `cam_` de artık bir `IMediaPathAuthorizer`'dır (`CameraMediaPathAuthorizer`,
+CameraManagement modülü; kural aynı: yalnızca `read` + bilet). Controller kamerayı özel dal olarak bilmez; her yolun **tek** sahibi
+olmalıdır — hiçbir yetkilendiricinin ya da birden fazlasının üstlendiği yol 401'dir, bu yüzden önekler ayrık tutulur. RemoteDesk'in
+modülü bilmesi gerekmez. `MediaMtxAuthDto` `Scadex.Model.Dtos.MediaGateway` altına taşındı. RemoteDesk'in kullandığı medya geçidi
+(`IMediaGateway`, `MediaGatewaySettings`, MediaMTX gözetimi) çekirdektedir; kameraya bağımlılık yoktur.
 
 ### 7.3 Biletler
 
@@ -481,7 +488,7 @@ System Tray ikonu (WinForms `NotifyIcon`) + tek pencere; bütün veri Agent'ın 
 | Alan | İçerik |
 |---|---|
 | Bağlantı | Bağlı / Bağlanıyor / Kimlik bilgisi reddedildi / Başka bağlantıda / Ağ izinli değil / Yapılandırma eksik — son hata. Agent yoksa "Servis bağlantısı yok" |
-| Merkez | Sunucu adresi, eşleşilen kabin ve cihaz adı |
+| Merkez | Sunucu adresi, eşleşilen otomasyon ve cihaz adı |
 | Bu PC | Makine adı, cihaz kimliği (`DeviceId`, seçilebilir; sır gösterilmez), Agent sürümü ve oturum kullanıcısı |
 | Monitörler | Liste; yayının salt okunur durumu (encoder/zincir/profil, canlı fps/hız/CPU) |
 | Encoder | Sınama sonuçları, seçilen encoder, "Tercih et" / "Otomatik seçime dön" |
@@ -634,7 +641,7 @@ Signalization modülünün kalıbı birebir izlenir (CLAUDE.md § "Müşteri mod
 | `ScreenViewLog` | `Id`, `ScreenSessionId`, `DeviceId`, `MonitorIndex`, `UserId`, `StartedUtc`, `EndedUtc` | **Kim, hangi PC'nin hangi monitörünü, ne zaman izledi** |
 | `RemoteControlSession` *(Faz 8)* | `Id`, `DeviceId`, `UserId`, `StartedUtc`, `EndedUtc`, `EndReason`, `InputEventCount` | Kim, hangi PC'yi, ne kadar kontrol etti; girdinin kendisi kaydedilmez |
 
-`DeviceId`/`UserId` FK değildir (modül kuralı). PC'nin adı, kabini ve kimlik durumu her zaman çekirdekteki
+`DeviceId`/`UserId` FK değildir (modül kuralı). PC'nin adı, otomasyonu ve kimlik durumu her zaman çekirdekteki
 `Device` / `PcDevice`'tan okunur; bağlantı durumu, istemci sürümü ve monitör listesi **bellektedir** — hiçbiri tabloya
 kopyalanmaz. Saklama/temizlik işi yok (Scadex'in genel kararı; proje sahibi sonra ekler).
 
@@ -658,9 +665,9 @@ değişikliği yoktur.
 
 ### 10.4 Canlılık
 
-**Karar (2026-09-30): istemci bağlantısı kabin durumuna YANSIMAZ.** Bağlı olup olmadığı yalnızca bellekte
+**Karar (2026-09-30): istemci bağlantısı otomasyon durumuna YANSIMAZ.** Bağlı olup olmadığı yalnızca bellekte
 (`PcConnectionRegistry`) tutulur ve PC ekranlarında gösterilir; `Device.DeviceStatusId` / `LastSeen`'e yazılmaz,
-`ICabinetStatusService`'e kanıt olarak verilmez. Gerekçe: kullanıcı uygulamayı kapatınca ya da PC kapalıyken kabin
+`IAutomationStatusService`'e kanıt olarak verilmez. Gerekçe: kullanıcı uygulamayı kapatınca ya da PC kapalıyken otomasyon
 `Warning`'e düşerdi (Signalization'ın alarmı gibi bilerek ayrı). PC cihazında çekirdeğin TCP yoklaması açılırsa
 (`IsMonitoringEnabled`) o çekirdek kuralıyla ayrıca işler — bu modülün kararı değildir.
 
@@ -670,12 +677,12 @@ değişikliği yoktur.
 
 | Uç | İş |
 |---|---|
-| `GET /api/RemoteDesk/pcs` | Aktif `DeviceType.Pc` cihazları: ad, kabin, kimlik bilgisi var mı (`hasCredential`), bağlı mı, istemci sürümü, monitör sayısı, izleyen sayısı |
+| `GET /api/RemoteDesk/pcs` | Aktif `DeviceType.Pc` cihazları: ad, otomasyon, kimlik bilgisi var mı (`hasCredential`), bağlı mı, istemci sürümü, monitör sayısı, izleyen sayısı |
 | `GET /api/RemoteDesk/pcs/{deviceId}` | Aynısı + monitör listesi ve her monitörün yayın durumu |
 | `POST /api/RemoteDesk/pcs/{deviceId}/monitors/{index}/view` | İzlemeyi başlat ([§ 8.2](#82-başlatma)) |
 | `POST /api/RemoteDesk/views/{viewId}/renew` · `DELETE /api/RemoteDesk/views/{viewId}` | Kiralama |
-| `GET /api/RemoteDesk/reports/filters` | *(Audit)* Üç denetim tablosunda geçen PC'ler (kabin kimliği ve adıyla) ve kullanıcılar (silinmiş/pasif dahil) |
-| `POST /api/RemoteDesk/reports/views` · `…/controls` · `…/transfers` | *(Audit)* `ScreenViewLog` / `RemoteControlSession` / `FileTransferLog`, sayfalı, yeniden eskiye; gövde `{ deviceId?, cabinetId?, userId?, fromUtc?, toUtc?, page, pageSize ≤ 100 }`, tarih aralığı kaydın başlangıcına. `cabinetId` PC'nin BUGÜNKÜ kabinidir (satır kabini taşımaz; kabindeki cihazlar çekirdekten okunur — taşınan PC'nin geçmişi yeni kabinde görünür, 2026-10-12) |
+| `GET /api/RemoteDesk/reports/filters` | *(Audit)* Üç denetim tablosunda geçen PC'ler (otomasyon kimliği ve adıyla) ve kullanıcılar (silinmiş/pasif dahil) |
+| `POST /api/RemoteDesk/reports/views` · `…/controls` · `…/transfers` | *(Audit)* `ScreenViewLog` / `RemoteControlSession` / `FileTransferLog`, sayfalı, yeniden eskiye; gövde `{ deviceId?, automationId?, userId?, fromUtc?, toUtc?, page, pageSize ≤ 100 }`, tarih aralığı kaydın başlangıcına. `automationId` PC'nin BUGÜNKÜ otomasyonudur (satır otomasyonu taşımaz; otomasyondaki cihazlar çekirdekten okunur — taşınan PC'nin geçmişi yeni otomasyonda görünür, 2026-10-12) |
 | `POST /api/RemoteDesk/reports/summary` | *(Audit)* Aynı filtreyle oturum sayıları, toplam süreler, en çok izlenen PC, en çok izleyen kullanıcı |
 
 Rapor fare/klavye girdisi göstermez: girdi zaten saklanmıyor, `RemoteControlSession.InputEventCount` da raporda bilerek yok
@@ -689,7 +696,7 @@ C# DTO değişince TS aynası elle güncellenir.
 
 ### 10.6 Frontend (`src/modules/remotedesk/`)
 
-- **PC listesi** (modül menüsü): kamera listesi ekranı kalıbında; bağlantı durumu rozeti, kabin, kimlik durumu
+- **PC listesi** (modül menüsü): kamera listesi ekranı kalıbında; bağlantı durumu rozeti, otomasyon, kimlik durumu
   ("tanımlı değil" uyarısı), monitör sayısı, izleyen sayısı. Durum `refetchInterval` ile 10 sn'de bir
   yenilenir (MVP'de ayrı bir tarayıcı hub'ı yok).
 - **PC ekranı:** monitör seçici (her monitör: numara, çözünürlük, birincil işareti) + oynatıcı. Mevcut
@@ -1060,7 +1067,7 @@ Her faz bir öncekinin başarı kriteri sağlanmadan başlamaz.
 | **0** | Proje iskeleti: Contracts bağımlılıksız, modül csproj'u Signalization kalıbında, WPF'te `Microsoft.Extensions.Hosting` + içerik kökü + kapanış yolu + namespace düzeni | `dotnet build Scadex.slnx` temiz (`NU1903` hariç); WPF açılıp temiz kapanıyor |
 | **1** ✅ | **Medya hattı kanıtı** (2026-09-29 tamamlandı — § 16.2) — kod yazmadan, elle FFmpeg ile iki monitörden `pc_test_0/1`'e publish (geçici auth'suz yerel yol) → WHEP ile tarayıcı. Kodlayıcı başına filtre zinciri; `output_idx` ↔ DXGI sırası. | İki monitör tarayıcıda; uçtan uca ≈ 130–200 ms (QSV); yazılım yedeği `libopenh264` ~52 ms zincir |
 | **2** ✅ | Çekirdek: `DeviceType.Pc` + seed + migration, `IMediaPathAuthorizer` + controller. Modül iskeleti: kayıt, `RemoteDeskDbContext`, şema, migration. Contracts projesi. **2026-09-29:** + bilet deposu (`ScreenTicketStore`), `pc_*` yetkilendiricisi (`AllowedNetworks` dahil), `GET /api/RemoteDesk/pcs`. | Modül kapalıyken `pcs` 404 ve OpenAPI'de yok (JWT'li istekle sınandı); açıkken `remotedesk` şeması + iki tablo oluştu, `pcs` 200; gerçek kamera biletiyle `cam_` okuma 200, aynı biletle `cam_` publish ve `pc_` okuma 401; biletsiz/yanlış biletli `pc_` publish 401. Hub negotiate kriteri Faz 3'e kaldı (hub henüz yok) |
-| **3** ✅ | `PcHub` + `Hello`/MAC eşleşmesi + bellek kaydı + canlılık. WPF: tek örnek, System Tray, bağlantı ekranı, `appsettings.json`, yeniden bağlanma (henüz yayın yok). **2026-09-29:** canlılık yalnızca bellekte (`PcConnectionRegistry`), `Device` durumuna yazılmaz (§ 17 #1 önerisi). Yapılmadı: hızlı kullanıcı değiştirme (`SessionSwitch`), System Trayde "günlük klasörü" (Serilog henüz yok), "izleniyor" ikonu (Faz 5). | Sınandı (bu makine): tanımsız PC'de iki fiziksel kartın MAC'i gösterildi; diyagrama farklı biçimde (`50-8d-…`, küçük harf) yazılan MAC eşleşti → "Bağlı — kabin / cihaz", `pcs` `isConnected: true`, 2 monitör; modül kapalıyken negotiate 404 ve istemcide "modül kapalı"; merkez yeniden başlayınca kendiliğinden bağlandı; ikinci örnek mevcut pencereyi öne getirip çıktı; pencereyi kapatmak System Trayye indirdi; gizliyken boşta 30 sn'de 47 ms CPU (≈%0,16), private bellek 60 MB (working set 144 MB). Sınanmadı: `Ambiguous`, `AlreadyConnected`, System Tray "Çıkış" |
+| **3** ✅ | `PcHub` + `Hello`/MAC eşleşmesi + bellek kaydı + canlılık. WPF: tek örnek, System Tray, bağlantı ekranı, `appsettings.json`, yeniden bağlanma (henüz yayın yok). **2026-09-29:** canlılık yalnızca bellekte (`PcConnectionRegistry`), `Device` durumuna yazılmaz (§ 17 #1 önerisi). Yapılmadı: hızlı kullanıcı değiştirme (`SessionSwitch`), System Trayde "günlük klasörü" (Serilog henüz yok), "izleniyor" ikonu (Faz 5). | Sınandı (bu makine): tanımsız PC'de iki fiziksel kartın MAC'i gösterildi; diyagrama farklı biçimde (`50-8d-…`, küçük harf) yazılan MAC eşleşti → "Bağlı — otomasyon / cihaz", `pcs` `isConnected: true`, 2 monitör; modül kapalıyken negotiate 404 ve istemcide "modül kapalı"; merkez yeniden başlayınca kendiliğinden bağlandı; ikinci örnek mevcut pencereyi öne getirip çıktı; pencereyi kapatmak System Trayye indirdi; gizliyken boşta 30 sn'de 47 ms CPU (≈%0,16), private bellek 60 MB (working set 144 MB). Sınanmadı: `Ambiguous`, `AlreadyConnected`, System Tray "Çıkış" |
 | **4** ✅ | WPF yayın: monitör listesi, FFmpeg yöneticisi, kodlayıcı denemesi, `Start/StopScreenStream`, idempotency, Job Object. **2026-09-30:** merkez komutları bağlandı — aynı oturum tekrar gelirse yok sayılır, aynı monitöre yeni oturum (ya da sahadaki test yayını) varsa önce o durur; yayın durumu merkeze yalnızca değişince bildirilir; bilet reddedilirse (401) yeniden denemeden biter; merkez bağlantısı kopunca merkezin yayınları durur. PC'de "izleniyor" göstergesi: pencerede kırmızı şerit + tepside kırmızı noktalı ikon. | Sınandı: sunucunun komutuyla monitör MediaMTX'e yayınlandı (1080p, Intel QSV); istemci zorla öldürülünce FFmpeg kalmadı (Job Object); API öldürülünce istemci FFmpeg'ini 1,1 sn'de durdurdu |
 | **5** ✅ | İzleme akışı: `view` ucu, hazır-bekleme, biletler, kiralama, otomatik durdurma, `ScreenSession`/`ScreenViewLog`. **2026-09-30:** `ScreenStreamCoordinator` (bellekte, tek kilit), `ScreenStreamWorker` (açılışta yetim oturumları kapatır, 5 sn'de bir süpürür), `GET pcs/{id}` (monitörler + yayın durumu + izleyici sayısı). Çekirdeğe `IMediaGateway.GetRuntimePathAsync` / `KickPublisherAsync`. | Sınandı: izleme 1,3–2,8 sn'de hazır (ilkinde kodlayıcı sınaması dahil); aynı monitöre ikinci izleyici 15 ms'de aynı yayına katıldı, farklı monitör ayrı yayın; yenilenmeyen kiralama 47 sn'de düştü; bırakınca 14 sn'de durdu; **tarayıcı öldürülünce 51 sn'de durdu**; okuyucusuz kiralama 60 sn'de durduruldu; gerçek WebRTC izleyicisi 75 sn boyunca kesilmedi; kick ucu (`v3/rtspsessions/kick`) doğrulandı; API yeniden başlayınca yetim oturum `Failed/ServerRestart`; istemci koparsa `Failed/ClientDisconnected`. Sınanmadı: istemcinin durdurmaya UYMADIĞI durum (kick bu yol için yazıldı) |
 | **6** ✅ | Frontend: PC listesi, PC ekranı (monitör seçici + oynatıcı), `VITE_MODULES`. **2026-09-30:** `src/modules/remotedesk/` (liste, PC ekranı, `pc-stream-session.ts` — kiralama yenileme/bırakma, kopunca yeni kiralamayla yeniden başlama), `whep.ts`'e `lowLatency` seçeneği (yalnızca PC). `.env.development` → `signalization,remotedesk`; `.env.production` DEĞİŞMEDİ. İzleme `RemotePcView` iznine bağlı: menü maddesi ve rota izinsiz kullanıcıda gizli. | `npm run lint` + `npm run build` yeşil. Aynı akış (giriş → izleme → WHEP → kiralama) başlıksız Chrome'da test sayfasıyla sınandı: 1920×1080, 28–30 fps, jitter tamponu 39–52 ms. **React ekranları (2026-09-30), başlıksız Chrome + DevTools protokolüyle:** giriş → menü → PC listesi (bağlı, 2 monitör) → PC ekranı 4,3 sn'de 1920×1080 görüntü, monitör kartı "Yayında · 1 izleyici" → 2. monitöre geçiş 3,7 sn → listeye dönünce iki yayın da durdu, FFmpeg kalmadı; konsolda hata yok. Sınanmadı: bağlı olmayan PC ekranı, "Tekrar dene" |
@@ -1160,8 +1167,8 @@ Aynı makine; publish edilmiş (Release, self-contained) istemci `--tray` ile, p
 
 Önerilen seçenek ilk sıradadır:
 
-1. ~~**PC bağlı değilken kabin `Warning`'e düşsün mü?**~~ **Kapandı (2026-09-30): hayır.** Bağlantı yalnızca bellekte;
-   kabin durumuna bilerek yansımaz ([§ 10.4](#104-canlılık), CLAUDE.md).
+1. ~~**PC bağlı değilken otomasyon `Warning`'e düşsün mü?**~~ **Kapandı (2026-09-30): hayır.** Bağlantı yalnızca bellekte;
+   otomasyon durumuna bilerek yansımaz ([§ 10.4](#104-canlılık), CLAUDE.md).
 2. ~~**İzlendiğine dair onay.**~~ **Kapandı (2026-09-30): onay alınmaz.** Yalnızca görünür gösterge (pencere şeridi +
    System Tray ikonu) ve `ScreenViewLog` denetim kaydı.
 3. ~~**Yetki.**~~ **Kapandı (2026-09-30):** izleme `RemotePcView` iznine bağlı ([§ 11](#11-güvenlik-özeti)). Uzaktan kontrol
@@ -1219,7 +1226,7 @@ Aynı makine; publish edilmiş (Release, self-contained) istemci `--tray` ile, p
 | 2026-10-01 | **Faz 9 — klavye** (§ 12.7): tuş `KeyboardEvent.code` ile gider, PC scan code ile basar (karakteri PC'nin düzeni belirler; tablo Contracts'ta, sunucu tablodışı kodu atar). Tarayıcının yakalayamadığı tuşlar için düğmeler + tam ekranda Keyboard Lock; Ctrl+Alt+Del bilerek yok. Takılı tuş emniyeti düğmelerle aynı kural (5 sn). |
 | 2026-09-30 | **Faz 8 — uzaktan fare** (§ 12.7): ayrı izin `RemotePcControl`; kontrol PC başına tek kullanıcı, yalnızca izleyene; aynı kullanıcının başka sekmesi devralır, başka kullanıcı devralamaz; 5 dk girdi yoksa düşer; sanal masaüstü DXGI dikdörtgenlerinden; UIPI için yükseltme yok. Açılışta yetim izleme kayıtları da kapanır (önceden yalnızca oturumlar kapanıyordu). |
 | 2026-09-30 | **Faz 7 daraldı** (kullanıcı kararı): kurulum paketi (Inno Setup/MSI) ve Görev Zamanlayıcı görevi yazılmadı — istemci klasöre publish alınıp elle dağıtılır, başlangıç uygulamalarına `--tray` ile eklenir. İstemci günlüğü kullanıcı başına `%LocalAppData%` altında; FFmpeg'siz publish hata verir. |
-| 2026-09-30 | **§ 17 kapandı** (kullanıcı kararları): PC bağlantısı kabin durumuna yansımaz; izlendiğine dair onay alınmaz (gösterge + denetim kaydı yeter); izleme yeni `RemotePcView` iznine bağlı — projede **zorlanan ilk izin**, modül uçlarında policy (yoksa 403), frontend'de menü maddesi ve rota da izne bağlı. |
+| 2026-09-30 | **§ 17 kapandı** (kullanıcı kararları): PC bağlantısı otomasyon durumuna yansımaz; izlendiğine dair onay alınmaz (gösterge + denetim kaydı yeter); izleme yeni `RemotePcView` iznine bağlı — projede **zorlanan ilk izin**, modül uçlarında policy (yoksa 403), frontend'de menü maddesi ve rota da izne bağlı. |
 | 2026-09-30 | Faz 4–5: yayın ve izleyiciler bellekte (`ScreenStreamCoordinator`), DB yalnızca denetim. Hazır bekleme 30 sn; bekleyen izleme isteği süpürmede izleyici sayılır (ilk yayın beklerken durdurulmasın). Durdurmada bilet hemen silinir, uymayan yayıncı 10 sn sonra atılır (kick). PC'de "izleniyor" göstergesi zorunlu (pencere şeridi + tepsi ikonu). |
 | 2026-09-29 | Faz 1: FFmpeg 8.1 LGPL; `h264_mf` bırakıldı → yazılım yedeği `libopenh264`; QSV `async_depth 1`; çıkış `-fps_mode passthrough` zorunlu; geri kalma bekçisi; tarayıcıda `jitterBufferTarget = 0` (yalnızca PC yayını). Ölçümler § 16.2. |
 

@@ -8,11 +8,11 @@ const PANEL_CLASS =
   'h-(--collapsible-panel-height) overflow-hidden transition-[height] duration-200 ease-out data-ending-style:h-0 data-starting-style:h-0';
 
 /**
- * Yan paneldeki açılır-kapanır bölüm (kabin detay paneli). Başlık her zaman görünür ve tıklanınca içerik açılıp kapanır;
+ * Yan paneldeki açılır-kapanır bölüm (otomasyon detay paneli). Başlık her zaman görünür ve tıklanınca içerik açılıp kapanır;
  * `summary` başlığın sağında durur — bölüm KAPALIYKEN de özet (durum rozeti, "canlı" göstergesi…) okunabilsin.
  *
  * Bölüm kendi çerçevesini çizer; içerik ayrıca kart/çerçeve açmamalı — iç içe çerçeveler paneli okunmaz yapıyordu. Modüllerin
- * panel bölümleri (`AppModule.CabinetPanelSection`) de bunu kullanır, panel tek tip görünür.
+ * panel bölümleri (`AppModule.AutomationPanelSection`) de bunu kullanır, panel tek tip görünür.
  */
 export function PanelSection({
   title,

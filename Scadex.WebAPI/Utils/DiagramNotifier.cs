@@ -1,6 +1,6 @@
 using Microsoft.AspNetCore.SignalR;
 using Scadex.Business.Utils.DiagramNotifier;
-using Scadex.Model.Dtos.Realtime.Queries;
+using Scadex.Model.Realtime.Notifications;
 using Scadex.WebAPI.Hubs;
 
 namespace Scadex.WebAPI.Utils;
@@ -16,80 +16,80 @@ public class DiagramNotifier : IDiagramNotifier
         _logger = logger;
     }
 
-    public async Task ChannelValuesChangedAsync(Guid cabinetId, IReadOnlyList<ChannelValueChange> changes, CancellationToken cancellationToken = default)
+    public async Task ChannelValuesChangedAsync(Guid automationId, IReadOnlyList<ChannelValueChangeNotify> changes, CancellationToken cancellationToken = default)
     {
         try
         {
-            string groupName = DiagramHub.GroupName(cabinetId);
-            await _hub.Clients.Group(groupName).ChannelValuesChanged(cabinetId, changes);
+            string groupName = DiagramHub.GroupName(automationId);
+            await _hub.Clients.Group(groupName).ChannelValuesChanged(automationId, changes);
         }
         catch (Exception exception)
         {
-            _logger.LogWarning(exception, $"Canli yayin basarisiz: ChannelValuesChangedAsync, kabin {cabinetId}");
+            _logger.LogWarning(exception, $"Canli yayin basarisiz: ChannelValuesChangedAsync, otomasyon {automationId}");
         }
     }
 
-    public async Task DeviceStatusesChangedAsync(Guid cabinetId, IReadOnlyList<DeviceStatusChange> changes, CancellationToken cancellationToken = default)
+    public async Task DeviceStatusesChangedAsync(Guid automationId, IReadOnlyList<DeviceStatusChangeNotify> changes, CancellationToken cancellationToken = default)
     {
         try
         {
-            string groupName = DiagramHub.GroupName(cabinetId);
-            await _hub.Clients.Group(groupName).DeviceStatusChanged(cabinetId, changes);
+            string groupName = DiagramHub.GroupName(automationId);
+            await _hub.Clients.Group(groupName).DeviceStatusChanged(automationId, changes);
         }
         catch (Exception exception)
         {
-            _logger.LogWarning(exception, $"Canli yayin basarisiz: DeviceStatusesChangedAsync, kabin {cabinetId}");
+            _logger.LogWarning(exception, $"Canli yayin basarisiz: DeviceStatusesChangedAsync, otomasyon {automationId}");
         }
     }
 
-    public async Task CabinetStatusChangedAsync(CabinetStatusChange change, CancellationToken cancellationToken = default)
+    public async Task AutomationStatusChangedAsync(AutomationStatusChangeNotify change, CancellationToken cancellationToken = default)
     {
         try
         {
-            string groupName = DiagramHub.GroupName(change.CabinetId);
-            await _hub.Clients.Group(groupName).CabinetStatusChanged(change);
+            string groupName = DiagramHub.GroupName(change.AutomationId);
+            await _hub.Clients.Group(groupName).AutomationStatusChanged(change);
         }
         catch (Exception exception)
         {
-            _logger.LogWarning(exception, $"Canli yayin basarisiz: CabinetStatusChangedAsync, kabin {change.CabinetId}");
+            _logger.LogWarning(exception, $"Canli yayin basarisiz: AutomationStatusChangedAsync, otomasyon {change.AutomationId}");
         }
     }
 
-    public async Task CabinetStatusChangedForAllAsync(CabinetStatusChange change, CancellationToken cancellationToken = default)
+    public async Task AutomationStatusChangedForAllAsync(AutomationStatusChangeNotify change, CancellationToken cancellationToken = default)
     {
         try
         {
-            await _hub.Clients.Group(DiagramHub.OverviewGroupName).CabinetStatusChanged(change);
+            await _hub.Clients.Group(DiagramHub.OverviewGroupName).AutomationStatusChanged(change);
         }
         catch (Exception exception)
         {
-            _logger.LogWarning(exception, $"Canli yayin basarisiz: CabinetStatusChangedForAllAsync, kabin {change.CabinetId}");
+            _logger.LogWarning(exception, $"Canli yayin basarisiz: AutomationStatusChangedForAllAsync, otomasyon {change.AutomationId}");
         }
     }
 
-    public async Task CommandCompletedAsync(Guid cabinetId, CommandCompleted change, CancellationToken cancellationToken = default)
+    public async Task CommandCompletedAsync(Guid automationId, CommandCompletedNotify change, CancellationToken cancellationToken = default)
     {
         try
         {
-            string groupName = DiagramHub.GroupName(cabinetId);
-            await _hub.Clients.Group(groupName).CommandCompleted(cabinetId, change);
+            string groupName = DiagramHub.GroupName(automationId);
+            await _hub.Clients.Group(groupName).CommandCompleted(automationId, change);
         }
         catch (Exception exception)
         {
-            _logger.LogWarning(exception, $"Canli yayin basarisiz: CommandCompletedAsync, kabin {cabinetId}");
+            _logger.LogWarning(exception, $"Canli yayin basarisiz: CommandCompletedAsync, otomasyon {automationId}");
         }
     }
 
-    public async Task CardReadAsync(Guid cabinetId, CardRead change, CancellationToken cancellationToken = default)
+    public async Task CardReadAsync(Guid automationId, CardReadNotify change, CancellationToken cancellationToken = default)
     {
         try
         {
-            string groupName = DiagramHub.GroupName(cabinetId);
-            await _hub.Clients.Group(groupName).CardRead(cabinetId, change);
+            string groupName = DiagramHub.GroupName(automationId);
+            await _hub.Clients.Group(groupName).CardRead(automationId, change);
         }
         catch (Exception exception)
         {
-            _logger.LogWarning(exception, $"Canli yayin basarisiz: CardReadAsync, kabin {cabinetId}");
+            _logger.LogWarning(exception, $"Canli yayin basarisiz: CardReadAsync, otomasyon {automationId}");
         }
     }
 }

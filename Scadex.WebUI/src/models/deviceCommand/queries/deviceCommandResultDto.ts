@@ -1,5 +1,5 @@
 /** Ayna: Scadex.Model/Dtos/DeviceCommand/Queries/DeviceCommandResultDto.cs — sözleşme: docs/api-contract/08-scada-command.md */
-import type { CommandStatus, DeviceCommandType, PinFunction } from '@/models/enums';
+import type { CommandStatus, PinFunction } from '@/models/enums';
 
 /**
  * Bir kumandanın sonucu — hem `POST .../command` yanıtı hem
@@ -18,7 +18,11 @@ export interface DeviceCommandResultDto {
   /** Gönderim yolunda her zaman dolu; tip nullable çünkü DB kolonu nullable. */
   ioChannelId: string | null;
   channelNumber: number | null;
-  commandType: DeviceCommandType;
+  /**
+   * NİYET: `true` aç, `false` kapat (mantıksal — NC'de `sentValue` terstir). Sunucu `payloadJson`'dan okur;
+   * okunamazsa `null`.
+   */
+  turnOn: boolean | null;
   /** Gönderilen payload: `{"turnOn":true,"value":"0","polarity":2}`. */
   payloadJson: string | null;
   /**

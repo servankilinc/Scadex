@@ -9,9 +9,7 @@ import type { RolePermissionMatrixItem } from '@/models/rolePermission';
 /** Seed'deki `Permission.Category` değerleri (İngilizce anahtar) → ekranda görünen ad. Bilinmeyen kategori olduğu gibi görünür. */
 const CATEGORY_LABELS: Record<string, string> = {
   Diagram: 'Diyagram',
-  Alarm: 'Alarm',
   Admin: 'Yönetim',
-  Data: 'Veri',
   Access: 'Geçiş',
   RemoteDesk: 'Uzak Masaüstü',
   Signalization: 'Sinyalizasyon'

@@ -22,9 +22,9 @@ public partial class DeviceCommandService : IDeviceCommandService
     private readonly ILogger<DeviceCommandService> _logger;
     private readonly IOutputPolarityResolver _polarityResolver;
     private readonly IEnumerable<IScadaEventObserver> _observers;
-    private readonly ICabinetStatusService _cabinetStatusService;
+    private readonly IAutomationStatusService _automationStatusService;
 
-    public DeviceCommandService(IUnitOfWork unitOfWork, IValidationService validationService, IMapper mapper, IScadaCommandGateway scadaCommandGateway, IDiagramNotifier notifier, IHttpContextManager httpContextManager, ILogger<DeviceCommandService> logger, IOutputPolarityResolver polarityResolver, IEnumerable<IScadaEventObserver> observers, ICabinetStatusService cabinetStatusService)
+    public DeviceCommandService(IUnitOfWork unitOfWork, IValidationService validationService, IMapper mapper, IScadaCommandGateway scadaCommandGateway, IDiagramNotifier notifier, IHttpContextManager httpContextManager, ILogger<DeviceCommandService> logger, IOutputPolarityResolver polarityResolver, IEnumerable<IScadaEventObserver> observers, IAutomationStatusService automationStatusService)
     {
         _unitOfWork = unitOfWork;
         _validationService = validationService;
@@ -35,6 +35,6 @@ public partial class DeviceCommandService : IDeviceCommandService
         _logger = logger;
         _polarityResolver = polarityResolver;
         _observers = observers;
-        _cabinetStatusService = cabinetStatusService;
+        _automationStatusService = automationStatusService;
     }
 }

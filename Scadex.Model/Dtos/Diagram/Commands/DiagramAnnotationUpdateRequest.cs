@@ -5,7 +5,7 @@ using static Scadex.Model.Enums.EntityEnums;
 namespace Scadex.Model.Dtos.Diagram.Commands;
 
 /// <summary>
-/// Notun içeriği: <c>PUT /api/Diagram/cabinet/{cabinetId}/annotations/{id}</c>. Konum, boyut, z-sırası, kilit ve görünürlük
+/// Notun içeriği: <c>PUT /api/Diagram/automation/{automationId}/annotations/{id}</c>. Konum, boyut, z-sırası, kilit ve görünürlük
 /// <see cref="DiagramLayoutRequest"/>'tedir.
 /// </summary>
 public class DiagramAnnotationUpdateRequest : IDto

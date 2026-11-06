@@ -1,4 +1,4 @@
-using Scadex.Model.Dtos.Scada.Events;
+using Scadex.Model.Realtime.Events;
 
 namespace Scadex.Business.Utils.ScadaObserver;
 
@@ -16,18 +16,18 @@ public interface IScadaEventObserver
     /// Bir kanalın değeri değişti (aynı değer için tekrar çağırılmaz).
     /// <list>
     /// <item> Input/AnalogInput: SCADA ingest'i değeri değiştirdiğinde </item>
-    /// <item> Output: BAŞARILI bir komut kanalın değerini değiştirdiğinde mantıksal hedef <see cref="ChannelChangedNotification.TurnOn"/> da gönderilir </item>
+    /// <item> Output: BAŞARILI bir komut kanalın değerini değiştirdiğinde mantıksal hedef <see cref="ChannelChangedEvent.TurnOn"/> da gönderilir </item>
     /// </list>
     /// </summary>
-    Task OnChannelChangedAsync(ChannelChangedNotification notification, CancellationToken cancellationToken = default);
+    Task OnChannelChangedAsync(ChannelChangedEvent notification, CancellationToken cancellationToken = default);
 
-    /// <summary> Kabinde ki bir kart okuyucuya kart okutuldu (kart ve kullanıcı tanımsız olsa da çağırılır zaten nullable yaptık). </summary>
-    Task OnCardPresentedAsync(CardPresentedNotification notification, CancellationToken cancellationToken = default);
+    /// <summary> Otomasyondaki bir kart okuyucuya kart okutuldu (kart ve kullanıcı tanımsız olsa da çağırılır zaten nullable yaptık). </summary>
+    Task OnCardPresentedAsync(CardPresentedEvent notification, CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Bir çıkış komutu sonuçlandı — başarılı ya da başarısız, değer değişsin değişmesin; komutu gönderen kullanıcıyla
-    /// (<see cref="OutputCommandNotification.RequestedByUserId"/>, arka plan işinde <c>null</c>). Komutu bekleyen <c>SendAsync</c>'in
+    /// (<see cref="OutputCommandEvent.RequestedByUserId"/>, arka plan işinde <c>null</c>). Komutu bekleyen <c>SendAsync</c>'in
     /// İÇİNDEN çağrılır: gözlemci burada komut göndermemeli, yalnızca kuyruğa bırakmalı.
     /// </summary>
-    Task OnOutputCommandCompletedAsync(OutputCommandNotification notification, CancellationToken cancellationToken = default);
+    Task OnOutputCommandCompletedAsync(OutputCommandEvent notification, CancellationToken cancellationToken = default);
 }

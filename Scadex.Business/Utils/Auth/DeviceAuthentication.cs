@@ -35,23 +35,17 @@ public static class DeviceAuthPolicies
     public const string Pc = "Device.Pc";
 }
 
-public sealed class DeviceBasicAuthenticationOptions : AuthenticationSchemeOptions
-{
-    /// <summary> Bu şemanın kabul ettiği cihaz tipi. </summary>
-    public DeviceType DeviceType { get; set; }
-}
-
 /// <summary>
-/// <c>Authorization: Basic base64(deviceId:sır)</c>. Başlık yoksa ya da başka şemaysa (Bearer) karışmaz (<c>NoResult</c>).
+/// RemoteDesk PC'si: <c>Authorization: Basic base64(deviceId:sır)</c>. Başlık yoksa ya da başka şemaysa (Bearer) karışmaz (<c>NoResult</c>).
 /// Sır asla loglanmaz; reddedilen deneme cihaz Id'si + IP ile <c>Warning</c>. Reddin nedeni istemciye söylenmez.
 /// </summary>
-public sealed class DeviceBasicAuthenticationHandler : AuthenticationHandler<DeviceBasicAuthenticationOptions>
+public sealed class PcBasicAuthenticationHandler : AuthenticationHandler<AuthenticationSchemeOptions>
 {
     private const string BasicScheme = "Basic";
 
     private readonly IDeviceCredentialService _credentials;
 
-    public DeviceBasicAuthenticationHandler(IOptionsMonitor<DeviceBasicAuthenticationOptions> options, ILoggerFactory logger, UrlEncoder encoder,
+    public PcBasicAuthenticationHandler(IOptionsMonitor<AuthenticationSchemeOptions> options, ILoggerFactory logger, UrlEncoder encoder,
         IDeviceCredentialService credentials) : base(options, logger, encoder)
     {
         _credentials = credentials;
@@ -72,7 +66,7 @@ public sealed class DeviceBasicAuthenticationHandler : AuthenticationHandler<Dev
         if (colon < 0 || !Guid.TryParse(decoded.AsSpan(0, colon), out var deviceId))
             return Reject(null, "Kullanıcı adı bir cihaz Id'si değil");
 
-        var result = await _credentials.AuthenticateAsync(Options.DeviceType, deviceId, decoded[(colon + 1)..], Context.RequestAborted);
+        var result = await _credentials.AuthenticatePcAsync(deviceId, decoded[(colon + 1)..], Context.RequestAborted);
         if (!result.IsSuccess)
             return Reject(deviceId, result.Error.Description);
 
@@ -80,8 +74,8 @@ public sealed class DeviceBasicAuthenticationHandler : AuthenticationHandler<Dev
         var claims = new[]
         {
             new Claim(ClaimTypes.NameIdentifier, device.DeviceId.ToString()),
-            new Claim(AppClaimTypes.DeviceType, ((int)Options.DeviceType).ToString()),
-            new Claim(AppClaimTypes.CabinetId, device.CabinetId.ToString()),
+            new Claim(AppClaimTypes.DeviceType, ((int)DeviceType.Pc).ToString()),
+            new Claim(AppClaimTypes.AutomationId, device.AutomationId.ToString()),
         };
         var principal = new ClaimsPrincipal(new ClaimsIdentity(claims, Scheme.Name));
         return AuthenticateResult.Success(new AuthenticationTicket(principal, Scheme.Name));
@@ -139,7 +133,7 @@ public sealed class ControlCardMacAuthenticationHandler : AuthenticationHandler<
         {
             new Claim(ClaimTypes.NameIdentifier, device.DeviceId.ToString()),
             new Claim(AppClaimTypes.DeviceType, ((int)DeviceType.ControlModule).ToString()),
-            new Claim(AppClaimTypes.CabinetId, device.CabinetId.ToString()),
+            new Claim(AppClaimTypes.AutomationId, device.AutomationId.ToString()),
         };
         var principal = new ClaimsPrincipal(new ClaimsIdentity(claims, Scheme.Name));
         return AuthenticateResult.Success(new AuthenticationTicket(principal, Scheme.Name));
@@ -162,7 +156,7 @@ public static class DeviceAuthentication
     public static AuthenticationBuilder AddDeviceAuthentication(this AuthenticationBuilder builder)
     {
         builder.AddScheme<AuthenticationSchemeOptions, ControlCardMacAuthenticationHandler>(DeviceAuthSchemes.ControlCard, _ => { });
-        builder.AddScheme<DeviceBasicAuthenticationOptions, DeviceBasicAuthenticationHandler>(DeviceAuthSchemes.Pc, o => o.DeviceType = DeviceType.Pc);
+        builder.AddScheme<AuthenticationSchemeOptions, PcBasicAuthenticationHandler>(DeviceAuthSchemes.Pc, _ => { });
 
         builder.Services.AddAuthorizationBuilder()
             .AddPolicy(DeviceAuthPolicies.ControlCard, policy => policy
@@ -182,7 +176,7 @@ public static class DeviceAuthentication
         principal.HasClaim(c => c.Type == AppClaimTypes.DeviceType)
         && Guid.TryParse(principal.FindFirstValue(ClaimTypes.NameIdentifier), out var id) ? id : null;
 
-    /// <summary> Cihaz kimliğiyle doğrulanmış isteğin kabini (yoksa <c>null</c>). </summary>
-    public static Guid? GetDeviceCabinetId(this ClaimsPrincipal principal) =>
-        Guid.TryParse(principal.FindFirstValue(AppClaimTypes.CabinetId), out var id) ? id : null;
+    /// <summary> Cihaz kimliğiyle doğrulanmış isteğin otomasyonu (yoksa <c>null</c>). </summary>
+    public static Guid? GetDeviceAutomationId(this ClaimsPrincipal principal) =>
+        Guid.TryParse(principal.FindFirstValue(AppClaimTypes.AutomationId), out var id) ? id : null;
 }

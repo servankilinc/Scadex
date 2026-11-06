@@ -6,10 +6,9 @@ namespace Scadex.Model.Entities;
 public class Connection : IEntity, ISoftDeletableEntity, IAuditableEntity
 {
     public Guid Id { get; set; }
-    public Guid CabinetId { get; set; }
+    public Guid AutomationId { get; set; }
     public Guid SourcePinId { get; set; }
     public Guid TargetPinId { get; set; }
-    public WireType WireType { get; set; }
 
     // ------------ Tasarım props ------------
     public string? Label { get; set; }
@@ -36,7 +35,7 @@ public class Connection : IEntity, ISoftDeletableEntity, IAuditableEntity
     #endregion
 
     #region *** EF Core Navigation ***
-    public virtual Cabinet? Cabinet { get; set; }
+    public virtual Automation? Automation { get; set; }
     public virtual Pin? SourcePin { get; set; }
     public virtual Pin? TargetPin { get; set; }
     #endregion

@@ -22,6 +22,5 @@ public class Camera : IEntity
 
     #region *** EF Core Navigation ***
     public virtual Device? Device { get; set; }
-    public virtual ICollection<CameraCapture>? Captures { get; set; }
     #endregion
 }

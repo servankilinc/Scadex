@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
-import { getCabinetDiagram } from '@/api/diagram';
+import { getAutomationDiagram } from '@/api/diagram';
 import { diagramKeys } from '@/api/query-keys';
 
 /**
@@ -8,10 +8,10 @@ import { diagramKeys } from '@/api/query-keys';
  * Bu veri yerelde ASLA mutasyona uğramaz. Düzenleme React Flow state'inde yaşar (`useDiagramEditor`); başarılı istekte cache
  * yalnızca bayat işaretlenir, başarısız istekte yeniden çekilir ve tuval sunucu gerçeğine döner.
  */
-export function useDiagramGraph(cabinetId: string | undefined) {
+export function useDiagramGraph(automationId: string | undefined) {
   return useQuery({
-    queryKey: diagramKeys.cabinet(cabinetId ?? ''),
-    queryFn: () => getCabinetDiagram(cabinetId!),
-    enabled: !!cabinetId
+    queryKey: diagramKeys.automation(automationId ?? ''),
+    queryFn: () => getAutomationDiagram(automationId!),
+    enabled: !!automationId
   });
 }

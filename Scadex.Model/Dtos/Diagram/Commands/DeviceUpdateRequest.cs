@@ -5,7 +5,7 @@ using Scadex.Model.Dtos.Diagram.Commands.Items;
 namespace Scadex.Model.Dtos.Diagram.Commands;
 
 /// <summary>
-/// Özellikler panelindeki cihaz formunun Kaydet'i: <c>PUT /api/Diagram/cabinet/{cabinetId}/devices/{id}</c>.
+/// Özellikler panelindeki cihaz formunun Kaydet'i: <c>PUT /api/Diagram/automation/{automationId}/devices/{id}</c>.
 /// Konum, boyut, z-sırası, kilit ve görünürlük burada DEĞİL, <see cref="DiagramLayoutRequest"/>'tedir.
 /// Ek nesne (kamera / kontrol kartı / PC) şablon tipiyle eşleşmek zorundadır; eksik ya da yanlış tipe giden nesne 400'dür.
 /// </summary>

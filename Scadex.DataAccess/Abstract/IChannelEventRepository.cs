@@ -8,10 +8,10 @@ namespace Scadex.DataAccess.Abstract;
 
 public interface IChannelEventRepository : IRepository<ChannelEvent>, IRepositoryAsync<ChannelEvent>
 {
-    /// <summary> Bir kabinin olaylari — yeniden eskiye, sayfali. </summary>
+    /// <summary> Bir otomasyonun olaylari — yeniden eskiye, sayfali. </summary>
     Task<PaginationResponse<ChannelEventDto>> GetPagedAsync(
         IConfigurationProvider configurationProvider,
-        Guid cabinetId,
+        Guid automationId,
         Guid? ioChannelId,
         DateTime? fromUtc,
         DateTime? toUtc,

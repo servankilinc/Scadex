@@ -6,7 +6,7 @@ namespace Scadex.Model.Entities;
 public class Device : IEntity, IAuditableEntity, IActivatableEntity, IMonitoredAsset
 {
     public Guid Id { get; set; }
-    public Guid CabinetId { get; set; }
+    public Guid AutomationId { get; set; }
     public Guid ComponentTemplateId { get; set; }
     public string Name { get; set; } = null!;
     public int? DeviceStatusId { get; set; }
@@ -50,7 +50,7 @@ public class Device : IEntity, IAuditableEntity, IActivatableEntity, IMonitoredA
     #endregion
 
     #region *** EF Core Navigation ***
-    public virtual Cabinet? Cabinet { get; set; }
+    public virtual Automation? Automation { get; set; }
     public virtual ComponentTemplate? ComponentTemplate { get; set; }
     public virtual DeviceStatus? DeviceStatus { get; set; }
     public virtual ICollection<IoChannel>? IoChannels { get; set; }

@@ -4,7 +4,7 @@ import { usePermission } from '@/lib/auth-session';
 import { ApiError } from '@/lib/axios-helper';
 import { toUtcDate } from '@/lib/utils';
 import type { Permission } from '@/models/enums/entityEnums';
-import type { CabinetIdsQueryOptions } from '../../types';
+import type { AutomationIdsQueryOptions } from '../../types';
 import { closeOperatorSession, getOpenSessions, getSessionDetail, getSessionList, getSessionSummary } from '../api/signalization';
 import { signalizationKeys } from '../api/query-keys';
 import type { OperatorSessionCloseRequest, OperatorSessionOpenDto, OperatorSessionQueryRequest, OperatorSessionSummaryRequest } from '../models/session';
@@ -45,7 +45,7 @@ export function useOpenSessions(intervalMs = LIVE_POLL_MS) {
  * listesi `select` ile türetilir. `queryOptions` ile ortak bir fabrika bilerek yazılmadı — literal anahtar tipi
  * modül sözleşmesindeki genel `QueryKey`'e atanamıyor.
  */
-export function busyCabinetsQueryOptions(intervalMs = LIVE_POLL_MS): CabinetIdsQueryOptions {
+export function busyCabinetsQueryOptions(intervalMs = LIVE_POLL_MS): AutomationIdsQueryOptions {
   return {
     queryKey: signalizationKeys.openSessions(null),
     queryFn: () => getOpenSessions(null),
@@ -57,10 +57,10 @@ export function busyCabinetsQueryOptions(intervalMs = LIVE_POLL_MS): CabinetIdsQ
 
 /**
  * Alarm bayraklı (kartsız giriş / zorla açma — `hasAlert`) açık oturumu olan kabinler — ana sayfa haritasındaki alarm
- * ikonu (manifestodaki `alertCabinetsQuery`). `busyCabinetsQueryOptions` ile AYNI anahtar ve `queryFn`: ek istek
+ * ikonu (manifestodaki `alertAutomationsQuery`). `busyCabinetsQueryOptions` ile AYNI anahtar ve `queryFn`: ek istek
  * doğmaz, yalnızca `select` farklı. Kabin durumuna (`deviceStatusId`) yansımaz — 2026-09-24 kararı.
  */
-export function alertCabinetsQueryOptions(intervalMs = LIVE_POLL_MS): CabinetIdsQueryOptions {
+export function alertCabinetsQueryOptions(intervalMs = LIVE_POLL_MS): AutomationIdsQueryOptions {
   return {
     queryKey: signalizationKeys.openSessions(null),
     queryFn: () => getOpenSessions(null),
@@ -101,7 +101,7 @@ export function useSessionDetail(id: number) {
  * Harita detay panelinin veri kaynağı.
  *
  * Açık oturumlar `useOpenSessions` önbelleğinden SÜZÜLÜR: ana sayfa haritası zaten aynı anahtarı
- * kullanıyor (`busyCabinetsQuery`), bu yüzden panel ek istek üretmez. Bir kabinin birden çok dış
+ * kullanıyor (`busyAutomationsQuery`), bu yüzden panel ek istek üretmez. Bir kabinin birden çok dış
  * kapısı olabilir ve açıklık kısıtı kapı bazlıdır — bu yüzden tekil değil, LİSTE döner.
  *
  * Geçmiş kaydı yalnızca açık oturum yokken ve tek satır olarak çekilir; sunucu `StartedAtUtc`

@@ -7,7 +7,7 @@
  * Kamera yayın bütçesini (`stream-budget`) KULLANMAZ: PC ekranı tek oynatıcıyla açılır.
  */
 import { toApiError } from '@/lib/axios-helper';
-import { whepConnect, type WhepSession } from '@/lib/camera/whep';
+import { whepConnect, type WhepSession } from '@/lib/media/whep';
 import { releaseScreenView, renewScreenView, startScreenView } from '../api/remote-desk';
 
 export type PcStreamState =

@@ -11,12 +11,12 @@ namespace Scadex.Business.Utils.MonitoredAssetService;
 public class DeviceProbeSource : IMonitoredAssetProbeSource
 {
     private readonly IUnitOfWork _unitOfWork;
-    private readonly ICabinetStatusService _cabinetStatusService;
+    private readonly IAutomationStatusService _automationStatusService;
 
-    public DeviceProbeSource(IUnitOfWork unitOfWork, ICabinetStatusService cabinetStatusService)
+    public DeviceProbeSource(IUnitOfWork unitOfWork, IAutomationStatusService automationStatusService)
     {
         _unitOfWork = unitOfWork;
-        _cabinetStatusService = cabinetStatusService;
+        _automationStatusService = automationStatusService;
     }
 
     /// <inheritdoc/>
@@ -36,7 +36,7 @@ public class DeviceProbeSource : IMonitoredAssetProbeSource
             },
             // ComponentTemplate izlenebilir degilse cihazdaki bool alan yok say. Kontrol karti burada DEGIL: ControlCardProbeSource onu
             // kartin okuma ucuyla yoklar (ayni cihaz iki kez yoklanmasin).
-            where: d => d.IsActive && d.IsMonitoringEnabled && d.ComponentTemplate!.IsMonitorable && d.IpAddress != null && d.IpAddress != "" && d.Cabinet!.IsActive
+            where: d => d.IsActive && d.IsMonitoringEnabled && d.ComponentTemplate!.IsMonitorable && d.IpAddress != null && d.IpAddress != "" && d.Automation!.IsActive
                 && d.ComponentTemplate.DeviceTypeId != (int)DeviceType.ControlModule,
             cancellationToken: cancellationToken
         ) ?? [];
@@ -46,5 +46,5 @@ public class DeviceProbeSource : IMonitoredAssetProbeSource
 
     /// <inheritdoc/>
     public Task<Result> RecordProbeResultAsync(Guid assetId, MonitoredAssetProbeResultDto result, CancellationToken cancellationToken = default) =>
-        _cabinetStatusService.RecordDeviceProbeResultAsync(assetId, result, cancellationToken);
+        _automationStatusService.RecordDeviceProbeResultAsync(assetId, result, cancellationToken);
 }

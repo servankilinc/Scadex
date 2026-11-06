@@ -16,8 +16,8 @@ import { useCompanies, useCreateCompany, useUpdateCompany } from '@/hooks/use-co
 /**
  * Firma yönetimi.
  *
- * Kabin `CompanyId` olmadan açılamadığı için bu ekran kabin eklemenin ön koşulu:
- * hiç aktif firma yokken kabin formu kilitli kalır.
+ * Otomasyon `CompanyId` olmadan açılamadığı için bu ekran otomasyon eklemenin ön koşulu:
+ * hiç aktif firma yokken otomasyon formu kilitli kalır.
  */
 export default function Companies() {
   const { data, isPending, isError, error } = useCompanies();
@@ -29,7 +29,7 @@ export default function Companies() {
       <div className='flex flex-wrap items-start justify-between gap-3'>
         <div>
           <h1 className='text-lg font-semibold'>Firmalar</h1>
-          <p className='text-sm text-muted-foreground'>Kabinler bir firmaya bağlıdır. Kabin ekleyebilmek için en az bir aktif firma gerekir.</p>
+          <p className='text-sm text-muted-foreground'>Otomasyonlar bir firmaya bağlıdır. Otomasyon ekleyebilmek için en az bir aktif firma gerekir.</p>
         </div>
         <Button size='sm' onClick={() => setIsCreating(true)}>
           <PlusIcon />
@@ -87,7 +87,7 @@ function CompanyCreateDialog({ open, onOpenChange }: { open: boolean; onOpenChan
       <DialogContent className='gap-0 p-0'>
         <DialogHeader className='p-4 pb-3'>
           <DialogTitle>Yeni firma</DialogTitle>
-          <DialogDescription>Kabinler bu firmaya bağlanabilir.</DialogDescription>
+          <DialogDescription>Otomasyonlar bu firmaya bağlanabilir.</DialogDescription>
         </DialogHeader>
 
         <form
@@ -132,7 +132,7 @@ function CompanyCreateDialog({ open, onOpenChange }: { open: boolean; onOpenChan
 
 /**
  * `GET /{id}/update` ucuna gerek YOK: `CompanyUpdateDto` yalnızca `id`, `name` ve
- * `isActive` taşıyor, üçü de listede zaten mevcut. Kabinin aksine (SCADA alanları
+ * `isActive` taşıyor, üçü de listede zaten mevcut. Otomasyonun aksine (SCADA alanları
  * listede yok) burada ek bir istek atmak boşuna olurdu.
  */
 function CompanyEditDialog({ company, onClose }: { company: CompanyDto | null; onClose: () => void }) {
@@ -185,7 +185,7 @@ function CompanyEditDialog({ company, onClose }: { company: CompanyDto | null; o
                 />
               </Field>
               {/* Firma silinemez (`IActivatableEntity`) — pasife alma tek yol. */}
-              <FieldDescription className='mt-2'>Pasif firmaya yeni kabin bağlanamaz; mevcut kabinleri etkilenmez.</FieldDescription>
+              <FieldDescription className='mt-2'>Pasif firmaya yeni otomasyon bağlanamaz; mevcut otomasyonları etkilenmez.</FieldDescription>
             </div>
           </FieldGroup>
 

@@ -3,9 +3,9 @@ import { toast } from 'sonner';
 import { getDeviceCommands, sendDeviceCommand } from '@/api/device-command';
 import { diagramKeys } from '@/api/query-keys';
 import { toApiError } from '@/lib/axios-helper';
-import { CommandStatus, CommandStatusLabels, DeviceCommandTypeLabels } from '@/models/enums';
+import { CommandStatus, CommandStatusLabels, commandIntentLabel } from '@/models/enums';
 import type { DeviceCommandResultDto, DeviceCommandSendRequest } from '@/models/deviceCommand';
-import type { CommandCompleted } from '@/models/realtime';
+import type { CommandCompletedNotify } from '@/models/realtime';
 
 /**
  * Kumanda gönderme ve geçmiş.
@@ -54,7 +54,7 @@ export function useSendCommand(deviceId: string) {
       // yeniden sormak aynı veriyi bir kez daha indirmek olurdu.
       prependCommand(queryClient, deviceId, result);
 
-      const label = DeviceCommandTypeLabels[result.commandType];
+      const label = `"${commandIntentLabel(result.turnOn)}" komutu`;
 
       if (result.status === CommandStatus.Succeeded) {
         toast.success(`${label} gönderildi`, {
@@ -92,7 +92,7 @@ export function useSendCommand(deviceId: string) {
  * geçersizleştirilir. Yalnızca cache'te zaten bir liste varsa: yoksa kimse o
  * geçmişe bakmıyordur ve boşuna istek atılmaz.
  */
-export function applyCommandCompleted(queryClient: QueryClient, change: CommandCompleted): void {
+export function applyCommandCompleted(queryClient: QueryClient, change: CommandCompletedNotify): void {
   const key = diagramKeys.deviceCommands(change.deviceId);
   const current = queryClient.getQueryData<DeviceCommandResultDto[]>(key);
 

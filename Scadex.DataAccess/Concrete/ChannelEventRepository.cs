@@ -18,14 +18,14 @@ public class ChannelEventRepository : RepositoryBase<ChannelEvent, AppDbContext>
 
     public async Task<PaginationResponse<ChannelEventDto>> GetPagedAsync(
         IConfigurationProvider configurationProvider,
-        Guid cabinetId,
+        Guid automationId,
         Guid? ioChannelId,
         DateTime? fromUtc,
         DateTime? toUtc,
         PaginationRequest pagination,
         CancellationToken cancellationToken = default)
     {
-        var query = _context.ChannelEvents.AsNoTracking().Where(e => e.CabinetId == cabinetId);
+        var query = _context.ChannelEvents.AsNoTracking().Where(e => e.AutomationId == automationId);
 
         if (ioChannelId.HasValue)
             query = query.Where(e => e.IoChannelId == ioChannelId.Value);

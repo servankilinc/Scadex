@@ -1,6 +1,6 @@
 import { CheckIcon, LoaderCircleIcon, TriangleAlertIcon, WifiOffIcon } from 'lucide-react';
 import { useDeviceCommands } from '@/hooks/use-device-commands';
-import { CommandStatus, CommandStatusLabels, DeviceCommandTypeLabels } from '@/models/enums';
+import { CommandStatus, CommandStatusLabels, commandIntentLabel } from '@/models/enums';
 import type { DeviceCommandResultDto } from '@/models/deviceCommand';
 import { cn, toUtcDate } from '@/lib/utils';
 
@@ -51,7 +51,7 @@ function CommandRow({ command }: { command: DeviceCommandResultDto }) {
       <div className='flex items-baseline gap-1.5'>
         <Icon className={cn('size-3 shrink-0 translate-y-0.5', tone, command.status === CommandStatus.Sent && 'animate-spin')} />
         <span className='truncate font-medium'>
-          {DeviceCommandTypeLabels[command.commandType]}
+          {commandIntentLabel(command.turnOn)}
           {command.channelNumber != null && <span className='text-muted-foreground font-mono'> · CH{command.channelNumber}</span>}
         </span>
         <span className='text-muted-foreground ml-auto shrink-0 font-mono text-[10px]' title={sentAtDate ? sentAtDate.toLocaleString('tr-TR') : undefined}>

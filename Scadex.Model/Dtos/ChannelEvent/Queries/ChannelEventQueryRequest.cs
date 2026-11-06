@@ -6,7 +6,7 @@ namespace Scadex.Model.Dtos.ChannelEvent.Queries;
 
 public class ChannelEventQueryRequest : IDto
 {
-    public Guid CabinetId { get; set; }
+    public Guid AutomationId { get; set; }
     public Guid? IoChannelId { get; set; }
     public DateTime? FromUtc { get; set; }
     public DateTime? ToUtc { get; set; }
@@ -22,7 +22,7 @@ public class ChannelEventQueryRequestValidator : AbstractValidator<ChannelEventQ
 {
     public ChannelEventQueryRequestValidator()
     {
-        RuleFor(v => v.CabinetId).NotEqual(Guid.Empty).WithMessage("Kabin bilgisi zorunlu");
+        RuleFor(v => v.AutomationId).NotEqual(Guid.Empty).WithMessage("Otomasyon bilgisi zorunlu");
         RuleFor(v => v.ToUtc).GreaterThanOrEqualTo(v => v.FromUtc!.Value)
             .When(v => v.FromUtc.HasValue && v.ToUtc.HasValue)
             .WithMessage("Bitiş tarihi başlangıçtan önce olamaz");

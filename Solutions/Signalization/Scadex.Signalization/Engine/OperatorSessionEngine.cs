@@ -1,0 +1,212 @@
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
+using Scadex.Business.Abstract;
+using Scadex.Core.Utils;
+using Scadex.DataAccess.UoW;
+using Scadex.Model.Dtos.DeviceCommand.Commands;
+using Scadex.Signalization.DataAccess;
+using Scadex.Signalization.Model.Entities;
+using Scadex.Signalization.Model.Utils;
+using Scadex.Signalization.Realtime;
+using Scadex.Signalization.Runtime;
+using Scadex.Signalization.Services.Abstract;
+using static Scadex.Model.Enums.EntityEnums;
+using static Scadex.Signalization.Enums.SignalEnums;
+
+namespace Scadex.Signalization.Engine;
+
+public partial class OperatorSessionEngine
+{
+    private readonly SignalizationDbContext _db;
+    private readonly IUnitOfWork _unitOfWork;
+    private readonly IDeviceCommandService _commandService;
+    private readonly IUserRoleService _userRoleService;
+    private readonly EntrySnapshotQueue _snapshotQueue;
+    private readonly ILogger<OperatorSessionEngine> _logger;
+    private readonly ISignalChannelStateService _signalizationChannelState;
+    private readonly ISignalizationNotifier _notifier;
+
+    public OperatorSessionEngine(SignalizationDbContext db, IUnitOfWork unitOfWork, IDeviceCommandService commandService, IUserRoleService userRoleService, EntrySnapshotQueue snapshotQueue, ILogger<OperatorSessionEngine> logger, ISignalChannelStateService signalizationChannelState, ISignalizationNotifier notifier)
+    {
+        _db = db;
+        _unitOfWork = unitOfWork;
+        _commandService = commandService;
+        _userRoleService = userRoleService;
+        _snapshotQueue = snapshotQueue;
+        _logger = logger;
+        _signalizationChannelState = signalizationChannelState;
+        _notifier = notifier;
+    }
+
+    public async Task HandleAsync(SignalWorkItem item, CancellationToken cancellationToken)
+    {
+        var cabinet = await _db.Cabinets.AsNoTracking().FirstOrDefaultAsync(c => c.CabinetId == item.CabinetId, cancellationToken);
+        if (cabinet == null)
+            return;
+
+        // NOT IsEnabled kontrolü Zamanlayıcı harici "kart okutma" veya "input kanal değişimi" ile üretilen işlere uygulanmalı.
+        // çünkü pasife alınmış bir kabinin operatör işlem sistem tarafından kapatılabilmeli vs. nedenler var
+        switch (item)
+        {
+            case TimerWork timerWork:
+                await HandleTimerAsync(cabinet, timerWork, cancellationToken);
+                break;
+            case ChannelChangedWork channelWork:
+                if (cabinet.IsEnabled)
+                    await HandleChannelChangedAsync(cabinet, channelWork, cancellationToken);
+                break;
+            case CardPresentedWork cardWork:
+                if (cabinet.IsEnabled)
+                    await HandleCardAsync(cabinet, cardWork.Notification, cancellationToken);
+                break;
+            case ManualCommandWork manualWork:
+                await HandleManualCommandAsync(cabinet, manualWork.Notification, cancellationToken);
+                break;
+            case ManualCloseWork closeWork:
+                // IsEnabled bakılmaz: pasife alınmış kabinin açık işlemi de elle kapatılabilmeli.
+                closeWork.Completion.TrySetResult(await HandleManualCloseAsync(cabinet, closeWork, cancellationToken));
+                break;
+        }
+    }
+
+
+    #region Helpers
+    private OperatorSession StartSession(SignalCabinet cabinet, SignalOuterDoor outer, DateTime startedAtUtc, SessionFlags flags)
+    {
+        var now = DateTime.UtcNow;
+        var session = new OperatorSession
+        {
+            CabinetId = cabinet.CabinetId,
+            OuterDoorId = outer.Id,
+            OuterDoorNameSnapshot = outer.Name,
+            Status = OperatorSessionStatus.Open,
+            Flags = flags,
+            StartedAtUtc = startedAtUtc,
+            AwaitingCardDueAtUtc = cabinet.AwaitingCardTimeoutSec > 0 ? now.AddSeconds(cabinet.AwaitingCardTimeoutSec) : null,
+            MaxDurationDueAtUtc = cabinet.SessionMaxDurationMin > 0 ? now.AddMinutes(cabinet.SessionMaxDurationMin) : null
+        };
+
+        _db.OperatorSessions.Add(session);
+        return session;
+    }
+
+
+    private OperatorSessionEvent AddEvent(
+        OperatorSession session,
+        SessionEventType type,
+        DateTime occurredAtUtc,
+        DateTime? receivedAtUtc = null,
+        Guid? innerDoorId = null,
+        Guid? userId = null,
+        string? cardIdRaw = null,
+        Guid? deviceCommandId = null,
+        string? detail = null
+    ) {
+        var sessionEvent = new OperatorSessionEvent
+        {
+            // Navigasyon uzerinden: yeni oturumun Id'si henuz yok, EF kayitta doldurur.
+            Session = session,
+            Type = type,
+            OccurredAtUtc = occurredAtUtc,
+            ReceivedAtUtc = receivedAtUtc ?? DateTime.UtcNow,
+            InnerDoorId = innerDoorId,
+            UserId = userId,
+            CardIdRaw = cardIdRaw,
+            DeviceCommandId = deviceCommandId,
+            Detail = detail?.Truncate(512)
+        };
+
+        _db.OperatorSessionEvents.Add(sessionEvent);
+        return sessionEvent;
+    }
+
+
+    /// <summary> Falg ekler ayrıca kapanmis bir oturuma sonradan flag eklendiyse (orn. siren komutu basarisiz) status uyarıyla tamamlandı olur. </summary>
+    private static void MarkFlag(OperatorSession session, SessionFlags flag, bool setCompletedWithWarning = false)
+    {
+        session.Flags |= flag;
+        if (setCompletedWithWarning && session.Status == OperatorSessionStatus.Completed)
+            session.Status = OperatorSessionStatus.CompletedWithWarning;
+    }
+
+
+    /// <summary> Oturumu kapatır; son durum <paramref name="kind"/>'a ve bayraklara göre belirlenir. </summary>
+    private async Task CloseSessionAsync(OperatorSession session, DateTime endedAtUtc, SessionCloseKind kind, CancellationToken cancellationToken)
+    {
+        bool hasOperator = await _db.OperatorSessionOperators.AnyAsync(o => o.SessionId == session.Id, cancellationToken);
+        if (!hasOperator)
+            MarkFlag(session, SessionFlags.NoCardPresented);
+
+        if (endedAtUtc < session.StartedAtUtc)
+            endedAtUtc = session.StartedAtUtc;
+
+        session.EndedAtUtc = endedAtUtc;
+        session.DurationSec = (int)Math.Round((endedAtUtc - session.StartedAtUtc).TotalSeconds);
+        
+        // zamanlayıcı alanları sıfırlanır ki kontrol edildiğinde işlemesin
+        session.AwaitingCardDueAtUtc = null;
+        session.MaxDurationDueAtUtc = null; 
+
+        switch (kind)
+        {
+            case SessionCloseKind.TimedOut:
+                MarkFlag(session, SessionFlags.TimedOut);
+                session.Status = OperatorSessionStatus.TimedOut;
+                break;
+            case SessionCloseKind.Manual:
+                session.Status = OperatorSessionStatus.ManuallyClosed;
+                break;
+            default:
+                session.Status = session.Flags == SessionFlags.None ? OperatorSessionStatus.Completed : OperatorSessionStatus.CompletedWithWarning;
+                break;
+        }
+    }
+
+    /// <summary> Oturumu kapatan yol. </summary>
+    private enum SessionCloseKind
+    {
+        /// <summary> İş bitti, dış kapı kapandı. </summary>
+        Finished,
+        /// <summary> <c>SessionMaxDurationMin</c> doldu. </summary>
+        TimedOut,
+        /// <summary> Yetkili kullanıcı elle kapattı. </summary>
+        Manual
+    }
+    #endregion
+
+
+    #region Cekirdek okumalari ve komut
+
+
+
+    /// <summary>
+    /// Bir cikis kanalina komut gonderir. Cihaz kanaldan turetilir (kanalin karti). Retry YOKTUR.
+    /// Basari = SCADA 2xx dondu (<see cref="CommandStatus.Succeeded"/>); aksi her durum basarisizliktir.
+    /// </summary>
+    private async Task<OutputCommandOutcome> SendOutputAsync(Guid ioChannelId, bool turnOn, CancellationToken cancellationToken)
+    {
+        var channel = await _unitOfWork.IoChannels.GetAsync(
+            select: c => new { c.DeviceId },
+            where: c => c.Id == ioChannelId,
+            cancellationToken: cancellationToken);
+
+        if (channel == null)
+            return new OutputCommandOutcome(false, null, $"Kanal bulunamadi ({ioChannelId})");
+
+        var result = await _commandService.SendAsync(channel.DeviceId, new DeviceCommandSendRequest
+        {
+            IoChannelId = ioChannelId,
+            TurnOn = turnOn
+        }, cancellationToken);
+
+        if (!result.IsSuccess)
+            return new OutputCommandOutcome(false, null, result.Error.Description ?? result.Message);
+
+        return result.Data.Status == CommandStatus.Succeeded
+            ? new OutputCommandOutcome(true, result.Data.Id, null)
+            : new OutputCommandOutcome(false, result.Data.Id, $"{result.Data.Status}: {result.Data.ResultMessage}");
+    }
+
+    private readonly record struct OutputCommandOutcome(bool IsSuccess, Guid? CommandId, string? Message);
+    #endregion
+}

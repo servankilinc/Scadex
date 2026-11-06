@@ -1,6 +1,6 @@
 import { useCallback, useSyncExternalStore } from 'react';
 import type { DeviceStatus } from '@/models/enums';
-import type { CabinetStatusChange, ChannelValueChange, DeviceStatusChange } from '@/models/realtime';
+import type { AutomationStatusChangeNotify, ChannelValueChangeNotify, DeviceStatusChangeNotify } from '@/models/realtime';
 
 /**
  * Canlı telemetrinin TEK durduğu yer.
@@ -12,7 +12,7 @@ import type { CabinetStatusChange, ChannelValueChange, DeviceStatusChange } from
  *
  * **Anahtar bazlı abonelik.** Dinleyiciler kanal/cihaz kimliği başına tutulur;
  * bir kanal değiştiğinde yalnızca o kanalı okuyan bileşen yeniden render olur.
- * Tek bir "store değişti" sinyali, 500 kanallı bir kabinde her tick'te tüm grafı
+ * Tek bir "store değişti" sinyali, 500 kanallı bir otomasyonda her tick'te tüm grafı
  * yeniden çizdirirdi.
  *
  * Desen `lib/auth-session.ts` ile aynı: `useSyncExternalStore`.
@@ -30,7 +30,7 @@ export interface LiveDevice {
   lastSeen: string | null;
 }
 
-export interface LiveCabinet {
+export interface LiveAutomation {
   statusId: DeviceStatus | null;
   lastSeen: string | null;
   scadaLastIngestAt: string | null;
@@ -89,24 +89,24 @@ function createKeyedStore<T>() {
 
 const channels = createKeyedStore<LiveChannel>();
 const devices = createKeyedStore<LiveDevice>();
-const cabinets = createKeyedStore<LiveCabinet>();
+const automations = createKeyedStore<LiveAutomation>();
 
 // ------------------------------------------------------------------- yazma
 
-export function applyChannelValues(changes: ChannelValueChange[]): void {
+export function applyChannelValues(changes: ChannelValueChangeNotify[]): void {
   for (const change of changes) {
     channels.set(change.ioChannelId, { value: change.value, updatedAt: change.updatedAt });
   }
 }
 
-export function applyDeviceStatuses(changes: DeviceStatusChange[]): void {
+export function applyDeviceStatuses(changes: DeviceStatusChangeNotify[]): void {
   for (const change of changes) {
     devices.set(change.deviceId, { statusId: change.statusId, lastSeen: change.lastSeen });
   }
 }
 
-export function applyCabinetStatus(change: CabinetStatusChange): void {
-  cabinets.set(change.cabinetId, {
+export function applyAutomationStatus(change: AutomationStatusChangeNotify): void {
+  automations.set(change.automationId, {
     statusId: change.statusId,
     lastSeen: change.lastSeen,
     scadaLastIngestAt: change.scadaLastIngestAt
@@ -116,7 +116,7 @@ export function applyCabinetStatus(change: CabinetStatusChange): void {
 /**
  * Tüm canlı değerleri atar.
  *
- * Kabin değiştirildiğinde ve bağlantı koptuğunda çağrılır. İkincisi kritik:
+ * Otomasyon değiştirildiğinde ve bağlantı koptuğunda çağrılır. İkincisi kritik:
  * kopuk bir bağlantı sırasında saha değişmeye devam eder, ekrandaki değerler ise
  * donar. Donmuş bir sayıyı canlıymış gibi göstermek, hiç göstermemekten kötüdür —
  * operatör ona bakarak karar verir.
@@ -124,7 +124,7 @@ export function applyCabinetStatus(change: CabinetStatusChange): void {
 export function resetLiveStore(): void {
   channels.clear();
   devices.clear();
-  cabinets.clear();
+  automations.clear();
 }
 
 // -------------------------------------------------- okuma (React dışı, imperatif)
@@ -137,8 +137,8 @@ export function getLiveDevice(deviceId: string): LiveDevice | undefined {
   return devices.get(deviceId);
 }
 
-export function getLiveCabinet(cabinetId: string): LiveCabinet | undefined {
-  return cabinets.get(cabinetId);
+export function getLiveAutomation(automationId: string): LiveAutomation | undefined {
+  return automations.get(automationId);
 }
 
 // -------------------------------------------------------------- okuma (React)
@@ -158,9 +158,9 @@ export function useLiveDevice(deviceId: string | null | undefined): LiveDevice |
   return useSyncExternalStore(subscribe, getSnapshot, getSnapshot);
 }
 
-export function useLiveCabinet(cabinetId: string | null | undefined): LiveCabinet | undefined {
-  const subscribe = useCallback((listener: () => void) => (cabinetId ? cabinets.subscribe(cabinetId, listener) : NOOP), [cabinetId]);
-  const getSnapshot = useCallback(() => (cabinetId ? cabinets.get(cabinetId) : undefined), [cabinetId]);
+export function useLiveAutomation(automationId: string | null | undefined): LiveAutomation | undefined {
+  const subscribe = useCallback((listener: () => void) => (automationId ? automations.subscribe(automationId, listener) : NOOP), [automationId]);
+  const getSnapshot = useCallback(() => (automationId ? automations.get(automationId) : undefined), [automationId]);
   return useSyncExternalStore(subscribe, getSnapshot, getSnapshot);
 }
 

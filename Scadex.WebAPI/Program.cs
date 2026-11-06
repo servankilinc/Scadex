@@ -9,8 +9,6 @@ using Scadex.Business;
 using Scadex.Business.Mappings;
 using Scadex.Business.Settings;
 using Scadex.Business.Utils.Auth;
-using Scadex.Business.Utils.CameraCaptureGateway;
-using Scadex.Business.Utils.CaptureFileStore;
 using Scadex.Business.Utils.DiagramNotifier;
 using Scadex.Business.Utils.MediaGateway;
 using Scadex.Business.Utils.ScadaCommandGateway;
@@ -19,8 +17,9 @@ using Scadex.Core.Utils;
 using Scadex.Core.Utils.Auth;
 using Scadex.DataAccess;
 using Scadex.DataAccess.Contexts;
-using Scadex.Model.Dtos.Cabinet.Commands;
+using Scadex.Model.Dtos.Automation.Commands;
 using Scadex.Model.Entities;
+using Scadex.CameraManagement;
 using Scadex.RemoteDesk;
 using Scadex.Signalization;
 using Scadex.WebAPI.BackgroundServices;
@@ -214,7 +213,7 @@ builder.Services
             }
         };
     })
-    // Saha cihazlari (kontrol karti -> /api/Scada, RemoteDesk PC'si -> PcHub): Basic Auth, kullanici adi = cihaz Id'si.
+    // Saha cihazlari: kontrol karti -> /api/Scada, "DeviceId" header'i = MAC; RemoteDesk PC'si -> PcHub, Basic Auth (kullanici adi = cihaz Id'si).
     .AddDeviceAuthentication();
 #endregion
 
@@ -225,7 +224,7 @@ builder.Services.AddAutoMapper(typeof(MappingProfiles).Assembly);
 
 
 #region ------- FluentValidation -------
-builder.Services.AddValidatorsFromAssembly(typeof(CabinetCreateDto).Assembly);
+builder.Services.AddValidatorsFromAssembly(typeof(AutomationCreateDto).Assembly);
 #endregion
 
 builder.Services.AddExceptionHandler<ExceptionHandleMiddleware>();
@@ -259,38 +258,26 @@ builder.Services.AddHostedService<MediaMtxSupervisorWorker>();
 
 builder.Services.AddHostedService<StatusCleanupWorker>();
 
-// HTTP istegini Klip, suresi kadar bekletmek yerine iş buraya dusuyor.
-builder.Services.AddHostedService<ClipCaptureWorker>();
-
 // IMonitoredAsset uygulayan varliklarin TCP yoklamasi.
 builder.Services.AddHostedService<MonitoredAssetProbeWorker>();
-
-// MediaMTX'te birikmis canli izleme yollarinin gunluk temizligi.
-builder.Services.AddHostedService<MediaPathCleanupWorker>();
-
-// Saklama suresi dolmus cekim DOSYALARININ gunluk siler.
-builder.Services.AddHostedService<CaptureRetentionWorker>();
+// Kamera klip / saklama / MediaMTX yol temizligi isleri CameraManagement modülündedir.
 #endregion
 
-#region ------- Kamera / medya gecidi -------
-// appsettings.json > MediaGateway (mediamtx.yml ile elle senkron).
+#region ------- Medya gecidi -------
+// appsettings.json > MediaGateway (mediamtx.yml ile elle senkron). Cekirdektedir: CameraManagement ve RemoteDesk ortak kullanir.
 builder.Services.AddOptions<MediaGatewaySettings>()
     .Bind(builder.Configuration.GetSection(MediaGatewaySettings.SectionName));
-
-// Cekim dosyalarinin diske yazan servis.
-// SCOPED: cekim koku artik veritabanindaki ayardan okunuyor, o servis de scoped.
-builder.Services.AddScoped<ICaptureFileStore, CaptureFileStore>();
-
-// Anlik goruntu + klip: MediaMTX canli yolundan FFmpeg ile.
-builder.Services.AddScoped<ICameraCaptureGateway, CameraCaptureGateway>();
 #endregion
 
 
 builder.Services.AddControllers()
     .AddJsonOptions(options => options.JsonSerializerOptions.SetByProjectSettings())
-    // Musteri/kurum modülleri — her birinin kendi "Modules:<Ad>:Enabled" ayarı kapalıysa servisleri de enpoinleri de yüklenmez. Yeni modül= buraya bir satır.
-    .AddSignalizationModule(builder.Configuration)
-    .AddRemoteDeskModule(builder.Configuration);
+    // Her birinin kendi "Modules:<Ad>:Enabled" ayarı kapalıysa servisleri de uçları da yüklenmez. Yeni modül / çözüm = buraya bir satır.
+    // Yetenek modülleri (Modules/)
+    .AddCameraManagementModule(builder.Configuration)
+    .AddRemoteDeskModule(builder.Configuration)
+    // Çözümler (Solutions/) — ihtiyaç duydukları modüller açık olmalı (Signalization → CameraManagement)
+    .AddSignalizationModule(builder.Configuration);
 
 builder.Services.AddOpenApi(options =>
 {

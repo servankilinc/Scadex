@@ -6,7 +6,7 @@ namespace Scadex.Model.Entities;
 public class CanvasSettings : IEntity, IAuditableEntity
 {
     public Guid Id { get; set; }
-    public Guid CabinetId { get; set; }
+    public Guid AutomationId { get; set; }
     public int GridSize { get; set; }
     public bool SnapToGrid { get; set; }
     public BackgroundVariant BackgroundVariant { get; set; }
@@ -23,6 +23,6 @@ public class CanvasSettings : IEntity, IAuditableEntity
     #endregion
 
     #region *** EF Core Navigation ***
-    public virtual Cabinet? Cabinet { get; set; }
+    public virtual Automation? Automation { get; set; }
     #endregion
 }

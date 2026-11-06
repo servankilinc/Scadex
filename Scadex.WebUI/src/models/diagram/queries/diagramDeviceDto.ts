@@ -35,7 +35,7 @@ export interface DiagramDeviceDto {
   lastSeen: string | null;
   /**
    * İzleme (sunucuda `IMonitoredAsset`). Açıksa cihaz `ipAddress:monitoringPort`'a TCP ile, port boşsa `ipAddress`'e ICMP
-   * ping ile yoklanır ve sonucu kabin durumuna yansır. İlk üçü cihaz formuyla yazılır; `lastConnectionError` yalnızca yoklamayla.
+   * ping ile yoklanır ve sonucu otomasyon durumuna yansır. İlk üçü cihaz formuyla yazılır; `lastConnectionError` yalnızca yoklamayla.
    */
   monitoringPort: number | null;
   pingIntervalSec: number;
@@ -71,11 +71,17 @@ export interface DiagramCameraDto extends PendingPassword {
 }
 
 /**
- * Kontrol kartı (2026-10-28): SCADA ingest'i ve kart okumasını `DeviceId` header'ında bu MAC adresiyle gönderir; kart ve kabin
+ * Kontrol kartı (2026-10-28): SCADA ingest'i ve kart okumasını `DeviceId` header'ında bu MAC adresiyle gönderir; kart ve otomasyon
  * MAC'ten çözülür. `null` = kart bağlanamaz. Tekillik bilerek denetlenmez.
  */
 export interface DiagramControlCardDto {
   macAddress: string | null;
+  /** Kartın SCADA ayarları (2026-11-04'e kadar otomasyondaydı). */
+  scadaBaseUrl: string | null;
+  scadaIsEnabled: boolean;
+  scadaCommandTimeoutMs: number;
+  /** Salt okunur telemetri (son ingest); istekte gitmez. */
+  scadaLastIngestAt: string | null;
 }
 
 /**

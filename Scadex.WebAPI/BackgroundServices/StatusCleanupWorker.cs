@@ -3,7 +3,7 @@ using Scadex.Business.Abstract;
 namespace Scadex.WebAPI.BackgroundServices;
 
 /// <summary>
-/// Monitoringi kaplı cihaz ve kameraların 23 saatten içinde haberleşilmediyse durumları "bilinmiyor"a çeker ve tüm kabinleri uzlaştırır.
+/// Monitoringi kaplı cihaz ve kameraların 23 saatten içinde haberleşilmediyse durumları "bilinmiyor"a çeker ve tüm otomasyonları uzlaştırır.
 /// Monitoringi açık cihaz ve kameraları <c>MonitoredAssetProbeWorker</c> yoklar; burası offline/online bilgisini set etmez
 /// </summary>
 public class StatusCleanupWorker : BackgroundService
@@ -34,12 +34,12 @@ public class StatusCleanupWorker : BackgroundService
             try
             {
                 using var scope = _scopeFactory.CreateScope();
-                var cabinetStatusService = scope.ServiceProvider.GetRequiredService<ICabinetStatusService>();
+                var automationStatusService = scope.ServiceProvider.GetRequiredService<IAutomationStatusService>();
 
-                var result = await cabinetStatusService.SweepAsync(stoppingToken);
-                if (result.ClearedDevices > 0 || result.ReconciledCabinets > 0)
-                    _logger.LogInformation("Kabin durum taramasi: {Devices} cihazin eskiyen durumu temizlendi, {Cabinets} kabin uzlastirildi",
-                        result.ClearedDevices, result.ReconciledCabinets);
+                var result = await automationStatusService.SweepAsync(stoppingToken);
+                if (result.ClearedDevices > 0 || result.ReconciledAutomations > 0)
+                    _logger.LogInformation("Otomasyon durum taramasi: {Devices} cihazin eskiyen durumu temizlendi, {Automations} otomasyon uzlastirildi",
+                        result.ClearedDevices, result.ReconciledAutomations);
             }
             catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
             {

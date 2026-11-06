@@ -4,7 +4,7 @@ import { channelEventKeys } from '@/api/query-keys';
 import type { ChannelEventQueryRequest } from '@/models/channelEvent';
 
 /**
- * Bir kabinin olay geçmişi.
+ * Bir otomasyonun olay geçmişi.
  *
  * `keepPreviousData`: sayfa değiştirirken liste boşalıp yeniden dolmaz, eski
  * sayfa yeni veri gelene kadar ekranda kalır. Sayfalı bir tabloda alternatifi,
@@ -14,7 +14,7 @@ export function useChannelEvents(request: ChannelEventQueryRequest, enabled = tr
   return useQuery({
     queryKey: channelEventKeys.list(request),
     queryFn: () => getChannelEvents(request),
-    enabled: enabled && Boolean(request.cabinetId),
+    enabled: enabled && Boolean(request.automationId),
     placeholderData: keepPreviousData
   });
 }

@@ -1,9 +1,8 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
-using Scadex.Business.Abstract;
 using Scadex.Business.Utils.MediaGateway;
-using Scadex.Model.Dtos.Camera.Commands;
+using Scadex.Model.Dtos.MediaGateway;
 using Scadex.WebAPI.Controllers.Base;
 using Scadex.Business.Utils.RateLimiting;
 
@@ -14,34 +13,34 @@ namespace Scadex.WebAPI.Controllers;
 [EnableRateLimiting(RateLimiterKey.MediaGateway)]
 public class MediaGatewayController : BaseController
 {
-    private readonly ICameraService _cameraService;
     private readonly IEnumerable<IMediaPathAuthorizer> _pathAuthorizers;
+    private readonly ILogger<MediaGatewayController> _logger;
 
-    public MediaGatewayController(ILogger<MediaGatewayController> logger, ICameraService cameraService, IEnumerable<IMediaPathAuthorizer> pathAuthorizers) : base(logger)
+    public MediaGatewayController(ILogger<MediaGatewayController> logger, IEnumerable<IMediaPathAuthorizer> pathAuthorizers) : base(logger)
     {
-        _cameraService = cameraService;
         _pathAuthorizers = pathAuthorizers;
+        _logger = logger;
     }
 
-    /// <summary> <b>Cevap govdesizdir</b> ve <c>ToAction</c> kullanilmaz: MediaMTX yalnizca HTTP durum koduna bakar. </summary>
+    /// <summary>
+    /// <b>Cevap govdesizdir</b> ve <c>ToAction</c> kullanilmaz: MediaMTX yalnizca HTTP durum koduna bakar.
+    /// Karari yolu ustlenen TEK yetkilendirici verir (kamera <c>cam_</c>, RemoteDesk <c>pc_</c>); sahipsiz ya da iki sahipli yol 401'dir.
+    /// </summary>
     [HttpPost("auth")]
     public async Task<IActionResult> Auth([FromBody] MediaMtxAuthDto request, CancellationToken cancellationToken)
     {
-        // Modul yollari (orn. RemoteDesk pc_*): kamera yolu ASLA module sorulmaz, bir modul cam_ yolunu ustlenemez.
         string? path = request?.Path;
-        if (request != null && !string.IsNullOrEmpty(path) && !IMediaGateway.IsManagedPathName(path))
-        {
-            var authorizer = _pathAuthorizers.FirstOrDefault(a => a.CanHandle(path));
-            if (authorizer != null)
-                return await authorizer.AuthorizeAsync(request, cancellationToken) ? Ok() : Unauthorized();
-        }
-
-        // KAMERA: YALNIZCA OKUMA (kameraya publish yoktur, kaynagi MediaMTX kendisi ceker).
-        if (!string.Equals(request?.Action, "read", StringComparison.OrdinalIgnoreCase))
+        if (request == null || string.IsNullOrEmpty(path))
             return Unauthorized();
 
-        bool valid = await _cameraService.ValidateStreamTokenAsync(request?.Path, request?.Password, cancellationToken);
+        var owners = _pathAuthorizers.Where(a => a.CanHandle(path)).Take(2).ToList();
+        if (owners.Count != 1)
+        {
+            if (owners.Count > 1)
+                _logger.LogError("Medya yolu {Path} birden fazla yetkilendirici tarafindan ustlenildi; reddedildi.", path);
+            return Unauthorized();
+        }
 
-        return valid ? Ok() : Unauthorized();
+        return await owners[0].AuthorizeAsync(request, cancellationToken) ? Ok() : Unauthorized();
     }
 }

@@ -85,7 +85,7 @@ public sealed record AgentSnapshot(
     string? Controller,
     bool FileTransferActive);
 
-public sealed record AgentConnectionView(AgentConnectionState State, string CentralUrl, string Detail, string? DeviceName, string? CabinetName);
+public sealed record AgentConnectionView(AgentConnectionState State, string CentralUrl, string Detail, string? DeviceName, string? AutomationName);
 
 public sealed record FfmpegView(string Path, bool Exists, string? Version, bool IsGpl);
 

@@ -1,0 +1,212 @@
+import { useEffect } from 'react';
+import { Controller, useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { Button } from '@/components/ui/button';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle
+} from '@/components/ui/dialog';
+import { Field, FieldDescription, FieldError, FieldGroup, FieldLabel } from '@/components/ui/field';
+import { Input } from '@/components/ui/input';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Switch } from '@/components/ui/switch';
+import { Textarea } from '@/components/ui/textarea';
+import { handleFormApiError } from '@/lib/axios-helper';
+import { useUpdateCamera } from '../hooks/use-cameras';
+import { CameraBrand, CameraBrandLabels } from '@/models/enums/entityEnums';
+
+import {
+  cameraFormSchema,
+  emptyCameraForm,
+  toCameraForm,
+  toUpdateRequest,
+  type CameraDto,
+  type CameraFormValues
+} from '../models/camera';
+
+/**
+ * Yalnızca DÜZENLEME: kamera bir cihazdır ve oluşturma/kaldırma (pasife alma)
+ * yalnızca diyagramdan yapılır (2026-10-25). Pasif kamera düzenlenmez — sunucu 404 döner.
+ */
+type Props = { camera: CameraDto | null; open: boolean; onOpenChange: (open: boolean) => void };
+
+/** Seçim listesinin sırası — yeni marka `CameraBrand`'e eklenince buraya da eklenir. */
+const CAMERA_BRANDS: CameraBrand[] = [CameraBrand.Hikvision];
+
+/**
+ * Boş bırakılabilen sayısal alanlar için (`monitoringPort`).
+ *
+ * `valueAsNumber` KULLANILAMAZ: boş bir `<input type='number'>` ondan `NaN`
+ * döner ve kullanıcı alanı bilerek boş bıraktığında "sayı olmalı" diye anlamsız
+ * bir hata görürdü — oysa boş bırakmak geçerli ve sunucuda `null` demek.
+ */
+const toNullableNumber = (value: unknown): number | null => {
+  if (value === '' || value === null || value === undefined) return null;
+  const parsed = Number(value);
+  return Number.isNaN(parsed) ? null : parsed;
+};
+
+export function CameraFormDialog({ camera, open, onOpenChange }: Props) {
+  const form = useForm<CameraFormValues>({
+    resolver: zodResolver(cameraFormSchema),
+    defaultValues: emptyCameraForm
+  });
+
+  const mutation = useUpdateCamera();
+  const errors = form.formState.errors;
+
+  // Vazgeçilen bir düzenlemenin alanları bir sonraki açılışta karşımıza çıkmasın.
+  // Parola alanı boş gelir — `toCameraForm` onu bilerek boş bırakıyor (gerekçe
+  // `cameraForm.ts`'te), böylece boş bırakmak "dokunma" anlamını korur.
+  useEffect(() => {
+    if (!open || !camera) return;
+    form.reset(toCameraForm(camera));
+  }, [open, camera, form]);
+
+  const submit = form.handleSubmit(values => {
+    if (!camera) return;
+    mutation.mutate(toUpdateRequest(values, camera.id), {
+      onSuccess: () => onOpenChange(false),
+      onError: error => handleFormApiError(error, form.setError)
+    });
+  });
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className='flex max-h-[85vh] flex-col gap-0 overflow-hidden p-0 sm:max-w-2xl'>
+        <DialogHeader className='p-4 pb-3'>
+          <DialogTitle>Kamerayı düzenle</DialogTitle>
+          <DialogDescription>
+            IP, marka ve erişim bilgileri buradan güncellenir; port ve akım kanallarını seçilen marka belirler. Kamera
+            diyagramdan eklenir ve diyagramdan kaldırılır.
+          </DialogDescription>
+        </DialogHeader>
+
+        {/* Scroll İÇ katmanda ve başlığın ALTINDA: yuvarlatılmış kutu scrollbar'ı köşeden kırpar, X düğmesi scrollbar'la çakışmaz. */}
+        <div className='min-h-0 scrollbar-thin overflow-y-auto'>
+          <form onSubmit={submit} noValidate>
+            <FieldGroup className='p-4'>
+              <Field>
+                <FieldLabel htmlFor='camera-name'>Ad</FieldLabel>
+                <Input id='camera-name' autoFocus {...form.register('name')} />
+                <FieldDescription>Otomasyon içinde benzersiz olmalı.</FieldDescription>
+                {errors.name && <FieldError>{errors.name.message}</FieldError>}
+              </Field>
+
+              <Field>
+                <FieldLabel htmlFor='camera-description'>Açıklama</FieldLabel>
+                <Textarea id='camera-description' rows={2} {...form.register('description')} />
+                {errors.description && <FieldError>{errors.description.message}</FieldError>}
+              </Field>
+
+              <div className='grid gap-4 sm:grid-cols-2'>
+                <Field>
+                  <FieldLabel htmlFor='camera-brand'>Marka</FieldLabel>
+                  <Controller
+                    control={form.control}
+                    name='brand'
+                    render={({ field }) => (
+                      // Serbest metin değil seçim: RTSP adresini ve portu
+                      // sunucu bu markanın protokol profilinden üretir.
+                      <Select value={field.value} onValueChange={value => field.onChange(value ?? field.value)}>
+                        <SelectTrigger id='camera-brand' className='w-full'>
+                          <SelectValue>{CameraBrandLabels[field.value]}</SelectValue>
+                        </SelectTrigger>
+                        <SelectContent>
+                          {CAMERA_BRANDS.map(brand => (
+                            <SelectItem key={brand} value={brand}>
+                              {CameraBrandLabels[brand]}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    )}
+                  />
+                  {errors.brand && <FieldError>{errors.brand.message}</FieldError>}
+                </Field>
+                <Field>
+                  <FieldLabel htmlFor='camera-model'>Model</FieldLabel>
+                  <Input id='camera-model' placeholder='DS-2CD1123G0-IUF' {...form.register('model')} />
+                  {errors.model && <FieldError>{errors.model.message}</FieldError>}
+                </Field>
+              </div>
+
+              <SectionTitle>Ağ</SectionTitle>
+
+              <Field>
+                <FieldLabel htmlFor='camera-ip'>IP adresi</FieldLabel>
+                <Input id='camera-ip' placeholder='192.168.1.50' {...form.register('ipAddress')} />
+                <FieldDescription>Otomasyon içi LAN adresi — otomasyonun dış erişim adresi değil.</FieldDescription>
+                {errors.ipAddress && <FieldError>{errors.ipAddress.message}</FieldError>}
+              </Field>
+
+              <SectionTitle>Erişim</SectionTitle>
+
+              <div className='grid gap-4 sm:grid-cols-2'>
+                <Field>
+                  <FieldLabel htmlFor='camera-username'>Kullanıcı adı</FieldLabel>
+                  <Input id='camera-username' autoComplete='off' {...form.register('username')} />
+                  {errors.username && <FieldError>{errors.username.message}</FieldError>}
+                </Field>
+                <Field>
+                  <FieldLabel htmlFor='camera-password'>Parola</FieldLabel>
+                  <Input id='camera-password' type='password' autoComplete='new-password' {...form.register('password')} />
+                  <FieldDescription>Boş bırakılırsa mevcut parola korunur.</FieldDescription>
+                  {errors.password && <FieldError>{errors.password.message}</FieldError>}
+                </Field>
+              </div>
+
+              <SectionTitle>İzleme</SectionTitle>
+
+              <div className='grid gap-4 sm:grid-cols-2'>
+                <Field>
+                  <FieldLabel htmlFor='camera-monitoring-port'>İzleme portu</FieldLabel>
+                  <Input id='camera-monitoring-port' type='number' placeholder='554' {...form.register('monitoringPort', { setValueAs: toNullableNumber })} />
+                  <FieldDescription>Boşsa markanın RTSP portu (554) kullanılır. Ping değil TCP bağlantısı denenir.</FieldDescription>
+                  {errors.monitoringPort && <FieldError>{errors.monitoringPort.message}</FieldError>}
+                </Field>
+                <Field>
+                  <FieldLabel htmlFor='camera-ping-interval'>Yoklama aralığı (sn)</FieldLabel>
+                  <Input id='camera-ping-interval' type='number' {...form.register('pingIntervalSec', { valueAsNumber: true })} />
+                  <FieldDescription>Varsayılan 300 sn (5 dk).</FieldDescription>
+                  {errors.pingIntervalSec && <FieldError>{errors.pingIntervalSec.message}</FieldError>}
+                </Field>
+              </div>
+
+              <div className='rounded-lg border p-3'>
+                <Field orientation='horizontal'>
+                  <FieldLabel htmlFor='camera-monitoring-enabled'>İzleme açık</FieldLabel>
+                  <Controller
+                    control={form.control}
+                    name='isMonitoringEnabled'
+                    render={({ field }) => <Switch id='camera-monitoring-enabled' checked={field.value} onCheckedChange={field.onChange} />}
+                  />
+                </Field>
+                <FieldDescription className='mt-2'>
+                  Kapalıyken kamera hiç yoklanmaz ve durumu olduğu yerde donar. İzleme portu boş bırakılırsa markanın RTSP portu kullanılır.
+                </FieldDescription>
+              </div>
+            </FieldGroup>
+
+            <DialogFooter className='mx-0 mb-0'>
+              <Button type='button' variant='outline' onClick={() => onOpenChange(false)} disabled={mutation.isPending}>
+                Vazgeç
+              </Button>
+              <Button type='submit' disabled={mutation.isPending}>
+                {mutation.isPending ? 'Kaydediliyor…' : 'Kaydet'}
+              </Button>
+            </DialogFooter>
+          </form>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function SectionTitle({ children }: { children: React.ReactNode }) {
+  return <h2 className='mt-2 border-b pb-1 text-sm font-medium text-muted-foreground'>{children}</h2>;
+}

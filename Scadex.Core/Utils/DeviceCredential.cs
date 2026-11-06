@@ -4,10 +4,10 @@ using System.Text;
 namespace Scadex.Core.Utils;
 
 /// <summary>
-/// Sahadaki cihazın (kontrol kartı, RemoteDesk PC'si) Basic Auth kimliği
+/// RemoteDesk PC'sinin Basic Auth kimliği (kontrol kartı 2026-10-28'den beri MAC header'ıyla tanınır — <c>MacAddressFormat</c>).
 /// Kullanıcı adı cihazın Id'sidir; parola sistemin ürettiği <see cref="SecretLength"/> karakterlik onaltılık sırdır (128 bit).
 /// Sunucuda yalnızca SHA-256 hash'i saklanır. Sır yüksek entropili olduğu için yavaş hash (PBKDF2) gerekmez:
-/// doğrulama ingest'in sıcak yolundadır.
+/// doğrulama PcHub negotiate'inin ve PC dosya uçlarının her isteğinde çalışır.
 /// <para/>
 /// Sırrı tarayıcı üretir (diyagram paneli) ve diyagramın cihaz uçlarıyla gönderir; bu sınıf yalnızca BİÇİMİ zorlar ki elle zayıf
 /// parola girilemesin.

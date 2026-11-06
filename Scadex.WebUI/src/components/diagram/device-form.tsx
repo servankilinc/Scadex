@@ -6,7 +6,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { CameraBrand, CameraBrandLabels, DeviceType, DeviceTypeLabels, deviceStatusLabel } from '@/models/enums';
-import type { DiagramCameraDto, DiagramControlCardDto, DiagramIoChannelDto, DiagramPcDeviceDto } from '@/models/diagram';
+import { SCADA_MIN_TIMEOUT_MS, type DiagramCameraDto, type DiagramControlCardDto, type DiagramIoChannelDto, type DiagramPcDeviceDto } from '@/models/diagram';
 import type { DiagramEditor } from '@/hooks/use-diagram-editor';
 import { generateDeviceSecret, normalizeMacAddress } from '@/lib/diagram/device-credential';
 import { pickDeviceProperties, savedDeviceProperties, type DeviceProperties } from '@/lib/diagram/diagram-requests';
@@ -303,10 +303,14 @@ function CameraFields({ camera, onChange }: { camera: DiagramCameraDto; onChange
 }
 
 /**
- * Kontrol kartının kimliği (2026-10-28): SCADA her istekte `DeviceId` header'ında kartın MAC adresini gönderir, kart ve kabin
+ * Kontrol kartının kimliği (2026-10-28): SCADA her istekte `DeviceId` header'ında kartın MAC adresini gönderir, kart ve otomasyon
  * buradan çözülür. Yazım blur'da tek tipe (`AA:BB:CC:DD:EE:FF`) çevrilir; çevrilemeyen değer olduğu gibi gider, sunucu reddeder.
+ * SCADA adresi / zaman aşımı / açık-kapalı da kartındır (2026-11-04'e kadar otomasyon formundaydı); kurallar
+ * `ControlCardDraftValidator`'dadır (açıkken adres zorunlu, zaman aşımı ≥ `SCADA_MIN_TIMEOUT_MS`).
  */
 function ControlCardFields({ controlCard, onChange }: { controlCard: DiagramControlCardDto; onChange: (controlCard: DiagramControlCardDto) => void }) {
+  const patch = (changes: Partial<DiagramControlCardDto>) => onChange({ ...controlCard, ...changes });
+
   return (
     <div className='flex flex-col gap-3 border-t pt-3'>
       <p className='text-muted-foreground text-xs font-medium'>Kontrol kartı</p>
@@ -321,9 +325,35 @@ function ControlCardFields({ controlCard, onChange }: { controlCard: DiagramCont
           id='card-mac-address'
           value={controlCard.macAddress ?? ''}
           maxLength={32}
-          onCommit={value => onChange({ macAddress: value ? (normalizeMacAddress(value) ?? value) : null })}
+          onCommit={value => patch({ macAddress: value ? (normalizeMacAddress(value) ?? value) : null })}
         />
       </Field>
+
+      <div className='flex items-center justify-between gap-2'>
+        <Label htmlFor='card-scada-enabled' className='text-xs'>
+          SCADA bağlantısı
+        </Label>
+        <Switch id='card-scada-enabled' checked={controlCard.scadaIsEnabled} onCheckedChange={scadaIsEnabled => patch({ scadaIsEnabled })} />
+      </div>
+
+      {controlCard.scadaIsEnabled && (
+        <>
+          <Field label='SCADA adresi' htmlFor='card-scada-url' hint='Komut ve kart okuma bu adrese gider (örn. http://10.0.0.5:8080).'>
+            <TextInput id='card-scada-url' value={controlCard.scadaBaseUrl ?? ''} onCommit={value => patch({ scadaBaseUrl: value.trim() || null })} />
+          </Field>
+          {/* Yeniden deneme YOK: süre dolarsa komut `NoResponse` olur, tekrarlanmaz. Kısa bir zaman aşımı bu yüzden pahalı. */}
+          <Field label='Komut zaman aşımı (ms)' htmlFor='card-scada-timeout' hint='Süre dolarsa komut tekrarlanmaz, NoResponse olarak kaydedilir.'>
+            <NumberInput
+              id='card-scada-timeout'
+              value={controlCard.scadaCommandTimeoutMs}
+              min={SCADA_MIN_TIMEOUT_MS}
+              max={180000}
+              step={1000}
+              onCommit={scadaCommandTimeoutMs => patch({ scadaCommandTimeoutMs })}
+            />
+          </Field>
+        </>
+      )}
     </div>
   );
 }
@@ -391,12 +421,12 @@ function CredentialSection({
 
 /**
  * İzleme (sunucuda `IMonitoredAsset`): açıksa cihaz `IP:port`'a TCP ile, port boşsa IP'ye ICMP ping ile yoklanır ve sonuç
- * hem cihazın hem kabinin durumuna yansır.
+ * hem cihazın hem otomasyonun durumuna yansır.
  *
  * Kurallar sunucudaki `DeviceUpdateRequestValidator`'ın ELLE tutulan aynasıdır: port 1..65535 (boş bırakılabilir), periyot
  * 5..86400 sn, izleme açıkken IP zorunlu. Eksik IP burada engellenmez, yalnızca işaretlenir — son söz kaydetmede sunucunundur.
  *
- * **Kontrol kartı farklıdır (2026-10-28):** TCP/ICMP yerine kabinin SCADA adresindeki okuma ucu çağrılır (`GET /status`,
+ * **Kontrol kartı farklıdır (2026-10-28):** TCP/ICMP yerine kartın SCADA adresindeki okuma ucu çağrılır (`GET /status`,
  * `ControlCardProbeSource`): her tur hem canlılık hem kanal senkronudur. Port kullanılmaz, gösterilmez.
  */
 function MonitoringFields({
@@ -444,15 +474,15 @@ function MonitoringFields({
             <p className='text-destructive text-[10px]'>İzleme için IP adresi gerekli; eksikse kaydetme reddedilir.</p>
           ) : isControlCard ? (
             <p className='text-muted-foreground text-[10px]'>
-              Her periyotta kabinin SCADA adresinden kartın kanal değerleri okunur (/status): kart yanıt vermezse Çevrimdışı sayılır ve kabin
-              Çevrimdışı'na geçer; değeri farklı çıkan kanallar düzeltilir. SCADA'sı kapalı kabinde yoklama yapılmaz.
+              Her periyotta kartın SCADA adresinden kanal değerleri okunur (/status): kart yanıt vermezse Çevrimdışı sayılır ve otomasyon
+              Çevrimdışı'na geçer; değeri farklı çıkan kanallar düzeltilir. SCADA'sı kapalı otomasyonda yoklama yapılmaz.
             </p>
           ) : (
             <p className='text-muted-foreground text-[10px]'>
               {usesPing
                 ? "Port boş: cihaza ping (ICMP) atılır — yalnızca ağda olduğunu gösterir; ICMP kapalıysa sağlamken Çevrimdışı görünür. "
                 : 'Cihaz bu porta TCP ile yoklanır. '}
-              Yoklama başarısız olursa cihaz Çevrimdışı sayılır; kabin Uyarı'ya geçer (kontrol modülünde Çevrimdışı).
+              Yoklama başarısız olursa cihaz Çevrimdışı sayılır; otomasyon Uyarı'ya geçer (kontrol modülünde Çevrimdışı).
             </p>
           )}
         </>

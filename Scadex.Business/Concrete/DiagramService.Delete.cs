@@ -8,23 +8,23 @@ namespace Scadex.Business.Concrete;
 public partial class DiagramService
 {
     /// <summary>
-    /// Bu kabinde karsiligi bulunamayan Id'ler SESSIZCE ATLANIR: iki kez gonderilen ya da zaten kalkmis bir silme hata
+    /// Bu otomasyonda karsiligi bulunamayan Id'ler SESSIZCE ATLANIR: iki kez gonderilen ya da zaten kalkmis bir silme hata
     /// degildir. Cihazin pinleri ve kablolari birlikte kalkar; istemcinin onlari ayrica gondermesi gerekmez.
     ///
     /// Tek SaveChanges yeter: istekte yalnizca silme var (soft-delete'ler UPDATE, not DELETE). Eski toplu kaydetmedeki iki
     /// fazli akisin sebebi silme ile ayni pinlere yeniden cizilen kablonun INSERT'inin ayni batch'e dusmesiydi.
     /// </summary>
-    public async Task<Result> DeleteAsync(Guid cabinetId, DiagramDeleteRequest request, CancellationToken cancellationToken = default)
+    public async Task<Result> DeleteAsync(Guid automationId, DiagramDeleteRequest request, CancellationToken cancellationToken = default)
     {
-        if (!await IsCabinetActiveAsync(cabinetId, cancellationToken))
-            return Result.NotFound(description: "Kabin bulunamadi veya pasif durumda");
+        if (!await IsAutomationActiveAsync(automationId, cancellationToken))
+            return Result.NotFound(description: "Otomasyon bulunamadi veya pasif durumda");
 
         var deviceIds = request.DeviceIds.Distinct().ToList();
         var connectionIds = request.ConnectionIds.Distinct().ToList();
         var annotationIds = request.AnnotationIds.Distinct().ToList();
 
         var devices = deviceIds.Count == 0 ? [] : await _unitOfWork.Devices.GetAllAsync(
-            where: d => deviceIds.Contains(d.Id) && d.CabinetId == cabinetId && d.IsActive,
+            where: d => deviceIds.Contains(d.Id) && d.AutomationId == automationId && d.IsActive,
             cancellationToken: cancellationToken) ?? [];
         var liveDeviceIds = devices.Select(d => d.Id).ToList();
 
@@ -35,14 +35,14 @@ public partial class DiagramService
 
         // Dogrudan silinen kablolar + cihazi kalktigi icin birlikte kalkanlar, tek sorguda.
         var connections = connectionIds.Count == 0 && liveDeviceIds.Count == 0 ? [] : await _unitOfWork.Connections.GetAllAsync(
-            where: c => c.CabinetId == cabinetId
+            where: c => c.AutomationId == automationId
                      && (connectionIds.Contains(c.Id)
                          || liveDeviceIds.Contains(c.SourcePin!.DeviceId)
                          || liveDeviceIds.Contains(c.TargetPin!.DeviceId)),
             cancellationToken: cancellationToken) ?? [];
 
         var annotations = annotationIds.Count == 0 ? [] : await _unitOfWork.DiagramAnnotations.GetAllAsync(
-            where: a => annotationIds.Contains(a.Id) && a.CabinetId == cabinetId,
+            where: a => annotationIds.Contains(a.Id) && a.AutomationId == automationId,
             cancellationToken: cancellationToken) ?? [];
 
         // Connection ve Pin ISoftDeletableEntity: interceptor Remove'u IsDeleted = true'ya cevirir.

@@ -3,7 +3,7 @@ import type { AnnotationShape } from '@/models/enums';
 
 /**
  * Cihaz olmayan diyagram elemanı (serbest metin, kutu, not).
- * `cabinetId`/`cabinetName` taşımaz — aggregate zaten tek bir kabine ait.
+ * `automationId`/`automationName` taşımaz — aggregate zaten tek bir otomasyona ait.
  */
 export interface DiagramAnnotationItemDto {
   id: string;

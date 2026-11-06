@@ -18,6 +18,6 @@ public interface ICameraProtocolProfile
     /// </summary>
     bool HasSubStream { get; }
 
-    /// <summary> Kameranın RTSP adresi; YALNIZCA Media Gateway yolunun kaynağı olur (<c>EnsureLivePathAsync</c>). Client'a ASLA gitmez icinde kamera parolasi var; loga da maskelenmeden yazılmaz. </summary>
+    /// <summary> Kameranın RTSP adresi; YALNIZCA Media Gateway yolunun kaynağı olur (<c>IMediaGateway.EnsureSourcePathAsync</c>, CameraManagement kurar). Client'a ASLA gitmez icinde kamera parolasi var; loga da maskelenmeden yazılmaz. </summary>
     string BuildRtspUrl(CameraEndpoint camera, StreamProfile profile);
 }

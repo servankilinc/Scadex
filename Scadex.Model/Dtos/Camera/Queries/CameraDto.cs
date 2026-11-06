@@ -6,8 +6,8 @@ namespace Scadex.Model.Dtos.Camera.Queries;
 public class CameraDto : IDto
 {
     public Guid Id { get; set; }
-    public Guid CabinetId { get; set; }
-    public string? CabinetName { get; set; }
+    public Guid AutomationId { get; set; }
+    public string? AutomationName { get; set; }
     public string Name { get; set; } = null!;
     public string? Description { get; set; }
     public CameraBrand Brand { get; set; }

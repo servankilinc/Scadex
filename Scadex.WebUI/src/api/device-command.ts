@@ -12,7 +12,7 @@ const DEVICE_ROUTE = '/api/Device';
 /**
  * Cihaza kumanda gönderir ve **sonucu bekler**.
  *
- * Bu çağrı SCADA cevaplayana ya da zaman aşımına kadar dönmez — kabinin
+ * Bu çağrı SCADA cevaplayana ya da zaman aşımına kadar dönmez — kontrol kartının
  * `scadaCommandTimeoutMs` ayarı, en az 10 saniye. Arayüz bu süre boyunca
  * bekleyen bir durum göstermek zorunda.
  *

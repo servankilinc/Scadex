@@ -39,7 +39,7 @@ const EXPORT_MAX_ROWS = 10_000;
 type ReportTab = 'views' | 'controls' | 'transfers';
 
 /** URL'deki filtre anahtarları — "Filtreyi temizle" bunları siler. */
-const FILTER_KEYS = ['cabinetId', 'deviceId', 'userId', 'from', 'to'];
+const FILTER_KEYS = ['automationId', 'deviceId', 'userId', 'from', 'to'];
 
 /**
  * PC izleme raporu — `/remote-desk/reports` (`RemotePcAudit`).
@@ -49,11 +49,11 @@ const FILTER_KEYS = ['cabinetId', 'deviceId', 'userId', 'from', 'to'];
  * gösterilmez (sunucu saklamıyor, sayısı da raporda istenmedi).
  *
  * Filtreler, sekme ve sayfa URL'dedir (`useReportParams`): PC detayındaki "Kayıtlar" bağlantısı `?deviceId=` ile süzülü açar.
- * Tarih aralığı kaydın BAŞLANGIÇ anına uygulanır. Kabin, PC'nin BUGÜN bağlı olduğu kabindir.
+ * Tarih aralığı kaydın BAŞLANGIÇ anına uygulanır. Otomasyon, PC'nin BUGÜN bağlı olduğu otomasyondur.
  */
 export default function RemoteDeskReports() {
   const params = useReportParams();
-  const cabinetId = params.get('cabinetId');
+  const automationId = params.get('automationId');
   const deviceId = params.get('deviceId');
   const userId = params.get('userId');
   const from = params.get('from', '');
@@ -63,7 +63,7 @@ export default function RemoteDeskReports() {
   const page = Math.max(Number(params.get('page', '1')) || 1, 1);
 
   const query: RemoteAccessReportQuery = {
-    cabinetId: cabinetId === REPORT_ALL ? null : cabinetId,
+    automationId: automationId === REPORT_ALL ? null : automationId,
     deviceId: deviceId === REPORT_ALL ? null : deviceId,
     userId: userId === REPORT_ALL ? null : userId,
     fromUtc: localToUtcIso(from),
@@ -83,15 +83,15 @@ export default function RemoteDeskReports() {
   const listError = active.error ?? summary.error ?? filters.error;
 
   const pcs = useMemo(() => filters.data?.pcs ?? [], [filters.data]);
-  const cabinetOptions = useMemo(() => {
+  const automationOptions = useMemo(() => {
     const byId = new Map<string, string>();
-    for (const pc of pcs) if (pc.cabinetId) byId.set(pc.cabinetId, pc.cabinetName ?? 'Adı çözülemeyen kabin');
+    for (const pc of pcs) if (pc.automationId) byId.set(pc.automationId, pc.automationName ?? 'Adı çözülemeyen otomasyon');
     return [...byId].map(([value, label]) => ({ value, label })).sort((a, b) => a.label.localeCompare(b.label, 'tr'));
   }, [pcs]);
-  // Kabin seçiliyse PC listesi o kabinin PC'lerine daralır.
+  // Otomasyon seçiliyse PC listesi o otomasyonun PC'lerine daralır.
   const pcOptions = useMemo(
-    () => pcs.filter(pc => cabinetId === REPORT_ALL || pc.cabinetId === cabinetId).map(pc => ({ value: pc.deviceId, label: pcOptionLabel(pc) })),
-    [pcs, cabinetId]
+    () => pcs.filter(pc => automationId === REPORT_ALL || pc.automationId === automationId).map(pc => ({ value: pc.deviceId, label: pcOptionLabel(pc) })),
+    [pcs, automationId]
   );
   const userOptions = useMemo(() => (filters.data?.users ?? []).map(user => ({ value: user.userId, label: userOptionLabel(user) })), [filters.data]);
 
@@ -121,13 +121,13 @@ export default function RemoteDeskReports() {
 
       <ReportFilterBar isFiltered={isFiltered} onReset={() => params.update(Object.fromEntries(FILTER_KEYS.map(key => [key, null])))}>
         <ReportSelectFilter
-          id='report-cabinet'
-          label='Kabin'
-          value={cabinetId}
-          // Önceki PC seçimi yeni kabinde olmayabilir: kabin değişince PC filtresi düşer.
-          onChange={value => params.update({ cabinetId: value, deviceId: null })}
-          allLabel='Tüm kabinler'
-          options={cabinetOptions}
+          id='report-automation'
+          label='Otomasyon'
+          value={automationId}
+          // Önceki PC seçimi yeni otomasyonda olmayabilir: otomasyon değişince PC filtresi düşer.
+          onChange={value => params.update({ automationId: value, deviceId: null })}
+          allLabel='Tüm otomasyonlar'
+          options={automationOptions}
         />
         <ReportSelectFilter
           id='report-pc'
@@ -161,7 +161,7 @@ export default function RemoteDeskReports() {
               value={summary.data.topPc ? (summary.data.topPc.deviceName ?? 'Silinmiş PC') : '—'}
               detail={
                 summary.data.topPc
-                  ? [summary.data.topPc.cabinetName, formatDuration(summary.data.topPc.seconds)].filter(Boolean).join(' · ')
+                  ? [summary.data.topPc.automationName, formatDuration(summary.data.topPc.seconds)].filter(Boolean).join(' · ')
                   : 'Kayıt yok'
               }
             />
@@ -242,7 +242,7 @@ function commonColumns<T extends ScreenViewReportItemDto | RemoteControlReportIt
       cell: row => (row.endedUtc ? formatDuration(secondsBetween(row.startedUtc, row.endedUtc)) : '—')
     },
     { id: 'user', header: 'Kullanıcı', cell: row => <NameCell name={row.userFullName} detail={row.userName} missing='bilinmeyen kullanıcı' /> },
-    { id: 'pc', header: 'PC', cell: row => <NameCell name={row.deviceName} detail={row.cabinetName} missing='silinmiş PC' /> }
+    { id: 'pc', header: 'PC', cell: row => <NameCell name={row.deviceName} detail={row.automationName} missing='silinmiş PC' /> }
   ];
 }
 
@@ -259,7 +259,7 @@ const CONTROL_COLUMNS: DataTableColumn<RemoteControlReportItemDto>[] = [
 const TRANSFER_COLUMNS: DataTableColumn<FileTransferReportItemDto>[] = [
   { id: 'started', header: 'Başlangıç', className: DATE_COLUMN, cell: row => formatUtcDateTime(row.startedUtc) },
   { id: 'user', header: 'Kullanıcı', cell: row => <NameCell name={row.userFullName} detail={row.userName} missing='bilinmeyen kullanıcı' /> },
-  { id: 'pc', header: 'PC', cell: row => <NameCell name={row.deviceName} detail={row.cabinetName} missing='silinmiş PC' /> },
+  { id: 'pc', header: 'PC', cell: row => <NameCell name={row.deviceName} detail={row.automationName} missing='silinmiş PC' /> },
   { id: 'direction', header: 'Yön', cell: row => directionLabel(row.direction) },
   { id: 'file', header: 'Dosya', className: 'max-w-[20rem] truncate', cell: row => <NameCell name={row.fileName} detail={row.path} missing='—' /> },
   { id: 'size', header: 'Boyut', className: 'w-24 tabular-nums', cell: row => formatBytes(row.sizeBytes) },
@@ -304,7 +304,7 @@ function commonCsvColumns<T extends AuditRow>(): CsvColumn<T>[] {
     { header: 'Kullanıcı', value: row => row.userFullName ?? 'Bilinmeyen kullanıcı' },
     { header: 'Kullanıcı adı', value: row => row.userName },
     { header: 'PC', value: row => row.deviceName ?? 'Silinmiş PC' },
-    { header: 'Kabin', value: row => row.cabinetName }
+    { header: 'Otomasyon', value: row => row.automationName }
   ];
 }
 
@@ -367,7 +367,7 @@ function NameCell({ name, detail, missing }: { name: string | null; detail: stri
 
 function pcOptionLabel(pc: ReportPcOptionDto): string {
   const name = pc.deviceName ?? 'Silinmiş PC';
-  return pc.cabinetName ? `${name} · ${pc.cabinetName}` : name;
+  return pc.automationName ? `${name} · ${pc.automationName}` : name;
 }
 
 function userOptionLabel(user: ReportUserOptionDto): string {

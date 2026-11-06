@@ -1,0 +1,256 @@
+using Microsoft.EntityFrameworkCore;
+using Scadex.CameraManagement.Capture;
+using Scadex.Core.Utils;
+using Scadex.Core.Utils.ResultPattern;
+using Scadex.CameraManagement.Model.Dtos.Capture.Commands;
+using Scadex.CameraManagement.Model.Dtos.Capture.Queries;
+using Scadex.CameraManagement.Model.Entities;
+using static Scadex.CameraManagement.Model.Enums.CameraManagementEnums;
+
+
+namespace Scadex.CameraManagement.Services.Concrete;
+
+public partial class CameraMediaService
+{
+    /// <inheritdoc/>
+    public async Task<Result<ICollection<CameraCaptureDto>>> GetCapturesAsync(Guid cameraId, int take = 20, CancellationToken cancellationToken = default)
+    {
+        bool cameraExists = await _unitOfWork.Cameras.IsExistAsync(where: c => c.DeviceId == cameraId, cancellationToken: cancellationToken);
+
+        if (!cameraExists)
+            return Result<ICollection<CameraCaptureDto>>.NotFound(description: "Kamera bulunamadi");
+
+        // Sinir hem alttan hem ustten: 0 ve negatif anlamsiz, sinirsiz ise cekim gecmisi buyudukce tum tabloyu okumak demek.
+        int safeTake = Math.Clamp(take, 1, 200);
+
+        // Siralama CapturedAtUtc'ye gore — satirin YAZILDIGI an degil, goruntunun ANI. Ikisi ayrisabilir: bir klip olay oncesini de
+        // kapsadigi icin cekim isteginden ONCEKI bir ani tasiyabilir. Esitlikte Id kirilir ki sira kararli olsun.
+        var captures = await _context.CameraCaptures
+            .AsNoTracking()
+            .Where(p => p.CameraId == cameraId)
+            .OrderByDescending(p => p.CapturedAtUtc)
+            .ThenByDescending(p => p.Id)
+            .Take(safeTake)
+            .ToListAsync(cancellationToken);
+
+        return Result<ICollection<CameraCaptureDto>>.Success(_mapper.Map<List<CameraCaptureDto>>(captures));
+    }
+
+    /// <inheritdoc/>
+    public async Task<ICollection<CameraCaptureDto>> GetCapturesByIdsAsync(IReadOnlyCollection<long> captureIds, CancellationToken cancellationToken = default)
+    {
+        if (captureIds.Count == 0) return [];
+
+        var ids = captureIds.Distinct().ToList();
+        var captures = await _context.CameraCaptures
+            .AsNoTracking()
+            .Where(c => ids.Contains(c.Id))
+            .ToListAsync(cancellationToken);
+
+        return _mapper.Map<List<CameraCaptureDto>>(captures);
+    }
+
+    /// <inheritdoc/>
+    public async Task RunClipCaptureAsync(long captureId, CancellationToken cancellationToken = default)
+    {
+        var capture = await _context.CameraCaptures.FirstOrDefaultAsync(c => c.Id == captureId, cancellationToken);
+        if (capture == null)
+        {
+            _logger.LogWarning($"Klip cekimi {captureId} bulunamadi; atlaniyor.");
+            return;
+        }
+
+        var camera = (await LoadCameraAsync(capture.CameraId, cancellationToken))?.Endpoint;
+        if (camera == null)
+        {
+            await FailCaptureAsync(capture, "Kamera bulunamadı.", cancellationToken);
+            return;
+        }
+
+        int duration = capture.DurationSec ?? 0;
+
+        // Çekim başına ayrı geçici klasör: paralel cekimler birbirinin dosyasina dokunmaz. Dosya wwwroot'a TAMAMLANINCA taşınır
+        string tempFolder = Path.Combine(Path.GetTempPath(), "scadex-clips", captureId.ToString());
+        string clipFile = Path.Combine(tempFolder, "clip.mp4");
+
+        try
+        {
+            Directory.CreateDirectory(tempFolder);
+
+            // Kaydin basladigi an (ilk anahtar kare beklemesi — kimse izlemiyorsa MediaMTX'in kameraya baglanmasi da — ~1-3 sn bunun uzerine eklenir).
+            capture.CapturedAtUtc = DateTime.UtcNow;
+
+            // Kaynak MediaMTX'in canli path'i; token hemen kullanilacagi icin kayittan HEMEN ONCE alinir (kuyrukta beklerken degil).
+            var source = await PrepareCaptureSourceAsync(camera, cancellationToken);
+            if (!source.IsSuccess)
+            {
+                await FailCaptureAsync(capture, source.Error.Description, cancellationToken);
+                return;
+            }
+
+            var recordResult = await _captureGateway.RecordClipAsync(camera, source.Data, duration, clipFile, cancellationToken);
+            if (!recordResult.IsSuccess)
+            {
+                await FailCaptureAsync(capture, recordResult.Error.Description, cancellationToken);
+                return;
+            }
+
+            var storeResult = await _captureFileStore.MoveClipAsync(clipFile, cancellationToken);
+            if (!storeResult.IsSuccess)
+            {
+                await FailCaptureAsync(capture, storeResult.Error.Description, cancellationToken);
+                return;
+            }
+
+            capture.Status = CaptureStatus.Available;
+            capture.RelativePath = storeResult.Data.RelativePath;
+            capture.SizeBytes = storeResult.Data.SizeBytes;
+
+            await _context.SaveChangesAsync(cancellationToken);
+        }
+        catch (Exception exception) when (exception is not OperationCanceledException)
+        {
+            _logger.LogError($"Klip cekimi {captureId} basarisiz", exception);
+            await FailCaptureAsync(capture, "Klip çekimi sırasında beklenmeyen bir hata oluştu.", cancellationToken);
+        }
+        finally
+        {
+            // Gecici klasor HER KOSULDA silinir: basarida dosya zaten tasinmistir, hatada yarim MP4 birakilmaz.
+            _captureFileStore.TryDeleteTempDirectory(tempFolder);
+        }
+    }
+
+    /// <inheritdoc/>
+    public async Task<Result<CameraCaptureDto>> CreateCaptureAsync(Guid cameraId, CameraCaptureCreateDto request, CancellationToken cancellationToken = default)
+    {
+        // 1) Valisayon ve kamera kontrolu
+        var validationResult = await _validationService.ValidateAsync(request, cancellationToken);
+        if (!validationResult.IsValid)
+            return Result<CameraCaptureDto>.Validation(validationResult.Failures, description: "Validation failed for CameraCaptureCreateDto");
+
+        var row = await LoadCameraAsync(cameraId, cancellationToken);
+        if (row is not { IsActive: true })
+            return Result<CameraCaptureDto>.NotFound(description: "Kamera bulunamadi veya pasif durumda.");
+        var camera = row.Endpoint;
+
+        var captureSettings = await _captureSettingService.GetSettingsAsync(cancellationToken);
+
+        // 2) Capture oluşturulur
+        var identifier = _httpContextManager.GetNameIdentifier();
+        Guid? currentUserId = identifier.IsSuccess && Guid.TryParse(identifier.Data, out var userId) ? userId : null;
+
+        var capture = new CameraCapture()
+        {
+            CameraId = cameraId,
+            Type = request.Type,
+            Status = CaptureStatus.Pending,
+            CapturedAtUtc = DateTime.UtcNow,
+            DurationSec = null,
+            // saklanma süresi
+            ExpiresAt = captureSettings.CaptureRetentionDays > 0 ? DateTime.UtcNow.AddDays(captureSettings.CaptureRetentionDays) : null,
+            RequestedByUserId = currentUserId
+        };
+
+        // 3) Çekim türüne göre işlem yapılır
+        if (request.Type == CaptureType.Snapshot)
+        {
+            var source = await PrepareCaptureSourceAsync(camera, cancellationToken);
+            var snapshotResult = source.IsSuccess
+                ? await _captureGateway.GetSnapshotAsync(camera, source.Data, cancellationToken)
+                : Result<SnapshotPayload>.Failure(description: source.Error.Description);
+
+            // Delil zamani = karenin geldigi an. FFmpeg baglanip anahtar kareyi beklerken 1-3 sn gecer; istek anini yazmak zamani kaydirirdi.
+            capture.CapturedAtUtc = DateTime.UtcNow;
+
+            if (!snapshotResult.IsSuccess)
+            {
+                capture.Status = CaptureStatus.Failed;
+                capture.FailureReason = snapshotResult.Error.Description.Truncate(512);
+            }
+            else
+            {
+                var storeResult = await _captureFileStore.SaveSnapshotAsync(snapshotResult.Data.Content, snapshotResult.Data.ContentType, cancellationToken);
+
+                if (!storeResult.IsSuccess)
+                {
+                    capture.Status = CaptureStatus.Failed;
+                    capture.FailureReason = storeResult.Error.Description.Truncate(512);
+                }
+                else
+                {
+                    capture.Status = CaptureStatus.Available;
+                    capture.RelativePath = storeResult.Data.RelativePath;
+                    capture.SizeBytes = storeResult.Data.SizeBytes;
+                }
+            }
+
+            _context.CameraCaptures.Add(capture);
+            await _context.SaveChangesAsync(cancellationToken);
+            return Result<CameraCaptureDto>.Success(_mapper.Map<CameraCaptureDto>(capture));
+        }
+        else if (request.Type == CaptureType.Clip)
+        {
+            int duration = request.DurationSec.HasValue ? request.DurationSec.Value : 5; // varsayılan klip süresi 5 saniye
+            if (duration > captureSettings.MaxClipDurationSec)
+                return Result<CameraCaptureDto>.Validation(new Dictionary<string, string[]> { ["DurationSec"] = [$"Klip süresi en fazla {captureSettings.MaxClipDurationSec} saniye olabilir."] });
+
+            capture.DurationSec = duration;
+            capture.Status = CaptureStatus.Pending;
+
+            _context.CameraCaptures.Add(capture);
+            await _context.SaveChangesAsync(cancellationToken);
+
+            // TODO: Kuyruk BELLEK ICI: uygulama bu noktadan sonra yeniden baslarsa satir Pending olarak asili kalir. Kalici bir kuyruk bu turda yazılmalı
+            _clipCaptureQueue.Enqueue(capture.Id);
+
+            return Result<CameraCaptureDto>.Success(_mapper.Map<CameraCaptureDto>(capture));
+        }
+        else
+        {
+            return Result<CameraCaptureDto>.Validation(new Dictionary<string, string[]> { ["Type"] = ["Desteklenmeyen çekim türü."] });
+        }
+    }
+
+
+    /// <inheritdoc/>
+    public async Task<int> PurgeExpiredCaptureFilesAsync(CancellationToken cancellationToken = default)
+    {
+        var now = DateTime.UtcNow;
+
+        // SATIR SILINMEZ, yalnizca dosya. Cekimin yapildigi bilgisi gecmiste kalir;
+        // dosyanin gittigi RelativePath'in null olmasindan anlasilir.
+        // ExpiresAt null olan cekim suresizdir (CaptureRetentionDays = 0).
+        var expired = await _context.CameraCaptures
+            .Where(c => c.ExpiresAt != null && c.ExpiresAt <= now && c.RelativePath != null)
+            .ToListAsync(cancellationToken);
+
+        if (expired.Count == 0) return 0;
+
+        int purged = 0;
+
+        foreach (var capture in expired)
+        {
+            // Dosya silinemediyse RelativePath KORUNUR: kolonu null'lamak, diskte duran
+            // dosyayi bir daha bulunamaz hale getirir ve kalici cop birakirdi.
+            if (!await _captureFileStore.TryDeleteCaptureAsync(capture.RelativePath!, cancellationToken)) continue;
+
+            capture.RelativePath = null;
+            purged++;
+        }
+
+        if (purged > 0)
+            await _context.SaveChangesAsync(cancellationToken);
+
+        return purged;
+    }
+
+    #region Helpers
+    private async Task FailCaptureAsync(CameraCapture capture, string? reason, CancellationToken cancellationToken)
+    {
+        capture.Status = CaptureStatus.Failed;
+        capture.FailureReason = reason?.Truncate(512);
+        capture.RelativePath = null;
+        await _context.SaveChangesAsync(cancellationToken);
+    }
+    #endregion
+}

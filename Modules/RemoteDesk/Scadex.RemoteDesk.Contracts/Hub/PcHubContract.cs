@@ -71,7 +71,7 @@ public sealed record HelloResponse(
     HelloStatus Status,
     Guid? DeviceId,
     string? DeviceName,
-    string? CabinetName);
+    string? AutomationName);
 
 /// <summary> Monitörün yayınını başlat. <c>SessionId</c> idempotency anahtarıdır: aynı oturum tekrar gelirse yeni FFmpeg açılmaz. </summary>
 /// <param name="PublishUrl">Bilet parola alanında, tam RTSP adresi (<c>rtsp://pc:{bilet}@merkez:8554/pc_…</c>). Loglanmaz.</param>

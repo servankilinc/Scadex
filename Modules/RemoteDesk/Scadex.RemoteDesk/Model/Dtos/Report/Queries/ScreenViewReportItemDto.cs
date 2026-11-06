@@ -8,7 +8,7 @@ public class ScreenViewReportItemDto : IDto
     public long Id { get; set; }
     public Guid DeviceId { get; set; }
     public string? DeviceName { get; set; }
-    public string? CabinetName { get; set; }
+    public string? AutomationName { get; set; }
     public int MonitorIndex { get; set; }
     public Guid UserId { get; set; }
     public string? UserFullName { get; set; }

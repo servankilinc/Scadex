@@ -14,7 +14,7 @@ import {
 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { CameraViewerDialog } from '@/components/camera/camera-viewer-dialog';
+import { CameraViewerDialog } from '@/modules/cameramanagement/components/camera-viewer-dialog';
 import { Skeleton } from '@/components/ui/skeleton';
 import { usePermission } from '@/lib/auth-session';
 import { cn, formatUtcDateTime, toUtcDate } from '@/lib/utils';

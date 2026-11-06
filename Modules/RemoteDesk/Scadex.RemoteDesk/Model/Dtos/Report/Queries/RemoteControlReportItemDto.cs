@@ -9,7 +9,7 @@ public class RemoteControlReportItemDto : IDto
     public Guid Id { get; set; }
     public Guid DeviceId { get; set; }
     public string? DeviceName { get; set; }
-    public string? CabinetName { get; set; }
+    public string? AutomationName { get; set; }
     public Guid UserId { get; set; }
     public string? UserFullName { get; set; }
     public string? UserName { get; set; }

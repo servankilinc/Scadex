@@ -10,7 +10,7 @@ import type { HubStatus } from '@/lib/signalr/diagram-hub';
  *   - **Bağlantı**: tarayıcı hub'a bağlı mı? Değilse ekrandaki her sayı donmuştur.
  *   - **Tazelik**: bağlıyız ama SCADA ne zamandır veri göndermiyor?
  *
- * Yalnızca birincisi gösterilseydi, hub'a bağlı ama SCADA'sı susmuş bir kabin
+ * Yalnızca birincisi gösterilseydi, hub'a bağlı ama SCADA'sı susmuş bir otomasyon
  * "canlı" görünürdü — operatörün göreceği en yanıltıcı durum.
  */
 
@@ -32,7 +32,7 @@ export function LiveIndicator({ status, lastIngestAt }: { status: HubStatus; las
         'flex items-center gap-1.5 text-xs',
         status === 'connected' ? 'text-muted-foreground' : status === 'disconnected' ? 'text-destructive' : 'text-amber-600 dark:text-amber-500'
       )}
-      title={lastIngestAt ? `Son telemetri: ${new Date(lastIngestAt).toLocaleString('tr-TR')}` : 'Bu kabinden hiç telemetri alınmadı'}>
+      title={lastIngestAt ? `Son telemetri: ${new Date(lastIngestAt).toLocaleString('tr-TR')}` : 'Bu otomasyondan hiç telemetri alınmadı'}>
       <Icon className={cn('size-3.5', status !== 'connected' && status !== 'disconnected' && 'animate-spin')} />
       {status === 'connected' ? age : STATUS_TEXT[status]}
     </span>

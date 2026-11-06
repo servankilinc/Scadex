@@ -13,13 +13,13 @@ Bu doküman iki iş yapar:
 
 ## 1. Genel bakış
 
-CabinetOS, mevcut bir SCADA'nın **üzerinde** duran sektör bağımsız bir gözetim platformudur. Sahayla Modbus/RS485 konuşmaz; SCADA ile HTTP üzerinden `{tip, kanal, değer}` üçlüsü alışverişi yapar. **Kabin şeması sinyalin anlamının kaynağıdır**: operatör hangi pinin hangi sensöre gittiğini çizdiği için, "kanal 7 → 1" ham verisi "dış kapı hareket algılandı" diye gösterilebilir.
+CabinetOS, mevcut bir SCADA'nın **üzerinde** duran sektör bağımsız bir gözetim platformudur. Sahayla Modbus/RS485 konuşmaz; SCADA ile HTTP üzerinden `{tip, kanal, değer}` üçlüsü alışverişi yapar. **Otomasyon şeması sinyalin anlamının kaynağıdır**: operatör hangi pinin hangi sensöre gittiğini çizdiği için, "kanal 7 → 1" ham verisi "dış kapı hareket algılandı" diye gösterilebilir.
 
 ### Modül durumu
 
 | Modül | Durum | Tablolar |
 |---|---|---|
-| **Core** | ✅ Uygulandı | `Company`, `Cabinet`, `DeviceStatus`, `DeviceType`, `Log`, `Archive` |
+| **Core** | ✅ Uygulandı | `Company`, `Automation`, `DeviceStatus`, `DeviceType`, `Log`, `Archive` |
 | **Auth** | 🟡 Uygulandı — yetki **zorlanmıyor** | `User`, `Role`, `Permission`, `RolePermission`, `RefreshToken` |
 | **Diagram** | ✅ Uygulandı | `ComponentTemplate`, `ComponentTemplatePin`, `Device`, `Pin`, `Connection`, `DiagramAnnotation`, `CanvasSettings` |
 | **Connectivity** | ✅ Uygulandı | `IoChannel` |
@@ -53,21 +53,15 @@ classDiagram
         +bool IsActive
     }
 
-    class Cabinet {
+    class Automation {
         +Guid Id
         +string Name
         +Guid CompanyId
         +double? Latitude
         +double? Longitude
         +string? LocationDescription
-        +string? GsmIp
-        +string? NetworkIp
         +int? DeviceStatusId
         +DateTime? LastSeen
-        +string? ScadaBaseUrl
-        +bool ScadaIsEnabled
-        +int ScadaCommandTimeoutMs
-        +DateTime? ScadaLastIngestAt
         +bool IsActive
     }
 
@@ -119,7 +113,7 @@ classDiagram
         +int ZIndex
         +bool IsLocked
         +bool IsVisible
-        +Guid CabinetId
+        +Guid AutomationId
         +Guid ComponentTemplateId
         +int? DeviceStatusId
         +string? IpAddress
@@ -146,7 +140,7 @@ classDiagram
     class IoChannel {
         +Guid Id
         +Guid DeviceId
-        +Guid CabinetId
+        +Guid AutomationId
         +int ChannelNumber
         +PinDirection Direction
         +bool IsEnabled
@@ -158,11 +152,10 @@ classDiagram
 
     class Connection {
         +Guid Id
-        +Guid CabinetId
+        +Guid AutomationId
         +Guid SourcePinId
         +Guid TargetPinId
         +string? Label
-        +WireType WireType
         +string Color
         +LineStyle LineStyle
         +double StrokeWidth
@@ -174,7 +167,7 @@ classDiagram
 
     class DiagramAnnotation {
         +Guid Id
-        +Guid CabinetId
+        +Guid AutomationId
         +string Name
         +string Text
         +AnnotationShape Shape
@@ -195,7 +188,7 @@ classDiagram
 
     class CanvasSettings {
         +Guid Id
-        +Guid CabinetId
+        +Guid AutomationId
         +int GridSize
         +bool SnapToGrid
         +BackgroundVariant BackgroundVariant
@@ -209,7 +202,6 @@ classDiagram
         +Guid Id
         +Guid DeviceId
         +Guid? IoChannelId
-        +DeviceCommandType CommandType
         +string? PayloadJson
         +CommandStatus Status
         +Guid? RequestedByUserId
@@ -222,7 +214,7 @@ classDiagram
     class ChannelEvent {
         +long Id
         +Guid IoChannelId
-        +Guid CabinetId
+        +Guid AutomationId
         +string Value
         +string? PreviousValue
         +DateTime OccurredAtUtc
@@ -242,6 +234,10 @@ classDiagram
     class ControlCard {
         +Guid DeviceId
         +string? MacAddress
+        +string? ScadaBaseUrl
+        +bool ScadaIsEnabled
+        +int ScadaCommandTimeoutMs
+        +DateTime? ScadaLastIngestAt
     }
 
     class PcDevice {
@@ -298,17 +294,17 @@ classDiagram
         +bool IsRevoked
     }
 
-    Company "1" *-- "*" Cabinet
+    Company "1" *-- "*" Automation
     Company "1" *-- "*" User
-    Cabinet "1" *-- "*" Device
-    Cabinet "1" *-- "*" Connection
-    Cabinet "1" *-- "*" DiagramAnnotation
-    Cabinet "1" *-- "0..1" CanvasSettings
+    Automation "1" *-- "*" Device
+    Automation "1" *-- "*" Connection
+    Automation "1" *-- "*" DiagramAnnotation
+    Automation "1" *-- "0..1" CanvasSettings
     Device "1" *-- "0..1" Camera : DeviceId (PK/FK)
     Device "1" *-- "0..1" ControlCard : DeviceId (PK/FK)
     Device "1" *-- "0..1" PcDevice : DeviceId (PK/FK)
-    Cabinet "1" *-- "*" ChannelEvent
-    Cabinet "1" o-- "*" IoChannel : denormalize
+    Automation "1" *-- "*" ChannelEvent
+    Automation "1" o-- "*" IoChannel : denormalize
     DeviceType "1" o-- "*" ComponentTemplate
     ComponentTemplate "1" *-- "*" ComponentTemplatePin
     ComponentTemplate "1" o-- "*" Device
@@ -322,7 +318,7 @@ classDiagram
     Pin "1" o-- "*" Connection : target
     Camera "1" *-- "*" CameraCapture
     DeviceStatus "1" o-- "*" Device
-    DeviceStatus "1" o-- "*" Cabinet
+    DeviceStatus "1" o-- "*" Automation
     Role "1" *-- "*" RolePermission
     Permission "1" o-- "*" RolePermission
     User "1" *-- "*" RefreshToken
@@ -336,7 +332,7 @@ flowchart LR
     subgraph OKUMA["📥 Telemetri"]
         KART["Kontrol kartı<br/>3 baytlık çerçeve"] --> SC["SCADA"]
         SC -->|"POST /api/Scada/ingest (DeviceId: MAC)<br/>{type, channelNumber, value}"| ING["ChannelEventService<br/>.IngestAsync"]
-        ING --> CV["IoChannel.CurrentValue<br/>Device.LastSeen / Status<br/>Cabinet.ScadaLastIngestAt"]
+        ING --> CV["IoChannel.CurrentValue<br/>Device.LastSeen / Status<br/>ControlCard.ScadaLastIngestAt"]
         ING -->|"yalnızca DİJİTAL giriş<br/>ve değer değiştiyse"| CE["ChannelEvent"]
         CV --> HUB["SignalR /hubs/diagram"]
         HUB --> UI["Canvas — live-store"]
@@ -344,7 +340,7 @@ flowchart LR
 
     subgraph YAZMA["📤 Kumanda"]
         OP["Operatör"] -->|"POST /api/Device/{id}/command"| DCS["DeviceCommandService"]
-        DCS -->|"{commandId, cabinetId, pin: OUT5, value}"| SC2["SCADA"]
+        DCS -->|"{commandId, automationId, pin: OUT5, value}"| SC2["SCADA"]
         SC2 -->|"HTTP cevabı"| DC["DeviceCommand<br/>Succeeded / Failed / NoResponse"]
     end
 
@@ -374,7 +370,7 @@ Hepsi `Backend/CabinetOs.Model/Entities/` altındadır. Audit alanları (`Create
 **`Company`** — `IEntity, IAuditableEntity, IActivatableEntity`
 `Id` (Guid, PK) · `Name` · `Description?` · `IsActive`
 
-**`Cabinet`** — `IEntity, IAuditableEntity, IActivatableEntity`
+**`Automation`** — `IEntity, IAuditableEntity, IActivatableEntity`
 
 | Alan | Tip | Not |
 |---|---|---|
@@ -383,18 +379,13 @@ Hepsi `Backend/CabinetOs.Model/Entities/` altındadır. Audit alanları (`Create
 | `CompanyId` | `Guid` | FK |
 | `Latitude` / `Longitude` | `double?` | harita |
 | `LocationDescription` | `string?` | |
-| `GsmIp` / `NetworkIp` | `string?` | iki ayrı erişim yolu |
 | `DeviceStatusId` | `int?` | cihazlarının **en kötüsü**; `null` = hiç telemetri yok |
 | `LastSeen` | `DateTime?` | |
-| `ScadaBaseUrl` | `string?` | kumandanın gideceği adres |
-| `ScadaIsEnabled` | `bool` | kapalıysa ingest 400 döner |
-| `ScadaCommandTimeoutMs` | `int` | kabin başına; `NoResponse`'u `Failed`'dan ayıran şey |
-| `ScadaLastIngestAt` | `DateTime?` | arayüzdeki "son veri" tazeliği |
 | `IsActive` | `bool` | |
 
-> **Kabin = bir kontrol kartı.** Kartın adres uzayı düzdür; kanal benzersizliği bu yüzden cihazda değil kabinde kurulur (§ 2.6).
+> **Otomasyon = bir kontrol kartı.** Kartın adres uzayı düzdür; kanal benzersizliği bu yüzden cihazda değil otomasyonda kurulur (§ 2.6).
 >
-> SCADA ayarları ayrı tabloya çıkarılmadı: ilişki 1:1 ve dört kolon için JOIN anlamsız. **Kimlik doğrulama alanı (`IngestKey`) eklendiğinde bu karar yeniden değerlendirilmelidir** — o noktada gizli değerlerin `db.Cabinets.ToListAsync()` ile belleğe çekilmemesi gerekir.
+> **SCADA ayarları kontrol kartındadır (2026-11-04, kullanıcı kararı).** Eskiden burada duruyordu ("ilişki 1:1, dört kolon için JOIN anlamsız"); kart kimliği (`ControlCard.MacAddress`) ek tabloya girince kartın adresi otomasyonda, kimliği kartta kalmıştı. Bugün `ScadaBaseUrl` / `ScadaIsEnabled` / `ScadaCommandTimeoutMs` / `ScadaLastIngestAt` `ControlCard`'tadır ve diyagramın kart formundan (`EditDiagram`) yazılır; otomasyon başına en fazla bir aktif kontrol kartı diyagram doğrulamasıyla zorlanır. Kartı okuyan yollar `IControlCardRepository.GetActiveForAutomationAsync` kullanır.
 
 **`DeviceStatus`** — lookup. `Id` (int) · `Name` · `Color` · `Icon` · `Description?`
 **`DeviceType`** — lookup. `Id` (int) · `Name` · `Category`
@@ -451,9 +442,9 @@ Hepsi `Backend/CabinetOs.Model/Entities/` altındadır. Audit alanları (`Create
 | `Name` | `string` | |
 | `CoordinateX` / `CoordinateY` | `double` | canvas piksel |
 | `Rotation` / `ZIndex` / `IsLocked` / `IsVisible` | | çizim durumu |
-| `CabinetId` / `ComponentTemplateId` | `Guid` | ikisi de **insert-only** — farklı değer göndermek 400 |
+| `AutomationId` / `ComponentTemplateId` | `Guid` | ikisi de **insert-only** — farklı değer göndermek 400 |
 | `DeviceStatusId` | `int?` | telemetriyle yazılır |
-| `IpAddress` | `string?` | diyagramın cihaz formundan yazılır; benzersizlik kısıtı yok (kamerada zorunlu ve kabin içinde tekil — kayıtta doğrulanır) |
+| `IpAddress` | `string?` | diyagramın cihaz formundan yazılır; benzersizlik kısıtı yok (kamerada zorunlu ve otomasyon içinde tekil — kayıtta doğrulanır) |
 | `LastSeen` | `DateTime?` | bayat süpürücüsünün baktığı alan |
 | `IsActive` | `bool` | |
 
@@ -464,7 +455,7 @@ Hepsi `Backend/CabinetOs.Model/Entities/` altındadır. Audit alanları (`Create
 | Tablo | Tip | Alanlar | Not |
 |---|---|---|---|
 | `Camera` | `Camera` (14) | `Brand` · `Model?` · `Description?` · `Username?` · `Password?` | `CameraCapture.CameraId` → `Camera.DeviceId` |
-| `ControlCard` | `ControlModule` (1) | `MacAddress?` | Kartın MAC adresi; SCADA `DeviceId` header'ında gönderir, **ingest ve kart okuma kabini buradan çözer** (2026-10-28; tekillik denetlenmez) |
+| `ControlCard` | `ControlModule` (1) | `MacAddress?` · `ScadaBaseUrl?` · `ScadaIsEnabled` · `ScadaCommandTimeoutMs` · `ScadaLastIngestAt?` | MAC: SCADA `DeviceId` header'ında gönderir, **ingest ve kart okuma otomasyonu buradan çözer** (2026-10-28; tekillik denetlenmez). SCADA adresi/açık-kapalı/zaman aşımı kartın formundan yazılır (2026-11-04); kapalıysa ingest, kart okuma ve komut reddedilir. `ScadaLastIngestAt` yalnızca ingest'te yazılır. Otomasyon başına en fazla bir aktif kart |
 | `PcDevice` | `Pc` (13) | `CredentialHash?` | RemoteDesk istemcisinin `PcHub` Basic Auth kimliği (kullanıcı adı = `DeviceId`) |
 
 > **Kalıtım değil kompozisyon.** `Camera : Device` (TPT) her `Devices` sorgusuna tüm alt tabloları JOIN'ler ve parolaları her cihaz okumasında belleğe getirirdi; `HasBaseType` tek başına ise TPH (tek tablo) kurar — § 4.4'te reddedilen tasarım. Ek satır yalnızca `Include` edilince okunur.
@@ -491,7 +482,7 @@ Hepsi `Backend/CabinetOs.Model/Entities/` altındadır. Audit alanları (`Create
 |---|---|---|
 | `Id` | `Guid` | istemci üretir |
 | `DeviceId` | `Guid` | |
-| `CabinetId` | `Guid` | **denormalize** — `Device.CabinetId` kopyası, § 2.7 |
+| `AutomationId` | `Guid` | **denormalize** — `Device.AutomationId` kopyası, § 2.7 |
 | `ChannelNumber` | `int` | kartın nokta numarası |
 | `Direction` | `PinDirection` | `Input` \| `Output` \| `Bidirectional` \| `AnalogInput` |
 | `IsEnabled` | `bool` | kapalıysa ingest atlar |
@@ -501,23 +492,24 @@ Hepsi `Backend/CabinetOs.Model/Entities/` altındadır. Audit alanları (`Create
 | `IsDeleted` | `bool` | |
 
 **`Connection`** — iki pin arası kablo.
-`Id` · `CabinetId` · `SourcePinId` · `TargetPinId` · `Label?` · `WireType` · `Color` · `LineStyle` · `StrokeWidth` · `Routing` · `WaypointsJson?` · `ZIndex` · soft-delete.
+`Id` · `AutomationId` · `SourcePinId` · `TargetPinId` · `Label?` · `Color` · `LineStyle` · `StrokeWidth` · `Routing` · `WaypointsJson?` · `ZIndex` · soft-delete.
+Kablo tipi (`WireType`: güç / sinyal / RS485…) 2026-10-31'de kaldırıldı — hiçbir davranışı etkilemeyen etiketti; kablonun cinsi gerekirse `Label` ve renkle belirtilir.
 
 **`DiagramAnnotation`** — not / kutu / ok.
-`Id` · `CabinetId` · `Name` · `Text` · `Shape` · `CoordinateX/Y` · `Width` · `Height` · `Rotation` · `ZIndex` · `IsLocked` · `IsVisible` · `BackgroundColor` · `FontColor` · `FontSize` · `IsBold` · `BorderColor`.
+`Id` · `AutomationId` · `Name` · `Text` · `Shape` · `CoordinateX/Y` · `Width` · `Height` · `Rotation` · `ZIndex` · `IsLocked` · `IsVisible` · `BackgroundColor` · `FontColor` · `FontSize` · `IsBold` · `BorderColor`.
 
 > **Hiçbir yaşam döngüsü arayüzü uygulamaz** — `Remove()` gerçekten siler.
 > **Canvas elemanlarında kalıtım yoktur:** `Device` ve `DiagramAnnotation` iki bağımsız tablodur, ortak canvas alanları bilinçle tekrarlanır. Soyut bir taban sınıf `Ignore<T>()` satırına bağımlılık yaratırdı ve o satır unutulduğunda EF sessizce TPH kurardı. Tekrarın kazancı: her sınıf yalnızca ihtiyacı olan alanı taşır (`DiagramAnnotation`'da `BackgroundImageUrl` yoktur).
 
-**`CanvasSettings`** — kabin başına tek satır.
-`Id` · `CabinetId` (**unique**) · `GridSize` · `SnapToGrid` · `BackgroundVariant` · `GridColor` · `BackgroundColor` · `MinZoom` · `MaxZoom`.
+**`CanvasSettings`** — otomasyon başına tek satır.
+`Id` · `AutomationId` (**unique**) · `GridSize` · `SnapToGrid` · `BackgroundVariant` · `GridColor` · `BackgroundColor` · `MinZoom` · `MaxZoom`.
 
-> Satır yoksa okuma **varsayılan döner, kayıt oluşturmaz**; yazma ayrı uçtan upsert eder (`PUT /api/CanvasSettings/cabinet/{id}`).
+> Satır yoksa okuma **varsayılan döner, kayıt oluşturmaz**; yazma ayrı uçtan upsert eder (`PUT /api/CanvasSettings/automation/{id}`).
 
 #### Commands
 
 **`DeviceCommand`**
-`Id` (Guid) · `DeviceId` · `IoChannelId?` · `CommandType` · `PayloadJson?` · `Status` · `RequestedByUserId?` · `SentAt?` · `RespondedAt?` · `ResultMessage?` · soft-delete.
+`Id` (Guid) · `DeviceId` · `IoChannelId?` · `PayloadJson?` · `Status` · `RequestedByUserId?` · `SentAt?` · `RespondedAt?` · `ResultMessage?` · soft-delete.
 
 > `PayloadJson` **niyeti ve teldeki değeri birlikte** saklar (`{ turnOn, value, polarity }`). Yalnızca değer saklansaydı, NC kablolu bir rölenin geçmişinde `"0"` gören biri bunun "kapat" mı "aç" mı olduğunu bir daha çıkaramazdı.
 > `Status` üzerinde kuyruk indeksi **gerekmez** — kuyruk yok; `(DeviceId, SentAt)` geçmiş indeksi yeterlidir.
@@ -525,13 +517,13 @@ Hepsi `Backend/CabinetOs.Model/Entities/` altındadır. Audit alanları (`Create
 #### Monitoring
 
 **`Camera`** — `Device`'ın 1-1 ek tablosu (2026-10-22; öncesinde `IMonitoredAsset` uygulayan ayrı kök tabloydu).
-`DeviceId` (PK/FK) · `Brand` · `Model?` · `Description?` · `Username?` · `Password?`. Ad, kabin, IP, izleme ve canlılık alanları `Device`'tadır; kamera `DeviceProbeSource` ile yoklanır ve kabin durumuna diğer cihazlar gibi katılır. Migration (`DeviceExtensionTables`) eski kameraları **aynı Id ile** `Device`'a taşıdı — çekimler, `signalization.OuterDoor.CameraId` ve `cam_{id}` yolları değişmedi.
+`DeviceId` (PK/FK) · `Brand` · `Model?` · `Description?` · `Username?` · `Password?`. Ad, otomasyon, IP, izleme ve canlılık alanları `Device`'tadır; kamera `DeviceProbeSource` ile yoklanır ve otomasyon durumuna diğer cihazlar gibi katılır. Migration (`DeviceExtensionTables`) eski kameraları **aynı Id ile** `Device`'a taşıdı — çekimler, `signalization.OuterDoor.CameraId` ve `cam_{id}` yolları değişmedi.
 
 > **Port, kanal ve akım bayrağı kolonu YOKTUR (2026-09-25).** `Brand` (`CameraBrand`, int) karşılık gelen `ICameraProtocolProfile`'ı seçer; RTSP yolu, RTSP portu (554), akım kanalları ve tali akım desteği oradan gelir. Kameraya yalnızca MediaMTX bağlanır; anlık görüntü ve klip de onun canlı yolundan FFmpeg ile alınır (2026-09-25), marka API'si (ISAPI) kullanılmaz. `RtspPort`, `HttpPort`, `HttpsPort`, `Main/SubStreamChannel`, `Main/SubStreamEnabled`, `SnapshotChannel` ve serbest metin `Manufacturer` bu yüzden kaldırıldı — başka markada boş kalıyorlardı.
 
 > ⚠ **Parola düz metin saklanır ve okuma DTO'sunda düz metin döner** — kullanıcı kararı (kapalı ağ). Şifreleme katmanı bilinçle **yoktur**; bir `ICameraSecretProtector` bir tur var olup kullanıcı talimatıyla kaldırıldı, geri getirmeyin.
 > **RTSP URL'i hiçbir zaman tarayıcıya ulaşmaz** — bu ayrı bir kuraldır ve geçerlidir. URL kolon olarak da saklanmaz: `IpAddress`/port'u bir string içinde tekrarlar ve biri değiştiğinde sessizce ayrışırdı.
-> ~~Kamera `Device` değildir~~ — **2026-10-22'de tersine çevrildi:** kamera bir cihazdır ("IP Kamera" şablonu: +12V, GND, RJ45) diyagramdan eklenir/kaldırılır, bilgisi kamera ekranından da güncellenir (2026-10-25'e kadar kamera ekranından eklenebiliyordu ve diyagramda gizli doğuyordu; bu yol kaldırıldı). Gerekçe: izleme/canlılık alanları ve kuralları iki kopya hâlinde ayrışmıştı (iki yoklama kaynağı, iki kabin katkı kuralı); PC zaten bir `Device`'tı.
+> ~~Kamera `Device` değildir~~ — **2026-10-22'de tersine çevrildi:** kamera bir cihazdır ("IP Kamera" şablonu: +12V, GND, RJ45) diyagramdan eklenir/kaldırılır, bilgisi kamera ekranından da güncellenir (2026-10-25'e kadar kamera ekranından eklenebiliyordu ve diyagramda gizli doğuyordu; bu yol kaldırıldı). Gerekçe: izleme/canlılık alanları ve kuralları iki kopya hâlinde ayrışmıştı (iki yoklama kaynağı, iki otomasyon katkı kuralı); PC zaten bir `Device`'tı.
 
 **`CameraCapture`**
 `Id` (long, IDENTITY) · `CameraId` · `Type` · `Status` · `CapturedAtUtc` · `DurationSec?` · `RelativePath?` · `SizeBytes?` · `FailureReason?` · `ExpiresAt?` · `RequestedByUserId?`.
@@ -541,7 +533,7 @@ Hepsi `Backend/CabinetOs.Model/Entities/` altındadır. Audit alanları (`Create
 > `CapturedAtUtc` kayıt **başladığında** yazılır, istek anında değil.
 
 **`ChannelEvent`**
-`Id` (long, IDENTITY) · `IoChannelId` · `CabinetId` (denormalize) · `Value` (`nvarchar(32)`, zorunlu) · `PreviousValue?` (`nvarchar(32)`) · `OccurredAtUtc` · `ReceivedAtUtc`.
+`Id` (long, IDENTITY) · `IoChannelId` · `AutomationId` (denormalize) · `Value` (`nvarchar(32)`, zorunlu) · `PreviousValue?` (`nvarchar(32)`) · `OccurredAtUtc` · `ReceivedAtUtc`.
 
 Yazılma koşulu — **hepsi birden**: değer değişti + `Direction == Input` (**yalnızca dijital**) + `value != null` + uzunluk ≤ 32.
 Soft-delete yok, query filter yok, **yazma ucu yok** (yalnız ingest yazar). Okuma: `POST /api/ChannelEvent/list`.
@@ -552,7 +544,7 @@ Soft-delete yok, query filter yok, **yazma ucu yok** (yalnız ingest yazar). Oku
 
 ```csharp
 Guid Id { get; }
-Guid CabinetId { get; set; }
+Guid AutomationId { get; set; }
 string Name { get; set; }
 string IpAddress { get; set; }
 int? MonitoringPort { get; set; }
@@ -580,27 +572,27 @@ DeviceType          ControlModule=1, InputModule=2, OutputModule=3, LedModule=4,
 PinDirection        Input=0, Output=1, Bidirectional=2, AnalogInput=3
 HandleSide          Left=0, Right=1, Top=2, Bottom=3
 PinFunction         COM=0, NO=1, NC=2, VCC=3, GND=4, RS485_POS=5, RS485_NEG=6, RJ45=7,
-                    LED_Anode=8, LED_Cathode=9, Signal_In=10, Signal_Out=11,
-                    Analog_In=12, DryContact=13, Line_L=14, Neutral_N=15,
+                    LED_Anode=8, LED_Cathode=9, Signal_In=10,
+                    Analog_In=12, Line_L=14, Neutral_N=15,              (11 boş: Signal_Out, 13 boş: DryContact kaldırıldı)
                     Earth_PE=16, General=99                              (99'a dikkat)
 VoltageLevel        None=0, DC_12V=1, DC_24V=2, AC_220V=3, Signal_5V=4, Data=5
-WireType            Power=0, Signal=1, DataRS485=2, DataEthernet=3, Relay=4, Sensor=5
 LineStyle           Solid=0, Dashed=1, Dotted=2
 EdgeRouting         Orthogonal=0, Straight=1, Curved=2
 AnnotationShape     Text=0, Rectangle=1, Note=2, Arrow=3
 BackgroundVariant   None=0, Dots=1, Lines=2, Cross=3
-DeviceCommandType   SetOutput=1                                          (TEK ÜYE)
 CommandStatus       Sent=1, Succeeded=2, Failed=3, NoResponse=4                (0 YOK)
 StreamProfile       Main=1, Sub=2
 CameraBrand         Hikvision=1                                                (0 YOK)
 CaptureType         Snapshot=1, Clip=2
 CaptureStatus       Pending=1, Available=2, Failed=3                           (0 YOK)
-Permission          ViewDiagram=0, EditDiagram=1, ControlOutput=2, AcknowledgeAlarm=3,
-                    ManageUsers=4, ConfigureSystem=5, ViewCamera=6, ExportData=7,
-                    ManageWorkflow=8, ManageAccessCards=9
+Permission          ViewDiagram=0, EditDiagram=1, ControlOutput=2, ManageUsers=4,
+                    ConfigureSystem=5, ViewCamera=6, ManageAccessCards=9, RemotePcView=10,
+                    RemotePcControl=11, RemotePcAudit=12, RemotePcFileTransfer=13,
+                    SignalSessionClose=14, SignalVirtualCabinet=15     (3, 7, 8 boş)
 ```
 
-> `Permission`'da `AcknowledgeAlarm`, `ManageWorkflow`, `ManageAccessCards` **var** ama modülleri **yok** (§ 4). İleriye dönük yer tutuculardır.
+> `AcknowledgeAlarm` (3), `ExportData` (7) ve `ManageWorkflow` (8) 2026-10-31'de kaldırıldı: hiçbir uç istemiyordu ama Roller →
+> İzinler'de verilebiliyordu. Numaralar yeniden kullanılmaz; alarm / iş akışı modülü gelince izni kendi ucuyla birlikte ekler.
 
 **Enum kolonları `int`'tir** — EF varsayılanı budur. `HasConversion<string>()` **kullanmayın**: metin karşılaştırması indeksi yavaşlatır ve sabit yeniden adlandırıldığında eski satırlar okunamaz hâle gelir.
 
@@ -629,12 +621,12 @@ Permission          ViewDiagram=0, EditDiagram=1, ControlOutput=2, AcknowledgeAl
 
 | Tablo | Kısıt | Gerekçe |
 |---|---|---|
-| `IoChannel` | **`(CabinetId, Direction, ChannelNumber)` UNIQUE**, `WHERE IsDeleted = 0` | Benzersizlik cihazda değil **kabinde**: kabin bir kontrol kartıdır, `IN1` kartta tektir. `Direction` anahtarın parçasıdır çünkü `IN1`, `AI1` ve `OUT1` **üç ayrı noktadır** — çerçeve başlığı dijitali `'I'`, analogu `'A'`, çıkışı `'O'` ile ayırır ve bu üç kod uzayı bağımsızdır. Yön çıkarılırsa noktalar tek satıra düşer ve birbirlerinin değerini **ezer**. Her ingest bu indeksten geçer; çakışma uygulama kodunda değil şemada yakalanır. |
+| `IoChannel` | **`(AutomationId, Direction, ChannelNumber)` UNIQUE**, `WHERE IsDeleted = 0` | Benzersizlik cihazda değil **otomasyonda**: otomasyon bir kontrol kartıdır, `IN1` kartta tektir. `Direction` anahtarın parçasıdır çünkü `IN1`, `AI1` ve `OUT1` **üç ayrı noktadır** — çerçeve başlığı dijitali `'I'`, analogu `'A'`, çıkışı `'O'` ile ayırır ve bu üç kod uzayı bağımsızdır. Yön çıkarılırsa noktalar tek satıra düşer ve birbirlerinin değerini **ezer**. Her ingest bu indeksten geçer; çakışma uygulama kodunda değil şemada yakalanır. |
 | `Connection` | `(SourcePinId, TargetPinId)` unique (`IsDeleted = 0`) + `CHECK SourcePinId <> TargetPinId` | Aynı çifti iki kez kablolamak ve pini kendine bağlamak şemada engellenir. |
 | `Pin` | `CHECK RelativeX/Y ∈ [0,1]` · `(DeviceId, Name)` filtered unique | Şablon yeniden boyutlanınca pinler geçersizleşmesin. |
 | `ComponentTemplatePin` | `(ComponentTemplateId, Name)` unique | |
-| `ChannelEvent` | `(CabinetId, OccurredAtUtc)`, `(IoChannelId, OccurredAtUtc)` | Listeleme sıralaması. |
-| `CanvasSettings` | `CabinetId` unique | Kabin başına tek satır. |
+| `ChannelEvent` | `(AutomationId, OccurredAtUtc)`, `(IoChannelId, OccurredAtUtc)` | Listeleme sıralaması. |
+| `CanvasSettings` | `AutomationId` unique | Otomasyon başına tek satır. |
 | `RolePermission` | bileşik PK `(RoleId, PermissionId)` | Fluent API şart; data annotation ile tanımlanamaz. |
 
 **Silme davranışları:**
@@ -643,11 +635,11 @@ Permission          ViewDiagram=0, EditDiagram=1, ControlOutput=2, AcknowledgeAl
 |---|---|---|
 | `Device → IoChannel` | Cascade | Cihaz silinince kanalları da gider |
 | `IoChannel → Pin` | **SetNull** | Kanal silindiğinde klemensler ve üzerlerine çizilmiş kablolar diyagramda **kalır**. Cascade olsaydı bir kanal tanımının silinmesi şemadan kablo uçlarını götürürdü |
-| `Cabinet → IoChannel` / `Connection` | **Restrict** | Kablolar kabin silinirken kendiliğinden temizlenmez — **kabin silme akışı elle yazılmalıdır** (önce kablolar, sonra kabin) |
+| `Automation → IoChannel` / `Connection` | **Restrict** | Kablolar otomasyon silinirken kendiliğinden temizlenmez — **otomasyon silme akışı elle yazılmalıdır** (önce kablolar, sonra otomasyon) |
 | `Device → ComponentTemplate` | **Restrict** | Kullanımdaki şablon silinemez; `IsActive = false` ile emekliye ayrılır |
 | `Connection → Pin` (×2) | biri **Restrict** | İki FK aynı hedefe bakar |
 
-> `Connection.CabinetId`'nin kazandırdığı şey silme değil **okumadır**: `WHERE CabinetId = @id` tek index seek, `SourcePin → Device → CabinetId` iki join.
+> `Connection.AutomationId`'nin kazandırdığı şey silme değil **okumadır**: `WHERE AutomationId = @id` tek index seek, `SourcePin → Device → AutomationId` iki join.
 
 ---
 
@@ -655,16 +647,16 @@ Permission          ViewDiagram=0, EditDiagram=1, ControlOutput=2, AcknowledgeAl
 
 | Katman | Alan | Gövdedeki karşılığı |
 |---|---|---|
-| Hangi kabin? | `Cabinet.Id` | `"cabinetId": "…"` |
+| Hangi otomasyon? | `Automation.Id` | `"automationId": "…"` |
 | Hangi tür nokta? | `IoChannel.Direction` | `"type": "I"` (dijital giriş) \| `"A"` (analog giriş) |
 | Hangi nokta? | `IoChannel.ChannelNumber` | `"channelNumber": 7` |
 | Hangi değer? | `IoChannel.CurrentValue` | `"value": "1"` — **her zaman string** |
 
-Kumanda ters yönde aynı dili konuşur: `{ commandId, cabinetId, pin: "OUT5", commandType, value, issuedAtUtc }`.
+Kumanda ters yönde aynı dili konuşur: `POST {ScadaBaseUrl}/command` + `{ channelNumber, value }` (Docs/scada-http-api.md § 3).
 
 > **Modül kimliği adreslemede yoktur.** Protokolde modül baytı yok; kart kimliği soketin kendisidir. Cihaz, çözümlenen kanalın üzerinden bulunur. `Device.ExternalCode` bir zamanlar çözümlemenin parçasıydı; önce çözümlemeden, 2026-09-27'de kolon olarak da kaldırıldı.
 >
-> **Kimlik gövdededir ve bir sır DEĞİLDİR.** `cabinetId` her diyagram URL'inde görünür; ingest ucu `[AllowAnonymous]`'tur ve ağ seviyesinde korunmalıdır (VPN / IP allowlist / mTLS). Sertleştirme yolu: `Cabinet` üzerinde hiçbir okuma DTO'sunda serialize edilmeyen bir `IngestKey` kolonu — **bugün yapılmamıştır**.
+> **Kimlik gövdededir ve bir sır DEĞİLDİR.** `automationId` her diyagram URL'inde görünür; ingest ucu `[AllowAnonymous]`'tur ve ağ seviyesinde korunmalıdır (VPN / IP allowlist / mTLS). Sertleştirme yolu: `Automation` üzerinde hiçbir okuma DTO'sunda serialize edilmeyen bir `IngestKey` kolonu — **bugün yapılmamıştır**.
 >
 > Register numarası, fonksiyon kodu ve veri tipi bu sistemde **hiç yer almaz**.
 
@@ -688,7 +680,7 @@ Ayrım tek soruya dayanır: **şema kapalı mı, açık mı?**
 | Alan | Neden |
 |---|---|
 | `Connection.WaypointsJson` | Sıralı geometri dizisi. Normalize edilseydi 500 kablo binlerce satır üretirdi ve tek bir sorgu kazancı sağlamazdı; uygulama için **atomik** bir değerdir. |
-| `DeviceCommand.PayloadJson` | Şekli `CommandType`'a göre değişir; geçmiş kaydıdır, filtrelenmez. **Ayırt edici alan enum'landı, taşıdığı yük JSON kaldı** — ayrım tam olarak burada. |
+| `DeviceCommand.PayloadJson` | `{ turnOn, value, polarity }` — niyet, karta giden değer ve o anki NO/NC yorumu birlikte; geçmiş kaydıdır, filtrelenmez. Tek komut türü olduğu için ayırt edici kolon yoktur (`CommandType` 2026-10-31'de kaldırıldı; ikinci tür gelirse kolon o gün eklenir). |
 
 **Normalize edilmiş olanlar** (JSON'dan tabloya taşınanlar): `Role.PermissionsJson` → `RolePermission`; `ComponentTemplate.DefaultPinsJson` → `ComponentTemplatePin`. Kazanç: "X yetkisi olan roller" sorgusu indeksten okunur, `LIKE '%…%'` yanlış eşleşmesi biter; tek pin güncellemesi tüm blob'u yeniden yazmaz.
 
@@ -700,12 +692,12 @@ Modelde **başka bir tablodaki kolonun kopyası olan yalnızca iki alan vardır*
 
 | Alan | Kaynağı | Neden kopya |
 |---|---|---|
-| `IoChannel.CabinetId` | `Device.CabinetId` | Benzersizlik kabinde kurulur ve bu kolon olmadan indeksle ifade edilemez. Yan kazanç: ingest kanalı **tek sorguda, join'siz** çözer. |
-| `ChannelEvent.CabinetId` | `IoChannel.CabinetId` | Kabin bazlı listeleme indeksi. |
+| `IoChannel.AutomationId` | `Device.AutomationId` | Benzersizlik otomasyonda kurulur ve bu kolon olmadan indeksle ifade edilemez. Yan kazanç: ingest kanalı **tek sorguda, join'siz** çözer. |
+| `ChannelEvent.AutomationId` | `IoChannel.AutomationId` | Otomasyon bazlı listeleme indeksi. |
 
-İkisinin de **ayrışma yolu yoktur**: tek yazma yeri `InstantiateTemplatePins`'tir ve cihaz başka kabine taşınamaz (diyagram kaydetme çapraz-kabin düzenlemeyi 400 ile reddeder).
+İkisinin de **ayrışma yolu yoktur**: tek yazma yeri `InstantiateTemplatePins`'tir ve cihaz başka otomasyona taşınamaz (diyagram kaydetme çapraz-otomasyon düzenlemeyi 400 ile reddeder).
 
-`Connection.CabinetId` üçüncü bir kısayoldur ama kopya sayılmaz: **NOT NULL**'dır ve `DiagramService` yazarken iki pinin de aynı kabine ait olduğunu doğrular.
+`Connection.AutomationId` üçüncü bir kısayoldur ama kopya sayılmaz: **NOT NULL**'dır ve `DiagramService` yazarken iki pinin de aynı otomasyona ait olduğunu doğrular.
 
 #### Bilinçle kaldırılmış kopyalar — geri eklemeyin
 
@@ -715,11 +707,11 @@ Modelde **başka bir tablodaki kolonun kopyası olan yalnızca iki alan vardır*
 | `Pin.IsReadOnly` | `IoChannel.Direction == Input` | Aynı gerçeğin ikinci kaydıydı; yön ile bool'un çelişmesi mümkündü |
 | `Device.Type` | `ComponentTemplate.DeviceTypeId` | Tip örneğin değil ŞABLONUN özelliği |
 | `Device.Manufacturer` / `Model` | — | Kapsam dışı. Envanter gerekirse `Device`'a değil `ComponentTemplate`'e eklenir — üretici tipin özelliğidir, kartı canvas'a sürüklemek onu değiştirmez |
-| `Device.ParentControllerId` | `Cabinet` | Kabin içi master/slave hiyerarşisi modellenmiyor; kabin sınırı yerini tutar. RS485 izlenmek istenirse `WireType.DataRS485`'li normal `Connection` ile çizilir |
+| `Device.ParentControllerId` | `Automation` | Otomasyon içi master/slave hiyerarşisi modellenmiyor; otomasyon sınırı yerini tutar. RS485 izlenmek istenirse modüllerin RS485 A/B pinleri arasında normal `Connection` ile çizilir |
 | `MonitoredDevice.StreamUrl` | `IpAddress` + port + kanal | Tam URL host/port'u tekrarlıyordu; biri güncellenip diğeri unutulduğunda sessizce ayrışıyordu. **`Camera` için aynı ders geçerlidir.** |
 | `DiagramNode` (TPH tabanı) | `Device` + `DiagramAnnotation` | Tek tabloda etiket satırları 12 boş cihaz kolonu taşıyordu; ayrıca FK'ler ortak tabloya baktığı için bir ETİKETİ göstermeleri DB'de engellenemiyordu |
 | `DiagramGroup` + `GroupId` | — | Sürükleme gruplama gerektirmez: `Pin.RelativeX/Y` karta göreceli, `Connection` uçları pinden hesaplanıyor — cihaz taşınınca ikisi de tanım gereği gelir |
-| `PowerRail` + `Pin.PowerRailId` | `TerminalBlock` cihazı + `WireType.Power` bağlantısı | Kopya alan değil **kopya mekanizma**: "bu pin neye bağlı?" iki ayrı yoldan cevaplanıyordu |
+| `PowerRail` + `Pin.PowerRailId` | `TerminalBlock` cihazı + normal `Connection` | Kopya alan değil **kopya mekanizma**: "bu pin neye bağlı?" iki ayrı yoldan cevaplanıyordu |
 | `IoChannel.IsEventLogged` / `EventTriggerValue` | `ShouldRecordEvent` zinciri | Tetikleyici **tek** değer ifade edebiliyordu (oysa 2-3 farklı değerde de olay istenebilir) ve bayrağın **hiçbir yazma yolu yoktu** — tablo pratikte hiç yazılmıyordu |
 
 #### Denormalizasyon SAYILMAYANLAR
@@ -728,7 +720,7 @@ Kopya sanılabilirler ama değildir — yanlışlıkla silinmemeleri için:
 
 | Alan | Neden kopya değil |
 |---|---|
-| `IoChannel.CurrentValue`, `Device.DeviceStatusId`/`LastSeen`, `Cabinet.DeviceStatusId`/`LastSeen` | **Çalışma durumu (runtime state).** Geçmiş değil şimdiki hâl. Ayrıca canvas render'ında her kaynak için "son kayıt" çekmek pratik değildir |
+| `IoChannel.CurrentValue`, `Device.DeviceStatusId`/`LastSeen`, `Automation.DeviceStatusId`/`LastSeen` | **Çalışma durumu (runtime state).** Geçmiş değil şimdiki hâl. Ayrıca canvas render'ında her kaynak için "son kayıt" çekmek pratik değildir |
 | `Pin.Function` = NO / NC | Kanalın sahada normalde açık mı kapalı mı kullanıldığı **çizimin kendisidir** — operatör kabloyu hangi uçtan çektiyse o |
 | `Pin`'in şablondan kopyaladığı alanlar | **Enstantane.** Şablon sonradan değişse bile çizilmiş cihazın pini o anki hâlini korumalıdır |
 | `DeviceCommand.PayloadJson`'daki kutup | Karar anının fotoğrafı; kablolama sonradan değişse bile o anki yorum sabit kalmalı |
@@ -747,8 +739,8 @@ TS tipleri **elle yazılmış aynalardır**; codegen yoktur, hiçbir şey senkro
 |---|---|
 | Enum aynası | `Frontend/src/models/enums/entityEnums.ts` |
 | DTO aynaları | `Frontend/src/models/<aggregate>/{commands,queries}/` |
-| Mevcut klasörler | `auth`, `cabinet`, `camera`, `canvasSettings`, `channelEvent`, `common`, `company`, `componentTemplate`, `deviceCommand`, `diagram`, `realtime`, `user` |
-| Ekranlar | `views/app/` (`cabinets`, `cameras`, `diagram`, `home`, `about`) · `views/admin/` (`cameras`, `companies`, `component-templates`, `home`) |
+| Mevcut klasörler | `auth`, `automation`, `camera`, `canvasSettings`, `channelEvent`, `common`, `company`, `componentTemplate`, `deviceCommand`, `diagram`, `realtime`, `user` |
+| Ekranlar | `views/app/` (`automations`, `cameras`, `diagram`, `home`, `about`) · `views/admin/` (`cameras`, `companies`, `component-templates`, `home`) |
 
 **Diyagram editörünün dört ayrı state evi** (karıştırmak bu kod tabanındaki en kolay hatadır):
 
@@ -781,9 +773,9 @@ Hepsi için geçerli ortak kurallar § 5'tedir.
 
 #### Model
 
-**`Workflow`** — `Id` (Guid) · `CompanyId` · `AppliesToAllCabinets` (bool) · `Name` · `Description` · `IsEnabled` (=true) · `Version` (=1) · `CreatedAt` · `UpdatedAt?`
+**`Workflow`** — `Id` (Guid) · `CompanyId` · `AppliesToAllAutomations` (bool) · `Name` · `Description` · `IsEnabled` (=true) · `Version` (=1) · `CreatedAt` · `UpdatedAt?`
 
-**`WorkflowCabinetMap`** — bileşik PK `(WorkflowId, CabinetId)` + `AssignedAt`. `AppliesToAllCabinets = false` iken hangi kabinlere uygulandığını söyler.
+**`WorkflowAutomationMap`** — bileşik PK `(WorkflowId, AutomationId)` + `AssignedAt`. `AppliesToAllAutomations = false` iken hangi otomasyonlara uygulandığını söyler.
 
 **`WorkflowNode`**
 
@@ -799,7 +791,7 @@ Hepsi için geçerli ortak kurallar § 5'tedir.
 **`WorkflowEdge`** — `Id` · `WorkflowId` · `SourceNodeId` · `SourceHandle` · `TargetNodeId` · `TargetHandle`.
 `SourceHandle`, koşul düğümünün hangi çıkışının (`true`/`false`) alındığını taşır.
 
-**`WorkflowExecution`** — `Id` (long) · `WorkflowId` · `TriggerSourceId?` · `TriggerValue?` (double) · `CabinetId?` · `Status` · `ErrorMessage` · `StartedAt` · `CompletedAt?`
+**`WorkflowExecution`** — `Id` (long) · `WorkflowId` · `TriggerSourceId?` · `TriggerValue?` (double) · `AutomationId?` · `Status` · `ErrorMessage` · `StartedAt` · `CompletedAt?`
 
 **`WorkflowNodeExecution`** — `Id` (long) · `WorkflowExecutionId` · `WorkflowNodeId?` · `StepOrder` · `NodeName` · `NodeType` · `Status` · `StartedAt` · `CompletedAt?` · `ResumeAt?` · `TakenHandle` · `OutputJson` · `ErrorMessage`
 
@@ -829,7 +821,7 @@ WorkflowNodeType          -- Tetikleyiciler (1-9)
 5. **Koşul değerlendirme.** `DataTable.Compute` ile string ifade kurma yöntemi **taşınmamalıdır** — enjeksiyona açık ve hata ayıklanamaz. `ConfigJson` içinde tiplenmiş bir karşılaştırma nesnesi (`{ "op": "gte", "value": 30 }`) saklayıp C#'ta değerlendirin.
 6. **API.** Ekran başına uç: `GET/POST /api/Workflow`, `POST /api/Workflow/{id}/nodes` (düğüm + kenar **tek transaction'da** — kenarsız düğüm kullanılamaz; `POST /api/ComponentTemplate` ile aynı gerekçe), `POST /api/WorkflowExecution/list`.
 7. **Frontend.** Workflow editörü React Flow'u **ikinci kez** kullanır. `nodeTypes`/`edgeTypes` yine modül seviyesinde tanımlanmalı, diyagram editörünün store'larıyla **karışmamalı** — beşinci bir state evi değil, kendi `useWorkflowEditor`'ı.
-8. **Yetki.** `Permission.ManageWorkflow = 8` zaten tanımlı. Ama yetki zorlaması sistemde **hiç yok** (§ 2.3) — bu modül onu gerektiren ilk adaydır.
+8. **Yetki.** Modülle birlikte yeni bir `Permission` değeri eklenir (8 boş kalır, yeniden kullanılmaz) ve uçlar `[RequirePermission(...)]` ile işaretlenir — izin zorlaması 2026-10-14'ten beri vardır.
 
 ---
 
@@ -859,7 +851,7 @@ NotificationChannelType  Email=0, SMS=1, Webhook=2, Telegram=3, PushNotification
 2. **Alarm kayıtları adım geçmişinden çok daha uzun yaşar.** `WorkflowNodeExecutions` arşivlenirse alarm referansı olan satırlar **atlanmalıdır**, yoksa alarmın kaynağı kaybolur.
 3. **`IsSecret` gerçekten korunmalı.** `NotificationChannelSetting.Value` bir SMTP parolası taşıyabilir. **Kameradaki "düz metin" kararı buraya taşınmamalıdır**: kamera kapalı ağda, bildirim kanalı dış dünyaya açılıyor. `IsSecret = true` satırlar okuma DTO'sunda maskelenmeli. `(ChannelId, Key)` unique olmalı ve `Key` SQL ayrılmış sözcüğü olduğu için kolona `SettingKey` diye eşlenmeli.
 4. **Gönderim kuyruk + hosted service** olmalı; workflow adımını bir SMTP zaman aşımıyla bloke etmeyin.
-5. `Permission.AcknowledgeAlarm = 3` zaten tanımlı.
+5. Alarm kabulü için modülle birlikte yeni bir `Permission` değeri eklenir (3 boş kalır, yeniden kullanılmaz).
 6. Canlı alarm rozeti için `IDiagramNotifier`'a yeni olay eklenebilir — ama kamera çekiminde olduğu gibi **polling yeterliyse polling tercih edilmelidir**; o port diyagram telemetrisi içindir.
 
 ---
@@ -869,7 +861,7 @@ NotificationChannelType  Email=0, SMS=1, Webhook=2, Telegram=3, PushNotification
 > **UYGULANDI — müşteriye özel modül olarak (2026-09-11): `Scadex.Signalization`,
 > `signalization` şeması.** Ayrıntı ve kararlar `PROJECT_OVERVIEW.md` § 10'dadır. Aşağıdaki referans
 > modelden **bilinçli sapmalar**:
-> - `AccessCard` / `AccessCardCabinet` **yok**: kart `User.IdentityCardId`'dir, kapı yetkisi
+> - `AccessCard` / `AccessCardAutomation` **yok**: kart `User.IdentityCardId`'dir, kapı yetkisi
 >   **rol** üzerinden (`signalization.Authority` = kurum ↔ rol). İkinci bir yetki yapısı açılmadı.
 > - `AccessControlConfig` tek satır değil, **ağaç**: `signalization.Cabinet` (ortak siren, süreler) →
 >   `OuterDoor` (anahtar kanalı, kamera) → `InnerDoor` (kurum, anahtar kanalı, kilit kanalı).
@@ -878,22 +870,22 @@ NotificationChannelType  Email=0, SMS=1, Webhook=2, Telegram=3, PushNotification
 >   `OuterDoorId` üzerinde). `Status` + `[Flags]` uyarı bayrakları; aşama türetilir.
 > - `CameraCapture`'a `AccessSessionId` **eklenmedi** (çekirdek kirlenirdi): bağ modülde
 >   `OperatorSessionCapture` tablosunda.
-> - Kart ucu `{ cabinetId, cardId }` değil `{ cardId }` + kartın MAC kimliği (`DeviceId` header'ı; § 5.3 ingest ile aynı çözüm).
+> - Kart ucu `{ automationId, cardId }` değil `{ cardId }` + kartın MAC kimliği (`DeviceId` header'ı; § 5.3 ingest ile aynı çözüm).
 > - Hareket sensörü yok; oturumu dış kapı anahtarı açar.
 
 **Neden yok.** Kart okuyucu, kapı sensörü ve kilit **kanal olarak** modellenebiliyor (`DeviceType.CardReader = 10` zaten var), ama oturum durum makinesi ve kart yönetimi ayrı bir modüldür.
 
 #### Model
 
-**`AccessCard`** — `Id` · `CompanyId` · `CardNumber` · `HolderName` · `UserId?` · `IsActive` · `ValidFrom?` · `ValidUntil?` · `AppliesToAllCabinets` · `CreatedAt`
+**`AccessCard`** — `Id` · `CompanyId` · `CardNumber` · `HolderName` · `UserId?` · `IsActive` · `ValidFrom?` · `ValidUntil?` · `AppliesToAllAutomations` · `CreatedAt`
 
-**`AccessCardCabinet`** — bileşik PK `(AccessCardId, CabinetId)` + `AssignedAt`
+**`AccessCardAutomation`** — bileşik PK `(AccessCardId, AutomationId)` + `AssignedAt`
 
-**`AccessControlConfig`** — kabin başına bir satır; **hangi kanalın ne anlama geldiğini** söyler:
+**`AccessControlConfig`** — otomasyon başına bir satır; **hangi kanalın ne anlama geldiğini** söyler:
 
 | Alan | Tip | Anlamı |
 |---|---|---|
-| `Id`, `CabinetId` | `Guid` | 1:1 |
+| `Id`, `AutomationId` | `Guid` | 1:1 |
 | `IsEnabled` | `bool` | |
 | `OuterMotionChannelId` | `Guid?` | dış hareket sensörü |
 | `InnerDoorSensorChannelId` | `Guid` | kapı açık/kapalı |
@@ -906,7 +898,7 @@ NotificationChannelType  Email=0, SMS=1, Webhook=2, Telegram=3, PushNotification
 | `AwaitingCardTimeoutSec` | `int` = 120 | kart bekleme |
 | `SessionTimeoutMin` | `int` = 30 | oturum ömrü |
 
-**`AccessSession`** — `Id` (long) · `CabinetId` · `Status` · `StartedAt` · `EndedAt?` · `AccessCardId?` · `CardNumberRaw` · `HolderNameSnapshot`
+**`AccessSession`** — `Id` (long) · `AutomationId` · `Status` · `StartedAt` · `EndedAt?` · `AccessCardId?` · `CardNumberRaw` · `HolderNameSnapshot`
 
 **`AccessSessionEvent`** — `Id` (long) · `AccessSessionId` · `Type` · `OccurredAt` · `IoChannelId?` · `DeviceCommandId?` · `DetailJson`
 
@@ -918,14 +910,14 @@ AccessSessionEventType  MotionDetected=1, CardPresented=2, AccessGranted=3, Acce
                         LockClosed=9, TimedOut=10, CommandFailed=11
 ```
 
-> **Kanal rolü `IoChannel` üzerinde enum olarak TUTULMAZ:** rol kanalın değil, o kabindeki geçiş sürecinin özelliğidir. "Bu kabinde kilit hangisi" sorusu 16 kanal taranarak değil tek satırdan cevaplanmalıdır.
+> **Kanal rolü `IoChannel` üzerinde enum olarak TUTULMAZ:** rol kanalın değil, o otomasyondaki geçiş sürecinin özelliğidir. "Bu otomasyonda kilit hangisi" sorusu 16 kanal taranarak değil tek satırdan cevaplanmalıdır.
 > `CardNumberRaw` ve `HolderNameSnapshot` **bilinçli enstantanedir**: kart tanınmadığında `AccessCardId` null'dır ve ham ID başka hiçbir yerde yoktur — güvenlik incelemesinin en çok ihtiyaç duyduğu veri tam olarak budur. Kart devredilirse geçmiş rapor O GÜN kimin girdiğini göstermelidir.
 
 #### Entegrasyon adımları
 
-1. **Yeni bir ingest ucu gerekir:** `POST /api/Scada/cardreader` → `{ cabinetId, cardId }`. Kart numarası kanal değeri değildir; mevcut `{type, channelNumber, value}` gövdesine sıkıştırmayın. `PROJECT_OVERVIEW` kural 10'un dediği budur: yeni bir modül tipi için yeni bir **adresleme alanı** değil, yeni bir **uç** açılır.
-2. ⚠ **Tek açık oturum kısıtı şemada olmalı:** `(CabinetId)` üzerinde **filtered unique index** `WHERE EndedAt IS NULL`. Yarış durumunda iki ingest aynı anda oturum açmaya çalışırsa yalnızca biri kazanmalıdır. İkinci hareket sinyali yeni oturum açmaz, mevcut oturuma `MotionDetected` olayı düşer.
-3. **Geçiş kontrolüne bağlı kanallar korunmalı:** kilit kanalı, yapılandırma temizlenmeden silinememeli. Bu, kabin silme akışına eklenmelidir (§ 2.6).
+1. **Yeni bir ingest ucu gerekir:** `POST /api/Scada/cardreader` → `{ automationId, cardId }`. Kart numarası kanal değeri değildir; mevcut `{type, channelNumber, value}` gövdesine sıkıştırmayın. `PROJECT_OVERVIEW` kural 10'un dediği budur: yeni bir modül tipi için yeni bir **adresleme alanı** değil, yeni bir **uç** açılır.
+2. ⚠ **Tek açık oturum kısıtı şemada olmalı:** `(AutomationId)` üzerinde **filtered unique index** `WHERE EndedAt IS NULL`. Yarış durumunda iki ingest aynı anda oturum açmaya çalışırsa yalnızca biri kazanmalıdır. İkinci hareket sinyali yeni oturum açmaz, mevcut oturuma `MotionDetected` olayı düşer.
+3. **Geçiş kontrolüne bağlı kanallar korunmalı:** kilit kanalı, yapılandırma temizlenmeden silinememeli. Bu, otomasyon silme akışına eklenmelidir (§ 2.6).
 4. Kilit/korna sürmek mevcut `DeviceCommand` yolundan geçer; `AccessSessionEvent.DeviceCommandId` ile iz bırakılır.
 5. Girişte kamera karesi mevcut `CameraCapture` altyapısını kullanır — `AccessSessionId` alanı **eklenmelidir** (bugünkü `CameraCapture`'da yoktur).
 6. Zaman aşımlarını (`AwaitingCardTimeoutSec`, `SessionTimeoutMin`) bir hosted service yönetmelidir.
@@ -940,7 +932,7 @@ AccessSessionEventType  MotionDetected=1, CardPresented=2, AccessGranted=3, Acce
 
 Referans karşılıkları, tarihsel kayıt olarak:
 
-**`MonitoredDevice`** — `Id` · `CabinetId` · `Name` · `Type` · `IpAddress` · `Port?` · `StreamChannel?` · `StreamUsername` · `StreamPassword` · `Protocol` · `PollingIntervalSec` · `IsEnabled` · `Status` · `LastPolledAt?` · `MetadataJson`
+**`MonitoredDevice`** — `Id` · `AutomationId` · `Name` · `Type` · `IpAddress` · `Port?` · `StreamChannel?` · `StreamUsername` · `StreamPassword` · `Protocol` · `PollingIntervalSec` · `IsEnabled` · `Status` · `LastPolledAt?` · `MetadataJson`
 
 **`SNMPConfig`** — `Id` · `MonitoredDeviceId` (unique, 1:1) · `Version` · `Port` (=161) · `CommunityString` (="public") · `V3Username` · `V3AuthPassword` · `V3PrivPassword`
 
@@ -954,7 +946,7 @@ MonitoredDeviceType  Camera, UPS, Switch, Router, …
 
 > `SNMPConfig`'in ayrı tablo olmasının gerekçesi hâlâ öğreticidir: (a) v3 parolaları ana tablodayken her `ToListAsync()` onları belleğe çekiyordu; (b) opsiyonel owned type'ta EF **tüm** kolonları nullable yapmak zorundadır ve "SNMP var mı" sorusu altı kolonun hepsinin null olup olmadığına bakılarak cevaplanır — ayrı tabloda soru **satırın varlığıyla** cevaplanır; (c) şifreleme ve `GRANT` tablo seviyesinde uygulanabilir.
 
-**Yeni bir izlenen tip gerekirse** (ör. UPS, NAS, alarm paneli): `MonitoredDevice`'ı diriltmeyin, ayrı kök tablo da açmayın (2026-10-22 kararı). Reçete: `DeviceType` değeri + sistem şablonu (RJ45 ucu → `IsMonitorable`) + tipe özgü alan varsa `Device` ile 1-1 ek tablo (ortak PK) + `DeviceUpdateRequest`'te taslak nesnesi + `ValidateDeviceAsync` / `WriteDeviceExtensions` (`DiagramService.Devices.cs`) + özellik panelinde bölüm. Yoklama ve kabin durumu ek kod istemez (`DeviceProbeSource`, `CabinetContribution`). Modüle ait bir tipse ek tablo modülün şemasında, `DeviceId` FK'siz durur.
+**Yeni bir izlenen tip gerekirse** (ör. UPS, NAS, alarm paneli): `MonitoredDevice`'ı diriltmeyin, ayrı kök tablo da açmayın (2026-10-22 kararı). Reçete: `DeviceType` değeri + sistem şablonu (RJ45 ucu → `IsMonitorable`) + tipe özgü alan varsa `Device` ile 1-1 ek tablo (ortak PK) + `DeviceUpdateRequest`'te taslak nesnesi + `ValidateDeviceAsync` / `WriteDeviceExtensions` (`DiagramService.Devices.cs`) + özellik panelinde bölüm. Yoklama ve otomasyon durumu ek kod istemez (`DeviceProbeSource`, `AutomationContribution`). Modüle ait bir tipse ek tablo modülün şemasında, `DeviceId` FK'siz durur.
 
 > **Bugün hiçbir yoklama servisi yok.** `POST /api/Camera/{id}/probe-result` kullanıcının yazacağı hedeftir; bugün `Camera.DeviceStatusId`'yi hiçbir şey yazmadığı için her kamera **"Yoklanmadı"** (`null`, ki bu `Offline` **değildir**) görünür.
 
@@ -1016,7 +1008,7 @@ Eksik olan **anlamsal** denetimdir: "kullanıcı X kamerayı izledi", "kullanıc
 
 ### 4.8 Çoklu kiracı (tenant) izolasyonu
 
-**Neden yok.** `Company` tablosu var ve `Cabinet`/`User` ona bağlı, ama **hiçbir sorgu şirkete göre filtrelenmiyor**. Bugün bir kullanıcı başka bir şirketin kabinini görebilir.
+**Neden yok.** `Company` tablosu var ve `Automation`/`User` ona bağlı, ama **hiçbir sorgu şirkete göre filtrelenmiyor**. Bugün bir kullanıcı başka bir şirketin otomasyonunu görebilir.
 
 #### Eklenecekse — hazırlık zaten yapıldı
 
@@ -1037,7 +1029,7 @@ Yukarıdaki reçetelerde tekrar eden kurallar:
 1. **Saha protokolünü modele sokmayın.** Register numarası, fonksiyon kodu, veri tipi, baud hızı, kodek — hepsi taşıma detayıdır ve SCADA'nın (ya da dağıtımın) sorumluluğundadır. Adresleme birimi `IoChannel`'dır.
 2. **Sektöre özel kavram kolon olmaz.** Yeni bir sektör için şema değişmez; ölçüm bir `MetricName` string'idir.
 3. **Her tabloya tek yazma yolu** (ROADMAP R2). Jenerik CRUD ucu **açmayın**; sahibi olan aggregate'in controller'ına ekran başına bir uç ekleyin.
-4. **Ekran başına uç, entity başına değil.** `GET /api/Diagram/cabinet/{id}` bütün aggregate'i döner çünkü ekran onu ister.
+4. **Ekran başına uç, entity başına değil.** `GET /api/Diagram/automation/{id}` bütün aggregate'i döner çünkü ekran onu ister.
 5. **Sözleşmeyi elle senkronlayın:** C# DTO + `docs/api-contract/*.md` + TS aynası. Hiçbir derleme bunu yakalamaz.
 6. **Sıcak yolu bloke etmeyin.** Uzun süren iş (bildirim, gecikme, çekim) kuyruk + hosted service ile yapılır. Hazır desenler: `IClipCaptureQueue`, `StatusCleanupWorker`.
 7. **Yaşam döngüsü arayüzlerini kullanın**, elle `IsDeleted` yazmayın — interceptor zaten zorluyor.

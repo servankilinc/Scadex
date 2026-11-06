@@ -16,20 +16,20 @@ import { useSendCommand } from '@/hooks/use-device-commands';
 import { useDiagramCanvasContext } from '@/lib/diagram/canvas-context';
 import type { DiagramDeviceDto } from '@/models/diagram';
 import type { DeviceCommandSendRequest } from '@/models/deviceCommand';
-import { DeviceCommandType, PinDirection } from '@/models/enums';
+import { PinDirection } from '@/models/enums';
 import { ConfirmDeleteDialog } from './confirm-delete';
 
 /**
  * Cihaza sağ tık menüsü: kumanda + düzenleme.
  *
- * **Menü, sunucunun ön kontrollerini ÖNCEDEN söyler.** SCADA'sı kapalı bir kabine
+ * **Menü, sunucunun ön kontrollerini ÖNCEDEN söyler.** SCADA'sı kapalı bir otomasyona
  * komut göndermek başarısız olur; kullanıcıya
  * bir hata mesajı yerine sebebi menüde göstermek, tıklanabilir görünüp
  * başarısız olan bir menüden iyidir. Bu doğrulamanın YERİNE GEÇMEZ — sunucu
  * kontrolleri yerinde duruyor ve tek gerçek engel onlar.
  *
  * **Düzenleme bölümü kumanda engellense de görünür.** İki bölümü aynı koşula
- * bağlamak, SCADA'sı kapalı kabindeki cihazı menüden silinemez yapardı.
+ * bağlamak, SCADA'sı kapalı otomasyondaki cihazı menüden silinemez yapardı.
  *
  * Sözleşme: `Backend/docs/api-contract/08-scada-command.md`
  */
@@ -88,10 +88,10 @@ export function DeviceNodeMenu({ device, children }: { device: DiagramDeviceDto;
                           sunucu NO/NC kutbuna göre çözüyor. Burada "1" göndermek, NC
                           kablolu bir röleyi tam ters yönde sürerdi. */}
                       <ContextMenuSubContent>
-                        <ContextMenuItem onClick={() => dispatch({ commandType: DeviceCommandType.SetOutput, ioChannelId: channel.id, turnOn: true })}>
+                        <ContextMenuItem onClick={() => dispatch({ ioChannelId: channel.id, turnOn: true })}>
                           Aç
                         </ContextMenuItem>
-                        <ContextMenuItem onClick={() => dispatch({ commandType: DeviceCommandType.SetOutput, ioChannelId: channel.id, turnOn: false })}>
+                        <ContextMenuItem onClick={() => dispatch({ ioChannelId: channel.id, turnOn: false })}>
                           Kapat
                         </ContextMenuItem>
                       </ContextMenuSubContent>
@@ -150,6 +150,6 @@ export function DeviceNodeMenu({ device, children }: { device: DiagramDeviceDto;
  * engelle karşılaşacaksa onu görsün.
  */
 function findBlocker(scadaIsEnabled: boolean): string | null {
-  if (!scadaIsEnabled) return 'Bu kabinde SCADA kapalı; kumanda gönderilemez.';
+  if (!scadaIsEnabled) return 'Bu otomasyonda SCADA kapalı; kumanda gönderilemez.';
   return null;
 }

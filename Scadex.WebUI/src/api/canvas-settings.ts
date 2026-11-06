@@ -6,11 +6,11 @@ import type { DiagramCanvasSettingsDto } from '@/models/diagram';
 const CANVAS_SETTINGS_ROUTE = '/api/CanvasSettings';
 
 /**
- * Canvas tercihlerini yazar (upsert). `cabinetId` rotadan gider, gövdede yoktur.
+ * Canvas tercihlerini yazar (upsert). `automationId` rotadan gider, gövdede yoktur.
  *
  * Dönüş tipi diyagram aggregate'indeki blokla AYNI (`DiagramCanvasSettingsDto`):
  * yanıt doğrudan o cache'in üzerine yazılıyor.
  */
-export async function upsertCanvasSettings(cabinetId: string, request: CanvasSettingsUpsertRequest): Promise<DiagramCanvasSettingsDto> {
-  return http.put<DiagramCanvasSettingsDto>(`${CANVAS_SETTINGS_ROUTE}/cabinet/${cabinetId}`, request);
+export async function upsertCanvasSettings(automationId: string, request: CanvasSettingsUpsertRequest): Promise<DiagramCanvasSettingsDto> {
+  return http.put<DiagramCanvasSettingsDto>(`${CANVAS_SETTINGS_ROUTE}/automation/${automationId}`, request);
 }

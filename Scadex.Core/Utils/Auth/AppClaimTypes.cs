@@ -11,6 +11,6 @@ public static class AppClaimTypes
     /// <summary>Basic Auth ile dogrulanan saha cihazinin tipi (<c>DeviceType</c>, sayi). Kullanici token'inda YOKTUR.</summary>
     public const string DeviceType = "device_type";
 
-    /// <summary>Basic Auth ile dogrulanan saha cihazinin kabini — ingest ve kart okuma kabini buradan alir.</summary>
-    public const string CabinetId = "cabinet_id";
+    /// <summary>Basic Auth ile dogrulanan saha cihazinin otomasyonu — ingest ve kart okuma otomasyonu buradan alir.</summary>
+    public const string AutomationId = "automation_id";
 }

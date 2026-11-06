@@ -62,7 +62,7 @@ export interface FileTransferReportItemDto {
   id: string;
   deviceId: string;
   deviceName: string | null;
-  cabinetName: string | null;
+  automationName: string | null;
   userId: string;
   userFullName: string | null;
   userName: string | null;

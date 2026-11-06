@@ -33,12 +33,12 @@ public class PcDirectoryService : IPcDirectoryService
             {
                 DeviceId = d.Id,
                 DeviceName = d.Name,
-                CabinetId = d.CabinetId,
-                CabinetName = d.Cabinet!.Name,
+                AutomationId = d.AutomationId,
+                AutomationName = d.Automation!.Name,
                 HasCredential = d.PcDevice != null && d.PcDevice.CredentialHash != null
             },
             where: d => d.IsActive && d.ComponentTemplate!.DeviceTypeId == (int)DeviceType.Pc,
-            orderBy: q => q.OrderBy(d => d.Cabinet!.Name).ThenBy(d => d.Name),
+            orderBy: q => q.OrderBy(d => d.Automation!.Name).ThenBy(d => d.Name),
             cancellationToken: cancellationToken) ?? [];
 
         foreach (var pc in devices)
@@ -55,8 +55,8 @@ public class PcDirectoryService : IPcDirectoryService
             {
                 DeviceId = d.Id,
                 DeviceName = d.Name,
-                CabinetId = d.CabinetId,
-                CabinetName = d.Cabinet!.Name,
+                AutomationId = d.AutomationId,
+                AutomationName = d.Automation!.Name,
                 HasCredential = d.PcDevice != null && d.PcDevice.CredentialHash != null
             },
             where: d => d.Id == deviceId && d.IsActive && d.ComponentTemplate!.DeviceTypeId == (int)DeviceType.Pc,

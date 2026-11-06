@@ -14,10 +14,10 @@ public class ComponentTemplateCreateRequest : IDto
     public string? BackgroundImageUrl { get; set; }
     public bool IsMonitorable { get; set; }
 
-    public List<TemplatePinDraft> Pins { get; set; } = [];
+    public List<ComponentTemplatePinCreateRequest> Pins { get; set; } = [];
 }
 
-public class TemplatePinDraft : IDto
+public class  ComponentTemplatePinCreateRequest : IDto
 {
     public string Name { get; set; } = null!;
     /// <summary>ComponentTemplate genisligine gore 0..1 normalize kesir (DB'de CHECK ile kisitli).</summary>
@@ -44,7 +44,7 @@ public class ComponentTemplateCreateRequestValidator : AbstractValidator<Compone
 
         RuleFor(v => v.Pins.Count).LessThanOrEqualTo(MaxPins).OverridePropertyName("Pins").WithMessage($"Bir sablonda en fazla {MaxPins} pin olabilir");
 
-        RuleForEach(v => v.Pins).SetValidator(new TemplatePinDraftValidator());
+        RuleForEach(v => v.Pins).SetValidator(new ComponentTemplatePinCreateRequestValidator());
 
         // Burada yakalanmazsa DB kisit ihlali 500'e cevrilir
         RuleFor(v => v.Pins)
@@ -53,9 +53,9 @@ public class ComponentTemplateCreateRequestValidator : AbstractValidator<Compone
     }
 }
 
-public class TemplatePinDraftValidator : AbstractValidator<TemplatePinDraft>
+public class ComponentTemplatePinCreateRequestValidator : AbstractValidator<ComponentTemplatePinCreateRequest>
 {
-    public TemplatePinDraftValidator()
+    public ComponentTemplatePinCreateRequestValidator()
     {
         RuleFor(v => v.Name).MinimumLength(1).WithMessage("Pin ismi en az 1 karakter icermeli");
         // DB'de CHECK (0..1) var; burada yakalamak 400 dondurur, yoksa kisit ihlali 500 olur.

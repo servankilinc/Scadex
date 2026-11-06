@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useState } from 'react';
-import { subscribeToCabinet, useHubStatus } from '@/lib/signalr/diagram-hub';
-import type { CardRead } from '@/models/realtime';
+import { subscribeToAutomation, useHubStatus } from '@/lib/signalr/diagram-hub';
+import type { CardReadNotify } from '@/models/realtime';
 
 /** Pencerede gösterilen okuma. `seq` her okumada artar: aynı kart tekrar okutulunca da ekran (seçim vb.) sıfırlansın. */
-export interface EnrollmentRead extends CardRead {
+export interface EnrollmentRead extends CardReadNotify {
   seq: number;
 }
 
@@ -12,26 +12,26 @@ let readSeq = 0;
 const ignore = () => {};
 
 /**
- * Kabinler → "Kart tanımlama" penceresinin kaynağı: kabinin `CardRead` yayınını dinler (`/hubs/diagram`, diyagram ekranıyla aynı
+ * Otomasyonlar → "Kart tanımlama" penceresinin kaynağı: otomasyonun `CardRead` yayınını dinler (`/hubs/diagram`, diyagram ekranıyla aynı
  * sayaçlı abonelik). Okumayı yalnızca izler — modüller (ör. sinyalizasyon motoru) okumayı her zamanki gibi işler. Yalnızca SON okuma tutulur.
  */
-export function useCardEnrollment(cabinetId: string) {
+export function useCardEnrollment(automationId: string) {
   const [read, setRead] = useState<EnrollmentRead | null>(null);
   const hubStatus = useHubStatus();
 
   useEffect(
     () =>
-      subscribeToCabinet(cabinetId, {
+      subscribeToAutomation(automationId, {
         onChannelValues: ignore,
         onDeviceStatus: ignore,
-        onCabinetStatus: ignore,
+        onAutomationStatus: ignore,
         onCommandCompleted: ignore,
-        // İstemci olayları kabine göre dağıtmıyor; başka bir ekranın abone olduğu kabinin okuması da buraya gelir.
+        // İstemci olayları otomasyona göre dağıtmıyor; başka bir ekranın abone olduğu otomasyonun okuması da buraya gelir.
         onCardRead: change => {
-          if (change.cabinetId === cabinetId) setRead({ ...change, seq: ++readSeq });
+          if (change.automationId === automationId) setRead({ ...change, seq: ++readSeq });
         }
       }),
-    [cabinetId]
+    [automationId]
   );
 
   /** Kart atandıktan sonra ekran "Tanımlı: …" durumuna geçsin — aynı kartı yeniden okutmaya gerek kalmasın. */

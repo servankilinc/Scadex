@@ -5,11 +5,11 @@ import { getAccessToken } from '@/lib/auth-session';
 import {
   DiagramHubEvents,
   DiagramHubMethods,
-  type CabinetStatusChange,
-  type CardRead,
-  type ChannelValueChange,
-  type CommandCompleted,
-  type DeviceStatusChange
+  type AutomationStatusChangeNotify,
+  type CardReadNotify,
+  type ChannelValueChangeNotify,
+  type CommandCompletedNotify,
+  type DeviceStatusChangeNotify
 } from '@/models/realtime';
 
 /**
@@ -17,8 +17,8 @@ import {
  * kayıtlı dinleyicilere aktarır, telemetri `lib/diagram/live-store.ts`'te durur.
  *
  * **Tek bağlantı, sayaçlı abonelik.** Uygulama boyunca tek bir WebSocket açılır;
- * bileşenler kabin bazında abone olur ve son abone ayrılınca bağlantı kapanır.
- * Bileşen başına ayrı bağlantı açmak, aynı kabini gösteren iki panel için iki
+ * bileşenler otomasyon bazında abone olur ve son abone ayrılınca bağlantı kapanır.
+ * Bileşen başına ayrı bağlantı açmak, aynı otomasyonu gösteren iki panel için iki
  * soket ve iki kat yayın demek olurdu.
  *
  * Sözleşme: `Backend/docs/api-contract/09-realtime.md`
@@ -27,19 +27,19 @@ import {
 export type HubStatus = 'disconnected' | 'connecting' | 'connected' | 'reconnecting';
 
 export interface DiagramHubHandlers {
-  onChannelValues: (changes: ChannelValueChange[]) => void;
-  onDeviceStatus: (changes: DeviceStatusChange[]) => void;
-  onCabinetStatus: (change: CabinetStatusChange) => void;
-  onCommandCompleted: (change: CommandCompleted) => void;
-  /** Opsiyonel: yalnızca Kabinler → "Kart tanımlama" penceresi dinler. */
-  onCardRead?: (change: CardRead) => void;
+  onChannelValues: (changes: ChannelValueChangeNotify[]) => void;
+  onDeviceStatus: (changes: DeviceStatusChangeNotify[]) => void;
+  onAutomationStatus: (change: AutomationStatusChangeNotify) => void;
+  onCommandCompleted: (change: CommandCompletedNotify) => void;
+  /** Opsiyonel: yalnızca Otomasyonlar → "Kart tanımlama" penceresi dinler. */
+  onCardRead?: (change: CardReadNotify) => void;
 }
 
 /**
  * Son abone ayrıldıktan sonra bağlantının kapatılması için beklenen süre.
  *
  * Sıfır olsaydı iki durumda gereksiz yere kapanıp hemen yeniden açılırdı:
- * `<StrictMode>`'un effect'i iki kez çalıştırması ve kullanıcının kabinler
+ * `<StrictMode>`'un effect'i iki kez çalıştırması ve kullanıcının otomasyonlar
  * arasında hızlı gezinmesi. WebSocket el sıkışması ucuz değil.
  */
 const CLOSE_GRACE_MS = 2000;
@@ -47,16 +47,16 @@ const CLOSE_GRACE_MS = 2000;
 let connection: HubConnection | null = null;
 let closeTimer: number | null = null;
 
-/** Kabin başına abone sayısı. Sıfıra düşen kabinden çıkılır. */
-const cabinetRefCounts = new Map<string, number>();
+/** Otomasyon başına abone sayısı. Sıfıra düşen otomasyondan çıkılır. */
+const automationRefCounts = new Map<string, number>();
 const handlerSets = new Set<DiagramHubHandlers>();
 
 /**
- * "Tüm kabinler" özetinin aboneleri (`SubscribeCabinets` grubu). Abonelik başına AYRI nesne: aynı fonksiyonla iki
+ * "Tüm otomasyonlar" özetinin aboneleri (`SubscribeAutomations` grubu). Abonelik başına AYRI nesne: aynı fonksiyonla iki
  * kez abone olan iki bileşen Set'te tek kayda düşüp sayacı bozmasın.
  */
 interface OverviewSubscription {
-  onCabinetStatus: (change: CabinetStatusChange) => void;
+  onAutomationStatus: (change: AutomationStatusChangeNotify) => void;
 }
 const overviewSubscriptions = new Set<OverviewSubscription>();
 
@@ -103,27 +103,27 @@ function build(): HubConnection {
     .configureLogging(import.meta.env.DEV ? LogLevel.Warning : LogLevel.Error)
     .build();
 
-  built.on(DiagramHubEvents.channelValuesChanged, (_cabinetId: string, changes: ChannelValueChange[]) => {
+  built.on(DiagramHubEvents.channelValuesChanged, (_automationId: string, changes: ChannelValueChangeNotify[]) => {
     for (const handlers of handlerSets) handlers.onChannelValues(changes);
   });
 
-  built.on(DiagramHubEvents.deviceStatusChanged, (_cabinetId: string, changes: DeviceStatusChange[]) => {
+  built.on(DiagramHubEvents.deviceStatusChanged, (_automationId: string, changes: DeviceStatusChangeNotify[]) => {
     for (const handlers of handlerSets) handlers.onDeviceStatus(changes);
   });
 
-  // Aynı olay iki gruptan gelebilir (kabin grubu her ingest'te, özet grubu yalnızca durum değişince); iki dinleyici
+  // Aynı olay iki gruptan gelebilir (otomasyon grubu her ingest'te, özet grubu yalnızca durum değişince); iki dinleyici
   // türü de değeri yerine yazdığı için çift teslim zararsız.
-  built.on(DiagramHubEvents.cabinetStatusChanged, (change: CabinetStatusChange) => {
-    for (const handlers of handlerSets) handlers.onCabinetStatus(change);
-    for (const subscription of overviewSubscriptions) subscription.onCabinetStatus(change);
+  built.on(DiagramHubEvents.automationStatusChanged, (change: AutomationStatusChangeNotify) => {
+    for (const handlers of handlerSets) handlers.onAutomationStatus(change);
+    for (const subscription of overviewSubscriptions) subscription.onAutomationStatus(change);
   });
 
-  built.on(DiagramHubEvents.commandCompleted, (_cabinetId: string, change: CommandCompleted) => {
+  built.on(DiagramHubEvents.commandCompleted, (_automationId: string, change: CommandCompletedNotify) => {
     for (const handlers of handlerSets) handlers.onCommandCompleted(change);
   });
 
-  // Diğer olaylar gibi kabine göre dağıtılmaz: dinleyen `change.cabinetId`'ye bakar.
-  built.on(DiagramHubEvents.cardRead, (_cabinetId: string, change: CardRead) => {
+  // Diğer olaylar gibi otomasyona göre dağıtılmaz: dinleyen `change.automationId`'ye bakar.
+  built.on(DiagramHubEvents.cardRead, (_automationId: string, change: CardReadNotify) => {
     for (const handlers of handlerSets) handlers.onCardRead?.(change);
   });
 
@@ -177,19 +177,19 @@ async function ensureStarted(): Promise<HubConnection | null> {
   return connection;
 }
 
-async function invokeSubscribe(cabinetId: string): Promise<void> {
+async function invokeSubscribe(automationId: string): Promise<void> {
   if (connection?.state !== HubConnectionState.Connected) return;
   try {
-    await connection.invoke(DiagramHubMethods.subscribe, cabinetId);
+    await connection.invoke(DiagramHubMethods.subscribe, automationId);
   } catch {
     /* bağlantı bu arada düştü; onreconnected yeniden dener */
   }
 }
 
-async function invokeUnsubscribe(cabinetId: string): Promise<void> {
+async function invokeUnsubscribe(automationId: string): Promise<void> {
   if (connection?.state !== HubConnectionState.Connected) return;
   try {
-    await connection.invoke(DiagramHubMethods.unsubscribe, cabinetId);
+    await connection.invoke(DiagramHubMethods.unsubscribe, automationId);
   } catch {
     /* bağlantı zaten kapanıyorsa sunucu grubu kendisi düşürür */
   }
@@ -210,12 +210,12 @@ async function invokeMethod(method: string): Promise<void> {
  * ConnectionId); ilk bağlantıda da kurulum sırasında gelen aboneler atlanmış olabilir.
  */
 async function invokeSubscribeAll(): Promise<void> {
-  for (const cabinetId of cabinetRefCounts.keys()) void invokeSubscribe(cabinetId);
-  if (overviewSubscriptions.size > 0) await invokeMethod(DiagramHubMethods.subscribeCabinets);
+  for (const automationId of automationRefCounts.keys()) void invokeSubscribe(automationId);
+  if (overviewSubscriptions.size > 0) await invokeMethod(DiagramHubMethods.subscribeAutomations);
 }
 
 function hasSubscribers(): boolean {
-  return cabinetRefCounts.size > 0 || handlerSets.size > 0 || overviewSubscriptions.size > 0;
+  return automationRefCounts.size > 0 || handlerSets.size > 0 || overviewSubscriptions.size > 0;
 }
 
 function scheduleCloseIfIdle(): void {
@@ -234,22 +234,22 @@ function scheduleCloseIfIdle(): void {
 }
 
 /**
- * Bir kabinin canlı yayınına abone olur. Dönen fonksiyon aboneliği bırakır.
+ * Bir otomasyonun canlı yayınına abone olur. Dönen fonksiyon aboneliği bırakır.
  *
- * Aynı kabine birden fazla abone olmak güvenlidir: sunucuya yalnızca ilk abone
+ * Aynı otomasyona birden fazla abone olmak güvenlidir: sunucuya yalnızca ilk abone
  * için `Subscribe`, yalnızca son abone ayrılınca `Unsubscribe` gider.
  */
-export function subscribeToCabinet(cabinetId: string, handlers: DiagramHubHandlers): () => void {
+export function subscribeToAutomation(automationId: string, handlers: DiagramHubHandlers): () => void {
   handlerSets.add(handlers);
 
-  const previous = cabinetRefCounts.get(cabinetId) ?? 0;
-  cabinetRefCounts.set(cabinetId, previous + 1);
+  const previous = automationRefCounts.get(automationId) ?? 0;
+  automationRefCounts.set(automationId, previous + 1);
 
   void (async () => {
     const started = await ensureStarted();
     // Yalnızca İLK abone için: aynı gruba iki kez katılmak sunucuda zararsız ama
     // gereksiz bir tur.
-    if (started && previous === 0) await invokeSubscribe(cabinetId);
+    if (started && previous === 0) await invokeSubscribe(automationId);
     // Bağlantı bu abone gelmeden önce kurulmuşsa `previous > 0` olsa bile grup
     // zaten aktiftir; ek bir şey yapmaya gerek yok.
   })();
@@ -257,12 +257,12 @@ export function subscribeToCabinet(cabinetId: string, handlers: DiagramHubHandle
   return () => {
     handlerSets.delete(handlers);
 
-    const current = cabinetRefCounts.get(cabinetId) ?? 0;
+    const current = automationRefCounts.get(automationId) ?? 0;
     if (current <= 1) {
-      cabinetRefCounts.delete(cabinetId);
-      void invokeUnsubscribe(cabinetId);
+      automationRefCounts.delete(automationId);
+      void invokeUnsubscribe(automationId);
     } else {
-      cabinetRefCounts.set(cabinetId, current - 1);
+      automationRefCounts.set(automationId, current - 1);
     }
 
     scheduleCloseIfIdle();
@@ -270,25 +270,25 @@ export function subscribeToCabinet(cabinetId: string, handlers: DiagramHubHandle
 }
 
 /**
- * Tüm kabinlerin durum özetine abone olur (ana sayfa haritası, kabin listesi). Dönen fonksiyon aboneliği bırakır.
+ * Tüm otomasyonların durum özetine abone olur (ana sayfa haritası, otomasyon listesi). Dönen fonksiyon aboneliği bırakır.
  *
- * Sunucu bu gruba yalnızca kabin durumu DEĞİŞİNCE yayın yapar — her ingest'te değil. Birden fazla abone güvenlidir:
- * sunucuya yalnızca ilk abone için `SubscribeCabinets`, son abone gidince `UnsubscribeCabinets` gider.
+ * Sunucu bu gruba yalnızca otomasyon durumu DEĞİŞİNCE yayın yapar — her ingest'te değil. Birden fazla abone güvenlidir:
+ * sunucuya yalnızca ilk abone için `SubscribeAutomations`, son abone gidince `UnsubscribeAutomations` gider.
  */
-export function subscribeToCabinetOverview(onCabinetStatus: (change: CabinetStatusChange) => void): () => void {
-  const subscription: OverviewSubscription = { onCabinetStatus };
+export function subscribeToAutomationOverview(onAutomationStatus: (change: AutomationStatusChangeNotify) => void): () => void {
+  const subscription: OverviewSubscription = { onAutomationStatus };
   const isFirst = overviewSubscriptions.size === 0;
   overviewSubscriptions.add(subscription);
 
   void (async () => {
     const started = await ensureStarted();
     // Bağlantı zaten kuruluysa grup burada açılır; kurulmakta ise `ensureStarted` bağlanınca hepsini açar.
-    if (started && isFirst) await invokeMethod(DiagramHubMethods.subscribeCabinets);
+    if (started && isFirst) await invokeMethod(DiagramHubMethods.subscribeAutomations);
   })();
 
   return () => {
     overviewSubscriptions.delete(subscription);
-    if (overviewSubscriptions.size === 0) void invokeMethod(DiagramHubMethods.unsubscribeCabinets);
+    if (overviewSubscriptions.size === 0) void invokeMethod(DiagramHubMethods.unsubscribeAutomations);
     scheduleCloseIfIdle();
   };
 }

@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { PanelSection } from '@/components/custom/panel-section';
 import { cn, formatUtcDateTime } from '@/lib/utils';
-import type { CabinetPanelSectionProps } from '../../types';
+import type { AutomationPanelSectionProps } from '../../types';
 import { useCabinetLatestSession } from '../hooks/use-operator-sessions';
 import { useNow } from '../hooks/use-now';
 import { formatDuration } from '../lib';
@@ -14,12 +14,12 @@ import { OperatorIdCard } from './operator-id-card';
 import { SessionFlagBadges, SessionPhaseBadge, SessionStatusBadge } from './session-badges';
 
 /**
- * Ana sayfa haritasındaki kabin detay panelinin sinyalizasyon bölümü (modülün `CabinetPanelSection`'ı).
+ * Ana sayfa haritasındaki kabin detay panelinin sinyalizasyon bölümü (modülün `AutomationPanelSection`'ı).
  *
  * Kabinde DEVAM EDEN işlem varsa onu (birden çok dış kapı → birden çok blok), yoksa en son biten işlemi
  * gösterir. Salt okunurdur; oturumu yalnızca motor yazar.
  */
-export default function CabinetSessionSection({ cabinetId }: CabinetPanelSectionProps) {
+export default function CabinetSessionSection({ automationId: cabinetId }: AutomationPanelSectionProps) {
   const { openSessions, lastSession, openUpdatedAt, isPending, isError, error, moduleOff } = useCabinetLatestSession(cabinetId);
   const now = useNow();
 

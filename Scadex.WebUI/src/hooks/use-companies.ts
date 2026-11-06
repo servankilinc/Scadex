@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { createCompany, getCompanyList, updateCompany } from '@/api/company';
-import { cabinetKeys, companyKeys } from '@/api/query-keys';
+import { automationKeys, companyKeys } from '@/api/query-keys';
 import type { CompanyCreateRequest, CompanyUpdateRequest } from '@/models/company';
 
 /** Firma kartları — pasifler DAHİL (geri alınabilmeleri için). */
@@ -41,9 +41,9 @@ export function useUpdateCompany() {
     mutationFn: (request: CompanyUpdateRequest) => updateCompany(request),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: companyKeys.all });
-      // Kabin kartları firma adını `companyName` alanında TAŞIYOR; tazelenmezse
+      // Otomasyon kartları firma adını `companyName` alanında TAŞIYOR; tazelenmezse
       // liste eski adı göstermeye devam eder.
-      void queryClient.invalidateQueries({ queryKey: cabinetKeys.all });
+      void queryClient.invalidateQueries({ queryKey: automationKeys.all });
       toast.success('Firma güncellendi.');
     }
   });

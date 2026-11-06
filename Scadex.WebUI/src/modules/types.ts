@@ -13,9 +13,9 @@ export interface ModuleNavItem {
   permission?: PermissionCode;
 }
 
-/** Ana sayfa haritasındaki kabin detay paneline modülün eklediği bölümün aldığı tek bilgi. */
-export interface CabinetPanelSectionProps {
-  cabinetId: string;
+/** Ana sayfa haritasındaki otomasyon detay paneline modülün eklediği bölümün aldığı tek bilgi. */
+export interface AutomationPanelSectionProps {
+  automationId: string;
 }
 
 /**
@@ -36,32 +36,32 @@ export interface AppModule {
    */
   LayoutExtension?: ComponentType;
   /**
-   * Ana sayfa haritasında "işlem yapılıyor" ikonuyla gösterilecek kabinlerin sorgusu. Çekirdek yalnızca kabin
+   * Ana sayfa haritasında "işlem yapılıyor" ikonuyla gösterilecek otomasyonların sorgusu. Çekirdek yalnızca otomasyon
    * kimliklerini okur, "işlem"in ne demek olduğunu modül belirler. Birden çok modül verirse kimlikler birleşir.
    */
-  busyCabinetsQuery?: CabinetIdsQueryOptions;
+  busyAutomationsQuery?: AutomationIdsQueryOptions;
   /**
-   * Ana sayfa haritasında "alarm" ikonuyla gösterilecek kabinlerin sorgusu (örn. zorla açma). Kabinin DURUMUNU
+   * Ana sayfa haritasında "alarm" ikonuyla gösterilecek otomasyonların sorgusu (örn. zorla açma). Otomasyonun DURUMUNU
    * (`deviceStatusId`) değiştirmez — o ağ/donanım sağlığıdır; alarm modülün kendi kavramıdır ve ayrı çizilir. İkon
    * önceliği alarm > işlem > boşta. Birden çok modül verirse kimlikler birleşir.
    */
-  alertCabinetsQuery?: CabinetIdsQueryOptions;
+  alertAutomationsQuery?: AutomationIdsQueryOptions;
   /**
-   * Ana sayfa haritasındaki kabin detay panelinin altına eklenen bölüm (örn. o kabinde devam eden
+   * Ana sayfa haritasındaki otomasyon detay panelinin altına eklenen bölüm (örn. o otomasyonda devam eden
    * operatör işlemi). `React.lazy` ile verilmeli; çekirdek onu `Suspense` içinde render eder.
    * Bölüm kendini `@/components/custom/panel-section > PanelSection` ile çizer (açılır-kapanır kart, başlıkta özet) —
    * panel tek tip görünsün; çekirdek içeriği bilmez.
    */
-  CabinetPanelSection?: ComponentType<CabinetPanelSectionProps>;
+  AutomationPanelSection?: ComponentType<AutomationPanelSectionProps>;
   /**
-   * Ana sayfa haritasındaki kabin detay panelinin EN ÜSTÜNE (künyeden — Firma/Durum/… — önce)
-   * eklenen eylem. `CabinetPanelSection`'dan farklı olarak devam eden bir işleme/duruma bağlı
+   * Ana sayfa haritasındaki otomasyon detay panelinin EN ÜSTÜNE (künyeden — Firma/Durum/… — önce)
+   * eklenen eylem. `AutomationPanelSection`'dan farklı olarak devam eden bir işleme/duruma bağlı
    * OLMAYAN, panelin en sık kullanılan kısayolu için (örn. sanal kabin ekranına git). `React.lazy`
    * ile verilmeli; çekirdek onu `Suspense` içinde render eder.
    */
-  CabinetPanelTopAction?: ComponentType<CabinetPanelSectionProps>;
+  AutomationPanelTopAction?: ComponentType<AutomationPanelSectionProps>;
 }
 
-/** Sonucu kabin kimliği listesi olan sorgu. Ham veri modülün kendi DTO'sudur; `select` onu kimliklere indirger. */
+/** Sonucu otomasyon kimliği listesi olan sorgu. Ham veri modülün kendi DTO'sudur; `select` onu kimliklere indirger. */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any -- ham veri tipi modüle aittir, çekirdek yalnızca `select` sonucunu okur
-export type CabinetIdsQueryOptions = UseQueryOptions<any, Error, string[], readonly unknown[]>;
+export type AutomationIdsQueryOptions = UseQueryOptions<any, Error, string[], readonly unknown[]>;

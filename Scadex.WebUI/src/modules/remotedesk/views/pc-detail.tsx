@@ -75,7 +75,7 @@ export default function RemoteDeskPcDetail() {
           <p className='max-w-lg'>
             {pc.data.hasCredential
               ? "PC'de Scadex RemoteDesk istemcisinin çalıştığından ve ayarlarındaki cihaz kimliğinin (DeviceId + DeviceSecret) diyagramda üretilenle aynı olduğundan emin olun. İstemci ekranı kimliğin reddedildiğini gösterir."
-              : 'Bu PC için kimlik bilgisi üretilmemiş: kabin diyagramında cihazı seçip özellik panelinden sır üretin, kaydedin ve PC’deki istemciye girin.'}
+              : 'Bu PC için kimlik bilgisi üretilmemiş: otomasyon diyagramında cihazı seçip özellik panelinden sır üretin, kaydedin ve PC’deki istemciye girin.'}
           </p>
         </div>
       ) : (
@@ -105,7 +105,7 @@ function PcHeader({ pc }: { pc: PcDetailDto }) {
             {pc.isConnected ? <Badge variant='secondary'>Bağlı</Badge> : <Badge variant='outline'>Bağlı değil</Badge>}
           </h1>
           <p className='text-sm text-muted-foreground'>
-            {pc.cabinetName}
+            {pc.automationName}
             {pc.isConnected && (
               <>
                 {' · '}

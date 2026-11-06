@@ -13,7 +13,7 @@ export interface LatLng {
 
 interface LocationPickerProps {
   /**
-   * Seçili konum. `null` = KONUM YOK — kabinin `latitude`/`longitude` alanları
+   * Seçili konum. `null` = KONUM YOK — otomasyonun `latitude`/`longitude` alanları
    * nullable olduğu için bu gerçek bir durum, varsayılana düşürülmez.
    */
   value: LatLng | null;
@@ -39,7 +39,7 @@ export function LocationPicker({ value, onChange, fallbackCenter = DEFAULT_CENTE
    *
    * Düzenleme formu açılırken `value` sunucudan SONRADAN gelir (`GET
    * .../update` asenkron); viewport hiç senkronlanmasaydı harita Ankara'da
-   * kalır, pin ise kabinin gerçek konumunda olurdu — kullanıcı boş denize
+   * kalır, pin ise otomasyonun gerçek konumunda olurdu — kullanıcı boş denize
    * bakardı. Bu efekt yalnızca `value` İLK KEZ dolduğunda çalışıp kendini
    * kapatıyor.
    *
@@ -109,7 +109,7 @@ export function LocationPicker({ value, onChange, fallbackCenter = DEFAULT_CENTE
           onChange={e => setSearchQuery(e.target.value)}
           onKeyDown={e => {
             // Form içindeyiz: Enter'ın submit tetiklemesi engellenmezse arama
-            // yerine kabin kaydedilir.
+            // yerine otomasyon kaydedilir.
             if (e.key !== 'Enter') return;
             e.preventDefault();
             void handleSearch();
@@ -159,7 +159,7 @@ export function LocationPicker({ value, onChange, fallbackCenter = DEFAULT_CENTE
           </>
         ) : (
           <>
-            <p className='text-xs text-muted-foreground'>Konum belirtilmedi — kabin haritada görünmez.</p>
+            <p className='text-xs text-muted-foreground'>Konum belirtilmedi — otomasyon haritada görünmez.</p>
             <Button type='button' size='xs' variant='outline' onClick={placeMarker}>
               <MapPinPlus />
               Buraya konum koy

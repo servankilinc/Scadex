@@ -4,7 +4,7 @@ using Scadex.Core.Utils.ResultPattern;
 using Scadex.Core.Utils.Validation;
 using Scadex.DataAccess.UoW;
 using Scadex.Model.Dtos.CanvasSettings.Commands;
-using Scadex.Model.Dtos.Diagram.Queries.Items;
+using Scadex.Model.Dtos.Diagram.Queries;
 using Scadex.Model.Entities;
 
 namespace Scadex.Business.Concrete;
@@ -22,23 +22,23 @@ public class CanvasSettingsService : ICanvasSettingsService
     }
 
     /// <inheritdoc />
-    public async Task<Result<DiagramCanvasSettingsDto>> UpsertAsync(Guid cabinetId, CanvasSettingsUpsertDto request, CancellationToken cancellationToken = default)
+    public async Task<Result<DiagramCanvasSettingsDto>> UpsertAsync(Guid automationId, CanvasSettingsUpsertDto request, CancellationToken cancellationToken = default)
     {
         var validationResult = await _validationService.ValidateAsync(request, cancellationToken);
         if (!validationResult.IsValid)
             return Result<DiagramCanvasSettingsDto>.Validation(validationResult.Failures, description: "Validation failed for CanvasSettingsUpsertDto");
 
-        var cabinetExists = await _unitOfWork.Cabinets.IsExistAsync(where: c => c.Id == cabinetId && c.IsActive, cancellationToken: cancellationToken);
+        var automationExists = await _unitOfWork.Automations.IsExistAsync(where: c => c.Id == automationId && c.IsActive, cancellationToken: cancellationToken);
 
-        if (!cabinetExists)
-            return Result<DiagramCanvasSettingsDto>.NotFound(description: "Kabin bulunamadi veya pasif durumda");
+        if (!automationExists)
+            return Result<DiagramCanvasSettingsDto>.NotFound(description: "Otomasyon bulunamadi veya pasif durumda");
 
-        var existing = await _unitOfWork.CanvasSettings.GetAsync(where: s => s.CabinetId == cabinetId, cancellationToken: cancellationToken);
+        var existing = await _unitOfWork.CanvasSettings.GetAsync(where: s => s.AutomationId == automationId, cancellationToken: cancellationToken);
 
         if (existing == null)
         {
             var created = _mapper.Map<CanvasSettings>(request);
-            created.CabinetId = cabinetId;
+            created.AutomationId = automationId;
             await _unitOfWork.CanvasSettings.AddAndSaveAsync(created, cancellationToken);
         }
         else

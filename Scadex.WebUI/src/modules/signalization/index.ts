@@ -105,13 +105,13 @@ export const signalizationModule: AppModule = {
   LayoutExtension: lazy(() => import('./components/layout-extension')),
   // Ana sayfa haritası: açık operatör işlemi olan kabin "işlem yapılıyor" ikonuyla çizilir. Uyarı
   // yoklayıcısıyla aynı sorgu anahtarı — ek istek doğmaz. Anlık güncellemeyi canlı yayın verir.
-  busyCabinetsQuery: busyCabinetsQueryOptions(),
+  busyAutomationsQuery: busyCabinetsQueryOptions(),
   // Alarm bayraklı (kartsız giriş / zorla açma) açık oturumu olan kabin haritada alarm ikonuyla çizilir. Aynı sorgu
   // anahtarı, farklı `select`. Kabin DURUMUNA yansımaz — alarm ile ağ/donanım sağlığı ayrı kavramlardır.
-  alertCabinetsQuery: alertCabinetsQueryOptions(),
+  alertAutomationsQuery: alertCabinetsQueryOptions(),
   // Haritadaki kabin detay paneli: o kabinde devam eden / en son biten işlem ve sahadaki operatörler.
   // `lazy` — kullanıcı bir kabinin detayını açana dek indirilmez.
-  CabinetPanelSection: lazy(() => import('./components/cabinet-session-section')),
+  AutomationPanelSection: lazy(() => import('./components/cabinet-session-section')),
   // Haritadaki kabin detay panelinin EN ÜSTÜ: sanal kabin ekranına kısayol (künyeden önce gelir).
-  CabinetPanelTopAction: lazy(() => import('./components/cabinet-virtual-link'))
+  AutomationPanelTopAction: lazy(() => import('./components/cabinet-virtual-link'))
 };

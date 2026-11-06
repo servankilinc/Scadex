@@ -24,15 +24,17 @@ import { cascadePosition, newAnnotationDraft } from '@/lib/diagram/annotation-de
 import { toRfEdge, type DiagramEdge } from '@/lib/diagram/to-rf-edges';
 import { deviceSize, toAnnotationNode, toDeviceNode, toRfNodes, type AnnotationNode, type DeviceNode, type DiagramNode } from '@/lib/diagram/to-rf-nodes';
 import { toRfEdges } from '@/lib/diagram/to-rf-edges';
-import { AnnotationShape, CameraBrand, DeviceType, EdgeRouting, LineStyle, WireType } from '@/models/enums';
+import { AnnotationShape, CameraBrand, DeviceType, EdgeRouting, LineStyle } from '@/models/enums';
 import { newId } from '@/lib/sequential-id';
 import type { ComponentTemplatePaletteDto } from '@/models/componentTemplate';
-import type {
-  DeviceCreateRequest,
-  DiagramAnnotationItemDto,
-  DiagramConnectionDto,
-  DiagramDeviceDto,
-  DiagramDto
+import {
+  SCADA_MIN_TIMEOUT_MS,
+  type DeviceCreateRequest,
+  type DiagramAnnotationItemDto,
+  type DiagramConnectionDto,
+  type DiagramControlCardDto,
+  type DiagramDeviceDto,
+  type DiagramDto
 } from '@/models/diagram';
 import { setSelection } from '@/store/reducers/diagramSlice';
 
@@ -111,7 +113,7 @@ export interface DiagramEditor {
   activity: DiagramActivity;
 }
 
-export function useDiagramEditor(cabinetId: string, graph: DiagramDto): DiagramEditor {
+export function useDiagramEditor(automationId: string, graph: DiagramDto): DiagramEditor {
   const dispatch = useAppDispatch();
   const queryClient = useQueryClient();
 
@@ -140,7 +142,7 @@ export function useDiagramEditor(cabinetId: string, graph: DiagramDto): DiagramE
    */
   const send = useCallback(
     <T>(request: () => Promise<T>, { optimistic }: { optimistic: boolean }): Promise<T | null> => {
-      const queryKey = diagramKeys.cabinet(cabinetId);
+      const queryKey = diagramKeys.automation(automationId);
       setActivity(current => ({ ...current, pending: current.pending + 1 }));
 
       const task = queueRef.current.then(request).then(
@@ -160,7 +162,7 @@ export function useDiagramEditor(cabinetId: string, graph: DiagramDto): DiagramE
       queueRef.current = task;
       return task;
     },
-    [cabinetId, queryClient]
+    [automationId, queryClient]
   );
 
   const sendLayout = useCallback(
@@ -168,9 +170,9 @@ export function useDiagramEditor(cabinetId: string, graph: DiagramDto): DiagramE
       const devices = changed.filter(isDeviceNode).map(node => toDeviceLayoutItem(node.data.device));
       const annotations = changed.filter(isAnnotationNode).map(node => toAnnotationLayoutItem(node.data.annotation));
       if (devices.length === 0 && annotations.length === 0) return;
-      void send(() => diagramApi.updateLayout(cabinetId, { devices, annotations }), { optimistic: true });
+      void send(() => diagramApi.updateLayout(automationId, { devices, annotations }), { optimistic: true });
     },
-    [cabinetId, send]
+    [automationId, send]
   );
 
   const sendDelete = useCallback(
@@ -178,9 +180,9 @@ export function useDiagramEditor(cabinetId: string, graph: DiagramDto): DiagramE
       const deviceIds = doomedNodes.filter(isDeviceNode).map(node => node.id);
       const annotationIds = doomedNodes.filter(isAnnotationNode).map(node => node.id);
       if (deviceIds.length === 0 && annotationIds.length === 0 && connectionIds.length === 0) return;
-      void send(() => diagramApi.deleteElements(cabinetId, { deviceIds, connectionIds, annotationIds }), { optimistic: true });
+      void send(() => diagramApi.deleteElements(automationId, { deviceIds, connectionIds, annotationIds }), { optimistic: true });
     },
-    [cabinetId, send]
+    [automationId, send]
   );
 
   // ------------------------------------------------- sunucu grafıyla eşitleme
@@ -247,13 +249,12 @@ export function useDiagramEditor(cabinetId: string, graph: DiagramDto): DiagramE
 
       const draft: DiagramConnectionDto = {
         id: newId(),
-        cabinetId,
+        automationId,
         sourcePinId: connection.sourceHandle!,
         targetPinId: connection.targetHandle!,
         sourceDeviceId: connection.source,
         targetDeviceId: connection.target,
         label: null,
-        wireType: WireType.Signal,
         color: DEFAULT_WIRE_COLOR,
         lineStyle: LineStyle.Solid,
         strokeWidth: DEFAULT_WIRE_WIDTH,
@@ -263,20 +264,20 @@ export function useDiagramEditor(cabinetId: string, graph: DiagramDto): DiagramE
       };
 
       setEdges(current => [...current, toRfEdge(draft)]);
-      void send(() => diagramApi.createConnection(cabinetId, toConnectionCreateRequest(draft)), { optimistic: true });
+      void send(() => diagramApi.createConnection(automationId, toConnectionCreateRequest(draft)), { optimistic: true });
     },
-    [cabinetId, connectionContext, send]
+    [automationId, connectionContext, send]
   );
 
   /** Cihazı oluşturur ve sunucunun döndürdüğü hâliyle (pinler, kanallar) tuvale ekler. İyimser DEĞİL: pinler yanıtta gelir. */
   const createDevice = useCallback(
     async (request: DeviceCreateRequest): Promise<boolean> => {
-      const created = await send(() => diagramApi.createDevice(cabinetId, request), { optimistic: false });
+      const created = await send(() => diagramApi.createDevice(automationId, request), { optimistic: false });
       if (!created) return false;
       setNodes(current => [...current, toDeviceNode(created)]);
       return true;
     },
-    [cabinetId, send]
+    [automationId, send]
   );
 
   /** Kamera zorunlu alanları (IP + marka) pencereden ister; diğer tipler beklemeden oluşturulur. */
@@ -314,7 +315,7 @@ export function useDiagramEditor(cabinetId: string, graph: DiagramDto): DiagramE
             template.deviceTypeId === DeviceType.Camera
               ? { brand: CameraBrand.Hikvision, model: null, description: null, username: null, password: null }
               : null,
-          controlCard: template.deviceTypeId === DeviceType.ControlModule ? { macAddress: null } : null,
+          controlCard: template.deviceTypeId === DeviceType.ControlModule ? newControlCard() : null,
           pc: template.deviceTypeId === DeviceType.Pc ? { secret: null } : null
         },
         template.deviceTypeId
@@ -354,7 +355,8 @@ export function useDiagramEditor(cabinetId: string, graph: DiagramDto): DiagramE
           camera: source.camera
             ? { brand: source.camera.brand, model: source.camera.model, description: source.camera.description, username: source.camera.username, password: null }
             : null,
-          controlCard: source.controlCard ? { macAddress: null } : null,
+          // Kopya kartın SCADA'sı kapalı doğar; zaten otomasyon başına tek kart olduğundan sunucu kopyayı 400 ile reddeder.
+          controlCard: source.controlCard ? newControlCard() : null,
           pc: source.pc ? { secret: null } : null
         },
         source.template.deviceTypeId
@@ -380,15 +382,17 @@ export function useDiagramEditor(cabinetId: string, graph: DiagramDto): DiagramE
       if (node?.type !== 'template') return false;
 
       const request = toDeviceUpdateRequest({ ...node.data.device, ...properties });
-      const ok = (await send(() => diagramApi.updateDevice(cabinetId, id, request), { optimistic: false })) !== null;
+      const ok = (await send(() => diagramApi.updateDevice(automationId, id, request), { optimistic: false })) !== null;
       if (!ok) return false;
 
       // Yerleşim istek uçarken değişmiş olabilir: özellikler GÜNCEL node'un üstüne yazılır.
       const saved = savedDeviceProperties(properties);
       setNodes(current => current.map(item => (item.id === id && item.type === 'template' ? withDevice(item, { ...item.data.device, ...saved }) : item)));
+      // Kartın SCADA ayarı otomasyon düzeyinde de okunur (`graph.automation.scadaIsEnabled`: araç çubuğu, komut menüsü): graf tazelenir.
+      if (properties.controlCard) void queryClient.invalidateQueries({ queryKey: diagramKeys.automation(automationId) });
       return true;
     },
-    [cabinetId, send]
+    [automationId, send, queryClient]
   );
 
   const updateDeviceLayout = useCallback(
@@ -412,9 +416,9 @@ export function useDiagramEditor(cabinetId: string, graph: DiagramDto): DiagramE
       const annotation = newAnnotationDraft(newId(), shape, spot, takenNames);
 
       setNodes(current => [...current, toAnnotationNode(annotation)]);
-      void send(() => diagramApi.createAnnotation(cabinetId, toAnnotationCreateRequest(annotation)), { optimistic: true });
+      void send(() => diagramApi.createAnnotation(automationId, toAnnotationCreateRequest(annotation)), { optimistic: true });
     },
-    [cabinetId, send]
+    [automationId, send]
   );
 
   const updateAnnotation = useCallback(
@@ -428,11 +432,11 @@ export function useDiagramEditor(cabinetId: string, graph: DiagramDto): DiagramE
       // İçerik ve yerleşim ayrı uçlardadır; panel tek seferde yalnızca birine dokunur ama ikisi birden de gelebilir.
       if (touchesContent(patch)) {
         const request = toAnnotationUpdateRequest(updated.data.annotation);
-        void send(() => diagramApi.updateAnnotation(cabinetId, id, request), { optimistic: true });
+        void send(() => diagramApi.updateAnnotation(automationId, id, request), { optimistic: true });
       }
       if (touchesLayout(patch)) sendLayout([updated]);
     },
-    [cabinetId, send, sendLayout]
+    [automationId, send, sendLayout]
   );
 
   const updateConnection = useCallback(
@@ -449,9 +453,9 @@ export function useDiagramEditor(cabinetId: string, graph: DiagramDto): DiagramE
           return { ...toRfEdge({ ...item.data.connection, ...patch }), selected: item.selected };
         })
       );
-      void send(() => diagramApi.updateConnection(cabinetId, id, toConnectionUpdateRequest(connection)), { optimistic: true });
+      void send(() => diagramApi.updateConnection(automationId, id, toConnectionUpdateRequest(connection)), { optimistic: true });
     },
-    [cabinetId, send]
+    [automationId, send]
   );
 
   const deleteElements = useCallback(
@@ -519,6 +523,11 @@ export function useDiagramEditor(cabinetId: string, graph: DiagramDto): DiagramE
     updateAnnotation,
     activity
   };
+}
+
+/** Yeni kontrol kartı: MAC'siz ve SCADA'sı kapalı doğar; adres ve MAC kart formundan girilir. */
+function newControlCard(): DiagramControlCardDto {
+  return { macAddress: null, scadaBaseUrl: null, scadaIsEnabled: false, scadaCommandTimeoutMs: SCADA_MIN_TIMEOUT_MS, scadaLastIngestAt: null };
 }
 
 function isDeviceNode(node: DiagramNode): node is DeviceNode {

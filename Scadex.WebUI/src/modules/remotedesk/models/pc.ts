@@ -27,12 +27,12 @@ export const ScreenStreamStateLabels: Record<ScreenStreamState, string> = {
   [ScreenStreamState.Stopped]: 'Durdu'
 };
 
-/** `GET /api/RemoteDesk/pcs` satırı. Ad/kabin/kimlik durumu çekirdekteki cihazdan; bağlantı alanları sunucunun belleğinden. */
+/** `GET /api/RemoteDesk/pcs` satırı. Ad/otomasyon/kimlik durumu çekirdekteki cihazdan; bağlantı alanları sunucunun belleğinden. */
 export interface PcListItemDto {
   deviceId: string;
   deviceName: string;
-  cabinetId: string;
-  cabinetName: string;
+  automationId: string;
+  automationName: string;
   /** `false` = diyagramda Basic Auth sırrı üretilmemiş (ya da iptal edilmiş): istemci bağlanamaz. */
   hasCredential: boolean;
   isConnected: boolean;

@@ -48,7 +48,7 @@ Yanıt:
 
 ---
 
-## 2. SCADA → Merkez: Kabinde ki kart okuyucudan okunan kart bilgisinin geldiği endpoint 
+## 2. SCADA → Merkez: Otomasyondaki kart okuyucudan okunan kart bilgisinin geldiği endpoint 
 
 ```
 POST /api/Scada/card

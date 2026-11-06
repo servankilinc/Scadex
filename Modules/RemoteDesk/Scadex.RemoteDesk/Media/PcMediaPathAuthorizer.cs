@@ -2,7 +2,7 @@ using System.Net;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Scadex.Business.Utils.MediaGateway;
-using Scadex.Model.Dtos.Camera.Commands;
+using Scadex.Model.Dtos.MediaGateway;
 
 namespace Scadex.RemoteDesk.Media;
 

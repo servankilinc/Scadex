@@ -7,11 +7,11 @@ public interface IMonitoredAsset : IEntity
 {
     Guid Id { get; }
     
-    Guid CabinetId { get; set; }
+    Guid AutomationId { get; set; }
     
     string Name { get; set; }
     
-    /// <summary> Eğer router veya NAT arkasında ise kabinin kendi dış IP bilgisi atanmalı port ile ulaşılır, değilse cihaz IP adresi ile ulaşılır. </summary>
+    /// <summary> Eğer router veya NAT arkasında ise otomasyonun kendi dış IP bilgisi atanmalı port ile ulaşılır, değilse cihaz IP adresi ile ulaşılır. </summary>
     string? IpAddress { get; set; }
     
     /// <summary>

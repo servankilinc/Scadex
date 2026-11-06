@@ -6,7 +6,7 @@ namespace Scadex.Model.Entities;
 public class DiagramAnnotation : IEntity, IAuditableEntity
 {
     public Guid Id { get; set; }
-    public Guid CabinetId { get; set; }
+    public Guid AutomationId { get; set; }
     public string Name { get; set; } = null!;
 
     // ------------ Tasarım props ------------
@@ -35,6 +35,6 @@ public class DiagramAnnotation : IEntity, IAuditableEntity
     #endregion
 
     #region *** EF Core Navigation ***
-    public virtual Cabinet? Cabinet { get; set; }
+    public virtual Automation? Automation { get; set; }
     #endregion
 }

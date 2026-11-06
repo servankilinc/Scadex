@@ -2,7 +2,7 @@ using FluentValidation;
 
 namespace Scadex.Model.Dtos.Diagram.Commands;
 
-/// <summary> Paletten not ekleme: <c>POST /api/Diagram/cabinet/{cabinetId}/annotations</c>. Id'yi istemci üretir. </summary>
+/// <summary> Paletten not ekleme: <c>POST /api/Diagram/automation/{automationId}/annotations</c>. Id'yi istemci üretir. </summary>
 public class DiagramAnnotationCreateRequest : DiagramAnnotationUpdateRequest
 {
     public Guid Id { get; set; }

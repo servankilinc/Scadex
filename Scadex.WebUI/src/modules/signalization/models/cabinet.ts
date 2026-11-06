@@ -17,7 +17,7 @@ import type { SignalAuthorityDto } from './authority';
 export interface SignalCabinetOverviewDto {
   cabinetId: string;
   cabinetName: string;
-  /** Çekirdekteki `Cabinet.IsActive`. */
+  /** Çekirdekteki `Automation.IsActive`. */
   cabinetIsActive: boolean;
   isConfigured: boolean;
   /** `false` ise motor bu kabinin olaylarını yok sayar. */

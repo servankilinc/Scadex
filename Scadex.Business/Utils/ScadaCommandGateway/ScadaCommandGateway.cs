@@ -2,7 +2,7 @@ using System.Net.Http.Json;
 using System.Text;
 using System.Text.Json;
 using Scadex.Core.Utils;
-using Scadex.Model.Dtos.Scada.Commands;
+using Scadex.Model.Scada.Commands;
 using static Scadex.Model.Enums.EntityEnums;
 
 namespace Scadex.Business.Utils.ScadaCommandGateway;
@@ -30,7 +30,6 @@ public class ScadaCommandGateway : IScadaCommandGateway
         {
             var client = _httpClientFactory.CreateClient(IScadaCommandGateway.HttpClientName);
 
-            // POST {ScadaBaseUrl}/command + { channelNumber, value } (Docs/scada-http-api.md § 3)
             using var response = await client.PostAsJsonAsync(
                 $"{baseUrl.TrimEnd('/')}/command",
                 new ScadaCommandRequest(envelope.ChannelNumber, envelope.Value),

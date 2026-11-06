@@ -3,7 +3,7 @@ using FluentValidation;
 namespace Scadex.Model.Dtos.Diagram.Commands;
 
 /// <summary>
-/// Kablo çizme: <c>POST /api/Diagram/cabinet/{cabinetId}/connections</c>. Id'yi istemci üretir; iki uç da bu kabinde
+/// Kablo çizme: <c>POST /api/Diagram/automation/{automationId}/connections</c>. Id'yi istemci üretir; iki uç da bu otomasyonda
 /// KALICI pinler olmalıdır (cihaz bırakılınca anında oluşturulduğu için kaydedilmemiş pin yoktur).
 /// </summary>
 public class ConnectionCreateRequest : ConnectionUpdateRequest

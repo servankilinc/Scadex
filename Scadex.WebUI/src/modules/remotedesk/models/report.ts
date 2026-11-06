@@ -28,8 +28,8 @@ export const RemoteControlEndReasonLabels: Record<RemoteControlEndReason, string
 /** Ortak filtre — `POST .../reports/{views|controls|summary}` gövdesi. Tarih aralığı kaydın başlangıcına uygulanır. */
 export interface RemoteAccessReportQuery {
   deviceId: string | null;
-  /** PC'nin BUGÜN bağlı olduğu kabin — sunucu kabindeki cihazları çekirdekten çözer. */
-  cabinetId: string | null;
+  /** PC'nin BUGÜN bağlı olduğu otomasyon — sunucu otomasyondaki cihazları çekirdekten çözer. */
+  automationId: string | null;
   userId: string | null;
   fromUtc: string | null;
   toUtc: string | null;
@@ -42,7 +42,7 @@ export interface ScreenViewReportItemDto {
   id: number;
   deviceId: string;
   deviceName: string | null;
-  cabinetName: string | null;
+  automationName: string | null;
   monitorIndex: number;
   userId: string;
   userFullName: string | null;
@@ -57,7 +57,7 @@ export interface RemoteControlReportItemDto {
   id: string;
   deviceId: string;
   deviceName: string | null;
-  cabinetName: string | null;
+  automationName: string | null;
   userId: string;
   userFullName: string | null;
   userName: string | null;
@@ -70,7 +70,7 @@ export interface RemoteControlReportItemDto {
 export interface ReportPcTotalDto {
   deviceId: string;
   deviceName: string | null;
-  cabinetName: string | null;
+  automationName: string | null;
   seconds: number;
 }
 
@@ -94,9 +94,9 @@ export interface RemoteAccessSummaryDto {
 export interface ReportPcOptionDto {
   deviceId: string;
   deviceName: string | null;
-  /** Kabin filtresinin seçenekleri buradan türetilir. `null` = cihaz çekirdekte artık yok. */
-  cabinetId: string | null;
-  cabinetName: string | null;
+  /** Otomasyon filtresinin seçenekleri buradan türetilir. `null` = cihaz çekirdekte artık yok. */
+  automationId: string | null;
+  automationName: string | null;
 }
 
 export interface ReportUserOptionDto {

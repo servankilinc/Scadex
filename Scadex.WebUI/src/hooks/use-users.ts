@@ -71,7 +71,7 @@ export function useChangeUserPassword() {
   });
 }
 
-/** Okutulan kartı kullanıcıya atar (Kabinler → "Kart tanımlama"). Başarı/hata bildirimi pencerededir. */
+/** Okutulan kartı kullanıcıya atar (Otomasyonlar → "Kart tanımlama"). Başarı/hata bildirimi pencerededir. */
 export function useAssignUserIdentityCard() {
   const queryClient = useQueryClient();
 

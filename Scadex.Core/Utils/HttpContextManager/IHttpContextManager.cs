@@ -1,4 +1,3 @@
-using Scadex.Core.Enums;
 using Scadex.Core.Utils.ResultPattern;
 
 namespace Scadex.Core.Utils.HttpContextManager;
@@ -9,13 +8,6 @@ public interface IHttpContextManager
     Result<string> GetName();
     Result<string> GetUserAgent();
     Result<string> GetClientIp();
-
-    #region Culture Language
-    Result<string> GetCurrentCulture();
-    Result<byte> GetCurrentLanguageId();
-    Result<Language> GetCurrentLanguage();
-    Result SetCurrentCulture(string culture);
-    #endregion
 
     #region Refresh Token
     Result<string> GetRefreshTokenFromCookie();

@@ -4,7 +4,7 @@ using Scadex.Core.Model;
 namespace Scadex.Model.Dtos.Diagram.Commands;
 
 /// <summary>
-/// Tuvaldeki yerleşim: <c>PUT /api/Diagram/cabinet/{cabinetId}/layout</c>. Sürükleme bitişi, hizala/dağıt, ok tuşuyla itme,
+/// Tuvaldeki yerleşim: <c>PUT /api/Diagram/automation/{automationId}/layout</c>. Sürükleme bitişi, hizala/dağıt, ok tuşuyla itme,
 /// boyut, z-sırası, kilit ve görünürlük buradan yazılır. Diyagramın kalan TEK toplu ucudur ve bilerek referans taşımaz:
 /// her kayıt yalnızca kendi satırını günceller, sıralama ya da kayıtlar arası tutarlılık sorusu doğmaz.
 /// </summary>

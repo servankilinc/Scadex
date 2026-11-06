@@ -18,7 +18,7 @@ import type { AnnotationShape } from '@/models/enums';
 import type { DiagramDto, PointDto } from '@/models/diagram';
 
 /**
- * Diyagram editörü — route: `/cabinets/:cabinetId/diagram`
+ * Diyagram editörü — route: `/automations/:automationId/diagram`
  *
  * Bu modül `main.tsx`'te lazy yüklenir: `@xyflow/react` ağır bir bağımlılıktır ve
  * editöre hiç girmeyen kullanıcı onu indirmemeli.
@@ -32,8 +32,8 @@ import type { DiagramDto, PointDto } from '@/models/diagram';
 const shellClass = 'flex min-h-0 flex-1 flex-col';
 
 export default function Diagram() {
-  const { cabinetId } = useParams<{ cabinetId: string }>();
-  const { data, isPending, isError, error } = useDiagramGraph(cabinetId);
+  const { automationId } = useParams<{ automationId: string }>();
+  const { data, isPending, isError, error } = useDiagramGraph(automationId);
 
   if (isPending) {
     return (
@@ -53,8 +53,8 @@ export default function Diagram() {
     return (
       <div className={`${shellClass} items-center justify-center gap-3`}>
         <p className='text-destructive text-sm'>{error.message}</p>
-        <Button variant='outline' size='sm' render={<Link to='/cabinets' />}>
-          Kabinlere dön
+        <Button variant='outline' size='sm' render={<Link to='/automations' />}>
+          Otomasyonlara dön
         </Button>
       </div>
     );
@@ -64,13 +64,13 @@ export default function Diagram() {
   // kurar, dolayısıyla graf gelmeden çağrılamaz — koşullu hook yazılamayacağı
   // için yükleme dalları bu bileşenin dışında kalmak zorunda.
   //
-  // `key`: başka bir kabine geçildiğinde editör state'i SIFIRLANMALI. Aynı
-  // bileşen örneği kalsaydı, önceki kabinin node'ları yenisinin üstüne taşınırdı.
-  return <DiagramEditorShell key={cabinetId} cabinetId={cabinetId!} graph={data} />;
+  // `key`: başka bir otomasyona geçildiğinde editör state'i SIFIRLANMALI. Aynı
+  // bileşen örneği kalsaydı, önceki otomasyonun node'ları yenisinin üstüne taşınırdı.
+  return <DiagramEditorShell key={automationId} automationId={automationId!} graph={data} />;
 }
 
-function DiagramEditorShell({ cabinetId, graph }: { cabinetId: string; graph: DiagramDto }) {
-  const editor = useDiagramEditor(cabinetId, graph);
+function DiagramEditorShell({ automationId, graph }: { automationId: string; graph: DiagramDto }) {
+  const editor = useDiagramEditor(automationId, graph);
 
   // Rota `ViewDiagram` ister; düzenleme ve kumanda ayrı izinlerdir (sunucu ikisini de 403 ile zorlar).
   // `EditDiagram` yoksa editör salt okunur: palet yok, tuval sürükleme/bağlama/silme kabul etmez, istek göstergesi çizilmez.
@@ -81,7 +81,7 @@ function DiagramEditorShell({ cabinetId, graph }: { cabinetId: string; graph: Di
   // Canlı yayın. Hook telemetriyi harici store'a yazar ve BURAYA HİÇBİR ŞEY
   // döndürmez (durum dışında) — değerleri prop olarak aşağı taşımak, her tick'te
   // tüm ağacı yeniden çizdirirdi. `TemplateNode` onları kendi kimliğiyle okur.
-  const hubStatus = useDiagramLive(cabinetId);
+  const hubStatus = useDiagramLive(automationId);
 
   // Node ve edge bileşenlerinin ihtiyaç duyduğu, `data`'ya sığmayan her şey.
   // React Flow onlara yalnızca `data` ulaştırdığı için context kullanılıyor.
@@ -93,15 +93,15 @@ function DiagramEditorShell({ cabinetId, graph }: { cabinetId: string; graph: Di
   const { deleteElements, duplicateDevice, updateConnection } = editor;
   const canvasContext = useMemo(
     () => ({
-      cabinetId,
-      scadaIsEnabled: graph.cabinet.scadaIsEnabled,
+      automationId,
+      scadaIsEnabled: graph.automation.scadaIsEnabled,
       canEdit,
       canControl,
       onDelete: (deviceId: string) => deleteElements([deviceId], []),
       onDuplicate: duplicateDevice,
       onWaypointsChange: (connectionId: string, waypoints: PointDto[]) => updateConnection(connectionId, { waypoints })
     }),
-    [cabinetId, graph.cabinet.scadaIsEnabled, canEdit, canControl, deleteElements, duplicateDevice, updateConnection]
+    [automationId, graph.automation.scadaIsEnabled, canEdit, canControl, deleteElements, duplicateDevice, updateConnection]
   );
 
   return (
@@ -112,14 +112,14 @@ function DiagramEditorShell({ cabinetId, graph }: { cabinetId: string; graph: Di
       <DiagramCanvasProvider value={canvasContext}>
         <div className={shellClass}>
           <DiagramToolbar
-            cabinet={graph.cabinet}
+            automation={graph.automation}
             settings={graph.canvasSettings}
             activity={editor.activity}
             hubStatus={hubStatus}
             readOnly={!canEdit}
           />
 
-          {graph.cabinet.scadaIsEnabled && <LiveDisconnectedBanner status={hubStatus} />}
+          {graph.automation.scadaIsEnabled && <LiveDisconnectedBanner status={hubStatus} />}
 
           <EditorBody editor={editor} graph={graph} readOnly={!canEdit} />
         </div>

@@ -7,7 +7,7 @@ using Scadex.RemoteDesk.Windows.Services.Agent;
 namespace Scadex.RemoteDesk.Windows.ViewModels;
 
 /// <summary>
-/// Ana ekrandaki merkez bağlantısı kartı: Agent'ın merkez bağlantısı, eşlenen kabin/cihaz ve bu PC'nin cihaz kimliği. Merkez bu PC'nin
+/// Ana ekrandaki merkez bağlantısı kartı: Agent'ın merkez bağlantısı, eşlenen otomasyon/cihaz ve bu PC'nin cihaz kimliği. Merkez bu PC'nin
 /// ekranını izlerken belirgin "izleniyor" uyarısı da buradadır (tepsi ikonu da buna bakar) — izleme ve uzaktan kontrol fark edilmeden
 /// yapılmaz. Bütün veri Agent'ın özetinden gelir (<see cref="Apply"/>, yalnızca UI iş parçacığında çağrılır).
 /// </summary>
@@ -91,7 +91,7 @@ public class ConnectionVM : BaseViewModel
 
         (Title, StateBrush, _connectionShort) = c.State switch
         {
-            AgentConnectionState.Connected => ($"Bağlı — {c.CabinetName} / {c.DeviceName}", Green, $"Bağlı: {c.DeviceName}"),
+            AgentConnectionState.Connected => ($"Bağlı — {c.AutomationName} / {c.DeviceName}", Green, $"Bağlı: {c.DeviceName}"),
             AgentConnectionState.Connecting => ("Bağlanıyor…", Amber, "Bağlanıyor"),
             AgentConnectionState.Unauthorized => ("Kimlik bilgisi reddedildi", Red, "Kimlik reddedildi"),
             AgentConnectionState.AlreadyConnected => ("Bu cihaz başka bir bağlantıda", Amber, "Başka bağlantıda"),

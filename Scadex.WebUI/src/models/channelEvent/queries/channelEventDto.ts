@@ -12,7 +12,7 @@ export interface ChannelEventDto {
    */
   id: number;
   ioChannelId: string;
-  cabinetId: string;
+  automationId: string;
 
   // Aşağıdaki beş alan TÜREVDİR ve hepsi null olabilir.
   //

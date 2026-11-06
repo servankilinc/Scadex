@@ -138,8 +138,8 @@ Kart okuması ayrı uçtur: `POST /api/Scada/card` → `{ "cardId": "…", "time
 
 #### Kimlik — `DeviceId` (MAC) header'ı (2026-10-28)
 
-Kart ekibine verilen güncel sözleşme: [scada-http-api.md](scada-http-api.md). Kabin gövdede **yoktur**; isteği gönderen kontrol kartının
-MAC adresinden çözülür (bir kabin = bir kontrol kartı). Her istek `DeviceId: AA:BB:CC:DD:EE:FF` başlığı taşır; MAC diyagramın özellik
+Kart ekibine verilen güncel sözleşme: [scada-http-api.md](scada-http-api.md). Otomasyon gövdede **yoktur**; isteği gönderen kontrol kartının
+MAC adresinden çözülür (bir otomasyon = bir kontrol kartı). Her istek `DeviceId: AA:BB:CC:DD:EE:FF` başlığı taşır; MAC diyagramın özellik
 panelinde **Kontrol kartı → MAC adresi** alanına girilir. Ayraç/harf farkı önemsizdir (iki taraf da tek tipe çevrilir).
 
 ```bash

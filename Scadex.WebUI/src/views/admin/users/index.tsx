@@ -157,7 +157,7 @@ function IdentityCardField({ id, registration, error }: { id: string; registrati
 function UserCreateDialog({ onClose }: { onClose: () => void }) {
   const companies = useCompanies();
   // Yalnızca AKTİF firmalar — pasife alınmış firmaya yeni kullanıcı bağlanmamalı
-  // (kabin formundaki gerekçenin aynısı). Firma sonradan değiştirilemez.
+  // (otomasyon formundaki gerekçenin aynısı). Firma sonradan değiştirilemez.
   const companyOptions = (companies.data ?? []).filter(company => company.isActive);
 
   const form = useForm<UserCreateRequest>({

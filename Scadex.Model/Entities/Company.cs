@@ -20,7 +20,7 @@ public class Company : IEntity, IAuditableEntity, IActivatableEntity
     #endregion
 
     #region *** EF Core Navigation ***
-    public virtual ICollection<Cabinet>? Cabinets { get; set; }
+    public virtual ICollection<Automation>? Automations { get; set; }
     public virtual ICollection<User>? Users { get; set; }
     #endregion
 }

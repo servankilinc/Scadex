@@ -1,6 +1,6 @@
 import Home from './home';
 import About from './about';
-import Cabinets from './cabinets';
+import Automations from './automations';
 import ChannelEvents from './events';
 import Profile from './profile';
 
@@ -9,7 +9,7 @@ import Profile from './profile';
 export default {
   Home,
   About,
-  Cabinets,
+  Automations,
   ChannelEvents,
   Profile
 };

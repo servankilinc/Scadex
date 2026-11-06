@@ -16,8 +16,14 @@ protokol detayı), [Docs/data-structor.md](Docs/data-structor.md) (veri modeli n
 değiştiren bir iş yaparsanız ilgili bölümü de güncelleyin).
 
 Scadex kısaca: sahadaki bir SCADA'nın **üstünde** çalışan süpervizyon platformu. Modbus/seri
-port konuşmaz; SCADA ile HTTP üzerinden yalnızca `{ kabin, pin adresi (IN7/OUT5), değer }`
+port konuşmaz; SCADA ile HTTP üzerinden yalnızca `{ otomasyon, pin adresi (IN7/OUT5), değer }`
 üçlüsünü değiş tokuş eder. Anlam koda gömülmez, operatörün çizdiği pano şemasından okunur.
+
+**Adlandırma (2026-11-04):** çekirdeğin birimi (SCADA kartı + diyagram + cihazlar) **Automation / Otomasyon**'dur
+(`Automation` entity'si, `AutomationId`, `/api/Automation`, `/automations`). **Cabinet / Kabin yalnızca sinyalizasyon
+çözümünün kavramıdır** (`SignalCabinet`, `signalization.Cabinet`, sanal kabin, `SignalVirtualCabinet`); modülün
+çekirdeği gösteren `CabinetId` alanları çekirdeğin `Automation` Id'sidir. Çekirdeğe ya da diğer modüllere yeniden
+"cabinet" adı koymayın; sinyalizasyonun adlarını da "automation"a çevirmeyin.
 
 ## Çalışma dili
 
@@ -33,13 +39,19 @@ dotnet build Scadex.slnx
 dotnet run --project Scadex.WebAPI          # http://localhost:5208 + https://localhost:7167
                                             # OpenAPI: /openapi/v1.json — Scalar UI: /scalar
 
-# Üç DbContext var: --context ZORUNLU (vermezseniz "More than one DbContext was found")
+# Dört DbContext var: --context ZORUNLU (vermezseniz "More than one DbContext was found").
+# database update SIRASI: çekirdek → CameraManagement → Signalization / RemoteDesk (kamera modülünün ilk migration'ı
+# çekirdeğin dbo.CameraCapture* tablolarını kendi şemasına TAŞIR; çekirdekten önce çalışırsa tablo bulunamaz).
 dotnet ef migrations add <Ad> --project Scadex.DataAccess --startup-project Scadex.WebAPI --context AppDbContext
 dotnet ef database update     --project Scadex.DataAccess --startup-project Scadex.WebAPI --context AppDbContext
 
-# Sinyalizasyon modülü (signalization şeması, kendi migration geçmişi)
-dotnet ef migrations add <Ad> --project Scadex.Signalization --startup-project Scadex.WebAPI --context SignalizationDbContext --output-dir Data/Migrations
-dotnet ef database update     --project Scadex.Signalization --startup-project Scadex.WebAPI --context SignalizationDbContext
+# CameraManagement modülü (cameramanagement şeması, kendi migration geçmişi)
+dotnet ef migrations add <Ad> --project Modules/CameraManagement/Scadex.CameraManagement --startup-project Scadex.WebAPI --context CameraManagementDbContext --output-dir Data/Migrations
+dotnet ef database update     --project Modules/CameraManagement/Scadex.CameraManagement --startup-project Scadex.WebAPI --context CameraManagementDbContext
+
+# Sinyalizasyon çözümü (signalization şeması, kendi migration geçmişi)
+dotnet ef migrations add <Ad> --project Solutions/Signalization/Scadex.Signalization --startup-project Scadex.WebAPI --context SignalizationDbContext --output-dir Data/Migrations
+dotnet ef database update     --project Solutions/Signalization/Scadex.Signalization --startup-project Scadex.WebAPI --context SignalizationDbContext
 
 # RemoteDesk modülü (remotedesk şeması, kendi migration geçmişi — RemoteDesk.md)
 dotnet ef migrations add <Ad> --project Modules/RemoteDesk/Scadex.RemoteDesk --startup-project Scadex.WebAPI --context RemoteDeskDbContext --output-dir Data/Migrations
@@ -58,8 +70,9 @@ npm run lint
 
 Bilinmesi gerekenler:
 
-- **`Scadex.WebUI` çözüme dahil değildir.** `Scadex.slnx` 10 .NET projesini taşır (5 çekirdek katman +
-  `Scadex.Signalization` + `Modules/RemoteDesk/` altındaki dört proje); frontend ayrı çalıştırılır. Çözümde PC tarafı
+- **`Scadex.WebUI` çözüme dahil değildir.** `Scadex.slnx` 11 .NET projesini taşır (5 çekirdek katman +
+  `Modules/RemoteDesk/` altındaki dört proje + `Modules/CameraManagement/Scadex.CameraManagement` +
+  `Solutions/Signalization/Scadex.Signalization`); frontend ayrı çalıştırılır. Çözümde PC tarafı
   (`Scadex.RemoteDesk.Windows.Service` + `Scadex.RemoteDesk.Windows`, `net10.0-windows`) olduğu için `dotnet build Scadex.slnx` yalnızca Windows'ta derlenir.
 - **Test paketi yoktur.** Otomatik kontrol yalnızca `dotnet build` ve frontend tarafında
   `npm run lint` + `npm run build`. Davranış, uygulamayı çalıştırarak doğrulanır — bir
@@ -77,7 +90,7 @@ Bilinmesi gerekenler:
   okuması da onun `cam_{id}_main` yolundan geçer. Portlar yml'dedir ve `appsettings.json > MediaGateway`
   ile **elle senkron** tutulur; eşleşme listesi yml'nin en başındadır. Scadex'in kullanmadığı protokoller
   (rtmp/hls/srt/moq, RTSP udp/multicast) yml'de port açmasın diye kapalıdır — açmayın.
-- **FFmpeg'i uygulama kendisi çağırır** (anlık görüntü + klip, `CameraCaptureGateway`). Yol
+- **FFmpeg'i uygulama kendisi çağırır** (anlık görüntü + klip, `CameraCaptureGateway` — CameraManagement modülü). Yol
   `MediaGateway:FfmpegPath` ayarıdır (varsayılan `MediaTools/ffmpeg/ffmpeg.exe`, göreliyse
   `ContentRootPath` altından). **`MediaTools/` git'te yoktur** — FFmpeg, MediaMTX ve `mediamtx.yml` dahil
   (`.gitignore`; exe GitHub'ın 100 MiB sınırını aşıyor) — yeni klonda ve her sunucuda elle konur,
@@ -114,15 +127,31 @@ uzantısı vardır; `Program.cs` bunları sırayla çağırır.
 - **WebAPI** — `BaseController`'dan türeyen ince controller'lar, `DiagramHub`, hosted
   service'ler, exception middleware.
 
-### Müşteri modülleri — `Scadex.Signalization`
+### Modüller ve çözümler (2026-10-29)
 
 ```
-Core → Model → DataAccess → Business → WebAPI
-                                ↑          │
-                    Scadex.Signalization ←─┘   (yalnızca WebAPI referans alır, Program.cs kaydeder)
+Core → Model → DataAccess → Business → WebAPI        çekirdek: otomasyon, diyagram, SCADA, canlılık, yetki,
+   ↑                                    │               cihaz tipleri + ek tabloları (Camera, PcDevice…), medya geçidi
+   ├── Modules/CameraManagement/…  ←────┤           yetenek (yatay): birçok cihaz tipine / müşteriye uygulanır
+   ├── Modules/RemoteDesk/…        ←────┤           yetenek
+   └── Solutions/Signalization/…   ←────┘           çözüm (dikey): müşteri/sektör iş akışı  ──→ Modules/CameraManagement
 ```
 
-Firmaya özel iş (sinyalizasyon operatör işlemi takibi) çekirdeğe **girmez**, bu class library'de
+İki tür eklenti vardır ve **paketleme mekanizması aynıdır** (aşağıdaki `Modules:<Ad>:Enabled` kalıbı; "modül" mekanizmanın adıdır,
+`Modules/` / `Solutions/` yalnızca fiziksel yerleşimdir):
+- **Yetenek modülü (`Modules/`)** — müşteriye bağlı olmayan, birçok cihaza uygulanabilen özellik; çoğu zaman kendi ajanını/protokolünü
+  getirir: `CameraManagement` (kamera izleme/çekim), `RemoteDesk` (PC ekranı).
+- **Çözüm (`Solutions/`)** — müşteri/sektör iş akışı; çekirdeğin olaylarını ve komutlarını (ve gerekirse yeteneklerini) birleştirir,
+  oturum/durum makinesi taşır: `Signalization`; yarın ATM, kiosk, sıramatik iş akışları.
+- **Bağımlılık:** modüller yalnızca çekirdeğe referans verir; çözümler çekirdeğe ve **ihtiyaç duydukları modüllere** (Signalization →
+  CameraManagement; açılışta denetlenir, kamera modülü kapalıyken Signalization'ı açmak açılışta istisna atar). Modül → çözüm, modül ↔ modül,
+  çözüm ↔ çözüm referansı **yoktur**; ortak ihtiyaç çekirdeğe genel bir arayüz olarak iner (`IScadaEventObserver`, `IMediaPathAuthorizer`,
+  `IDeviceChangeObserver`). Bir modülün tablosunu başka bir context'e eşlemeyin — sahibinin servisini çağırın (Signalization kareleri
+  `ICameraMediaService.GetCapturesByIdsAsync` ile okur).
+- **Yeni bir ATM / kiosk / sıramatik önce cihaz tipidir** (çekirdek: `DeviceType` + şablon + ek tablo); "modül" refleksiyle açılmaz.
+  Cihaza özel telemetri ajanı gerekirse `Modules/`'a, sektörün iş akışı `Solutions/`'a gider.
+
+Firmaya özel iş (sinyalizasyon operatör işlemi takibi) çekirdeğe **girmez**, kendi class library'sinde
 durur. Ayrıntı: PROJECT_OVERVIEW.md § 10.
 
 - **Modül kurulum başına açılır: `Modules:Signalization:Enabled`** (tanımsız = kapalı).
@@ -150,12 +179,13 @@ durur. Ayrıntı: PROJECT_OVERVIEW.md § 10.
 - **İkinci modül: `Scadex.RemoteDesk` (PC ekran izleme, `Modules:RemoteDesk:Enabled`).** Şartnamesi, fazları ve
   kararları depo kökündeki [RemoteDesk.md](RemoteDesk.md)'dedir. Çekirdekteki izleri: `DeviceType.Pc` (sistem şablonu
   "Bilgisayar", Id'si eski Peripheral kimliğinde kalır) ve MediaMTX auth kancasındaki `IMediaPathAuthorizer` —
-  `cam_` yolları ona **hiç sorulmaz**, modül `pc_` yollarını üstlenir, kimsenin üstlenmediği yol 401'dir.
+  modül `pc_` yollarını üstlenir (kamera modülü `cam_`'i); kimsenin üstlenmediği **ya da birden fazlasının üstlendiği** yol 401'dir
+  (`MediaGatewayController`), önekleri ayrık tutun.
   `IMediaGateway.GetRuntimePathAsync` / `KickPublisherAsync` yalnızca yapılandırmada OLMAYAN, yayıncıyla yaşayan `pc_` yolları
   içindir (yol hazır mı, uymayan yayıncıyı at). `pc_` yolları `MediaPathCleanupWorker`'a görünmez ve görünmemeli: temizlenecek
   yapılandırma yoktur, yayıncıyı/oturumu modülün kiralama mekanizması durdurur.
-  **PC istemcisinin bağlı olup olmadığı kabin durumuna bilerek yansımaz (2026-09-30):** yalnızca bellekte (`PcConnectionRegistry`);
-  `ICabinetStatusService`'e kanıt olarak vermeyin — uygulama kapanınca kabin `Warning`'e düşerdi. İzlendiğine dair onay da
+  **PC istemcisinin bağlı olup olmadığı otomasyon durumuna bilerek yansımaz (2026-09-30):** yalnızca bellekte (`PcConnectionRegistry`);
+  `IAutomationStatusService`'e kanıt olarak vermeyin — uygulama kapanınca otomasyon `Warning`'e düşerdi. İzlendiğine dair onay da
   bilerek yoktur (gösterge + `ScreenViewLog`). **Modülün HTTP uçları `RemotePcView` iznini ister:** policy adı
   `RemoteDeskModule.ViewPolicy` = izin kodu `Permission.RemotePcView` — enum'u yeniden adlandırmayın. Policy'ler 2026-10-14'ten beri
   modülde değil çekirdekte tek yerde kaydedilir (aşağıdaki "İzin zorlaması"). `PcHub` kullanıcı JWT'si istemez; PC kendi Basic Auth
@@ -241,6 +271,20 @@ durur. Ayrıntı: PROJECT_OVERVIEW.md § 10.
   PcHub `MaximumReceiveMessageSize` 4 MB** (diğer hub'lar varsayılan 32 KB). İçerik **loglanmaz/denetlenmez** (parola olabilir). Güvenli
   bağlamda tek-tık `navigator.clipboard`; yoksa (HTTP) iki adımlı pencere (`components/clipboard-dialog.tsx`: Ctrl+V ile gönder / seçili
   metni `execCommand('copy')` ya da Ctrl+C ile al — 2026-10-26). PC panosu Agent'ın kendi STA iş parçacığında (`Services/Clipboard/ClipboardAccess`).
+- **Üçüncü modül: `Scadex.CameraManagement` (kamera izleme ve çekim, `Modules:CameraManagement:Enabled`, 2026-10-29).** RemoteDesk'in PC
+  kalıbıyla aynı ayrım: kameranın **cihaz kısmı çekirdektedir** — `DeviceType.Camera`, "IP Kamera" şablonu, `Camera` ek tablosu, diyagramın
+  kamera alanları/oluşturma penceresi, `ICameraProtocolProfile` (RTSP adresi + port), `StreamProfile`/`CameraBrand` ve kamera bilgisi ekranının
+  uçları (`CameraController`: liste/detay/`PUT`, `ICameraService`). **Modüldedir:** canlı izleme bileti, anlık görüntü, kare/klip çekimi
+  (`ICameraMediaService`), `CameraCapture` + `CameraCaptureSettings` tabloları (`cameramanagement` şeması, `CameraManagementDbContext`), FFmpeg
+  (`CameraCaptureGateway`), dosya deposu, `ClipCaptureWorker` / `CaptureRetentionWorker` / `MediaPathCleanupWorker`, `cam_` yolları
+  (`CameraMediaPaths`) ve onların auth'u (`CameraMediaPathAuthorizer`: yalnızca `read` + bilet). Medya uçları çekirdekteki adresleri korur
+  (`CameraMediaController` `[Route("api/Camera")]`, `CameraCaptureSettingController`); modül kapalıyken 404'tür, cihaz uçları kalır.
+  **Medya geçidi çekirdektedir ve kaynağı bilmez** (`IMediaGateway.EnsureSourcePathAsync(pathName, sourceUrl)` /
+  `DeleteSourcePathIfStaleAsync`): kamera ile RemoteDesk ortak kullanır — kameraya özgü yol adı/kaynak kodunu geçide geri koymayın.
+  Kamera bilgisi değişince yolun düşürülmesi çekirdeğin **`IDeviceChangeObserver`** kancasıyladır (commit sonrası; aşağıdaki kamera kuralı).
+  Tablolar 2026-10-29'a kadar `dbo`'daydı: modülün ilk migration'ı (`InitialCameraManagement`) onları veriyle birlikte `ALTER SCHEMA … TRANSFER`
+  ile taşır, çekirdeğin `MoveCameraCapturesToCameraManagement`'ı yalnızca FK'leri düşürür — ikisi de elle yazılmıştır, `CreateTable` /
+  `DropTable` ile "düzeltmeyin" (veri kaybolur). Çekim dosyaları yine `wwwroot/{CaptureRoot}` altında, `UseStaticFiles` ile sunulur.
 
 - **Çekirdek modülü bilmez.** Tek temas noktası `IScadaEventObserver` (Business/Utils/ScadaEvents):
   ingest (değer gerçekten değişince), **başarılı çıkış komutu** (kanal değeri değişince, `Direction =
@@ -251,7 +295,7 @@ durur. Ayrıntı: PROJECT_OVERVIEW.md § 10.
   beklediği `SendAsync`'in içinden de gelir). **Karttan okuma (`GET /status`, 2026-10-28)** de değişen kanalı aynı yoldan bildirir
   (`ChannelEventService.ApplyChannelValuesAsync`, ingest ile ortak) ama `ChannelChangedNotification.Source = Sync` ile: değişimin
   ne zaman olduğu bilinmez. Sinyalizasyon `Sync` girişini motora vermez (yalnızca canlı yayın) — geç fark edilen kapı açılışı oturum
-  açmasın; bu ayrımı kaldırmayın. Okumayı tetikleyenler: diyagramdaki "Kartı oku" (`POST /api/Cabinet/{id}/scada-sync`, `ViewDiagram`;
+  açmasın; bu ayrımı kaldırmayın. Okumayı tetikleyenler: diyagramdaki "Kartı oku" (`POST /api/Automation/{id}/scada-sync`, `ViewDiagram`;
   yanıt yalnızca özet, değerler hub'dan gelir) ve kontrol kartının izleme turu. Sinyalizasyon okumayı kendisi çağırmaz (motor kuyruğu
   kartı beklerdi; düzeltilmiş kanal değerini zaten okur).
 - **Modül durum TUTMAZ (2026-09-21).** Kapı/siren/aydınlatma/kilit durumu yalnızca çekirdekteki kanalın
@@ -260,25 +304,25 @@ durur. Ayrıntı: PROJECT_OVERVIEW.md § 10.
   ters), karttan okunduysa kartın bildirdiği fiziksel değer (`IChannelEventService.SyncFromScadaAsync`); mantıksal okuma çekirdekte `IIoChannelService.GetOutputStatesAsync` / `IOutputPolarityResolver`
   ile yapılır, NO/NC mantığını modülde kopyalamayın. `null` = bilinmiyor.
 - **Modül çekirdek tablolarına doğrudan YAZMAZ.** Komut `IDeviceCommandService.SendAsync`, kare
-  `ICameraService.CreateCaptureAsync`, rol ataması `IUserRoleService.SyncAsync` üzerinden gider;
+  `ICameraMediaService.CreateCaptureAsync` (CameraManagement modülü), rol ataması `IUserRoleService.SyncAsync` üzerinden gider;
   çekirdeği `IUnitOfWork` ile yalnızca **projeksiyonla okur**.
 - **Kendi context'i, kendi şeması:** `SignalizationDbContext`, `signalization` şeması,
-  `signalization.__EFMigrationsHistory`. Çekirdeğe referanslar (CabinetId, IoChannelId, UserId, CameraId…)
+  `signalization.__EFMigrationsHistory`. Çekirdeğe referanslar (CabinetId = çekirdeğin Automation Id'si, IoChannelId, UserId, CameraId…)
   **FK değildir**; bütünlük yapılandırma kaydında servis doğrulamasıyla sağlanır.
   `RepositoryBase` Identity context'ine bağlı olduğu için modülde kullanılmaz.
-- **"Bu kabin modülün mü" kodda sorulmaz:** `signalization.Cabinet` satırı yoksa olay yok sayılır.
+- **"Bu otomasyon modülün mü" kodda sorulmaz:** `signalization.Cabinet` satırı yoksa olay yok sayılır.
 - **Kapı sanaldır; ilişki `IoChannel`'a kurulur, `Device`'a değil** (Device kartın tamamıdır).
 - Modül controller'ları `BaseController`'ı miras alamaz (WebAPI'de); `SignalizationControllerBase`
   aynı ProblemDetails sözleşmesini Core'un `GetProblemDetail`'i ile kurar. **Modül HTTP uçları çekirdekle aynı rate limit'tedir
   (2026-10-26, kullanıcı kararı — 2026-09-11'deki "modüle rate limit yok" kararının yerine):** taban sınıf
-  (`SignalizationControllerBase`, `RemoteDeskControllerBase`) `[EnableRateLimiting(RateLimiterKey.Default)]` taşır; politika adları bu yüzden
+  (`SignalizationControllerBase`, `RemoteDeskControllerBase`, `CameraManagementControllerBase`) `[EnableRateLimiting(RateLimiterKey.Default)]` taşır; politika adları bu yüzden
   Business'tadır (`Scadex.Business/Utils/RateLimiting/RateLimiterKey.cs` — modül WebAPI'ye referans veremez), politikaların kaydı yine
   `Program.cs`'tedir. Yeni modül tabanı da aynı özniteliği taşır. **Hub'lar bilerek dışarıdadır** (`DiagramHub`, `SignalizationHub`,
   `ViewerHub` `[DisableRateLimiting]`): WebSocket yoksa SignalR uzun yoklamaya düşer, her mesaj bir HTTP isteği olur ve 60 Hz uzaktan
   girdi sınıra takılırdı. İstisna `PcHub` negotiate'idir (her ağdan bağlantı alan saha cihazı ucu; IP politikası modülün kaydında).
 
 **Büyük servisler `#region` ile değil, partial sınıflara bölünür** — gruplama birimi dosyadır:
-`CameraService.cs` + `.Streaming` + `.Snapshot` + `.Capture` + `.Monitoring`,
+`CameraMediaService.cs` + `.Streaming` + `.Snapshot` + `.Capture` (CameraManagement modülü),
 `DeviceCommandService.cs` + `.Comunication`,
 `DiagramService.cs` (okuma + ortak yardımcılar) + `.Devices` + `.Connections` + `.Annotations` + `.Layout` + `.Delete`.
 
@@ -292,9 +336,9 @@ Diyagram servisinde her dosya bir uç ailesidir ve dosyalar arasında paylaşıl
 Bunlar tek bir dosyaya bakarak görülemez; gerekçeleri PROJECT_OVERVIEW.md §5-§6'dadır.
 
 - **Her tablonun tek bir yazım yolu vardır.** `Device`, `Connection`, `DiagramAnnotation`,
-  `Pin`, `IoChannel` yalnızca `DiagramController`'ın yazma uçlarından (`/api/Diagram/cabinet/{id}/` altında `devices`,
+  `Pin`, `IoChannel` yalnızca `DiagramController`'ın yazma uçlarından (`/api/Diagram/automation/{id}/` altında `devices`,
   `connections`, `annotations`, `layout`, `delete`) yazılır; `ComponentTemplatePin` yalnızca `POST /api/ComponentTemplate`; `CanvasSettings` yalnızca
-  `PUT /api/CanvasSettings/cabinet/{cabinetId}` üzerinden. Bu tabloların generic
+  `PUT /api/CanvasSettings/automation/{automationId}` üzerinden. Bu tabloların generic
   controller'ları **2026-10-14'te kaldırıldı** (okuma diyagram ucundan gelir) — geri eklemeyin.
   İhtiyaç varsa sahibinin controller'ına ekran bazlı bir uç ekleyin. **Cihazın yaşam döngüsü (oluşturma + kaldırma/pasife
   alma) YALNIZCA diyagram uçlarıdır (2026-10-25, kullanıcı kararı)** — diyagramda olmayan tanımlı cihaz yoktur. Tipe özel
@@ -310,7 +354,7 @@ Bunlar tek bir dosyaya bakarak görülemez; gerekçeleri PROJECT_OVERVIEW.md §5
 - **İzin zorlaması (2026-10-14).** Policy'ler `AddPermissionPolicies()` (`Scadex.Business/Utils/Auth/PermissionAuthorization.cs`,
   `Program.cs`) ile `Permission` enum'unun HER değeri için **tek yerde** kaydedilir; policy adı = izin kodu = enum adı. Ucu
   `[RequirePermission(Permission.X)]` ile işaretleyin — modül kaydına `AddPolicy` eklemeyin. Kural: **sahaya etki eden ve veri
-  yazan her uç bir izin ister** (`EditDiagram` diyagram/tuval yazımı, `ConfigureSystem` kabin/firma/kamera/şablon/ayar/sinyalizasyon
+  yazan her uç bir izin ister** (`EditDiagram` diyagram/tuval yazımı, `ConfigureSystem` otomasyon/firma/kamera/şablon/ayar/sinyalizasyon
   yapılandırması, `ManageUsers` kullanıcı/rol/izin + parola, `ManageAccessCards` kart ataması + operatör kurumu),
   hassas okumalar da (`ViewCamera` kamera listesi/detayı/bilet/kare; `ViewDiagram` diyagram okuma + komut geçmişi;
   `ManageUsers` kullanıcı listesi ve rolleri — kart tanımlama kendi dar listesini `GET User/card-holders` ile `ManageAccessCards`'la okur);
@@ -340,10 +384,10 @@ Bunlar tek bir dosyaya bakarak görülemez; gerekçeleri PROJECT_OVERVIEW.md §5
   (`hooks/use-diagram-editor.ts`). Kaydet/Vazgeç'i olan tek yer cihaz formudur (`device-form.tsx`: IP + izleme + ek nesne birbirine
   bağlı); kablo ve not alanları blur'da anında yazılır. Kamera zorunlu alanlarla (IP + marka) pencereden oluşturulur
   (`create-device-dialog.tsx`).
-- **Kanal adresleri kabin genelinde tekildir**, cihaz genelinde değil. Bir cihazı silmek
+- **Kanal adresleri otomasyon genelinde tekildir**, cihaz genelinde değil. Bir cihazı silmek
   kanallarını serbest bırakmaz (`IN1` işgal edilmeye devam eder).
 - **Tipe özgü alanlar `Device`'ta DEĞİL, 1-1 ek tablolardadır (2026-10-22):** `Camera` (marka, model, açıklama, kullanıcı,
-  parola), `ControlCard` (`MacAddress`), `PcDevice` (`CredentialHash`). Birincil anahtar ortaktır (`DeviceId` hem PK hem FK),
+  parola), `ControlCard` (`MacAddress`, `ScadaBaseUrl`, `ScadaIsEnabled`, `ScadaCommandTimeoutMs`, `ScadaLastIngestAt`), `PcDevice` (`CredentialHash`). Birincil anahtar ortaktır (`DeviceId` hem PK hem FK),
   tip yine `ComponentTemplate.DeviceTypeId`'dir. **Kalıtım bilerek yoktur** — `Camera : Device` / `HasBaseType` yazmayın:
   `HasBaseType` tek başına TPH (tek tablo) kurar, TPT ise her `Devices` sorgusuna tüm alt tabloları JOIN'ler ve parolaları her
   cihaz okumasında belleğe getirir. Ek satır yalnızca `Include` edilince okunur. Yazım yolu diyagramın cihaz uçlarıdır:
@@ -351,6 +395,11 @@ Bunlar tek bir dosyaya bakarak görülemez; gerekçeleri PROJECT_OVERVIEW.md §5
   yanlış tipe giden 400'dür (`DiagramService.Devices.cs > ValidateDeviceAsync`). Okuma DTO'ları parola döndürmez, `hasPassword` döner;
   istekte `password: null` = dokunma, `""` = temizle. **Yeni tip (Alarm, NAS…) = `DeviceType` değeri + sistem şablonu + gerekiyorsa ek
   tablo + istekte nesne (`DeviceExtensionDrafts.cs`) + panel bölümü (zorunlu alanı varsa oluşturma penceresi);** alanı `Device`'a eklemeyin, ayrı kök tablo da açmayın, diyagram dışında oluşturma ucu açmayın.
+  **Kontrol kartının SCADA ayarları kartın kendisindedir (2026-11-04, kullanıcı kararı):** adres / açık-kapalı / zaman aşımı otomasyon
+  formundan değil diyagramın kart formundan **`EditDiagram`** ile yazılır, `ScadaLastIngestAt`'i yalnızca ingest yazar. Kartı okuyan her yol
+  (ingest, kart okuma, komut, karttan okuma) `IControlCardRepository.GetActiveForAutomationAsync`'i kullanır. **Otomasyon başına en fazla
+  bir aktif kontrol kartı** vardır (`ValidateDeviceAsync`, 400): kanal adresleri otomasyon genelinde tekildir — bu kuralı gevşetmeyin, SCADA
+  ayarlarını otomasyona geri taşımayın.
 - **Saha cihazı kimliği: kontrol kartı MAC header'ı, PC Basic Auth (2026-10-28, kullanıcı kararı — 2026-10-25'teki "MAC geri
   eklenmesin" kararının kontrol kartı için yerine; sözleşme [Docs/scada-http-api.md](Docs/scada-http-api.md)).**
   **Kontrol kartı** (`/api/Scada/*`) her istekte `DeviceId: AA:BB:CC:DD:EE:FF` header'ı gönderir = kartın MAC adresi; Merkez onu
@@ -371,18 +420,19 @@ Bunlar tek bir dosyaya bakarak görülemez; gerekçeleri PROJECT_OVERVIEW.md §5
   günlüğe MAC / cihaz Id'si + IP ile yazılır; PC sırrı asla loglanmaz. **HTTPS zorunlu değildir** (kullanıcı kararı): düz HTTP'de kimlik ağdan
   okunabilir — kabul edilen risk, HTTPS denetimi/yönlendirmesi eklemeyin. Açık PcHub bağlantısı sır yenilense de kopana kadar sürer.
 - **Kamera bir `Device`'tır (`DeviceType.Camera = 14`, sistem şablonu "IP Kamera", 2026-10-22).** Diyagramdan eklenir ve
-  diyagramdan kaldırılır (şablonla sürükleme + özellik paneli, `EditDiagram`). Kamera ekranı (`/cameras/cabinet/:id`,
+  diyagramdan kaldırılır (şablonla sürükleme + özellik paneli, `EditDiagram`). Kamera ekranı (`/cameras/automation/:id`,
   `PUT /api/Camera`, `ConfigureSystem`) yalnızca **aktif** kameranın bilgisini günceller — oluşturamaz, pasife alamaz
   (`CameraUpdateDto`'da `IsActive` yoktur), pasif kamerayı düzenleyemez (404); iki yol aynı kuralları uygular, son yazan
   kazanır (2026-10-25). Pasif (diyagramdan kaldırılmış) kamera ekranda çekim geçmişi için listelenir. 2026-10-25'ten önce
   kamera ekranından eklenmiş kameralar diyagramda gizli durabilir (`IsVisible = false`): "Seçilemeyen öğeler → Göster" ile
   tuvale alınır. Kamera IP'si zorunludur ve
-  **kabin içinde** tekildir (iki yolda da doğrulanır, DB index'i yok; ad tekilliği yalnızca kamera ekranının kuralı); boş izleme
+  **otomasyon içinde** tekildir (iki yolda da doğrulanır, DB index'i yok; ad tekilliği yalnızca kamera ekranının kuralı); boş izleme
   portu markanın RTSP portuyla dolar. Kamera Id'si cihaz Id'sidir:
-  `CameraCapture.CameraId`, `signalization.OuterDoor.CameraId` ve `cam_{id}` yolları onu görür. Kamera bilgisi değişince MediaMTX
-  yolunu düşürmek **commit sonrası** yapılır: diyagramda `DiagramController` (`UpdateDevice` + `Delete`), ekranda
-  `CameraService.UpdateAsync` (`ICameraService.RefreshStreamPathsAsync`; yapılandırması güncel kaynakla uyuşmayan ya da pasif
-  kameranın yolu silinir) — `DiagramService`'in içine koymayın. Kamera okuma DTO'su parolayı döndürmez (`hasPassword`). RTSP adresi kuran kod entity değil
+  `cameramanagement.CameraCapture.CameraId`, `signalization.OuterDoor.CameraId` ve `cam_{id}` yolları onu görür. Kamera bilgisi değişince MediaMTX
+  yolunu düşürmek **commit sonrası** yapılır: çekirdek `IDeviceChangeObserver`'ları çağırır — diyagramda `DiagramController`
+  (`UpdateDevice` + `Delete`), ekranda `CameraService.UpdateAsync`; CameraManagement'ın gözlemcisi `ICameraMediaService.RefreshStreamPathsAsync`
+  ile yapılandırması güncel kaynakla uyuşmayan ya da pasif kameranın yolunu siler (2026-10-29) — `DiagramService`'in içine koymayın,
+  çekirdekten kamera modülünü doğrudan çağırmayın. Kamera okuma DTO'su parolayı döndürmez (`hasPassword`). RTSP adresi kuran kod entity değil
   `CameraEndpoint` alır.
 - **Lifecycle interceptor'ları sessizce geçmez, istisna atar.** `IImmutableEntity` güncelleme
   ve silmede, `IActivatableEntity` silmede patlar (`IsActive = false` kullanın);
@@ -398,11 +448,11 @@ Bunlar tek bir dosyaya bakarak görülemez; gerekçeleri PROJECT_OVERVIEW.md §5
   veritabanındadır (2026-09-27).** `MediaGatewaySettings` `IOptions` ile okunur (açılış doğrulaması
   yoktur), değişiklik yeniden başlatma ister; tablosu, servisi, ucu ve ekranı **bilerek yoktur** — port/adres
   alanları `mediamtx.yml` ile elle eşleştiği için ekrandan değiştirilmemeli. Geri DB'ye taşımayın.
-  Kamera çekimi ise tek satırlık tablo + `ICameraCaptureSettingService`, `ICacheService` ile
+  Kamera çekimi ise tek satırlık tablo (CameraManagement modülü) + `ICameraCaptureSettingService`, `ICacheService` ile
   önbelleklenir, her yazma kendi anahtarını düşürür; `appsettings.json`'a `Cameras` bölümü eklemeyin
   — okunmuyor. Adlandırılmış `HttpClient` `Program.cs`'te kurulur ama `BaseAddress`/`Timeout` orada
   **verilmez**; `MediaMtxGateway.CreateConfiguredClient` ayardan uygular.
-  Ekranı `/admin/settings`; zod şeması (`models/cameraCaptureSetting`) sunucudaki `FluentValidation`
+  Ekranı `/cameras/settings` (2026-10-29'a kadar `/admin/settings`); zod şeması (`modules/cameramanagement/models/cameraCaptureSetting`) sunucudaki `FluentValidation`
   kuralının **elle tutulan kopyasıdır** — sunucudaki kuralı değiştirirseniz şemayı da değiştirin.
 - **Yoklama (ayakta mı) akışının HTTP yüzeyi yoktur ve tipe özel değildir.**
   `MonitoredAssetProbeWorker` kayıtlı her `IMonitoredAssetProbeSource` üzerinden döner; yeni
@@ -412,22 +462,22 @@ Bunlar tek bir dosyaya bakarak görülemez; gerekçeleri PROJECT_OVERVIEW.md §5
   kapalı hedef sağlamken Çevrimdışı görünür, ona port girilir. Kamerada boş port kayıtta markanın RTSP portuyla
   dolar (ping'e düşmez). Buraya "şimdi dene" tarzı bir uç eklemeyin. İki kaynak var: `DeviceProbeSource`
   (2026-09-24 — `Device : IMonitoredAsset`; yalnızca izlemesi açık **ve** şablonu `ComponentTemplate.IsMonitorable` olan cihaz, kontrol
-  kartı HARİÇ) ve **`ControlCardProbeSource` (2026-10-28)**: kontrol kartı TCP/ICMP yerine kabinin SCADA adresindeki okuma ucuyla yoklanır
+  kartı HARİÇ) ve **`ControlCardProbeSource` (2026-10-28)**: kontrol kartı TCP/ICMP yerine kartın SCADA adresindeki (`ControlCard.ScadaBaseUrl`) okuma ucuyla yoklanır
   (`IMonitoredAssetProbeSource.TryProbeAsync` → `IChannelEventService.SyncFromScadaAsync`; varsayılan gövde `null` = worker TCP/ICMP yapar).
-  Her tur hem canlılık hem kanal senkronudur. Zaman aşımı kabinin komut süresi DEĞİL `Monitoring:ProbeTimeoutMs`'tir (worker kaynakları
+  Her tur hem canlılık hem kanal senkronudur. Zaman aşımı otomasyonun komut süresi DEĞİL `Monitoring:ProbeTimeoutMs`'tir (worker kaynakları
   sırayla yoklar). Kart **hata yanıtı** verirse (ör. `/status`'u bilmeyen eski firmware 404) ayakta sayılır — yalnızca yanıtsızlık Offline'dır,
-  yoksa ingest'le Online / turla Offline arasında gidip gelirdi. SCADA'sı kapalı / adresi boş kabinin kartı yoklanmaz. Senkron sonucu bu yüzden
+  yoksa ingest'le Online / turla Offline arasında gidip gelirdi. SCADA'sı kapalı / adresi boş otomasyonun kartı yoklanmaz. Senkron sonucu bu yüzden
   komut gibi 200 + `ScadaSyncResultDto.Status` döner; `Result` hatası yalnızca yapılandırma içindir.
   `CameraProbeSource` 2026-10-22'de kalktı: kamera bir cihazdır ve aynı kaynakla yoklanır. Worker son sonda anı olarak sondanın
   bitişini yazar (bilinçli); `PingIntervalSec` tur aralığının tam katıysa hedef bir tur geç
   yoklanır (60 sn → fiilen 90 sn).
-- **Kabin durumu ve cihaz CANLILIK durumu yalnızca `ICabinetStatusService` üzerinden yazılır
-  (2026-09-24).** `Cabinet.DeviceStatusId`, `Device.DeviceStatusId` / `LastSeen` /
+- **Otomasyon durumu ve cihaz CANLILIK durumu yalnızca `IAutomationStatusService` üzerinden yazılır
+  (2026-09-24).** `Automation.DeviceStatusId`, `Device.DeviceStatusId` / `LastSeen` /
   `LastConnectionError`'a başka yerden dokunmayın; kanıtı (yoklama, SCADA teması, komut
-  `NoResponse`) servise verin. Kabin durumu = cihaz katkılarının en kötüsü ve **tabanı kontrol
-  modülüdür**: kabini Online'a da Offline'a da yalnızca kontrol modülü çeker; diğer cihazların (kameralar
-  dahil — 2026-10-22'den beri ayrı kamera kuralı yok) `Offline`'ı kabine `Warning` olarak yansır, `Online`'ları hiç katılmaz
-  (`CabinetContribution`). Durum tabloları: PROJECT_OVERVIEW.md § 5.3 "Canlılık". SCADA canlılığı **kontrol modülünde** tutulur
+  `NoResponse`) servise verin. Otomasyon durumu = cihaz katkılarının en kötüsü ve **tabanı kontrol
+  modülüdür**: otomasyonu Online'a da Offline'a da yalnızca kontrol modülü çeker; diğer cihazların (kameralar
+  dahil — 2026-10-22'den beri ayrı kamera kuralı yok) `Offline`'ı otomasyona `Warning` olarak yansır, `Online`'ları hiç katılmaz
+  (`AutomationContribution`). Durum tabloları: PROJECT_OVERVIEW.md § 5.3 "Canlılık". SCADA canlılığı **kontrol modülünde** tutulur
   (kanıt kart başınadır): her ingest (tanımsız kanal dahil), kart okuma ve başarılı komut temas
   sayılır; giriş modülüne canlılık yazmayın. Başarısız sonda **ilk başarısızlıkta** Offline yapar;
   `NoResponse` anında. **`LastSeen`'e bakıp Offline yargısına varılmaz** — yalnızca
@@ -436,23 +486,23 @@ Bunlar tek bir dosyaya bakarak görülemez; gerekçeleri PROJECT_OVERVIEW.md §5
   (izlenenleri katmayın: yoklamayla her turda Bilinmiyor ↔ Offline salınırlar),
   23 saat bilerek sabittir. Canlılık yalnızca Online/Offline/`null`'a karar verir,
   Warning/Maintenance korunur. **`Critical` yoktur (2026-10-12'de kaldırıldı, numara 3 boş — yeniden kullanmayın);
-  en kötü durum kırmızı Çevrimdışı'dır.** Sinyalizasyon modülü kabin durumuna **bilerek**
-  yansımaz (alarm haritada ayrı ikon; `AppModule.alertCabinetsQuery`). **Kabinde `Maintenance` yapışkan bir
-  operatör kararıdır (2026-09-28):** ayrı kolon yok, `Cabinet.DeviceStatusId` = Maintenance; kabin düzenleme ekranından
-  `ICabinetStatusService.SetMaintenanceAsync` ile yazılır. Hesaplama ve tarama bakımdaki kabine dokunmaz, hesaplama da
-  hiçbir zaman Maintenance üretmez (cihazın Maintenance'ı kabine taşınmaz) — yoksa kabin kendiliğinden bakıma düşüp kalırdı.
-  **"Kabin neden bu renkte" dökümü (`GetBreakdownAsync`, 2026-10-12) katkıyı aynı `CabinetContribution`
+  en kötü durum kırmızı Çevrimdışı'dır.** Sinyalizasyon modülü otomasyon durumuna **bilerek**
+  yansımaz (alarm haritada ayrı ikon; `AppModule.alertAutomationsQuery`). **Otomasyonda `Maintenance` yapışkan bir
+  operatör kararıdır (2026-09-28):** ayrı kolon yok, `Automation.DeviceStatusId` = Maintenance; otomasyon düzenleme ekranından
+  `IAutomationStatusService.SetMaintenanceAsync` ile yazılır. Hesaplama ve tarama bakımdaki otomasyona dokunmaz, hesaplama da
+  hiçbir zaman Maintenance üretmez (cihazın Maintenance'ı otomasyona taşınmaz) — yoksa otomasyon kendiliğinden bakıma düşüp kalırdı.
+  **"Otomasyon neden bu renkte" dökümü (`GetBreakdownAsync`, 2026-10-12) katkıyı aynı `AutomationContribution`
   koduyla üretir;** ön yüz (harita panelindeki "Durum nedeni") kuralı kopyalamaz, `contribution`'ı okur.
-  Kuralı değiştirirseniz tek yer orasıdır. `CabinetStatusContributorKind` 2026-10-25'te tümden kalktı (tek değeri kalmıştı); döküm kaydı her zaman bir cihazdır.
+  Kuralı değiştirirseniz tek yer orasıdır. `AutomationStatusContributorKind` 2026-10-25'te tümden kalktı (tek değeri kalmıştı); döküm kaydı her zaman bir cihazdır.
 - **MediaMTX yol temizliği üç şeyi asla silmez:** bizim üretmediğimiz adlar (yalnızca `cam_`
   önekliler adaydır — `mediamtx.yml`'deki **`all_others`** silinseydi geçit
   yapılandırmasız kalırdı), `record: true` olan yollar ve `readers > 0` olan yollar. Bu kuralları
-  gevşetmeyin; `MediaPathCleanupWorker.ShouldDelete`. (`clip_` yolu 2026-09-25'te kalktı: klip
+  gevşetmeyin; `MediaPathCleanupWorker.ShouldDelete` (CameraManagement modülü; önek `CameraMediaPaths`). (`clip_` yolu 2026-09-25'te kalktı: klip
   artık MediaMTX'te değil FFmpeg ile kaydediliyor.)
 - **Kameraya yalnızca MediaMTX bağlanır, yalnızca RTSP ile; marka API'si (Hikvision ISAPI vb.)
   kullanılmaz (2026-09-25).** Markaya özgü tek bilgi `ICameraProtocolProfile.BuildRtspUrl`'dir ve
   yalnızca MediaMTX yolunun kaynağıdır. Çekimde FFmpeg kameraya **doğrudan bağlanmaz**:
-  `CameraService.PrepareCaptureSourceAsync` yolu kurar ve tarayıcıyla aynı bilet mekanizmasından
+  `CameraMediaService.PrepareCaptureSourceAsync` (CameraManagement) yolu kurar ve tarayıcıyla aynı bilet mekanizmasından
   (`IssueStreamTokenAsync`) bir bilet alır; FFmpeg `IMediaGateway.LiveRtspUrl` adresinden okur
   (izleme açıkken kameraya ikinci oturum açılmasın diye — kullanıcı kararı; geri çevirmeyin).
   FFmpeg hata satırlarında kaynak adresini (içinde bilet) tekrarlar: `CameraCapture.FailureReason`'a
@@ -482,10 +532,10 @@ Bunlar tek bir dosyaya bakarak görülemez; gerekçeleri PROJECT_OVERVIEW.md §5
 | `src/models/<agg>/{commands,queries}/` | C# DTO'larının **elle yazılmış** TS aynası |
 | `src/hooks/` | TanStack Query sarmalayıcıları (`use-diagram-editor`, `use-diagram-live`, …) |
 | `src/lib/diagram/` | Tuval matematiği: waypoint, hizalama, pin tarafı, RF node/edge dönüşümü |
-| `src/lib/camera/` | WHEP oynatıcı, stream bütçesi, oturum ve kare yakalama |
+| `src/lib/media/` | `whep.ts` — medya geçidi (MediaMTX) WHEP istemcisi; kamera modülü ve RemoteDesk ortak kullanır. Kamera oturumu / stream bütçesi / kare yakalama `modules/cameramanagement/lib/`'tedir |
 | `src/lib/signalr/` | `diagram-hub.ts` — `/hubs/diagram` istemcisi |
 | `src/views/{auth,app,admin}/` | Ekranlar; `src/layouts/` bunları sarar |
-| `src/modules/` | Müşteri modülleri. `index.ts > REGISTRY` + `VITE_MODULES` tek birleştirme noktası; her modülün manifestosu (`AppModule`) rota/menü/layout eklentisi verir, ekranları `lazy`. Modül kendi `api/ models/ hooks/ views/` klasörlerini taşır, sorgu anahtarları `['signalization', …]` altında |
+| `src/modules/` | Modüller ve çözümler (`cameramanagement`, `remotedesk`, `signalization`). `index.ts > REGISTRY` + `VITE_MODULES` tek birleştirme noktası; her modülün manifestosu (`AppModule`) rota/menü/layout eklentisi verir, ekranları `lazy`. Modül kendi `api/ models/ hooks/ views/` klasörlerini taşır, sorgu anahtarları `['signalization', …]` / `['camera', …]` altında. Çözüm bağımlı olduğu modülü import edebilir (signalization → cameramanagement), tersi ve modül ↔ modül olmaz |
 
 Yığın: React 19 + Vite 8 + TS 6, React Flow (`@xyflow/react`), TanStack Query, Redux Toolkit,
 shadcn + Tailwind 4, react-hook-form + zod, MapLibre, Recharts.
@@ -537,10 +587,13 @@ Bir şeyin çalıştığını varsaymadan önce doğrulayın:
   değer neredeyse her ingest'te değiştiği için **her ingest bir satır** demektir. Saklama /
   temizlik işi **bilinçli olarak ertelendi** — proje sahibi sonra ekleyecek. Tablo analog
   kurulumda sınırsız büyür; **sormadan bir silme işi yazmayın.** **2026-10-28'den beri `Source` kolonu vardır**
-  (`EntityEnums.ChannelChangeSource`: `Ingest` kartın bildirimi, `Sync` karttan okumanın bulduğu fark). Çıkış kanalına satır
-  YALNIZCA `Sync` ile ve kayıtlı değer DOLUYKEN yazılır = rölenin son komuttan sapması (+ `Warning` günlük); kayıtlı değeri `null`
-  olan (hiç komut görmemiş) çıkışta değer ilk kez öğrenilir, yalnızca kanala yazılır — sapma sayılmaz; komutun kendisi buraya yazılmaz (`DeviceCommand`'da),
-  ikinci kopya açmayın. Senkron, okuma başladıktan sonra güncellenmiş kanala dokunmaz (`ValueUpdatedAt >= readStartedAt`) — bu korumayı
+  (`EntityEnums.ChannelChangeSource`: `Ingest` kartın bildirimi, `Command` Scadex'in başarılı komutu, `Sync` karttan okumanın bulduğu fark).
+  Çıkış kanalına iki tür satır yazılır: **başarılı komut kanalın değerini değiştirince `Command` (2026-10-31, kullanıcı kararı —
+  eskiden yazılmıyordu)**, `DeviceCommandService.SendAsync`'te; ve `Sync` ile, kayıtlı değer DOLUYKEN = rölenin son komuttan sapması
+  (+ `Warning` günlük); kayıtlı değeri `null` olan (hiç komut görmemiş) çıkışta okumada değer ilk kez öğrenilir, yalnızca kanala yazılır —
+  sapma sayılmaz. `Command` satırı komutun kanal üzerindeki SONUCUDUR, kopyası değil: kim / aç-kapat / NO-NC / başarısızlar
+  `DeviceCommand`'da kalır, oraya taşımayın. **`delay` (güç döngüsü) gönderilmeye başlanırsa** kart geri dönüşü bildirmez: Merkez süre
+  dolunca kanalı arka plan işiyle eski değere kendisi çeker (kullanıcı kararı 2026-10-31; ayrıntı PROJECT_OVERVIEW.md § Komut). Senkron, okuma başladıktan sonra güncellenmiş kanala dokunmaz (`ValueUpdatedAt >= readStartedAt`) — bu korumayı
   kaldırmayın, sahte sapma üretir.
 - **Sunucudan gelen `...Utc` damgalarında `Z` soneki YOKTUR.** Kolonlar `datetime2`, EF onları
   `DateTimeKind.Unspecified` döndürüyor ve System.Text.Json sonek koymuyor:
@@ -550,9 +603,9 @@ Bir şeyin çalıştığını varsaymadan önce doğrulayın:
   `home` ve `command-history.tsx` içerisinde kullanılmaktadır. Yeni ekranlarda da mutlaka bu
   yardımcıyı kullanın.
 
-- **Ingest gövdesinde `cabinetId` YOKTUR; kabin isteği gönderen kontrol kartının MAC kimliğinden çözülür (2026-10-28).**
+- **Ingest gövdesinde `automationId` YOKTUR; otomasyon isteği gönderen kontrol kartının MAC kimliğinden çözülür (2026-10-28).**
   Gerçek sözleşme `{ type: "I"|"A", channelNumber, value, timestampUtc }` (`ScadaIngestRequest`) + `DeviceId: <MAC>` header'ı.
-  Handler kartın `CabinetId`'sini `cabinet_id` claim'ine yazar, `ScadaController` onu `IChannelEventService.IngestAsync(cabinetId, …)`'a
+  Handler kartın `AutomationId`'sini `automation_id` claim'ine yazar, `ScadaController` onu `IChannelEventService.IngestAsync(automationId, …)`'a
   verir; header'sız / eşleşmeyen MAC'li istek 401'dir. `ScadaPinAddress.CheckAndParseIngestPin` yalnızca `"I"` ve `"A"`
   kabul eder; `IN<n>`/`OUT<n>` metni (`ScadaPinAddress.Format`) yalnızca ekran ve günlük içindir — tele çıkmaz. **Giden komut
   (2026-10-28):** `POST {ScadaBaseUrl}/command` + `{ channelNumber, value }` (`ScadaCommandRequest`, Docs/scada-http-api.md § 3);
@@ -560,13 +613,13 @@ Bir şeyin çalıştığını varsaymadan önce doğrulayın:
   bugün gönderilmez; `null` tele hiç çıkmaz (`JsonIgnore WhenWritingNull`).
 - **Kart okuma ayrı bir uçtur: `POST /api/Scada/card` → `{ cardId, timestampUtc }`
   (2026-09-11).** Kart numarası ölçüm değildir: `IoChannel`'a yazılmaz, `ChannelEvent` üretmez;
-  çekirdeğin yazdığı tek şey SCADA temasıdır (kontrol modülü + kabin `LastSeen`, 2026-09-24).
-  Kabin ingest ile aynı yoldan kartın kimliğinden gelir (`ICardReadService.IngestAsync(cabinetId, …)`), kart **aktif** kullanıcının
+  çekirdeğin yazdığı tek şey SCADA temasıdır (kontrol modülü + otomasyon `LastSeen`, 2026-09-24).
+  Otomasyon ingest ile aynı yoldan kartın kimliğinden gelir (`ICardReadService.IngestAsync(automationId, …)`), kart **aktif** kullanıcının
   `User.IdentityCardId`'siyle ham string olarak eşlenir ve sonuç gözlemcilere iletilir. Tanımsız
   kart SCADA için hata değildir (200). `IdentityCardId` aktif kullanıcılar arasında tekildir
   (`IX_User_IdentityCardId`, filtreli); `""` sunucuda `null`'a çekilir — çekmezseniz ikinci boş
   kart 500 üretir. **Kart tanımlama (2026-10-13) çekirdektedir:** her okuma gözlemcilerden önce `DiagramHub`'a `CardRead` olarak
-  yayınlanır, Kabinler → "Kart tanımlama" penceresi dinler; atama `PUT /api/User/{id}/identity-card` (`AssignIdentityCardAsync`, yalnızca
+  yayınlanır, Otomasyonlar → "Kart tanımlama" penceresi dinler; atama `PUT /api/User/{id}/identity-card` (`AssignIdentityCardAsync`, yalnızca
   kart alanı — `PUT /api/User` tüm alanları ezer). Pencere okumayı modüllerden **bilerek** saklamaz/baypas etmez (kullanıcı kararı).
 - **`IpAddress` ve ek tablo alanları (kimlik bilgileri, kart MAC'i / PC sırrı) diyagramın cihaz uçlarıyla yazılır** (`DeviceCreateRequest` /
   `DeviceUpdateRequest`; ek nesneler `.Camera` / `.ControlCard` / `.Pc`). `WriteDevice` IP'yi, `WriteDeviceExtensions` ek satırı yazar;

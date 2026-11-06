@@ -6,7 +6,7 @@ import { toApiError } from '@/lib/axios-helper';
 import type { ComponentTemplateCreateRequest } from '@/models/componentTemplate';
 import type { DeviceType } from '@/models/enums';
 
-/** Uzun `staleTime`: palet her kabinette aynıdır ve yalnızca şablon yazarlığı değiştirir. */
+/** Uzun `staleTime`: palet her otomasyonda aynıdır ve yalnızca şablon yazarlığı değiştirir. */
 export function useComponentTemplatePalette() {
   return useQuery({
     queryKey: componentTemplateKeys.palette(),

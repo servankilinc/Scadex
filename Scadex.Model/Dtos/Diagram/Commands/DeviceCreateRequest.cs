@@ -3,7 +3,7 @@ using FluentValidation;
 namespace Scadex.Model.Dtos.Diagram.Commands;
 
 /// <summary>
-/// Paletten bırakma ve kopyalama: <c>POST /api/Diagram/cabinet/{cabinetId}/devices</c>. Cihazın Id'sini istemci üretir
+/// Paletten bırakma ve kopyalama: <c>POST /api/Diagram/automation/{automationId}/devices</c>. Cihazın Id'sini istemci üretir
 /// (<c>newId()</c>); pinleri ve kanalları sunucu şablondan üretir ve yanıtta döndürür — istemci pin kimliği göndermez.
 /// </summary>
 public class DeviceCreateRequest : DeviceUpdateRequest

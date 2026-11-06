@@ -1,6 +1,6 @@
 # Scadex
 
-Sahadaki SCADA'nın **üstünde** çalışan süpervizyon platformu: kabinleri, pano şemalarını (diyagram), giriş/çıkış kanallarını,
+Sahadaki SCADA'nın **üstünde** çalışan süpervizyon platformu: otomasyonları, pano şemalarını (diyagram), giriş/çıkış kanallarını,
 kameraları ve sahadaki PC'leri tek ekrandan izler ve yönetir.
 
 Geliştirme komutları ve mimari kurallar [CLAUDE.md](CLAUDE.md)'de, sistemin ne yaptığı ve kararların gerekçeleri
@@ -55,7 +55,7 @@ Geliştirme komutları ve mimari kurallar [CLAUDE.md](CLAUDE.md)'de, sistemin ne
 | FFmpeg | Kameradan anlık görüntü / klip | API gerektiğinde çağırır | [2.2.6](#226-mediamtx-ve-ffmpeg) |
 | Arayüz (`Scadex.WebUI`) | React tek sayfalık uygulama | IIS'te statik site | [2.3](#23-arayüz--scadexwebui-iis) |
 | RemoteDesk PC istemcisi | Sahadaki PC'nin ekranını paylaşır | Windows servisi `ScadexRemoteDesk` + oturumda Agent + System Tray arayüzü | [2.4](#24-remotedesk-pc-istemcisi--windows-servisi) |
-| SCADA kontrol kartı | Kabindeki giriş/çıkış kartı | API'ye `DeviceId` (MAC) header'ıyla veri gönderir | [2.5.1](#251-scada-kontrol-kartı) |
+| SCADA kontrol kartı | Otomasyondaki giriş/çıkış kartı | API'ye `DeviceId` (MAC) header'ıyla veri gönderir | [2.5.1](#251-scada-kontrol-kartı) |
 | Operatör bilgisayarı | Tarayıcı | Kurulum yok, yalnızca Root CA | [2.5.2](#252-operatör-bilgisayarları) |
 
 Sistem alan adı olmadan, sunucunun yerel ağ IP'si üzerinden çalışır. Bu rehber **HTTPS** kurulumunu anlatır (önerilen): sertifikayı kendi
@@ -91,7 +91,7 @@ olarak** çalıştırılır.
 | Arayüz (tarayıcıda) | API `:3009` | `.env.production > VITE_API_URL`, API'de `Cors:Origins` |
 | Operatörün tarayıcısı | MediaMTX `:8889` + `8189/udp` (kamera ve PC izleme) | `MediaGateway:WebRtcPublicBaseUrl` |
 | SCADA kontrol kartı | API `:3009` (`/api/Scada/ingest`, `/api/Scada/card`) | kartın kendi ayarı + diyagramda üretilen sır |
-| API | SCADA kontrol kartı (çıkış komutu) | kabin ekranında SCADA adresi |
+| API | SCADA kontrol kartı (çıkış komutu) | diyagramda kontrol kartının SCADA adresi |
 | Sahadaki PC (RemoteDesk) | API `:3009` | PC'de `Service\appsettings.json > CentralApiUrl` |
 | Sahadaki PC (RemoteDesk) | MediaMTX `:8554` (ekran yayını) | API'de `Modules:RemoteDesk:PublishRtspBaseUrl` |
 | MediaMTX | API `:3009` (yetki kontrolü) | `mediamtx.yml > authHTTPAddress` |
@@ -359,13 +359,19 @@ canlı görüntü biletleri ve aktarılan dosyalar ağı dinleyen biri tarafınd
 
 ### 2.1 Veritabanı (SQL Server)
 
-Tek veritabanı, üç şema; her şemanın **kendi migration geçmişi** vardır:
+Tek veritabanı, dört şema; her şemanın **kendi migration geçmişi** vardır:
 
 | Şema | DbContext | Proje |
 |---|---|---|
 | `dbo` (çekirdek) | `AppDbContext` | `Scadex.DataAccess` |
-| `signalization` | `SignalizationDbContext` | `Scadex.Signalization` |
+| `cameramanagement` | `CameraManagementDbContext` | `Modules\CameraManagement\Scadex.CameraManagement` |
+| `signalization` | `SignalizationDbContext` | `Solutions\Signalization\Scadex.Signalization` |
 | `remotedesk` | `RemoteDeskDbContext` | `Modules\RemoteDesk\Scadex.RemoteDesk` |
+
+**Sıra önemlidir: çekirdek → CameraManagement → diğerleri.** CameraManagement'ın ilk migration'ı (`InitialCameraManagement`, 2026-10-29)
+kamera çekim tablolarını (`CameraCapture`, `CameraCaptureSettings`) **veriyle birlikte** `dbo`'dan kendi şemasına taşır; çekirdeğin
+`MoveCameraCapturesToCameraManagement`'ı önce o tabloların çekirdeğe bağlı FK'lerini düşürür. Ters sırada çalıştırılırsa modül
+migration'ı tabloyu bulamaz.
 
 **API açılışta migration UYGULAMAZ.** Tablolar ilk kurulumda ve her güncellemede aşağıdaki komutlarla elle oluşturulur/güncellenir.
 Kapalı bir modülün şeması da kurulabilir; zararı yoktur.
@@ -408,22 +414,24 @@ dizesini ortam değişkeniyle verin — ayar dosyalarını değiştirmeyin:
 $env:ConnectionStrings__Database = "Server=10.0.0.10,1433;Database=Scadex;User Id=scadex_app;Password=<parola>;TrustServerCertificate=True;MultipleActiveResultSets=True"
 
 dotnet ef database update --project Scadex.DataAccess --startup-project Scadex.WebAPI --context AppDbContext
-dotnet ef database update --project Scadex.Signalization --startup-project Scadex.WebAPI --context SignalizationDbContext
+dotnet ef database update --project Modules/CameraManagement/Scadex.CameraManagement --startup-project Scadex.WebAPI --context CameraManagementDbContext
+dotnet ef database update --project Solutions/Signalization/Scadex.Signalization --startup-project Scadex.WebAPI --context SignalizationDbContext
 dotnet ef database update --project Modules/RemoteDesk/Scadex.RemoteDesk --startup-project Scadex.WebAPI --context RemoteDeskDbContext
 
 Remove-Item Env:ConnectionStrings__Database
 ```
 
-- **`--context` zorunludur** (yoksa `More than one DbContext was found`). Sıra: çekirdek önce.
-- Uygulanmış migration'lar atlanır; her güncellemede üçünü birden çalıştırmak güvenlidir.
+- **`--context` zorunludur** (yoksa `More than one DbContext was found`). Sıra: çekirdek önce, CameraManagement ikinci.
+- Uygulanmış migration'lar atlanır; her güncellemede dördünü birden (yukarıdaki sırayla) çalıştırmak güvenlidir.
 
 Veritabanına derleme makinesinden ulaşılamıyorsa migration'ları **idempotent SQL betiğine** çevirip SSMS'te numara sırasıyla çalıştırın
 (yalnızca eksik migration'ları uygular):
 
 ```powershell
 dotnet ef migrations script --idempotent --project Scadex.DataAccess --startup-project Scadex.WebAPI --context AppDbContext -o C:\paket\db\01-core.sql
-dotnet ef migrations script --idempotent --project Scadex.Signalization --startup-project Scadex.WebAPI --context SignalizationDbContext -o C:\paket\db\02-signalization.sql
-dotnet ef migrations script --idempotent --project Modules/RemoteDesk/Scadex.RemoteDesk --startup-project Scadex.WebAPI --context RemoteDeskDbContext -o C:\paket\db\03-remotedesk.sql
+dotnet ef migrations script --idempotent --project Modules/CameraManagement/Scadex.CameraManagement --startup-project Scadex.WebAPI --context CameraManagementDbContext -o C:\paket\db\02-cameramanagement.sql
+dotnet ef migrations script --idempotent --project Solutions/Signalization/Scadex.Signalization --startup-project Scadex.WebAPI --context SignalizationDbContext -o C:\paket\db\03-signalization.sql
+dotnet ef migrations script --idempotent --project Modules/RemoteDesk/Scadex.RemoteDesk --startup-project Scadex.WebAPI --context RemoteDeskDbContext -o C:\paket\db\04-remotedesk.sql
 ```
 
 #### 2.1.3 İlk kullanıcı
@@ -503,7 +511,8 @@ ezer. Değişiklikten sonra `Restart-WebAppPool ScadexApi`.
 | `Cors:Origins` | Arayüzün açıldığı adres(ler); şema + IP + port, sonda `/` yok | `[ "https://172.16.42.106:3000" ]` |
 | `TokenSettings:SecurityKey` | JWT imza anahtarı; **depodaki değeri kullanmayın** (üretimi aşağıda). Değişirse herkes yeniden giriş yapar | 88 karakterlik base64 |
 | `MediaGateway:WebRtcPublicBaseUrl` | Tarayıcının canlı görüntüyü çektiği MediaMTX adresi — API portu **değil** | `https://172.16.42.106:8889` |
-| `Modules:Signalization:Enabled` | Sinyalizasyon modülü (firmaya özel; yalnızca o müşteride `true`) | `false` |
+| `Modules:CameraManagement:Enabled` | Kamera modülü (canlı izleme, anlık görüntü, kare/klip çekimi, çekim ayarları). Kapalıyken kameralar diyagrama çizilebilir ama izlenemez. **Sinyalizasyon açıksa bu da `true` olmalı** (yoksa API açılmaz) | `true` |
+| `Modules:Signalization:Enabled` | Sinyalizasyon çözümü (firmaya özel; yalnızca o müşteride `true`) | `false` |
 | `Modules:RemoteDesk:Enabled` | RemoteDesk modülü (PC ekran izleme) | `true` |
 | `Modules:RemoteDesk:PublishRtspBaseUrl` | PC'lerin ekran yayınını gönderdiği MediaMTX adresi; **PC'lerin ulaşabildiği** IP olmalı (`127.0.0.1` değil). Yanlışsa izleme "yayın hazır değil" ile düşer | `rtsp://172.16.42.106:8554` |
 
@@ -529,7 +538,7 @@ $b = New-Object byte[] 64
 | `MediaGateway:RtspTransport` | Kamera → MediaMTX taşıması: `tcp` \| `udp` \| `multicast` \| `automatic` | `tcp` |
 | `TokenSettings:AccessTokenExpiration` | Erişim token'ı ömrü (dakika) | `1440` |
 | `TokenSettings:RefreshTokenExpiration` | Refresh token ömrü (dakika) | `10080` |
-| `Scada:SweepIntervalSeconds` | Kabin durum taraması turu | `300` |
+| `Scada:SweepIntervalSeconds` | Otomasyon durum taraması turu | `300` |
 | `Monitoring:SweepIntervalSeconds` | Cihaz yoklama turu; cihazların en kısa yoklama aralığından küçük olmalı | `30` |
 | `Monitoring:ProbeTimeoutMs` | Tek yoklamanın zaman aşımı | `3000` |
 | `Jobs:MediaPathCleanupHour` | Canlı izleme yollarının günlük temizlik saati (0–23, yerel) | `3` |
@@ -537,7 +546,7 @@ $b = New-Object byte[] 64
 | `Basemap:Directory` | Harita zemini klasörü (dosyada yok; göreliyse API klasörüne göre) | `MapTiles` |
 
 **Dokunulmayanlar:** `TokenSettings:Audience` / `Issuer` / `RefreshTokenTTL`, `CacheSettings`, `LocalizationSettings`, `Logging`,
-`AllowedHosts`. Kamera çekim ayarları (saklama süresi vb.) dosyada **değil** veritabanındadır (arayüzde **Yönetim → Ayarlar**);
+`AllowedHosts`. Kamera çekim ayarları (saklama süresi vb.) dosyada **değil** veritabanındadır (arayüzde **Kamera → Çekim Ayarları**, `/cameras/settings`);
 `Cameras` bölümü eklemeyin, okunmaz.
 
 **Modüller iki tarafta ayrı ayarlanır ve aynı olmalıdır:** API'de `Modules:<Ad>:Enabled`, arayüzde `VITE_MODULES`
@@ -611,14 +620,14 @@ Start-WebAppPool ScadexApi
 ```ini
 VITE_API_URL=https://172.16.42.106:3009
 VITE_CLIENT_TYPE=a9537ece-1957-4bd0-8692-5da2c16e715b
-VITE_MODULES=signalization,remotedesk
+VITE_MODULES=cameramanagement,remotedesk,signalization
 ```
 
 | Anahtar | Ne | Not |
 |---|---|---|
 | `VITE_API_URL` | API'nin dış adresi | Sonda `/` yok; API'nin binding'iyle aynı şema/IP/port |
 | `VITE_CLIENT_TYPE` | Web istemcisinin sabit kimliği | **Değiştirmeyin** — sunucudaki `ClientType.Web` ile aynı olmalı, yoksa oturum yenilenmez |
-| `VITE_MODULES` | Açık modüller, virgülle: `signalization`, `remotedesk` | API'deki `Modules:*:Enabled` ile **aynı**; modül yoksa boş (`VITE_MODULES=`) |
+| `VITE_MODULES` | Açık modüller ve çözümler, virgülle: `cameramanagement`, `remotedesk`, `signalization` | API'deki `Modules:*:Enabled` ile **aynı**; `signalization` varsa `cameramanagement` de olmalı; modül yoksa boş (`VITE_MODULES=`) |
 
 #### 2.3.2 Derleme
 
@@ -693,7 +702,7 @@ yoktur:** iki proje yayınlanır, PC'ye kopyalanır, servis bir kez `sc.exe crea
 
 #### 2.4.2 Merkezde PC tanımı ve kimlik
 
-1. Kabin diyagramına **Bilgisayar** şablonundan cihaz ekleyin → özellik paneli → **Kimlik bilgisi → Üret** → **Kaydet**.
+1. Otomasyon diyagramına **Bilgisayar** şablonundan cihaz ekleyin → özellik paneli → **Kimlik bilgisi → Üret** → **Kaydet**.
 2. **Cihaz Id'sini** ve **sırrı** not alın (sır yalnızca üretildiği anda görünür; kaybolursa **Yenile**).
 3. API'de `Modules:RemoteDesk:Enabled = true` ve doğru `PublishRtspBaseUrl` ([2.2.4](#224-appsettingsjson--tüm-anahtarlar)), arayüzde
    `VITE_MODULES` içinde `remotedesk`.
@@ -781,7 +790,7 @@ reg.exe add "HKLM\Software\Microsoft\Windows\CurrentVersion\Run" /v "ScadexRemot
 ```
 
 Alternatif: aynı exe'nin `--tray` kısayolunu ortak Başlangıç klasörüne koyun (`Win+R → shell:common startup`). Arayüzde **Bağlı —
-{kabin} / {cihaz}** görülmeli.
+{otomasyon} / {cihaz}** görülmeli.
 
 #### 2.4.7 Eski sürümden geçiş
 
@@ -851,20 +860,20 @@ Cihaz sırrı, yayın bileti ve pano içeriği **asla** yazılmaz.
 
 #### 2.5.1 SCADA kontrol kartı
 
-Her kabinde bir kontrol kartı vardır. Kart ekibine verilen sözleşme: [Docs/scada-http-api.md](Docs/scada-http-api.md).
+Her otomasyonda bir kontrol kartı vardır. Kart ekibine verilen sözleşme: [Docs/scada-http-api.md](Docs/scada-http-api.md).
 
 | Yön | İstek | Kimlik |
 |---|---|---|
 | Kart → Scadex | `POST /api/Scada/ingest` (giriş/analog değer), `POST /api/Scada/card` (kart okuma) | **`DeviceId: <MAC>` header'ı** |
-| Scadex → Kart | `POST {kabinin SCADA adresi}/command` + `{ "channelNumber": <n>, "value": "<0\|1>" }` (çıkış komutu) | Yok |
-| Scadex → Kart | `GET {kabinin SCADA adresi}/status` (tüm kanalları okuma — diyagramdaki "Kartı oku" ve kontrol kartının izleme turu) | Yok |
+| Scadex → Kart | `POST {kontrol kartının SCADA adresi}/command` + `{ "channelNumber": <n>, "value": "<0\|1>" }` (çıkış komutu) | Yok |
+| Scadex → Kart | `GET {kontrol kartının SCADA adresi}/status` (tüm kanalları okuma — diyagramdaki "Kartı oku" ve kontrol kartının izleme turu) | Yok |
 
 Kartın `/status` ucu yoksa (eski firmware) "Kartı oku" hata verir; izleme açıksa kart yine ayakta sayılır (yalnızca yanıtsızlık
 Çevrimdışı yapar), ama kanal senkronu yapılamaz.
 
 **Diyagramda kimlik bilgisi:**
 
-1. Kabinin **diyagram**ına kontrol modülünü ekleyin, kanallarını tanımlayın (`EditDiagram` izni).
+1. Otomasyonun **diyagram**ına kontrol modülünü ekleyin, kanallarını tanımlayın (`EditDiagram` izni).
 2. Cihazı seçin → özellik paneli → **Kontrol kartı → MAC adresi** alanına kartın MAC adresini yazın → **Kaydet**. Yazım farkı
    (`50-8d-5c-…`, `508D5C…`) önemsizdir, `AA:BB:CC:DD:EE:FF` biçimine çevrilir.
 3. Kart her istekte bu adresi `DeviceId` header'ında gönderir.
@@ -874,7 +883,7 @@ Kartın `/status` ucu yoksa (eski firmware) "Kartı oku" hata verir; izleme aç�
 | Kart değişti | Yeni kartın MAC'ini girin → Kaydet (eski kart 401 alır) |
 | Kartı devre dışı bırakmak | MAC alanını boşaltın → Kaydet |
 
-Kabin bu MAC'ten çözülür; gövdede kabin yoktur. Eşleşmeyen / eksik MAC **401** döner (nedeni API günlüğünde). MAC tekilliği
+Otomasyon bu MAC'ten çözülür; gövdede otomasyon yoktur. Eşleşmeyen / eksik MAC **401** döner (nedeni API günlüğünde). MAC tekilliği
 denetlenmez: aynı adresi iki karta girmeyin (ilk eşleşen kazanır).
 
 > **Güncelleme notu (2026-10-28):** `ControlCardMacIdentity` migration'ı kontrol kartlarının eski Basic Auth sırlarını siler; her
@@ -900,7 +909,7 @@ curl.exe -H "DeviceId: <kartın MAC adresi>" -H "Content-Type: application/json"
   https://172.16.42.106:3009/api/Scada/ingest
 ```
 
-**Giden komutlar:** kabin düzenleme ekranında **SCADA açık** işaretli ve **SCADA adresi** kartın HTTP adresi olmalı (ör.
+**Giden komutlar:** diyagramda kontrol kartı seçilip özellik panelinde **SCADA bağlantısı** açık ve **SCADA adresi** kartın HTTP adresi olmalı (ör.
 `http://10.20.1.15:8080`). Komutta yeniden deneme **bilerek yoktur**: başarısız komut tekrarlanmaz, operatör yeniden gönderir.
 
 #### 2.5.2 Operatör bilgisayarları
@@ -988,7 +997,7 @@ Get-WinEvent -FilterHashtable @{ LogName = 'System'; ProviderName = 'Service Con
 2. API günlüğünde `MediaMTX baslatildi (PID …)` satırı var; Görev Yöneticisi'nde `mediamtx.exe` çalışıyor.
 3. `https://172.16.42.106:3000` üzerinden giriş yapılıyor; bir alt sayfada F5'te 404 yok; harita zemini görünüyor.
 4. Bir kamerada canlı izleme açılıyor (MediaMTX + sertifika) ve anlık görüntü alınıyor (FFmpeg).
-5. Kontrol kartı veri gönderiyor: diyagramda canlı gösterge yeşil, kabin rengi doğru.
+5. Kontrol kartı veri gönderiyor: diyagramda canlı gösterge yeşil, otomasyon rengi doğru.
 6. Sahadaki PC listede çevrimiçi görünüyor ve ekranı izlenebiliyor.
 
 | Belirti | Neden |
@@ -1006,7 +1015,7 @@ Get-WinEvent -FilterHashtable @{ LogName = 'System'; ProviderName = 'Service Con
 | Giriş sonrası oturum düşüyor / CORS hatası | `Cors:Origins` arayüzün adresiyle birebir eşleşmiyor (şema, port, sonda `/`) ya da `VITE_CLIENT_TYPE` değiştirilmiş |
 | Modül menüsü yok ya da ekranı 404'lerle dolu | `Modules:*:Enabled` ile `VITE_MODULES` farklı |
 | Kontrol kartı 401 | Cihaz Id/sır yanlış, yenilenmiş/iptal edilmiş ya da cihaz silinmiş |
-| Komut "SCADA'ya ulaşılamadı" | Kabinin SCADA adresi yanlış ya da sunucu karta erişemiyor |
+| Komut "SCADA'ya ulaşılamadı" | Kontrol kartının SCADA adresi yanlış ya da sunucu karta erişemiyor |
 | Büyük dosya aktarımı 404.13 / yarıda kalıyor | API klasöründeki `web.config`'te `requestLimits` yok (yayından gelir; elle düzenlenmiş eski bir `web.config` kalmış olabilir) |
 | Dosya aktarımı "İzleme bittiği için aktarım durduruldu" | Beklenen: operatör PC'yi izlemeyi bırakınca PC'ye/PC'den süren aktarım kesilir |
 | Dosya aktarımında klasör gezgini yok, "Dosya seç" çıkıyor / pano bir pencere açıyor | Beklenen: arayüz HTTP'den açılmış ya da tarayıcı Firefox ([1.4](#14-http-ile-kurulum-sertifikasız) — tarayıcı ayarıyla tam deneyim) |

@@ -3,11 +3,11 @@
  * Sözleşme: docs/api-contract/12-channel-events.md
  *
  * Serbest filtre YOKTUR ve olmayacaktır: uç, yalnızca iki indeksin
- * (`CabinetId+OccurredAtUtc`, `IoChannelId+OccurredAtUtc`) cevaplayabildiği
+ * (`AutomationId+OccurredAtUtc`, `IoChannelId+OccurredAtUtc`) cevaplayabildiği
  * soruları kabul eder.
  */
 export interface ChannelEventQueryRequest {
-  cabinetId: string;
+  automationId: string;
   /** Tek bir kanala daraltmak için. */
   ioChannelId?: string | null;
   /** `occurredAtUtc >=` (dahil) — ISO 8601. */

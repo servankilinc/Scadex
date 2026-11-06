@@ -87,13 +87,13 @@ export function ChartAreaGradient() {
   )
 }
 
-// --- Radar Chart (En Fazla İşlem Yapılan 5 Kabin) ---
+// --- Radar Chart (En Fazla İşlem Yapılan 5 Otomasyon) ---
 const radarChartData = [
-  { kabin: "KAB-01", islem: 186, ortalamaDk: 80 },
-  { kabin: "KAB-02", islem: 305, ortalamaDk: 200 },
-  { kabin: "KAB-03", islem: 237, ortalamaDk: 120 },
-  { kabin: "KAB-04", islem: 73, ortalamaDk: 190 },
-  { kabin: "KAB-05", islem: 209, ortalamaDk: 130 },
+  { otomasyon: "KAB-01", islem: 186, ortalamaDk: 80 },
+  { otomasyon: "KAB-02", islem: 305, ortalamaDk: 200 },
+  { otomasyon: "KAB-03", islem: 237, ortalamaDk: 120 },
+  { otomasyon: "KAB-04", islem: 73, ortalamaDk: 190 },
+  { otomasyon: "KAB-05", islem: 209, ortalamaDk: 130 },
 ]
 
 const radarChartConfig = {
@@ -111,7 +111,7 @@ export function ChartRadarMultiple() {
   return (
     <Card className="h-full flex flex-col">
       <CardHeader className="items-center pb-4">
-        <CardTitle>En Aktif 5 Kabin</CardTitle>
+        <CardTitle>En Aktif 5 Otomasyon</CardTitle>
         <CardDescription>
           Son 1 aydaki işlemler ve ortalama süreleri
         </CardDescription>
@@ -126,7 +126,7 @@ export function ChartRadarMultiple() {
               cursor={false}
               content={<ChartTooltipContent indicator="line" />}
             />
-            <PolarAngleAxis dataKey="kabin" />
+            <PolarAngleAxis dataKey="otomasyon" />
             <PolarGrid />
             <Radar
               dataKey="islem"

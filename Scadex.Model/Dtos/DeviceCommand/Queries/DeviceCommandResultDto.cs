@@ -11,7 +11,9 @@ public class DeviceCommandResultDto : IDto
     public int? ChannelNumber { get; set; }
     public Guid? RequestedByUserId { get; set; }
     public string? RequestedByName { get; set; }
-    public DeviceCommandType CommandType { get; set; }
+
+    /// <summary> Komutun niyeti: <c>true</c> aç, <c>false</c> kapat (mantıksal; NC'de karta giden değer terstir). Payload okunamazsa <c>null</c>. </summary>
+    public bool? TurnOn { get; set; }
 
     /// <summary> Gonderilen payload — <c>{"turnOn":true,"value":"0","polarity":2}</c>. </summary>
     public string? PayloadJson { get; set; }

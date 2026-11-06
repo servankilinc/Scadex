@@ -56,7 +56,7 @@ export const DeviceType = {
   MeasurementDevice: 9,
   /** Kart okuyucu — geçiş kontrolünde kart ID'sini gönderen modül. */
   CardReader: 10,
-  /** Şebeke girişi — 220 AC beslemenin kabine girdiği nokta (L / N / PE). */
+  /** Şebeke girişi — 220 AC beslemenin otomasyona girdiği nokta (L / N / PE). */
   Mains: 11,
   /** Sigorta / devre kesici. */
   CircuitBreaker: 12,
@@ -95,7 +95,7 @@ export const DeviceTypeLabels: Record<DeviceType, string> = {
  * adres uzayıdır: kartın çerçeve başlığı dijital girişi `'I'`, analogu `'A'` ile
  * ayırır ve ikisinin kanal numaraları bağımsızdır — aynı kartta hem `A/1`
  * (sıcaklık) hem `I/1` (darbe sensörü) bulunur. Sunucuda ayrımı yapan
- * `IX_IoChannel_CabinetId_Direction_ChannelNumber` benzersiz indeksidir.
+ * `IX_IoChannel_AutomationId_Direction_ChannelNumber` benzersiz indeksidir.
  */
 export const PinDirection = {
   Input: 0,
@@ -152,12 +152,10 @@ export const PinFunction = {
   LED_Cathode: 9,
   /** Dijital giriş sinyali. */
   Signal_In: 10,
-  /** Dijital çıkış sinyali. */
-  Signal_Out: 11,
+  // 11 (Signal_Out) kaldırıldı; numara yeniden kullanılmaz.
   /** Analog giriş. */
   Analog_In: 12,
-  /** Kuru kontak (Dry Contact). */
-  DryContact: 13,
+  // 13 (DryContact) kaldırıldı; numara yeniden kullanılmaz.
   /** Faz (220 AC). */
   Line_L: 14,
   /** Nötr (220 AC). */
@@ -181,9 +179,7 @@ export const PinFunctionLabels: Record<PinFunction, string> = {
   [PinFunction.LED_Anode]: 'LED Anot (+)',
   [PinFunction.LED_Cathode]: 'LED Katot (-)',
   [PinFunction.Signal_In]: 'Dijital Giriş',
-  [PinFunction.Signal_Out]: 'Dijital Çıkış',
   [PinFunction.Analog_In]: 'Analog Giriş',
-  [PinFunction.DryContact]: 'Kuru Kontak',
   [PinFunction.Line_L]: 'Faz (L)',
   [PinFunction.Neutral_N]: 'Nötr (N)',
   [PinFunction.Earth_PE]: 'Toprak (PE)',
@@ -216,26 +212,6 @@ export const VoltageLevelLabels: Record<VoltageLevel, string> = {
 // ─────────────────────────────────────────────────────────────
 //  Kablo
 // ─────────────────────────────────────────────────────────────
-
-/** Kablo fiziksel türü. */
-export const WireType = {
-  Power: 0,
-  Signal: 1,
-  DataRS485: 2,
-  DataEthernet: 3,
-  Relay: 4,
-  Sensor: 5
-} as const;
-export type WireType = (typeof WireType)[keyof typeof WireType];
-
-export const WireTypeLabels: Record<WireType, string> = {
-  [WireType.Power]: 'Güç Kablosu',
-  [WireType.Signal]: 'Sinyal Kablosu',
-  [WireType.DataRS485]: 'RS485',
-  [WireType.DataEthernet]: 'Ethernet',
-  [WireType.Relay]: 'Röle',
-  [WireType.Sensor]: 'Sensör'
-};
 
 /** Kablo çizim stili (UI). */
 export const LineStyle = {
@@ -313,22 +289,13 @@ export const BackgroundVariantLabels: Record<BackgroundVariant, string> = {
 //  Kumanda (SCADA)
 // ─────────────────────────────────────────────────────────────
 
-/**
- * SCADA'ya gönderilen kontrol isteğinin türü.
- *
- * **Tek değer vardır: `SetOutput = 1`.** Darbe, değer yazma, modül reset ve
- * senkronizasyon türleri kaldırıldı; her kumanda bir çıkış kanalını hedefler ve
- * bir değer taşır, dolayısıyla `ioChannelId` ve `value` koşulsuz zorunludur.
- */
-export const DeviceCommandType = {
-  /** Çıkışı kalıcı sürer. Payload: `{ "value": "1" }` */
-  SetOutput: 1
-} as const;
-export type DeviceCommandType = (typeof DeviceCommandType)[keyof typeof DeviceCommandType];
+// Komut tipi (`DeviceCommandType`) 2026-10-31'de kaldırıldı: tek değeri vardı (`SetOutput`). Her kumanda bir çıkış kanalını
+// aç/kapatır; niyet `turnOn`'dadır. Etiket için `commandIntentLabel`.
 
-export const DeviceCommandTypeLabels: Record<DeviceCommandType, string> = {
-  [DeviceCommandType.SetOutput]: 'Çıkış Sür'
-};
+/** Kumandanın ekrandaki adı — niyetten. `null` = payload okunamadı (eski / bozuk satır). */
+export function commandIntentLabel(turnOn: boolean | null): string {
+  return turnOn == null ? 'Komut' : turnOn ? 'Aç' : 'Kapat';
+}
 
 /**
  * Kumandanın sonucu. Kuyruk olmadığı için `Pending`/`Cancelled` YOKTUR:
@@ -355,7 +322,8 @@ export const CommandStatusLabels: Record<CommandStatus, string> = {
 
 /**
  * Ayna: `EntityEnums.ChannelChangeSource`. Kanal değişimini kim fark etti — `ChannelEventDto.source`.
- * `Sync`'te değişimin gerçek anı bilinmez (`occurredAtUtc` = fark edildiği an). `Command` olay tablosuna yazılmaz.
+ * `Sync`'te değişimin gerçek anı bilinmez (`occurredAtUtc` = fark edildiği an). `Command` satırı başarılı komutun değiştirdiği
+ * değerdir (fiziksel; NC'de "aç" = `0`) — komutun kendisi (kim, aç/kapat) diyagramdaki komut geçmişindedir.
  */
 export const ChannelChangeSource = {
   /** Kart değişimi kendisi bildirdi (ingest). */
@@ -417,40 +385,7 @@ export const CameraBrandLabels: Record<CameraBrand, string> = {
   [CameraBrand.Hikvision]: 'Hikvision'
 };
 
-/**
- * Merkeze alınan görüntünün cinsi. 0 değeri YOKTUR.
- *
- * İkisi de sunucuda FFmpeg ile MediaMTX'in ana akım yolundan alınır:
- * `Snapshot` → JPEG, `Clip` → sessiz MP4 (yeniden kodlama yok).
- */
-export const CaptureType = {
-  Snapshot: 1,
-  Clip: 2
-} as const;
-export type CaptureType = (typeof CaptureType)[keyof typeof CaptureType];
-
-export const CaptureTypeLabels: Record<CaptureType, string> = {
-  [CaptureType.Snapshot]: 'Anlık Görüntü',
-  [CaptureType.Clip]: 'Klip'
-};
-
-/**
- * Çekimin akıbeti. 0 değeri YOKTUR.
- *
- * `Failed` de bir SATIR bırakır: "o anda görüntü YOK" bilgisinin kendisi delildir.
- */
-export const CaptureStatus = {
-  Pending: 1,
-  Available: 2,
-  Failed: 3
-} as const;
-export type CaptureStatus = (typeof CaptureStatus)[keyof typeof CaptureStatus];
-
-export const CaptureStatusLabels: Record<CaptureStatus, string> = {
-  [CaptureStatus.Pending]: 'Hazırlanıyor',
-  [CaptureStatus.Available]: 'Hazır',
-  [CaptureStatus.Failed]: 'Başarısız'
-};
+// CaptureType / CaptureStatus (kare/klip çekimi) CameraManagement modülündedir: @/modules/cameramanagement/models/enums
 
 // ─────────────────────────────────────────────────────────────
 //  Yetki
@@ -463,13 +398,11 @@ export const Permission = {
   ViewDiagram: 0,
   EditDiagram: 1,
   ControlOutput: 2,
-  AcknowledgeAlarm: 3,
+  // 3 (AcknowledgeAlarm), 7 (ExportData), 8 (ManageWorkflow) kaldırıldı — ucu yoktu; numaralar yeniden kullanılmaz.
   ManageUsers: 4,
   ConfigureSystem: 5,
   ViewCamera: 6,
-  ExportData: 7,
-  ManageWorkflow: 8,
-  /** Geçiş kartı tanımlama/yetkilendirme/iptal — kabin kapısını açan kimliği yönetir. */
+  /** Geçiş kartı tanımlama/yetkilendirme/iptal — otomasyon kapısını açan kimliği yönetir. */
   ManageAccessCards: 9,
   /** PC ekranlarını canlı izleme (RemoteDesk modülü) — sunucuda zorlanır, yoksa 403. */
   RemotePcView: 10,
@@ -496,12 +429,9 @@ export const PermissionLabels: Record<Permission, string> = {
   [Permission.ViewDiagram]: 'Diyagramı İzleme',
   [Permission.EditDiagram]: 'Diyagram Düzenleme',
   [Permission.ControlOutput]: 'Diyagramdan Komut Gönderme',
-  [Permission.AcknowledgeAlarm]: 'Alarm Onaylama',
   [Permission.ManageUsers]: 'Kullanıcı Yönetimi',
   [Permission.ConfigureSystem]: 'Sistem Ayarları',
   [Permission.ViewCamera]: 'Kamera Görüntüleme',
-  [Permission.ExportData]: 'Veri Dışa Aktarma',
-  [Permission.ManageWorkflow]: 'İş Akışı Yönetimi',
   [Permission.ManageAccessCards]: 'Geçiş Kartı Yönetimi',
   [Permission.RemotePcView]: 'PC Ekranı İzleme',
   [Permission.RemotePcControl]: 'PC Uzaktan Kontrol',

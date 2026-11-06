@@ -2,9 +2,9 @@
 export {
   DiagramHubEvents,
   DiagramHubMethods,
-  type ChannelValueChange,
-  type DeviceStatusChange,
-  type CabinetStatusChange,
-  type CommandCompleted,
-  type CardRead
+  type ChannelValueChangeNotify,
+  type DeviceStatusChangeNotify,
+  type AutomationStatusChangeNotify,
+  type CommandCompletedNotify,
+  type CardReadNotify
 } from './queries/realtimeEvents';

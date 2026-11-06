@@ -164,13 +164,13 @@ export function DiagramCanvas({ editor, settings, devices, readOnly = false }: D
       // Renk DOĞRUDAN backgroundColor OLARAK verilmiyor: RF kök elemanı zaten
       // renk moduna göre kendi arkaplanını taşıyor (`.react-flow.dark` →
       // koyu varsayılan). Satır içi `backgroundColor` bunu HER ZAMAN ezerdi —
-      // desen kapalıyken maskeleyecek bir şey kalmayınca dark modda da kabin
-      // ayarındaki (çoğu kabinde hâlâ sunucu varsayılanı beyaz) renk çıplak
+      // desen kapalıyken maskeleyecek bir şey kalmayınca dark modda da otomasyon
+      // ayarındaki (çoğu otomasyonda hâlâ sunucu varsayılanı beyaz) renk çıplak
       // görünürdü. Değişken yalnızca AÇIK temada uygulanır — bkz. styles/index.css
       // `.react-flow:not(.dark)`.
       style={{ '--diagram-canvas-bg': settings.backgroundColor, '--diagram-grid-color': settings.gridColor } as CSSProperties}>
       {/* `color` prop'u BİLEREK verilmiyor: RF onu satır içi bir CSS
-          değişkenine yazar ve bu HER ZAMAN kazanır — koyu temada da kabin
+          değişkenine yazar ve bu HER ZAMAN kazanır — koyu temada da otomasyon
           ayarının açık grisi (sunucu varsayılanı #E2E8F0, beyaz zemin için
           düşünülmüş) aynen kalır ve koyu zemin üstünde çok yüksek kontrastlı,
           "kirli" görünürdü. Renk yukarıdaki `--diagram-grid-color`'dan yalnızca

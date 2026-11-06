@@ -33,7 +33,7 @@ interface DataTableProps<T> {
 }
 
 /**
- * Liste ekranlarının (kabinler, kameralar, firmalar, kullanıcılar, roller, şablonlar) ve rapor ekranlarının
+ * Liste ekranlarının (otomasyonlar, kameralar, firmalar, kullanıcılar, roller, şablonlar) ve rapor ekranlarının
  * (`@/components/custom/report`) ortak tablosu.
  *
  * Bilerek ince: sıralama/sayfalama/filtre YOK — bu listeler küçük ve tamamı tek istekte geliyor; arama

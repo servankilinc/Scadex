@@ -23,4 +23,4 @@ public sealed record ConnectionStatus(
     string CentralUrl,
     string Detail,
     string? DeviceName = null,
-    string? CabinetName = null);
+    string? AutomationName = null);

@@ -175,13 +175,13 @@
  * uygulamanin paletiyle hizalar.
  */
 /*
- * Kabin canvas arkaplan rengi (`CanvasSettings.BackgroundColor`, sunucu
+ * Otomasyon canvas arkaplan rengi (`CanvasSettings.BackgroundColor`, sunucu
  * varsayılanı #FFFFFF) yalnızca AÇIK temada uygulanır. RF'in kendi kök
  * elemanı `colorMode`e göre kendisi `light`/`dark` sınıfı taşıyor (`system`
  * dahil, RF kendi matchMedia'sıyla çözüyor) — `.react-flow.dark` zaten kendi
  * koyu varsayılanını (#141414) tanımlıyor. `:not(.dark)` aynı elemanda
  * `.dark` ile ASLA birlikte eşleşmediği için import sırasına bağımlı bir
- * özgüllük çakışması olmuyor; dark modda kabin ayarındaki renk (genelde hâlâ
+ * özgüllük çakışması olmuyor; dark modda otomasyon ayarındaki renk (genelde hâlâ
  * özelleştirilmemiş varsayılan beyaz) devre dışı kalıp RF'in koyu zeminine
  * bırakılıyor.
  */

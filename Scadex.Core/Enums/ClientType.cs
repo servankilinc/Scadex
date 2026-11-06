@@ -1,5 +1,3 @@
-using System.ComponentModel;
-
 namespace Scadex.Core.Enums;
 
 public static class ClientType

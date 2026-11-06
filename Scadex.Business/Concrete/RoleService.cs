@@ -1,8 +1,8 @@
 using AutoMapper;
 using Microsoft.AspNetCore.Identity;
 using Scadex.Business.Abstract;
-using Scadex.Core.BaseRequestModels;
 using Scadex.Core.Utils;
+using Scadex.Core.Utils.BaseRequestModels;
 using Scadex.Core.Utils.ResultPattern;
 using Scadex.Core.Utils.Validation;
 using Scadex.DataAccess.UoW;

@@ -64,17 +64,17 @@ const router = createBrowserRouter([
               // Kendi hesabı: izin İSTEMEZ (sunucu kimliği token'dan okur). Menüde değil, kullanıcı açılır menüsündedir.
               { path: 'profile', Component: AppViews.Profile, handle: { crumb: 'Profilim' } },
               {
-                // Diyagram, /cabinets ALTINA yuvalanır: breadcrumb eşleşen route
-                // zincirinden türediği için, kardeş olsaydı "Kabinler / Diyagram"
+                // Diyagram, /automations ALTINA yuvalanır: breadcrumb eşleşen route
+                // zincirinden türediği için, kardeş olsaydı "Otomasyonlar / Diyagram"
                 // yerine yalnızca "Diyagram" görünürdü.
-                path: 'cabinets',
-                handle: { crumb: 'Kabinler' },
+                path: 'automations',
+                handle: { crumb: 'Otomasyonlar' },
                 children: [
-                  { index: true, Component: AppViews.Cabinets },
+                  { index: true, Component: AppViews.Automations },
                   {
                     // Lazy: @xyflow/react agir bir bagimlilik. Route seviyesinde
                     // bolunmezse editore hic girmeyen kullanici da onu indirir.
-                    path: ':cabinetId/diagram',
+                    path: ':automationId/diagram',
                     handle: { crumb: 'Diyagram' },
                     loader: requirePermission('ViewDiagram'),
                     lazy: async () => ({ Component: (await import('./views/app/diagram')).default })
@@ -87,36 +87,10 @@ const router = createBrowserRouter([
                 Component: AppViews.ChannelEvents,
                 handle: { crumb: 'Olay Geçmişi' }
               },
-              {
-                // Canlı izleme. Diyagramla aynı gerekçeyle LAZY ve barrel'a
-                // KONMADI: WebRTC/WHEP kodu, hiç kamera izlemeyen kullanıcının
-                // ana paketine girmemeli.
-                path: 'cameras',
-                handle: { crumb: 'Kameralar' },
-                // Kamera listesi/detayı da görüntüyle aynı izni ister (sunucuda `ViewCamera`).
-                loader: requirePermission('ViewCamera'),
-                children: [
-                  {
-                    index: true,
-                    lazy: async () => ({ Component: (await import('./views/app/cameras')).default })
-                  },
-                  {
-                    // Kabinin kameraları: izleme + tanım/CRUD (eski `/admin/cameras` buraya taşındı).
-                    // Statik `cabinet` bölümü `:cameraId`'den önce eşleşir.
-                    path: 'cabinet/:cabinetId',
-                    handle: { crumb: 'Kabin' },
-                    lazy: async () => ({ Component: (await import('./views/app/cameras/cabinet')).default })
-                  },
-                  {
-                    path: ':cameraId',
-                    handle: { crumb: 'Kamera' },
-                    lazy: async () => ({ Component: (await import('./views/app/cameras/detail')).default })
-                  }
-                ]
-              },
+              // Kamera ekranları (/cameras) CameraManagement modülündedir (modules/cameramanagement).
               // #endregion
 
-              // #region (1b) Müşteri modülleri
+              // #region (1b) Modüller ve çözümler
               // Tek birleştirme noktası: `VITE_MODULES` ile açık modüllerin rotaları. Ekranları
               // modülün kendi manifestosunda `lazy` — kapalı modül ana pakete ekran kodu taşımaz.
               ...enabledModules.flatMap(module => module.routes),
@@ -132,8 +106,8 @@ const router = createBrowserRouter([
                   { path: 'companies', Component: AdminViews.Companies, handle: { crumb: 'Firmalar' }, loader: requirePermission('ConfigureSystem') },
                   { path: 'users', Component: AdminViews.Users, handle: { crumb: 'Kullanıcılar' }, loader: requirePermission('ManageUsers') },
                   { path: 'roles', Component: AdminViews.Roles, handle: { crumb: 'Roller' }, loader: requirePermission('ManageUsers') },
-                  { path: 'templates', Component: AdminViews.ComponentTemplates, handle: { crumb: 'Şablonlar' }, loader: requirePermission('ConfigureSystem') },
-                  { path: 'settings', Component: AdminViews.Settings, handle: { crumb: 'Ayarlar' }, loader: requirePermission('ConfigureSystem') }
+                  { path: 'templates', Component: AdminViews.ComponentTemplates, handle: { crumb: 'Şablonlar' }, loader: requirePermission('ConfigureSystem') }
+                  // Kamera çekim ayarları (eski /admin/settings) CameraManagement modülünde: /cameras/settings.
                 ]
               }
               // #endregion

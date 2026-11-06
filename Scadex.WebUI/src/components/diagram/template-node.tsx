@@ -23,7 +23,7 @@ import { DeviceNodeMenu } from './node-menu';
  * store'dan kendi kimlikleriyle okunur (`live-store.ts`). Sebep: React Flow
  * node nesnelerinin `data`'sı değişmediği için RF'in reconciliation'ı hiç
  * tetiklenmez ve bir kanal değiştiğinde yalnızca o değeri okuyan küçük bileşen
- * yeniden render olur — 500 kanallı bir kabinde tüm graf değil.
+ * yeniden render olur — 500 kanallı bir otomasyonda tüm graf değil.
  */
 export function TemplateNode({ data, selected, isConnectable }: NodeProps<DeviceNode>) {
   const { device } = data;
@@ -187,7 +187,7 @@ const LABEL_OFFSET: Record<HandleSide, string> = {
 };
 
 /**
- * Durum rozeti. `null` = bilinmiyor (canlılık kanıtı yok); `Offline` ile AYNI ŞEY DEĞİL. Kabin kartları ve
+ * Durum rozeti. `null` = bilinmiyor (canlılık kanıtı yok); `Offline` ile AYNI ŞEY DEĞİL. Otomasyon kartları ve
  * ana sayfa detay paneli de aynı renk sözleşmesi için bunu kullanır.
  */
 export function StatusDot({ statusId }: { statusId: DeviceStatus | null }) {

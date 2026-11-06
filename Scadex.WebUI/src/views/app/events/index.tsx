@@ -7,7 +7,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Field, FieldLabel } from '@/components/ui/field';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Skeleton } from '@/components/ui/skeleton';
-import { useCabinets } from '@/hooks/use-cabinets';
+import { useAutomations } from '@/hooks/use-automations';
 import { useChannelEvents } from '@/hooks/use-channel-events';
 import { useDiagramGraph } from '@/hooks/use-diagram-graph';
 import { ChannelChangeSource, ChannelChangeSourceLabels, PinDirection, PinDirectionLabels } from '@/models/enums';
@@ -26,33 +26,33 @@ const PAGE_SIZE = 25;
  * akar; burada okunan şey geçmiştir, bu yüzden yoklama/abonelik yok — kullanıcı
  * ne zaman isterse filtreyi değiştirip yeniden sorgular.
  *
- * Kabin ZORUNLU: sunucudaki iki indeks (`CabinetId+OccurredAtUtc`,
- * `IoChannelId+OccurredAtUtc`) yalnızca kabin daraltılmış soruları cevaplayabiliyor,
- * kabinsiz istek 400 dönüyor. Bu yüzden kabin seçimi bir filtre değil, ön koşuldur.
+ * Otomasyon ZORUNLU: sunucudaki iki indeks (`AutomationId+OccurredAtUtc`,
+ * `IoChannelId+OccurredAtUtc`) yalnızca otomasyon daraltılmış soruları cevaplayabiliyor,
+ * otomasyonsuz istek 400 dönüyor. Bu yüzden otomasyon seçimi bir filtre değil, ön koşuldur.
  *
  * **Analog kanalda bu tablo hızla büyür** — dijital kanal yalnızca durum değişince
  * satır üretirken analogda pratikte her ingest bir satırdır ve temizleyen bir iş
  * yoktur (bilinçli karar, bkz. CLAUDE.md). Sayfa boyutu bu yüzden sabit ve küçük.
  */
 export default function ChannelEvents() {
-  const cabinets = useCabinets();
+  const automations = useAutomations();
 
-  const [selectedCabinetId, setSelectedCabinetId] = useState('');
+  const [selectedAutomationId, setSelectedAutomationId] = useState('');
   const [channelId, setChannelId] = useState(ALL_CHANNELS);
   const [from, setFrom] = useState('');
   const [to, setTo] = useState('');
   const [page, setPage] = useState(1);
 
-  const activeCabinets = useMemo(() => cabinets.data?.filter(c => c.isActive) ?? [], [cabinets.data]);
+  const activeAutomations = useMemo(() => automations.data?.filter(c => c.isActive) ?? [], [automations.data]);
 
   // Türetme, efekt DEĞİL: `useEffect` + `setState` listenin her gelişinde bir
   // kaskad render tetikler.
-  const cabinetId = selectedCabinetId || activeCabinets[0]?.id || '';
+  const automationId = selectedAutomationId || activeAutomations[0]?.id || '';
 
-  // Kanal listesi için diyagram anlık görüntüsü: kabindeki kanalları veren tek uç
+  // Kanal listesi için diyagram anlık görüntüsü: otomasyondaki kanalları veren tek uç
   // bu. Sorgu anahtarı editörle ORTAK olduğundan, diyagramı açmış kullanıcıda
   // ikinci bir istek doğurmaz.
-  const graph = useDiagramGraph(cabinetId || undefined);
+  const graph = useDiagramGraph(automationId || undefined);
 
   const channels = useMemo(() => {
     const rows = (graph.data?.devices ?? []).flatMap(device =>
@@ -65,7 +65,7 @@ export default function ChannelEvents() {
   }, [graph.data]);
 
   const events = useChannelEvents({
-    cabinetId,
+    automationId,
     ioChannelId: channelId === ALL_CHANNELS ? null : channelId,
     fromUtc: localToUtcIso(from),
     toUtc: localToUtcIso(to),
@@ -96,27 +96,27 @@ export default function ChannelEvents() {
 
       <div className='flex flex-wrap items-end gap-3'>
         <Field className='w-full max-w-xs'>
-          <FieldLabel htmlFor='event-cabinet'>Kabin</FieldLabel>
+          <FieldLabel htmlFor='event-automation'>Otomasyon</FieldLabel>
           {/* Base UI'da `onValueChange` `string | null` veriyor (temizleme durumu). */}
           {/* Etiketler açıkça verilir: çocuğu olmayan `SelectValue` ham değeri (Guid) basar. */}
           <Select
-            value={cabinetId || null}
+            value={automationId || null}
             onValueChange={value => {
-              setSelectedCabinetId(value ?? '');
-              // Kabin değişince kanal filtresi ANLAMINI YİTİRİR: kanal kimlikleri
-              // kabine özeldir, taşınan bir seçim boş liste gösterirdi.
+              setSelectedAutomationId(value ?? '');
+              // Otomasyon değişince kanal filtresi ANLAMINI YİTİRİR: kanal kimlikleri
+              // otomasyona özeldir, taşınan bir seçim boş liste gösterirdi.
               setChannelId(ALL_CHANNELS);
               setPage(1);
             }}>
-            <SelectTrigger id='event-cabinet'>
-              <SelectValue placeholder={cabinets.isPending ? 'Yükleniyor…' : 'Kabin seçin'}>
-                {cabinetId ? (activeCabinets.find(cabinet => cabinet.id === cabinetId)?.name ?? 'Kabin bulunamadı') : undefined}
+            <SelectTrigger id='event-automation'>
+              <SelectValue placeholder={automations.isPending ? 'Yükleniyor…' : 'Otomasyon seçin'}>
+                {automationId ? (activeAutomations.find(automation => automation.id === automationId)?.name ?? 'Otomasyon bulunamadı') : undefined}
               </SelectValue>
             </SelectTrigger>
             <SelectContent>
-              {activeCabinets.map(cabinet => (
-                <SelectItem key={cabinet.id} value={cabinet.id}>
-                  {cabinet.name}
+              {activeAutomations.map(automation => (
+                <SelectItem key={automation.id} value={automation.id}>
+                  {automation.name}
                 </SelectItem>
               ))}
             </SelectContent>
@@ -131,7 +131,7 @@ export default function ChannelEvents() {
               setChannelId(value ?? ALL_CHANNELS);
               setPage(1);
             }}>
-            <SelectTrigger id='event-channel' disabled={!cabinetId}>
+            <SelectTrigger id='event-channel' disabled={!automationId}>
               <SelectValue>{channelLabel}</SelectValue>
             </SelectTrigger>
             <SelectContent>
@@ -188,17 +188,17 @@ export default function ChannelEvents() {
         )}
       </div>
 
-      {activeCabinets.length === 0 && !cabinets.isPending && (
+      {activeAutomations.length === 0 && !automations.isPending && (
         <Card>
           <CardContent className='py-8 text-center text-sm text-muted-foreground'>
-            Önce bir kabin oluşturun — olaylar kabine bağlıdır.
+            Önce bir otomasyon oluşturun — olaylar otomasyona bağlıdır.
           </CardContent>
         </Card>
       )}
 
       {events.isError && <p className='text-sm text-destructive'>{events.error.message}</p>}
 
-      {events.isPending && cabinetId && <Skeleton className='h-64 w-full rounded-xl' />}
+      {events.isPending && automationId && <Skeleton className='h-64 w-full rounded-xl' />}
 
       {events.data && (
         <>
@@ -223,7 +223,7 @@ export default function ChannelEvents() {
 
             {events.data.data.length === 0 && (
               <p className='py-8 text-center text-sm text-muted-foreground'>
-                {isFiltered ? 'Bu filtreye uyan olay yok.' : 'Bu kabinde henüz olay kaydı yok.'}
+                {isFiltered ? 'Bu filtreye uyan olay yok.' : 'Bu otomasyonda henüz olay kaydı yok.'}
               </p>
             )}
           </div>
@@ -260,7 +260,8 @@ function EventRow({ event }: { event: ChannelEventDto }) {
   // Karttan okumada (`Sync`) gerçekleşme anı zaten bilinmiyor: "damgasız" rozeti yerine kaynak sütunu bunu söyler.
   const isSync = event.source === ChannelChangeSource.Sync;
   const isStampless = !isSync && event.occurredAtUtc === event.receivedAtUtc;
-  // Çıkışta olay satırı yalnızca okumadan doğar: kayıtlı değer son komuttu, kart başka bir değer bildirdi.
+  // Çıkışta iki tür satır var: başarılı komutun değiştirdiği değer (`Command`, sade "Komut" etiketi) ve okumanın bulduğu sapma
+  // (`Sync`): kayıtlı değer son komuttu, kart başka bir değer bildirdi — yalnızca bu ikincisi rozet alır.
   const isOutputDrift = isSync && event.direction === PinDirection.Output;
 
   return (

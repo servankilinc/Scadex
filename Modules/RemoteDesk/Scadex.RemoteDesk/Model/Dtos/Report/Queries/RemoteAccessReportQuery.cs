@@ -10,7 +10,7 @@ namespace Scadex.RemoteDesk.Model.Dtos.Report.Queries;
 public class RemoteAccessReportQuery : IDto
 {
     public Guid? DeviceId { get; set; }
-    public Guid? CabinetId { get; set; }
+    public Guid? AutomationId { get; set; }
     public Guid? UserId { get; set; }
     public DateTime? FromUtc { get; set; }
     public DateTime? ToUtc { get; set; }

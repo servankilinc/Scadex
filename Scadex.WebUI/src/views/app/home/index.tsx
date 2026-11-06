@@ -1,52 +1,52 @@
 import { useEffect, useRef, useState, useMemo, type ReactNode } from 'react';
 import { useQueries, useQuery, type UseQueryResult } from '@tanstack/react-query';
 import type { LngLatBoundsLike } from 'maplibre-gl';
-import { getCabinetList } from '@/api/cabinet';
-import { cabinetKeys } from '@/api/query-keys';
+import { getAutomationList } from '@/api/automation';
+import { automationKeys } from '@/api/query-keys';
 import { Map, MapControls, MapPopup, type MapRef } from '@/components/ui/map';
 import { Button } from '@/components/ui/button';
 import { Combobox, ComboboxContent, ComboboxEmpty, ComboboxInput, ComboboxItem, ComboboxList } from '@/components/ui/combobox';
 import { Info, Activity, SearchIcon } from 'lucide-react';
-import type { CabinetDetailDto } from '@/models/cabinet';
+import type { AutomationDetailDto } from '@/models/automation';
 import { DeviceStatus, deviceStatusLabel } from '@/models/enums';
-import { alertCabinetQueries, busyCabinetQueries } from '@/modules';
-import CabinetInProcessIcon from '@/assets/cabinet-inproces-2.png';
-import { useCabinetOverviewLive } from '@/hooks/use-cabinet-overview-live';
+import { alertAutomationQueries, busyAutomationQueries } from '@/modules';
+import AutomationInProcessIcon from '@/assets/cabinet-inproces-2.png';
+import { useAutomationOverviewLive } from '@/hooks/use-automation-overview-live';
 import { BASEMAP_STYLES } from '@/lib/map-basemap';
-import { CabinetDetailPanel } from './cabinet-detail-panel';
-import { CabinetMapLayer, type LocatedCabinet } from './cabinet-map-layer';
+import { AutomationDetailPanel } from './automation-detail-panel';
+import { AutomationMapLayer, type LocatedAutomation } from './automation-map-layer';
 import { DashboardMetrics } from './dashboard-metrics';
 import { cn, toSearchKey } from '@/lib/utils';
 
 /**
  * Modüllerin kimlik listelerini sıralı, tekil bir anahtara indirger. Modül düzeyinde: kararlı referans.
  * `Set` değil string döner: yoklama her 10 sn'de yeni sonuç nesneleri üretir, içerik aynıysa anahtar da
- * aynı kalır ve harita kaynağı boşuna yeniden yüklenmez (bkz. `busyCabinetIds`).
+ * aynı kalır ve harita kaynağı boşuna yeniden yüklenmez (bkz. `busyAutomationIds`).
  */
-function combineBusyCabinetKey(results: UseQueryResult<string[]>[]): string {
+function combineBusyAutomationKey(results: UseQueryResult<string[]>[]): string {
   return [...new Set(results.flatMap(result => result.data ?? []))].sort().join(',');
 }
 
-/** Konumlu kabin yokken haritanın açıldığı yer. */
+/** Konumlu otomasyon yokken haritanın açıldığı yer. */
 const DEFAULT_CENTER: [number, number] = [35.2433, 38.9637];
-/** İlk zoom ve `fitBounds`'un en fazla ineceği zoom: tek kabin seçilince eski "merkeze + zoom 17" ile aynı sonuç. */
+/** İlk zoom ve `fitBounds`'un en fazla ineceği zoom: tek otomasyon seçilince eski "merkeze + zoom 17" ile aynı sonuç. */
 const DEFAULT_ZOOM = 17;
-/** Sol üstte rozet satırı, sağ üstte kontroller haritanın üzerinde durur; sığdırılan kabinler altlarında kalmasın. */
+/** Sol üstte rozet satırı, sağ üstte kontroller haritanın üzerinde durur; sığdırılan otomasyonlar altlarında kalmasın. */
 const FIT_PADDING = { top: 64, bottom: 48, left: 48, right: 64 };
 
-/** Kabinlerin sınır kutusu. Liste boşsa `null` — harita mevcut konumunda kalır. */
-function cabinetBounds(cabinets: LocatedCabinet[]): LngLatBoundsLike | null {
-  if (cabinets.length === 0) return null;
+/** Otomasyonların sınır kutusu. Liste boşsa `null` — harita mevcut konumunda kalır. */
+function automationBounds(automations: LocatedAutomation[]): LngLatBoundsLike | null {
+  if (automations.length === 0) return null;
 
   let minLng = Infinity;
   let minLat = Infinity;
   let maxLng = -Infinity;
   let maxLat = -Infinity;
-  for (const cabinet of cabinets) {
-    minLng = Math.min(minLng, cabinet.longitude);
-    minLat = Math.min(minLat, cabinet.latitude);
-    maxLng = Math.max(maxLng, cabinet.longitude);
-    maxLat = Math.max(maxLat, cabinet.latitude);
+  for (const automation of automations) {
+    minLng = Math.min(minLng, automation.longitude);
+    minLat = Math.min(minLat, automation.latitude);
+    maxLng = Math.max(maxLng, automation.longitude);
+    maxLat = Math.max(maxLat, automation.latitude);
   }
   return [
     [minLng, minLat],
@@ -69,39 +69,39 @@ const STATUS_CHIP_DEFS: { key: string; statusId: DeviceStatus | null; label: str
 ];
 
 /**
- * Aktif kabinleri `deviceStatusId`'ye göre kovalar. Sayısı 0 olan kovalar da döner: rozet satırı her zaman
+ * Aktif otomasyonları `deviceStatusId`'ye göre kovalar. Sayısı 0 olan kovalar da döner: rozet satırı her zaman
  * aynı altı rozeti gösterir, durum dağılımı değişince rozetler yer değiştirmez.
  */
-function buildStatusChips(activeCabinets: { deviceStatusId: DeviceStatus | null }[]) {
+function buildStatusChips(activeAutomations: { deviceStatusId: DeviceStatus | null }[]) {
   return STATUS_CHIP_DEFS.map(def => ({
     ...def,
-    count: activeCabinets.filter(c => c.deviceStatusId === def.statusId).length
+    count: activeAutomations.filter(c => c.deviceStatusId === def.statusId).length
   }));
 }
 
 /**
- * Haritanın tek seçimli filtresi: `'all'`, bir kabin durumu (`null` = Bilinmiyor) ya da modülden gelen kimlik listesi
+ * Haritanın tek seçimli filtresi: `'all'`, bir otomasyon durumu (`null` = Bilinmiyor) ya da modülden gelen kimlik listesi
  * (`'busy'` işlem yapılan). Durum ile işlem birlikte seçilmez.
  */
 type MapFilter = 'all' | 'busy' | DeviceStatus | null;
 
-/** Yalnızca AKTİF kabinler eşleşir — rozet sayılarıyla aynı taban (`validCabinets` pasifleri zaten dışarıda bırakır). */
-function matchesMapFilter(cabinet: CabinetDetailDto, filter: MapFilter, busyCabinetIds: ReadonlySet<string>): boolean {
-  if (!cabinet.isActive) return false;
+/** Yalnızca AKTİF otomasyonlar eşleşir — rozet sayılarıyla aynı taban (`validAutomations` pasifleri zaten dışarıda bırakır). */
+function matchesMapFilter(automation: AutomationDetailDto, filter: MapFilter, busyAutomationIds: ReadonlySet<string>): boolean {
+  if (!automation.isActive) return false;
   if (filter === 'all') return true;
-  if (filter === 'busy') return busyCabinetIds.has(cabinet.id);
-  return cabinet.deviceStatusId === filter;
+  if (filter === 'busy') return busyAutomationIds.has(automation.id);
+  return automation.deviceStatusId === filter;
 }
 
 /**
- * Modül rozetleri — yalnızca bir modül ilgili sorguyu verdiyse (`AppModule.busyCabinetsQuery`); modül kapalıyken rozet
+ * Modül rozetleri — yalnızca bir modül ilgili sorguyu verdiyse (`AppModule.busyAutomationsQuery`); modül kapalıyken rozet
  * satırı değişmez. Çekirdek "işlem"in ne olduğunu bilmez, kimlikleri sayar. Nokta yerine haritadaki işaretle eşleşen
  * simge: amber nokta Uyarı rozetiyle karışırdı. Statik: modül listesi çalışırken değişmez. Alarm için rozet BİLEREK
- * yok (2026-09-28, kullanılmıyordu); alarmlı kabin haritada kırmızı "!" ikonuyla görünmeye devam eder.
+ * yok (2026-09-28, kullanılmıyordu); alarmlı otomasyon haritada kırmızı "!" ikonuyla görünmeye devam eder.
  */
 const MODULE_CHIP_DEFS: { filter: 'busy'; label: string; icon: ReactNode }[] =
-  busyCabinetQueries.length > 0
-    ? [{ filter: 'busy', label: 'İşlemde', icon: <img src={CabinetInProcessIcon} alt="" className="h-3.5 w-auto shrink-0" aria-hidden="true" /> }]
+  busyAutomationQueries.length > 0
+    ? [{ filter: 'busy', label: 'İşlemde', icon: <img src={AutomationInProcessIcon} alt="" className="h-3.5 w-auto shrink-0" aria-hidden="true" /> }]
     : [];
 
 /** Durum ve modül rozetlerinin ortak görünümü. Kenarlık kalınlığı seçimde sabit: rozet boyutu kaymasın. */
@@ -115,39 +115,39 @@ function chipClassName(selected: boolean) {
 }
 
 export default function Home() {
-  const { data: cabinets = [], isLoading } = useQuery({
-    queryKey: cabinetKeys.list(),
-    queryFn: getCabinetList
+  const { data: automations = [], isLoading } = useQuery({
+    queryKey: automationKeys.list(),
+    queryFn: getAutomationList
   });
-  // Kabin durumu değişince liste tazelenir: harita rozetleri ve popup sayfa yenilenmeden güncel kalır.
-  useCabinetOverviewLive();
+  // Otomasyon durumu değişince liste tazelenir: harita rozetleri ve popup sayfa yenilenmeden güncel kalır.
+  useAutomationOverviewLive();
 
-  // "İşlem yapılan" kabinler modüllerden gelir (bkz. `AppModule.busyCabinetsQuery`); modül yoksa küme boştur.
+  // "İşlem yapılan" otomasyonlar modüllerden gelir (bkz. `AppModule.busyAutomationsQuery`); modül yoksa küme boştur.
   // Küme anahtar üzerinden memolanır: içerik değişmedikçe referans sabit, harita kaynağı yeniden yüklenmez.
-  const busyCabinetKey = useQueries({ queries: busyCabinetQueries, combine: combineBusyCabinetKey });
-  const busyCabinetIds = useMemo<ReadonlySet<string>>(() => new Set(busyCabinetKey ? busyCabinetKey.split(',') : []), [busyCabinetKey]);
+  const busyAutomationKey = useQueries({ queries: busyAutomationQueries, combine: combineBusyAutomationKey });
+  const busyAutomationIds = useMemo<ReadonlySet<string>>(() => new Set(busyAutomationKey ? busyAutomationKey.split(',') : []), [busyAutomationKey]);
 
-  // "Alarm olan" kabinler de modüllerden gelir (bkz. `AppModule.alertCabinetsQuery`); kabin durumunu değiştirmez, ayrı ikonla çizilir.
-  const alertCabinetKey = useQueries({ queries: alertCabinetQueries, combine: combineBusyCabinetKey });
-  const alertCabinetIds = useMemo<ReadonlySet<string>>(() => new Set(alertCabinetKey ? alertCabinetKey.split(',') : []), [alertCabinetKey]);
+  // "Alarm olan" otomasyonlar da modüllerden gelir (bkz. `AppModule.alertAutomationsQuery`); otomasyon durumunu değiştirmez, ayrı ikonla çizilir.
+  const alertAutomationKey = useQueries({ queries: alertAutomationQueries, combine: combineBusyAutomationKey });
+  const alertAutomationIds = useMemo<ReadonlySet<string>>(() => new Set(alertAutomationKey ? alertAutomationKey.split(',') : []), [alertAutomationKey]);
 
-  const [selectedCabinet, setSelectedCabinet] = useState<CabinetDetailDto | null>(null);
+  const [selectedAutomation, setSelectedAutomation] = useState<AutomationDetailDto | null>(null);
 
   // Harita UNCONTROLLED: kamera React state'inde tutulmaz, yalnızca filtre/ilk açılışta örnek üzerinden
   // sürülür. Controlled modda her `move` olayı (pan sırasında ~60/sn) bu bileşeni baştan render ediyordu.
   const [map, setMap] = useState<MapRef | null>(null);
 
-  // Haritaya yalnızca AKTİF ve konumu olan kabinler gelir. Pasif kabin haritada hiçbir filtrede görünmez: rozet sayıları
-  // aktifleri sayar, pasif kabinin durumu da artık hesaplanmadığı için bayattır (`RecalculateAsync` pasife dokunmaz).
-  const validCabinets = useMemo(
-    () => cabinets.filter((c): c is LocatedCabinet => c.isActive && c.latitude != null && c.longitude != null),
-    [cabinets]
+  // Haritaya yalnızca AKTİF ve konumu olan otomasyonlar gelir. Pasif otomasyon haritada hiçbir filtrede görünmez: rozet sayıları
+  // aktifleri sayar, pasif otomasyonun durumu da artık hesaplanmadığı için bayattır (`RecalculateAsync` pasife dokunmaz).
+  const validAutomations = useMemo(
+    () => automations.filter((c): c is LocatedAutomation => c.isActive && c.latitude != null && c.longitude != null),
+    [automations]
   );
 
   // Harita üst solundaki arama/filtre paneli: seçilen kabne (ya da tümüne) göre haritayı ortalar.
   const [filterOpen, setFilterOpen] = useState(false);
-  /** `null` = tüm kabinler (combobox boş). */
-  const [selectedCabinetId, setSelectedCabinetId] = useState<string | null>(null);
+  /** `null` = tüm otomasyonlar (combobox boş). */
+  const [selectedAutomationId, setSelectedAutomationId] = useState<string | null>(null);
   const filterRef = useRef<HTMLDivElement>(null);
 
   // Panel açıkken dışarıya (rozetler, harita, sayfanın geri kalanı) tıklanınca otomatik kapansın.
@@ -166,78 +166,78 @@ export default function Home() {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, [filterOpen]);
 
-  const cabinetOptions = useMemo(() => [...validCabinets].sort((a, b) => a.name.localeCompare(b.name, 'tr')), [validCabinets]);
-  const filterCabinet = cabinetOptions.find(c => c.id === selectedCabinetId) ?? null;
+  const automationOptions = useMemo(() => [...validAutomations].sort((a, b) => a.name.localeCompare(b.name, 'tr')), [validAutomations]);
+  const filterAutomation = automationOptions.find(c => c.id === selectedAutomationId) ?? null;
 
   // Base UI'ın varsayılan filtresi (`Intl.Collator`) "kizilay" yazınca "Kızılay"ı bulmuyor — bkz. `toSearchKey`.
-  // Kutuda seçili kabinin adı dururken liste yalnızca ona daralmasın: varsayılan tek seçim filtresi de böyle davranır.
-  const matchesCabinetQuery = (cabinet: LocatedCabinet, query: string) =>
-    query === filterCabinet?.name || toSearchKey(cabinet.name).includes(toSearchKey(query));
+  // Kutuda seçili otomasyonun adı dururken liste yalnızca ona daralmasın: varsayılan tek seçim filtresi de böyle davranır.
+  const matchesAutomationQuery = (automation: LocatedAutomation, query: string) =>
+    query === filterAutomation?.name || toSearchKey(automation.name).includes(toSearchKey(query));
 
-  // Harita üst-sağındaki durum rozetleri: yalnızca AKTİF kabinler sayılır (isActive === true);
-  // deaktive kabinler koordinatı olsun olmasın tamamen hariç. `cabinets` (tam liste) kullanılır,
-  // `validCabinets` (yalnızca haritada iğnesi olanlar) DEĞİL — bu bir durum özeti, "haritada ne
+  // Harita üst-sağındaki durum rozetleri: yalnızca AKTİF otomasyonlar sayılır (isActive === true);
+  // deaktive otomasyonlar koordinatı olsun olmasın tamamen hariç. `automations` (tam liste) kullanılır,
+  // `validAutomations` (yalnızca haritada iğnesi olanlar) DEĞİL — bu bir durum özeti, "haritada ne
   // çizili" özeti değil.
-  const activeCabinets = useMemo(() => cabinets.filter(c => c.isActive), [cabinets]);
-  const statusChips = useMemo(() => buildStatusChips(activeCabinets), [activeCabinets]);
+  const activeAutomations = useMemo(() => automations.filter(c => c.isActive), [automations]);
+  const statusChips = useMemo(() => buildStatusChips(activeAutomations), [activeAutomations]);
 
-  // Durum rozetine tıklanınca haritada YALNIZCA o duruma sahip (ve aktif) kabinler gösterilir ve
+  // Durum rozetine tıklanınca haritada YALNIZCA o duruma sahip (ve aktif) otomasyonlar gösterilir ve
   // harita onları çerçeveye sığdırır; sayısı 0 olan rozette harita boşalır ve kamera yerinde kalır.
-  // 'all' (Tümü) filtreyi tamamen kaldırır — haritada koordinatlı tüm AKTİF kabinler yeniden görünür, tıpkı ilk
+  // 'all' (Tümü) filtreyi tamamen kaldırır — haritada koordinatlı tüm AKTİF otomasyonlar yeniden görünür, tıpkı ilk
   // açılıştaki gibi.
-  // Modül rozetleri de aynı filtreyi sürer: "İşlemde" seçiliyken oturum kapanınca kabin haritadan düşer.
+  // Modül rozetleri de aynı filtreyi sürer: "İşlemde" seçiliyken oturum kapanınca otomasyon haritadan düşer.
   const [mapFilter, setMapFilter] = useState<MapFilter>('all');
 
-  const visibleCabinets = useMemo(() => {
-    if (mapFilter === 'all') return validCabinets;
-    return validCabinets.filter(c => matchesMapFilter(c, mapFilter, busyCabinetIds));
-  }, [validCabinets, mapFilter, busyCabinetIds]);
+  const visibleAutomations = useMemo(() => {
+    if (mapFilter === 'all') return validAutomations;
+    return validAutomations.filter(c => matchesMapFilter(c, mapFilter, busyAutomationIds));
+  }, [validAutomations, mapFilter, busyAutomationIds]);
 
   const moduleChips = useMemo(
     () =>
       MODULE_CHIP_DEFS.map(def => ({
         ...def,
-        count: activeCabinets.filter(c => matchesMapFilter(c, def.filter, busyCabinetIds)).length
+        count: activeAutomations.filter(c => matchesMapFilter(c, def.filter, busyAutomationIds)).length
       })),
-    [activeCabinets, busyCabinetIds]
+    [activeAutomations, busyAutomationIds]
   );
 
-  // Kabinlerin TAMAMINI çerçeveye sığdırır. Eski "ağırlık merkezi + sabit zoom", iki şehre dağılmış kabinlerde
-  // haritayı aradaki boş bir noktaya, sokak seviyesinde götürüyordu. Tek kabinde sonuç aynıdır (`maxZoom`).
-  const fitCabinets = (list: LocatedCabinet[], animate: boolean) => {
-    const bounds = cabinetBounds(list);
+  // Otomasyonların TAMAMINI çerçeveye sığdırır. Eski "ağırlık merkezi + sabit zoom", iki şehre dağılmış otomasyonlarda
+  // haritayı aradaki boş bir noktaya, sokak seviyesinde götürüyordu. Tek otomasyonda sonuç aynıdır (`maxZoom`).
+  const fitAutomations = (list: LocatedAutomation[], animate: boolean) => {
+    const bounds = automationBounds(list);
     if (map && bounds) map.fitBounds(bounds, { padding: FIT_PADDING, maxZoom: DEFAULT_ZOOM, duration: animate ? 600 : 0 });
   };
 
   const handleMapFilter = (filter: MapFilter) => {
     setMapFilter(filter);
-    fitCabinets(validCabinets.filter(c => matchesMapFilter(c, filter, busyCabinetIds)), true);
+    fitAutomations(validAutomations.filter(c => matchesMapFilter(c, filter, busyAutomationIds)), true);
   };
 
   const handleFilter = () => {
-    fitCabinets(filterCabinet ? [filterCabinet] : validCabinets, true);
-    // Seçilen kabin bir durum filtresi yüzünden haritada gizli kalmasın diye filtre sıfırlanır.
+    fitAutomations(filterAutomation ? [filterAutomation] : validAutomations, true);
+    // Seçilen otomasyon bir durum filtresi yüzünden haritada gizli kalmasın diye filtre sıfırlanır.
     setMapFilter('all');
   };
 
-  // Veri geldikten sonra haritayı kabinlere sığdır — yalnızca BİR KEZ; sonraki refetch'ler operatörün kaydırdığı
+  // Veri geldikten sonra haritayı otomasyonlara sığdır — yalnızca BİR KEZ; sonraki refetch'ler operatörün kaydırdığı
   // haritayı geri çekmesin. Bayrak state değil ref: effect'te setState yok, fazladan render kaskadı doğmaz.
-  // Liste ilk açılışta boş gelip sonradan dolarsa da (ilk kabin eklendiğinde) bir kez çalışır.
+  // Liste ilk açılışta boş gelip sonradan dolarsa da (ilk otomasyon eklendiğinde) bir kez çalışır.
   const autoFittedRef = useRef(false);
   useEffect(() => {
     if (autoFittedRef.current || !map) return;
-    const bounds = cabinetBounds(validCabinets);
+    const bounds = automationBounds(validAutomations);
     if (!bounds) return;
     autoFittedRef.current = true;
     map.fitBounds(bounds, { padding: FIT_PADDING, maxZoom: DEFAULT_ZOOM, duration: 0 });
-  }, [map, validCabinets]);
+  }, [map, validAutomations]);
 
-  // Tek popup: kabin başına bir popup örneği yerine kimlik tutulur ve kabin GÖRÜNÜR listeden türetilir — durum
-  // filtresi kabini gizlerse popup kendiliğinden kapanır.
-  const [popupCabinetId, setPopupCabinetId] = useState<string | null>(null);
-  const popupCabinet = useMemo(
-    () => (popupCabinetId ? (visibleCabinets.find(c => c.id === popupCabinetId) ?? null) : null),
-    [visibleCabinets, popupCabinetId]
+  // Tek popup: otomasyon başına bir popup örneği yerine kimlik tutulur ve otomasyon GÖRÜNÜR listeden türetilir — durum
+  // filtresi otomasyonu gizlerse popup kendiliğinden kapanır.
+  const [popupAutomationId, setPopupAutomationId] = useState<string | null>(null);
+  const popupAutomation = useMemo(
+    () => (popupAutomationId ? (visibleAutomations.find(c => c.id === popupAutomationId) ?? null) : null),
+    [visibleAutomations, popupAutomationId]
   );
 
   if (isLoading) {
@@ -248,7 +248,7 @@ export default function Home() {
     // `dvh`: mobil tarayıcıda `vh` adres çubuğunun arkasını da sayar, sayfanın altı çubuğun altında kalırdı.
     <div className="flex flex-col h-[calc(100dvh-6rem)] w-full gap-4 p-2 sm:p-4 overflow-y-auto scrollbar-thin">
       {/* Harita kalan genişliği alır (`flex-1 min-w-0`); geniş ekranda detay paneli yanında sabit genişlikte
-          durur, dar ekranda panel çekmeceye döndüğü için harita tam genişlikte kalır (bkz. `CabinetDetailPanel`). */}
+          durur, dar ekranda panel çekmeceye döndüğü için harita tam genişlikte kalır (bkz. `AutomationDetailPanel`). */}
       <div className="flex w-full gap-4 shrink-0 h-[55vh] min-h-[360px] md:min-h-[500px]">
         <div className="h-full min-w-0 flex-1">
           <div className="h-full w-full overflow-hidden rounded-lg border shadow-sm relative">
@@ -264,8 +264,8 @@ export default function Home() {
                   variant="secondary"
                   size="icon"
                   className="shadow-lg bg-primary/20 border-0 mr-4"
-                  aria-label="Kabin filtrele"
-                  title="Kabin filtrele"
+                  aria-label="Otomasyon filtrele"
+                  title="Otomasyon filtrele"
                   onClick={() => setFilterOpen(open => !open)}
                 >
                   <SearchIcon className="size-4" />
@@ -274,25 +274,25 @@ export default function Home() {
                 {filterOpen && (
                   <div className="absolute top-full left-0 mt-2 w-64 overflow-hidden rounded-lg border bg-popover/80 text-popover-foreground shadow-md backdrop-blur-sm">
                     <div className="space-y-2 p-3">
-                      <p className="text-xs font-medium text-muted-foreground">Kabin</p>
-                      {/* Boş kutu = tüm kabinler; seçimi temizle düğmesi oraya geri döndürür. Yazarken ilk eşleşme
+                      <p className="text-xs font-medium text-muted-foreground">Otomasyon</p>
+                      {/* Boş kutu = tüm otomasyonlar; seçimi temizle düğmesi oraya geri döndürür. Yazarken ilk eşleşme
                           vurgulanır (`autoHighlight`): Enter onu seçer. */}
                       <Combobox
-                        items={cabinetOptions}
-                        value={filterCabinet}
-                        onValueChange={cabinet => setSelectedCabinetId(cabinet?.id ?? null)}
-                        itemToStringLabel={cabinet => cabinet.name}
+                        items={automationOptions}
+                        value={filterAutomation}
+                        onValueChange={automation => setSelectedAutomationId(automation?.id ?? null)}
+                        itemToStringLabel={automation => automation.name}
                         isItemEqualToValue={(a, b) => a.id === b.id}
-                        filter={matchesCabinetQuery}
+                        filter={matchesAutomationQuery}
                         autoHighlight
                       >
-                        <ComboboxInput className="w-full" placeholder="Tüm kabinler — ara…" showClear={filterCabinet !== null} autoFocus />
+                        <ComboboxInput className="w-full" placeholder="Tüm otomasyonlar — ara…" showClear={filterAutomation !== null} autoFocus />
                         <ComboboxContent>
-                          <ComboboxEmpty>Kabin bulunamadı.</ComboboxEmpty>
+                          <ComboboxEmpty>Otomasyon bulunamadı.</ComboboxEmpty>
                           <ComboboxList className="scrollbar-thin">
-                            {(cabinet: LocatedCabinet) => (
-                              <ComboboxItem key={cabinet.id} value={cabinet}>
-                                {cabinet.name}
+                            {(automation: LocatedAutomation) => (
+                              <ComboboxItem key={automation.id} value={automation}>
+                                {automation.name}
                               </ComboboxItem>
                             )}
                           </ComboboxList>
@@ -311,10 +311,10 @@ export default function Home() {
                 )}
               </div>
 
-              {/* Durum rozetleri: tıklanınca haritada yalnızca o duruma sahip aktif kabinler
+              {/* Durum rozetleri: tıklanınca haritada yalnızca o duruma sahip aktif otomasyonlar
                   gösterilir ve harita onların ortasına çekilir. "Tümü" filtreyi kaldırıp haritayı
-                  koordinatlı tüm aktif kabinlerle geri getirir (pasifler haritaya hiç gelmez); içindeki
-                  sayı durum rozetlerinin toplamı (aktif kabin sayısı) ile aynıdır. Seçili filtre
+                  koordinatlı tüm aktif otomasyonlarla geri getirir (pasifler haritaya hiç gelmez); içindeki
+                  sayı durum rozetlerinin toplamı (aktif otomasyon sayısı) ile aynıdır. Seçili filtre
                   `border-primary/40` ile hafifçe vurgulanır (tam opak `border-primary` gözü çok
                   yordu) ve `shadow-md` ile öne çıkar; kenarlık kalınlığı SEÇİLİ/SEÇİLİ-DEĞİL
                   arasında sabit (`border-2`) tutulur, aksi halde seçim değişince rozet boyutu
@@ -322,7 +322,7 @@ export default function Home() {
               <div
                 className="pointer-events-auto flex min-w-0 items-center gap-1.5 overflow-x-auto scrollbar-thin px-0.5 pt-0.5 pb-1"
                 role="group"
-                aria-label="Kabin durum filtresi">
+                aria-label="Otomasyon durum filtresi">
                 <button
                   type="button"
                   onClick={() => handleMapFilter('all')}
@@ -332,10 +332,10 @@ export default function Home() {
 ? 'border-1 bg-white dark:bg-white/80 dark:text-secondary shadow-sm'
                         : 'border-1 border-primary/5 bg-primary/5 dark:bg-secondary text-foreground shadow-sm hover:bg-accent'
                   )}
-                  title={`Tümü: ${activeCabinets.length}`}
+                  title={`Tümü: ${activeAutomations.length}`}
                 >
                   <span>Tümü</span>
-                  <span className="font-semibold tabular-nums">{activeCabinets.length}</span>
+                  <span className="font-semibold tabular-nums">{activeAutomations.length}</span>
                 </button>
 
                 {statusChips.map((chip) => (
@@ -352,7 +352,7 @@ export default function Home() {
                   </button>
                 ))}
 
-                {/* Modül rozetleri (İşlemde): kabin durumundan bağımsız bir eksen, ince çizgiyle ayrılır. */}
+                {/* Modül rozetleri (İşlemde): otomasyon durumundan bağımsız bir eksen, ince çizgiyle ayrılır. */}
                 {moduleChips.length > 0 && <span className="mx-0.5 w-px shrink-0 self-stretch bg-border" aria-hidden="true" />}
                 {moduleChips.map((chip) => (
                   <button
@@ -373,29 +373,29 @@ export default function Home() {
             <Map ref={setMap} styles={BASEMAP_STYLES} center={DEFAULT_CENTER} zoom={DEFAULT_ZOOM}>
               <MapControls position="top-right" showZoom showCompass showLocate showFullscreen />
 
-              {/* Kabinler tek bir kümelenen WebGL katmanında çizilir (kabin başına DOM işaretçisi yok). Aynı
-                  kabine yeniden tıklamak popup'ı kapatır — eski `MarkerPopup`'ın aç/kapa davranışı. Çift
+              {/* Otomasyonlar tek bir kümelenen WebGL katmanında çizilir (otomasyon başına DOM işaretçisi yok). Aynı
+                  otomasyona yeniden tıklamak popup'ı kapatır — eski `MarkerPopup`'ın aç/kapa davranışı. Çift
                   tıklama detayı açar ve haritayı yakınlaştırmaz; iki tık popup'ı açıp kapattığından sonuç
                   eskisiyle aynı: popup kapalı, panel açık. */}
-              <CabinetMapLayer
-                cabinets={visibleCabinets}
-                busyCabinetIds={busyCabinetIds}
-                alertCabinetIds={alertCabinetIds}
-                onCabinetClick={cabinet => setPopupCabinetId(current => (current === cabinet.id ? null : cabinet.id))}
-                onCabinetDoubleClick={cabinet => {
-                  setPopupCabinetId(null);
-                  setSelectedCabinet(cabinet);
+              <AutomationMapLayer
+                automations={visibleAutomations}
+                busyAutomationIds={busyAutomationIds}
+                alertAutomationIds={alertAutomationIds}
+                onAutomationClick={automation => setPopupAutomationId(current => (current === automation.id ? null : automation.id))}
+                onAutomationDoubleClick={automation => {
+                  setPopupAutomationId(null);
+                  setSelectedAutomation(automation);
                 }}
-                onBackgroundClick={() => setPopupCabinetId(null)}
+                onBackgroundClick={() => setPopupAutomationId(null)}
               />
 
-              {/* `closeOnClick={false}`: kapanmayı MapLibre değil React state'i yönetir (bkz. `CabinetMapLayer`
+              {/* `closeOnClick={false}`: kapanmayı MapLibre değil React state'i yönetir (bkz. `AutomationMapLayer`
                   tıklama işleyicisi). `offset`: popup 48 piksellik ikonun üstünde açılsın, üzerine binmesin. */}
-              {popupCabinet && (
+              {popupAutomation && (
                 <MapPopup
-                  key={popupCabinet.id}
-                  longitude={popupCabinet.longitude}
-                  latitude={popupCabinet.latitude}
+                  key={popupAutomation.id}
+                  longitude={popupAutomation.longitude}
+                  latitude={popupAutomation.latitude}
                   offset={28}
                   closeOnClick={false}
                   className="w-64 p-0"
@@ -403,19 +403,19 @@ export default function Home() {
                   <div className="space-y-2 p-3">
                     <div>
                       <p className="pb-0.5 text-[11px] font-medium tracking-wide text-muted-foreground uppercase">
-                        {popupCabinet.companyName}
+                        {popupAutomation.companyName}
                       </p>
                       <h3 className="leading-tight font-semibold text-foreground">
-                        {popupCabinet.name}
+                        {popupAutomation.name}
                       </h3>
                     </div>
                     <div className="mt-1 flex items-center gap-1.5 text-sm">
                       <Activity className="size-4 text-primary" />
-                      <span className="font-medium">{deviceStatusLabel(popupCabinet.deviceStatusId)}</span>
+                      <span className="font-medium">{deviceStatusLabel(popupAutomation.deviceStatusId)}</span>
                     </div>
 
                     <div className="mt-2 flex gap-2 border-t pt-2">
-                      <Button size="sm" className="flex-1" onClick={() => setSelectedCabinet(popupCabinet)}>
+                      <Button size="sm" className="flex-1" onClick={() => setSelectedAutomation(popupAutomation)}>
                         <Info className="mr-1 size-3.5" />
                         Detay
                       </Button>
@@ -427,7 +427,7 @@ export default function Home() {
           </div>
         </div>
 
-        {selectedCabinet && <CabinetDetailPanel cabinet={selectedCabinet} onClose={() => setSelectedCabinet(null)} />}
+        {selectedAutomation && <AutomationDetailPanel automation={selectedAutomation} onClose={() => setSelectedAutomation(null)} />}
       </div>
 
       <div className="shrink-0 w-full pb-4">

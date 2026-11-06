@@ -77,7 +77,7 @@ public class PcHub : Hub<IPcHubClient>
         // Policy kimliği zorladı: cihaz aktif ve tipi Pc olduğu negotiate'te doğrulandı. Burada yalnızca gösterim alanları okunur.
         Guid deviceId = Context.User?.GetDeviceId() ?? throw new HubException("PC kimliği yok.");
         var device = await _unitOfWork.Devices.GetAsync(
-            select: d => new { d.Name, CabinetName = d.Cabinet!.Name },
+            select: d => new { d.Name, AutomationName = d.Automation!.Name },
             where: d => d.Id == deviceId && d.IsActive && d.ComponentTemplate!.DeviceTypeId == (int)DeviceType.Pc,
             cancellationToken: Context.ConnectionAborted);
         if (device is null)
@@ -96,10 +96,10 @@ public class PcHub : Hub<IPcHubClient>
         }
 
         Context.Items[DeviceIdItem] = deviceId;
-        _logger.LogInformation("RemoteDesk: {Device} ({Cabinet}) bağlandı — {MachineName} {Ip} sürüm {Version}, {MonitorCount} monitör",
-            device.Name, device.CabinetName, request.MachineName, ip, request.ClientVersion, connection.Monitors.Count);
+        _logger.LogInformation("RemoteDesk: {Device} ({Automation}) bağlandı — {MachineName} {Ip} sürüm {Version}, {MonitorCount} monitör",
+            device.Name, device.AutomationName, request.MachineName, ip, request.ClientVersion, connection.Monitors.Count);
 
-        return new HelloResponse(HelloStatus.Accepted, deviceId, device.Name, device.CabinetName);
+        return new HelloResponse(HelloStatus.Accepted, deviceId, device.Name, device.AutomationName);
     }
 
     /// <summary> Monitör takıldı/çıkarıldı ya da çözünürlük değişti. </summary>

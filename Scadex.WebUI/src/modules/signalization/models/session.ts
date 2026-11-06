@@ -5,7 +5,7 @@
  * uyarı onayı yok — bayrak kalıcıdır. `...Utc` damgalarında `Z` soneki YOKTUR; `toUtcDate` / `formatUtcDateTime`.
  */
 import { z } from 'zod';
-import type { CaptureStatus } from '@/models/enums/entityEnums';
+import type { CaptureStatus } from '@/modules/cameramanagement/models/enums';
 import type { OperatorSessionStatus, SessionPhase } from './enums';
 
 /** Tarih aralığı `startedAtUtc`'ye göre uygulanır. */

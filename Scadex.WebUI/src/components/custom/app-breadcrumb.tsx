@@ -11,7 +11,7 @@ import { Breadcrumb, BreadcrumbItem, BreadcrumbLink, BreadcrumbList, BreadcrumbP
  * eşleşen route zincirinden kendiliğinden oluşur.
  */
 
-/** Route'un `handle` alanına konan sözleşme: `{ crumb: 'Kabinler' }` */
+/** Route'un `handle` alanına konan sözleşme: `{ crumb: 'Otomasyonlar' }` */
 export interface CrumbHandle {
   crumb: string;
 }

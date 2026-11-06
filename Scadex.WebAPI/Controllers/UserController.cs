@@ -2,11 +2,11 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
 using Scadex.Business.Abstract;
 using Scadex.Business.Utils.Auth;
-using Scadex.Core.BaseRequestModels;
 using Scadex.Model.Dtos.User.Commands;
 using Scadex.WebAPI.Controllers.Base;
 using Scadex.Business.Utils.RateLimiting;
 using static Scadex.Model.Enums.EntityEnums;
+using Scadex.Core.Utils.BaseRequestModels;
 
 namespace Scadex.WebAPI.Controllers;
 
@@ -69,7 +69,7 @@ public class UserController : BaseController
     }
 
     /// <summary>
-    /// Sahada okutulan kartı kullanıcıya atar (Kabinler → "Kart tanımlama"); yalnızca kart alanını yazar. Kullanıcı yönetiminden
+    /// Sahada okutulan kartı kullanıcıya atar (Otomasyonlar → "Kart tanımlama"); yalnızca kart alanını yazar. Kullanıcı yönetiminden
     /// ayrı izindir: kartı tanımlayan kişinin kullanıcı oluşturması/rol vermesi gerekmez.
     /// </summary>
     [HttpPut("{id:guid}/identity-card")]

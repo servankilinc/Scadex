@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
 using Scadex.Business.Abstract;
 using Scadex.Business.Utils.Auth;
+using Scadex.Business.Utils.DeviceObserver;
 using Scadex.Model.Dtos.Diagram.Commands;
 using Scadex.WebAPI.Controllers.Base;
 using Scadex.Business.Utils.RateLimiting;
@@ -12,108 +13,105 @@ namespace Scadex.WebAPI.Controllers;
 /// <summary>
 /// Diyagram tablolarının tek yazım yolu. Editör her eylemi anında kendi ucuna gönderir (2026-10-27): cihaz / kablo / not
 /// oluşturma ve özellik formu, tuval yerleşimi ve seçimi silme.
+/// <para/>
+/// Cihaz güncellenince / silinince <c>IDeviceChangeObserver</c>'lar commit SONRASI burada çağrılır (servisin içinde değil:
+/// geri alınabilecek bir yazımdan önce dış dünyaya — ör. MediaMTX kamera yolu — dokunulmamalı).
 /// </summary>
 [EnableRateLimiting(RateLimiterKey.Default)]
 public class DiagramController : BaseController
 {
     private readonly IDiagramService _diagramService;
-    private readonly ICameraService _cameraService;
+    private readonly IEnumerable<IDeviceChangeObserver> _deviceObservers;
+    private readonly ILogger<DiagramController> _logger;
 
-    public DiagramController(ILogger<DiagramController> logger, IDiagramService diagramService, ICameraService cameraService) : base(logger)
+    public DiagramController(ILogger<DiagramController> logger, IDiagramService diagramService, IEnumerable<IDeviceChangeObserver> deviceObservers) : base(logger)
     {
         _diagramService = diagramService;
-        _cameraService = cameraService;
+        _deviceObservers = deviceObservers;
+        _logger = logger;
     }
 
-    [HttpGet("cabinet/{cabinetId:guid}")]
+    [HttpGet("automation/{automationId:guid}")]
     [RequirePermission(Permission.ViewDiagram)]
-    public async Task<IActionResult> GetCabinetDiagram(Guid cabinetId, CancellationToken cancellationToken)
+    public async Task<IActionResult> GetAutomationDiagram(Guid automationId, CancellationToken cancellationToken)
     {
-        var result = await _diagramService.GetAsync(cabinetId, cancellationToken);
+        var result = await _diagramService.GetAsync(automationId, cancellationToken);
         return ToAction(result);
     }
 
     #region Cihaz
-    [HttpPost("cabinet/{cabinetId:guid}/devices")]
+    [HttpPost("automation/{automationId:guid}/devices")]
     [RequirePermission(Permission.EditDiagram)]
-    public async Task<IActionResult> CreateDevice(Guid cabinetId, DeviceCreateRequest request, CancellationToken cancellationToken)
+    public async Task<IActionResult> CreateDevice(Guid automationId, DeviceCreateRequest request, CancellationToken cancellationToken)
     {
-        var result = await _diagramService.CreateDeviceAsync(cabinetId, request, cancellationToken);
+        var result = await _diagramService.CreateDeviceAsync(automationId, request, cancellationToken);
         return ToAction(result);
     }
 
-    [HttpPut("cabinet/{cabinetId:guid}/devices/{deviceId:guid}")]
+    [HttpPut("automation/{automationId:guid}/devices/{deviceId:guid}")]
     [RequirePermission(Permission.EditDiagram)]
-    public async Task<IActionResult> UpdateDevice(Guid cabinetId, Guid deviceId, DeviceUpdateRequest request, CancellationToken cancellationToken)
+    public async Task<IActionResult> UpdateDevice(Guid automationId, Guid deviceId, DeviceUpdateRequest request, CancellationToken cancellationToken)
     {
-        var result = await _diagramService.UpdateDeviceAsync(cabinetId, deviceId, request, cancellationToken);
+        var result = await _diagramService.UpdateDeviceAsync(automationId, deviceId, request, cancellationToken);
         if (result.IsSuccess)
-            await RefreshStreamPathsAsync([deviceId], cancellationToken);
+            await _deviceObservers.PublishDevicesChangedAsync([deviceId], _logger, cancellationToken);
         return ToAction(result);
     }
     #endregion
 
     #region Kablo
-    [HttpPost("cabinet/{cabinetId:guid}/connections")]
+    [HttpPost("automation/{automationId:guid}/connections")]
     [RequirePermission(Permission.EditDiagram)]
-    public async Task<IActionResult> CreateConnection(Guid cabinetId, ConnectionCreateRequest request, CancellationToken cancellationToken)
+    public async Task<IActionResult> CreateConnection(Guid automationId, ConnectionCreateRequest request, CancellationToken cancellationToken)
     {
-        var result = await _diagramService.CreateConnectionAsync(cabinetId, request, cancellationToken);
+        var result = await _diagramService.CreateConnectionAsync(automationId, request, cancellationToken);
         return ToAction(result);
     }
 
-    [HttpPut("cabinet/{cabinetId:guid}/connections/{connectionId:guid}")]
+    [HttpPut("automation/{automationId:guid}/connections/{connectionId:guid}")]
     [RequirePermission(Permission.EditDiagram)]
-    public async Task<IActionResult> UpdateConnection(Guid cabinetId, Guid connectionId, ConnectionUpdateRequest request, CancellationToken cancellationToken)
+    public async Task<IActionResult> UpdateConnection(Guid automationId, Guid connectionId, ConnectionUpdateRequest request, CancellationToken cancellationToken)
     {
-        var result = await _diagramService.UpdateConnectionAsync(cabinetId, connectionId, request, cancellationToken);
+        var result = await _diagramService.UpdateConnectionAsync(automationId, connectionId, request, cancellationToken);
         return ToAction(result);
     }
     #endregion
 
     #region Not
-    [HttpPost("cabinet/{cabinetId:guid}/annotations")]
+    [HttpPost("automation/{automationId:guid}/annotations")]
     [RequirePermission(Permission.EditDiagram)]
-    public async Task<IActionResult> CreateAnnotation(Guid cabinetId, DiagramAnnotationCreateRequest request, CancellationToken cancellationToken)
+    public async Task<IActionResult> CreateAnnotation(Guid automationId, DiagramAnnotationCreateRequest request, CancellationToken cancellationToken)
     {
-        var result = await _diagramService.CreateAnnotationAsync(cabinetId, request, cancellationToken);
+        var result = await _diagramService.CreateAnnotationAsync(automationId, request, cancellationToken);
         return ToAction(result);
     }
 
-    [HttpPut("cabinet/{cabinetId:guid}/annotations/{annotationId:guid}")]
+    [HttpPut("automation/{automationId:guid}/annotations/{annotationId:guid}")]
     [RequirePermission(Permission.EditDiagram)]
-    public async Task<IActionResult> UpdateAnnotation(Guid cabinetId, Guid annotationId, DiagramAnnotationUpdateRequest request, CancellationToken cancellationToken)
+    public async Task<IActionResult> UpdateAnnotation(Guid automationId, Guid annotationId, DiagramAnnotationUpdateRequest request, CancellationToken cancellationToken)
     {
-        var result = await _diagramService.UpdateAnnotationAsync(cabinetId, annotationId, request, cancellationToken);
+        var result = await _diagramService.UpdateAnnotationAsync(automationId, annotationId, request, cancellationToken);
         return ToAction(result);
     }
     #endregion
 
     #region Yerleşim ve silme
-    [HttpPut("cabinet/{cabinetId:guid}/layout")]
+    [HttpPut("automation/{automationId:guid}/layout")]
     [RequirePermission(Permission.EditDiagram)]
-    public async Task<IActionResult> UpdateLayout(Guid cabinetId, DiagramLayoutRequest request, CancellationToken cancellationToken)
+    public async Task<IActionResult> UpdateLayout(Guid automationId, DiagramLayoutRequest request, CancellationToken cancellationToken)
     {
-        var result = await _diagramService.UpdateLayoutAsync(cabinetId, request, cancellationToken);
+        var result = await _diagramService.UpdateLayoutAsync(automationId, request, cancellationToken);
         return ToAction(result);
     }
 
-    [HttpPost("cabinet/{cabinetId:guid}/delete")]
+    [HttpPost("automation/{automationId:guid}/delete")]
     [RequirePermission(Permission.EditDiagram)]
-    public async Task<IActionResult> Delete(Guid cabinetId, DiagramDeleteRequest request, CancellationToken cancellationToken)
+    public async Task<IActionResult> Delete(Guid automationId, DiagramDeleteRequest request, CancellationToken cancellationToken)
     {
-        var result = await _diagramService.DeleteAsync(cabinetId, request, cancellationToken);
+        var result = await _diagramService.DeleteAsync(automationId, request, cancellationToken);
         if (result.IsSuccess)
-            await RefreshStreamPathsAsync(request.DeviceIds, cancellationToken);
+            await _deviceObservers.PublishDevicesChangedAsync(request.DeviceIds, _logger, cancellationToken);
         return ToAction(result);
     }
     #endregion
-
-    /// <summary>
-    /// Commit SONRASI: kamera bilgisi değişen ya da silinen kameraların MediaMTX yolları düşürülür, açık izleyicinin eski
-    /// bilgilerle kurulan oturumu kesilir. Servisin içinde değil burada, çünkü yol, geri alınabilecek bir yazımdan önce
-    /// silinmemeli. Kamera olmayan Id'ler yok sayılır; başarısızlık yalnızca loglanır.
-    /// </summary>
-    private Task RefreshStreamPathsAsync(IReadOnlyCollection<Guid> deviceIds, CancellationToken cancellationToken) =>
-        deviceIds.Count == 0 ? Task.CompletedTask : _cameraService.RefreshStreamPathsAsync(deviceIds, cancellationToken);
 }

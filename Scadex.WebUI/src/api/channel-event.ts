@@ -4,13 +4,13 @@ import type { ChannelEventDto, ChannelEventQueryRequest, PaginationResponse } fr
 const CHANNEL_EVENT_ROUTE = '/api/ChannelEvent';
 
 /**
- * Bir kabinin olay geçmişi — yeniden eskiye, sayfalı.
+ * Bir otomasyonun olay geçmişi — yeniden eskiye, sayfalı.
  *
  * SALT OKUNUR bir kaynaktır: olayları yalnızca SCADA ingest'i üretir, dışarıdan
  * yazdırılamaz. Bu yüzden burada create/update/delete fonksiyonu yok ve
  * olmayacak.
  *
- * GET değil POST: filtre gövdesi (kabin, kanal, tarih aralığı, sayfalama) query
+ * GET değil POST: filtre gövdesi (otomasyon, kanal, tarih aralığı, sayfalama) query
  * string'e sıkıştırılmaktansa tiplenmiş bir gövdede taşınıyor — kod tabanının
  * diğer listeleme uçlarıyla aynı desen.
  */

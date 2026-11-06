@@ -93,7 +93,7 @@ public sealed class AgentStateService : IDisposable
             Environment.MachineName,
             _session.UserName,
             _connection.DeviceId,
-            new AgentConnectionView(ToView(status.State), status.CentralUrl, status.Detail, status.DeviceName, status.CabinetName),
+            new AgentConnectionView(ToView(status.State), status.CentralUrl, status.Detail, status.DeviceName, status.AutomationName),
             new FfmpegView(ffmpeg.Path, ffmpeg.Exists, ffmpeg.Version, ffmpeg.IsGpl),
             [.. monitors.Select(m => new AgentMonitorView(m, ToView(_streams.GetStatus(m.Index))))],
             new EncoderPanelView(

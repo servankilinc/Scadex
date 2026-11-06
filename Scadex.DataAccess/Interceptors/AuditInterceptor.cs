@@ -38,7 +38,7 @@ public sealed class AuditInterceptor : SaveChangesInterceptor
     private void ProcessAudit(DbContext context)
     {
         IEnumerable<EntityEntry<IAuditableEntity>> auditableEntries = context.ChangeTracker.Entries<IAuditableEntity>()
-            .Where(e => (e.State == EntityState.Added || e.State == EntityState.Modified) && e.Entity is not IProjectEntity);
+            .Where(e => e.State == EntityState.Added || e.State == EntityState.Modified);
 
         if (auditableEntries.Any())
         {

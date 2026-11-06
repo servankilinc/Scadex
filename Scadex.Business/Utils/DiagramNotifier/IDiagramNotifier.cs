@@ -1,21 +1,21 @@
-using Scadex.Model.Dtos.Realtime.Queries;
+using Scadex.Model.Realtime.Notifications;
 
 namespace Scadex.Business.Utils.DiagramNotifier;
 
 public interface IDiagramNotifier
 {
-    Task ChannelValuesChangedAsync(Guid cabinetId, IReadOnlyList<ChannelValueChange> changes, CancellationToken cancellationToken = default);
+    Task ChannelValuesChangedAsync(Guid automationId, IReadOnlyList<ChannelValueChangeNotify> changes, CancellationToken cancellationToken = default);
 
-    Task DeviceStatusesChangedAsync(Guid cabinetId, IReadOnlyList<DeviceStatusChange> changes, CancellationToken cancellationToken = default);
+    Task DeviceStatusesChangedAsync(Guid automationId, IReadOnlyList<DeviceStatusChangeNotify> changes, CancellationToken cancellationToken = default);
 
-    Task CabinetStatusChangedAsync(CabinetStatusChange change, CancellationToken cancellationToken = default);
+    Task AutomationStatusChangedAsync(AutomationStatusChangeNotify change, CancellationToken cancellationToken = default);
 
-    /// <summary> Kabin durumunu tüm kabinleri izleyenlere (ana sayfa haritası, kabin listesi vs.) bildirir. Yalnizca status değişince bildirir </summary>
-    Task CabinetStatusChangedForAllAsync(CabinetStatusChange change, CancellationToken cancellationToken = default);
+    /// <summary> Otomasyon durumunu tüm otomasyonları izleyenlere (ana sayfa haritası, otomasyon listesi vs.) bildirir. Yalnizca status değişince bildirir </summary>
+    Task AutomationStatusChangedForAllAsync(AutomationStatusChangeNotify change, CancellationToken cancellationToken = default);
 
-    /// <summary>Bir komutun sonuclandigini ayni kabini izleyen DIGER kullanicilara bildirir. Komutu gonderen sonucu zaten HTTP yanitinda alir. </summary>
-    Task CommandCompletedAsync(Guid cabinetId, CommandCompleted change, CancellationToken cancellationToken = default);
+    /// <summary>Bir komutun sonuclandigini ayni otomasyonu izleyen DIGER kullanicilara bildirir. Komutu gonderen sonucu zaten HTTP yanitinda alir. </summary>
+    Task CommandCompletedAsync(Guid automationId, CommandCompletedNotify change, CancellationToken cancellationToken = default);
 
-    /// <summary> Kabinin kart okuyucusunda kart okutuldu; kabini izleyenlere  bildirir. </summary>
-    Task CardReadAsync(Guid cabinetId, CardRead change, CancellationToken cancellationToken = default);
+    /// <summary> Otomasyonun kart okuyucusunda kart okutuldu; otomasyonu izleyenlere  bildirir. </summary>
+    Task CardReadAsync(Guid automationId, CardReadNotify change, CancellationToken cancellationToken = default);
 }

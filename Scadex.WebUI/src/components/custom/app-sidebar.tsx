@@ -11,13 +11,11 @@ import {
   LogOut,
   MonitorIcon,
   MoonIcon,
-  SettingsIcon,
   ShapesIcon,
   ShieldIcon,
   SunIcon,
   UserIcon,
   UsersIcon,
-  VideoIcon,
   Zap,
   type LucideIcon
 } from 'lucide-react';
@@ -70,17 +68,14 @@ type NavItem = ModuleNavItem;
 const NAV_ITEMS: NavItem[] = [
   // Logo da '/'a gider ama tek giriş noktası olarak yeterince görünür değil.
   { title: 'Ana Sayfa', url: '/', icon: HouseIcon },
-  { title: 'Kabinler', url: '/cabinets', icon: CpuIcon },
+  { title: 'Otomasyonlar', url: '/automations', icon: CpuIcon },
   { title: 'Olay Geçmişi', url: '/events', icon: HistoryIcon },
-  // Canlı izleme kamera tanımını da (ekle/düzenle) kapsar — ayrı bir "Kameralar"
-  // yönetim ekranı yok (eski /admin/cameras, 2026-09-23'te buraya taşındı).
+  // Kameralar + çekim ayarları CameraManagement modülünün menü grubundadır (VITE_MODULES).
   // `permission`: rotanın `requirePermission`'ıyla aynı izin (main.tsx).
-  { title: 'Kameralar', url: '/cameras', icon: VideoIcon, permission: 'ViewCamera' },
   { title: 'Firmalar', url: '/admin/companies', icon: Building2Icon, permission: 'ConfigureSystem' },
   { title: 'Kullanıcılar', url: '/admin/users', icon: UsersIcon, permission: 'ManageUsers' },
   { title: 'Roller', url: '/admin/roles', icon: ShieldIcon, permission: 'ManageUsers' },
-  { title: 'Şablonlar', url: '/admin/templates', icon: ShapesIcon, permission: 'ConfigureSystem' },
-  { title: 'Ayarlar', url: '/admin/settings', icon: SettingsIcon, permission: 'ConfigureSystem' }
+  { title: 'Şablonlar', url: '/admin/templates', icon: ShapesIcon, permission: 'ConfigureSystem' }
 ];
 
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
@@ -133,7 +128,7 @@ function NavGroup({ label, items }: { label: string; items: NavItem[] }) {
           <SidebarMenuItem key={item.url}>
             <SidebarMenuButton
               tooltip={item.title}
-              // startsWith: /cabinets/:id/diagram icindeyken de "Kabinler" aktif kalir.
+              // startsWith: /automations/:id/diagram icindeyken de "Otomasyonlar" aktif kalir.
               isActive={pathname === item.url || pathname.startsWith(`${item.url}/`)}
               render={<Link to={item.url} />}>
               <item.icon />

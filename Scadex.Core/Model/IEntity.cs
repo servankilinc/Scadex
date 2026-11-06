@@ -8,15 +8,6 @@ public interface IEntity
 }
 
 /// <summary>
-/// Interface for entities voiding to handle interceptors.
-/// </summary>
-
-public interface IProjectEntity
-{
-}
-
-
-/// <summary>
 /// Interface for entities that support auditing.
 /// </summary>
 public interface IAuditableEntity
@@ -25,13 +16,6 @@ public interface IAuditableEntity
     string? UpdatedBy { get; set; }
     DateTime? CreateDateUtc { get; set; }
     DateTime? UpdateDateUtc { get; set; }
-}
-
-/// <summary>
-/// Interface for entities that support archiving.
-/// </summary>
-public interface IArchivableEntity
-{
 }
 
 /// <summary>

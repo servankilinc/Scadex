@@ -229,109 +229,6 @@ namespace Scadex.DataAccess.Migrations
                     b.ToTable("Camera", (string)null);
                 });
 
-            modelBuilder.Entity("Scadex.Model.Entities.CameraCapture", b =>
-                {
-                    b.Property<long>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("bigint");
-
-                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<long>("Id"));
-
-                    b.Property<Guid>("CameraId")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<DateTime>("CapturedAtUtc")
-                        .HasColumnType("datetime2");
-
-                    b.Property<int?>("DurationSec")
-                        .HasColumnType("int");
-
-                    b.Property<DateTime?>("ExpiresAt")
-                        .HasColumnType("datetime2");
-
-                    b.Property<string>("FailureReason")
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<string>("RelativePath")
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<Guid?>("RequestedByUserId")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<long?>("SizeBytes")
-                        .HasColumnType("bigint");
-
-                    b.Property<int>("Status")
-                        .HasColumnType("int");
-
-                    b.Property<int>("Type")
-                        .HasColumnType("int");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("RequestedByUserId");
-
-                    b.HasIndex("CameraId", "CapturedAtUtc");
-
-                    b.ToTable("CameraCapture", (string)null);
-                });
-
-            modelBuilder.Entity("Scadex.Model.Entities.CameraCaptureSetting", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("int");
-
-                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
-
-                    b.Property<int>("CaptureRetentionDays")
-                        .HasColumnType("int");
-
-                    b.Property<string>("CaptureRoot")
-                        .IsRequired()
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<int>("ClipFinalizeGraceMs")
-                        .HasColumnType("int");
-
-                    b.Property<DateTime?>("CreateDateUtc")
-                        .HasColumnType("datetime2");
-
-                    b.Property<string>("CreatedBy")
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<int>("MaxClipDurationSec")
-                        .HasColumnType("int");
-
-                    b.Property<int>("SnapshotCacheSeconds")
-                        .HasColumnType("int");
-
-                    b.Property<int>("SnapshotTimeoutMs")
-                        .HasColumnType("int");
-
-                    b.Property<DateTime?>("UpdateDateUtc")
-                        .HasColumnType("datetime2");
-
-                    b.Property<string>("UpdatedBy")
-                        .HasColumnType("nvarchar(max)");
-
-                    b.HasKey("Id");
-
-                    b.ToTable("CameraCaptureSettings");
-
-                    b.HasData(
-                        new
-                        {
-                            Id = 1,
-                            CaptureRetentionDays = 30,
-                            CaptureRoot = "uploads/captures",
-                            ClipFinalizeGraceMs = 3000,
-                            MaxClipDurationSec = 600,
-                            SnapshotCacheSeconds = 3,
-                            SnapshotTimeoutMs = 5000
-                        });
-                });
-
             modelBuilder.Entity("Scadex.Model.Entities.CanvasSettings", b =>
                 {
                     b.Property<Guid>("Id")
@@ -3217,9 +3114,6 @@ namespace Scadex.DataAccess.Migrations
                     b.Property<string>("WaypointsJson")
                         .HasColumnType("nvarchar(max)");
 
-                    b.Property<int>("WireType")
-                        .HasColumnType("int");
-
                     b.Property<int>("ZIndex")
                         .HasColumnType("int");
 
@@ -3345,9 +3239,6 @@ namespace Scadex.DataAccess.Migrations
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uniqueidentifier");
-
-                    b.Property<int>("CommandType")
-                        .HasColumnType("int");
 
                     b.Property<DateTime?>("CreateDateUtc")
                         .HasColumnType("datetime2");
@@ -3807,13 +3698,6 @@ namespace Scadex.DataAccess.Migrations
                         },
                         new
                         {
-                            Id = 3,
-                            Category = "Alarm",
-                            Code = "AcknowledgeAlarm",
-                            DisplayName = "Alarm kabul et"
-                        },
-                        new
-                        {
                             Id = 4,
                             Category = "Admin",
                             Code = "ManageUsers",
@@ -3832,20 +3716,6 @@ namespace Scadex.DataAccess.Migrations
                             Category = "Diagram",
                             Code = "ViewCamera",
                             DisplayName = "Kamera görüntüle"
-                        },
-                        new
-                        {
-                            Id = 7,
-                            Category = "Data",
-                            Code = "ExportData",
-                            DisplayName = "Veri dışarı aktar"
-                        },
-                        new
-                        {
-                            Id = 8,
-                            Category = "Admin",
-                            Code = "ManageWorkflow",
-                            DisplayName = "İş akışı yönet"
                         },
                         new
                         {
@@ -4135,11 +4005,6 @@ namespace Scadex.DataAccess.Migrations
                         new
                         {
                             RoleId = new Guid("7138ec51-4f9e-4afd-b61b-5a9a4584f5da"),
-                            PermissionId = 3
-                        },
-                        new
-                        {
-                            RoleId = new Guid("7138ec51-4f9e-4afd-b61b-5a9a4584f5da"),
                             PermissionId = 4
                         },
                         new
@@ -4151,16 +4016,6 @@ namespace Scadex.DataAccess.Migrations
                         {
                             RoleId = new Guid("7138ec51-4f9e-4afd-b61b-5a9a4584f5da"),
                             PermissionId = 6
-                        },
-                        new
-                        {
-                            RoleId = new Guid("7138ec51-4f9e-4afd-b61b-5a9a4584f5da"),
-                            PermissionId = 7
-                        },
-                        new
-                        {
-                            RoleId = new Guid("7138ec51-4f9e-4afd-b61b-5a9a4584f5da"),
-                            PermissionId = 8
                         },
                         new
                         {
@@ -4318,86 +4173,6 @@ namespace Scadex.DataAccess.Migrations
                         });
                 });
 
-            modelBuilder.Entity("Scadex.Model.ProjectEntities.Archive", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("int");
-
-                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
-
-                    b.Property<byte>("Action")
-                        .HasColumnType("tinyint");
-
-                    b.Property<string>("ClientIp")
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<string>("Data")
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<DateTime>("DateUtc")
-                        .HasColumnType("datetime2");
-
-                    b.Property<string>("EntityId")
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<string>("RequesterId")
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<string>("TableName")
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<string>("UserAgent")
-                        .HasColumnType("nvarchar(max)");
-
-                    b.HasKey("Id");
-
-                    b.ToTable("ProjectArchives", (string)null);
-                });
-
-            modelBuilder.Entity("Scadex.Model.ProjectEntities.Log", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("int");
-
-                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
-
-                    b.Property<byte>("Action")
-                        .HasColumnType("tinyint");
-
-                    b.Property<string>("ClientIp")
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<string>("Data")
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<DateTime>("DateUtc")
-                        .HasColumnType("datetime2");
-
-                    b.Property<string>("EntityId")
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<string>("NewData")
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<string>("OldData")
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<string>("RequesterId")
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<string>("TableName")
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<string>("UserAgent")
-                        .HasColumnType("nvarchar(max)");
-
-                    b.HasKey("Id");
-
-                    b.ToTable("ProjectLogs", (string)null);
-                });
-
             modelBuilder.Entity("Microsoft.AspNetCore.Identity.IdentityRoleClaim<System.Guid>", b =>
                 {
                     b.HasOne("Scadex.Model.Entities.Role", null)
@@ -4476,24 +4251,6 @@ namespace Scadex.DataAccess.Migrations
                         .IsRequired();
 
                     b.Navigation("Device");
-                });
-
-            modelBuilder.Entity("Scadex.Model.Entities.CameraCapture", b =>
-                {
-                    b.HasOne("Scadex.Model.Entities.Camera", "Camera")
-                        .WithMany("Captures")
-                        .HasForeignKey("CameraId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.HasOne("Scadex.Model.Entities.User", "RequestedByUser")
-                        .WithMany()
-                        .HasForeignKey("RequestedByUserId")
-                        .OnDelete(DeleteBehavior.Restrict);
-
-                    b.Navigation("Camera");
-
-                    b.Navigation("RequestedByUser");
                 });
 
             modelBuilder.Entity("Scadex.Model.Entities.CanvasSettings", b =>
@@ -4755,11 +4512,6 @@ namespace Scadex.DataAccess.Migrations
                     b.Navigation("Devices");
 
                     b.Navigation("DiagramAnnotations");
-                });
-
-            modelBuilder.Entity("Scadex.Model.Entities.Camera", b =>
-                {
-                    b.Navigation("Captures");
                 });
 
             modelBuilder.Entity("Scadex.Model.Entities.Company", b =>

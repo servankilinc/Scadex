@@ -2,21 +2,21 @@ import { Link } from 'react-router';
 import { ChevronRightIcon, MonitorIcon } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { usePermission } from '@/lib/auth-session';
-import type { CabinetPanelSectionProps } from '../../types';
+import type { AutomationPanelSectionProps } from '../../types';
 import { isModuleOff, useOpenSessions } from '../hooks/use-operator-sessions';
 
 /**
  * Ana sayfa haritasındaki kabin detay panelinin EN ÜSTÜNE eklenen sinyalizasyon eylemi
- * (modülün `CabinetPanelTopAction`'ı).
+ * (modülün `AutomationPanelTopAction`'ı).
  *
  * `CabinetSessionSection`'dan (panelin ALTINA eklenen bölüm) bilinçli olarak AYRI: sanal kabin
  * ekranı devam eden bir operatör işlemine bağlı değil, kabinde hiç işlem olmasa da açılabilmeli —
  * künyeden (Firma/Durum/…) önce gelmesi, panelin en sık kullanılan eylemi olduğunu da gösteriyor.
  *
- * `useOpenSessions` çağrısı `busyCabinetsQuery` ile AYNI anahtarı kullanır — harita zaten bu sorguyu
+ * `useOpenSessions` çağrısı `busyAutomationsQuery` ile AYNI anahtarı kullanır — harita zaten bu sorguyu
  * çalıştırdığı için ek istek doğmaz, yalnızca önbellekten `moduleOff` durumu okunur.
  */
-export default function CabinetVirtualLink({ cabinetId }: CabinetPanelSectionProps) {
+export default function CabinetVirtualLink({ automationId: cabinetId }: AutomationPanelSectionProps) {
   const { error } = useOpenSessions();
   const canOpen = usePermission()('SignalVirtualCabinet');
 

@@ -9,7 +9,7 @@ import { API_BASE_URL } from '@/lib/axios-helper';
  * varsayılanları vendored koddadır ve orada değiştirilmez.
  *
  * Zemin tamamen yereldir: tile, font ve sprite WebAPI'nin `/basemap` yolundan gelir (`Scadex.WebAPI/MapTiles/`,
- * git'te yok — her sunucuya elle konur). Harita dışarıya istek atmaz; kabinlerin çevresindeki tile koordinatları
+ * git'te yok — her sunucuya elle konur). Harita dışarıya istek atmaz; otomasyonların çevresindeki tile koordinatları
  * üçüncü taraf bir sunucuya gitmez ve internetsiz sahada da açılır.
  *
  * `basemap.pmtiles` **Protomaps Basemap şemasıdır** (Türkiye, z0–13): VersaTiles / Carto / OpenMapTiles stilleri bu

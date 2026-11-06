@@ -1,37 +1,13 @@
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Scadex.Core.Enums;
-using System.ComponentModel;
-using System.Globalization;
-using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
-using System.Text.RegularExpressions;
 
 namespace Scadex.Core.Utils;
 
 public static class GlobalExtensions
 {
-    public static JsonSerializerOptions SetByProjectSettings(this JsonSerializerOptions options)
-    {
-        // DTO/response ozellikleri camelCase.
-        options.PropertyNamingPolicy = JsonNamingPolicy.CamelCase;
-
-        // Sozluk ANAHTARLARI donusturulmez - ProblemDetails.errors'in PascalCase kalmasinin sebebi budur. Bilerek null.
-        options.DictionaryKeyPolicy = null;
-
-        // Gelen govde PascalCase de olsa baglanir.
-        options.PropertyNameCaseInsensitive = true;
-
-        // Web varsayilani sayilari string'ten de okuyabilir ("1" -> 1). 
-        options.NumberHandling = JsonNumberHandling.AllowReadingFromString;
-
-        // null alanlar govdede kalir
-        options.DefaultIgnoreCondition = JsonIgnoreCondition.Never;
-        return options;
-    }
-
-
     #region Result Extensions
     public static string GetDefaultMessage(this ResultPattern.IResult result)
     {
@@ -118,71 +94,10 @@ public static class GlobalExtensions
     }
     #endregion
 
-
-    #region Enum Extensions
-    public static TEnum GetEnumByDescription<TEnum>(string description) where TEnum : Enum
-    {
-        foreach (var field in typeof(TEnum).GetFields())
-        {
-            if (Attribute.GetCustomAttribute(field, typeof(DescriptionAttribute)) is DescriptionAttribute attribute)
-            {
-                if (attribute.Description == description)
-                    return (TEnum)field.GetValue(null)!;
-            }
-            else
-            {
-                if (field.Name == description)
-                    return (TEnum)field.GetValue(null)!;
-            }
-        }
-
-        throw new ArgumentException($"No enum with description '{description}' found in {typeof(TEnum)}");
-    }
-
-    public static string GetDescription(this Enum value)
-    {
-        var field = value.GetType().GetField(value.ToString());
-        var attr = (DescriptionAttribute?)Attribute.GetCustomAttribute(field!, typeof(DescriptionAttribute));
-        return attr?.Description ?? value.ToString();
-    }
-    #endregion
-
-
     #region String Extensions
     public static string? Truncate(this string? value, int max)
     {
         return value == null || value.Length <= max ? value : value[..max];
-    }
-
-    public static string ToSeoFriendly(this string text)
-    {
-        if (string.IsNullOrWhiteSpace(text))
-            return string.Empty;
-
-        string result = text.Trim();
-
-        result = result.ToLowerInvariant()
-            .Replace('ç', 'c').Replace('Ç', 'C')
-            .Replace('ğ', 'g').Replace('Ğ', 'G')
-            .Replace('ı', 'i').Replace('İ', 'I')
-            .Replace('ö', 'o').Replace('Ö', 'O')
-            .Replace('ş', 's').Replace('Ş', 'S')
-            .Replace('ü', 'u').Replace('Ü', 'U');
-
-        result = result.Normalize(System.Text.NormalizationForm.FormD);
-        var sb = new StringBuilder();
-        foreach (var c in result)
-        {
-            if (CharUnicodeInfo.GetUnicodeCategory(c) != UnicodeCategory.NonSpacingMark)
-                sb.Append(c);
-        }
-        result = sb.ToString();
-
-        result = Regex.Replace(result, @"[^a-z0-9\s-]", "");
-        result = Regex.Replace(result, @"\s+", "-").Trim('-');
-        result = Regex.Replace(result, @"-+", "-");
-
-        return result;
     }
     #endregion
 }

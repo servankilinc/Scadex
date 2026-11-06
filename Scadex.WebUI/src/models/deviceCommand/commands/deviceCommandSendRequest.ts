@@ -1,5 +1,4 @@
 /** Ayna: Scadex.Model/Dtos/DeviceCommand/Commands/DeviceCommandSendRequest.cs — sözleşme: docs/api-contract/08-scada-command.md */
-import type { DeviceCommandType } from '@/models/enums';
 
 /**
  * `POST /api/Device/{deviceId}/command` gövdesi.
@@ -10,7 +9,6 @@ import type { DeviceCommandType } from '@/models/enums';
  * süren bir sisteme geçerdi. `payloadJson`'ı sunucu bu alanlardan kendisi kurar.
  */
 export interface DeviceCommandSendRequest {
-  commandType: DeviceCommandType;
   /** Hedef kanal — zorunlu. Kanalsız, modül geneline giden bir kumanda artık yok. */
   ioChannelId: string;
   /**

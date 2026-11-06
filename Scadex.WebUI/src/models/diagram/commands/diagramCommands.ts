@@ -1,12 +1,12 @@
 /** Ayna: Scadex.Model/Dtos/Diagram/Commands/*.cs — editörün her eylemi kendi ucuna anında gider (2026-10-27). */
-import type { AnnotationShape, CameraBrand, EdgeRouting, LineStyle, WireType } from '@/models/enums';
+import type { AnnotationShape, CameraBrand, EdgeRouting, LineStyle } from '@/models/enums';
 import type { PointDto } from '../queries/pointDto';
 
 /**
  * Bu dosya, `commands/` klasöründeki zod konvansiyonundan BİLEREK ayrılır: gövdeler editörün React Flow state'inden
  * makine tarafından üretilir. Kullanıcının elle yazdığı alanlar (cihaz adı gibi) düzenlendikleri formda doğrulanır.
  *
- * `cabinetId` her uçta ROTADAN gider, gövdede YOKTUR.
+ * `automationId` her uçta ROTADAN gider, gövdede YOKTUR.
  */
 
 // ──────────────────────────────────────────────────────────────── cihaz
@@ -29,7 +29,15 @@ export interface CameraDraft {
  */
 export interface ControlCardDraft {
   macAddress: string | null;
+  /** Kartın HTTP adresi (komut + okuma). 2026-11-04'e kadar otomasyon formundaydı. Açıkken zorunlu (400 `ControlCard.ScadaBaseUrl`). */
+  scadaBaseUrl: string | null;
+  scadaIsEnabled: boolean;
+  /** Açıkken en az `SCADA_MIN_TIMEOUT_MS`. */
+  scadaCommandTimeoutMs: number;
 }
+
+/** SCADA komut zaman aşımının sunucudaki alt sınırı (`ControlCardDraftValidator`). */
+export const SCADA_MIN_TIMEOUT_MS = 10000;
 
 /**
  * PC'nin Basic Auth sırrı (kullanıcı adı cihazın Id'si). `null` = mevcut kimliğe dokunma, `''` = iptal, değer = yeni sır —
@@ -81,7 +89,6 @@ export interface DeviceCreateRequest extends DeviceUpdateRequest {
 /** Kablonun görünümü: `PUT …/connections/{id}`. Uçlar yok — ucu değiştirmek silip yeniden çizmektir. */
 export interface ConnectionUpdateRequest {
   label: string | null;
-  wireType: WireType;
   color: string;
   lineStyle: LineStyle;
   strokeWidth: number;
@@ -90,7 +97,7 @@ export interface ConnectionUpdateRequest {
   zIndex: number;
 }
 
-/** Kablo çizme: `POST …/connections`. İki uç da bu kabinde KALICI pin olmalı (cihaz bırakılınca anında oluşturulur). */
+/** Kablo çizme: `POST …/connections`. İki uç da bu otomasyonda KALICI pin olmalı (cihaz bırakılınca anında oluşturulur). */
 export interface ConnectionCreateRequest extends ConnectionUpdateRequest {
   id: string;
   sourcePinId: string;
@@ -157,7 +164,7 @@ export interface DiagramLayoutRequest {
 }
 
 /**
- * `POST …/delete`: cihazın pinleri ve kabloları sunucuda birlikte kalkar. Bu kabinde karşılığı olmayan Id sessizce atlanır.
+ * `POST …/delete`: cihazın pinleri ve kabloları sunucuda birlikte kalkar. Bu otomasyonda karşılığı olmayan Id sessizce atlanır.
  */
 export interface DiagramDeleteRequest {
   deviceIds: string[];

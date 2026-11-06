@@ -1,5 +1,5 @@
-/** Ayna: Scadex.Model/Dtos/Realtime/Queries/RealtimeEvents.cs — sözleşme: docs/api-contract/09-realtime.md */
-import type { CommandStatus, DeviceCommandType, DeviceStatus } from '@/models/enums';
+/** Ayna: Scadex.Model/Realtime/Notifications/*.cs — sözleşme: docs/api-contract/09-realtime.md */
+import type { CommandStatus, DeviceStatus } from '@/models/enums';
 
 /**
  * `/hubs/diagram` üzerinden sunucudan gelen olayların gövdeleri.
@@ -9,7 +9,7 @@ import type { CommandStatus, DeviceCommandType, DeviceStatus } from '@/models/en
  * kodlaması buradaki diğer DTO aynalarıyla birebir aynı.
  */
 
-export interface ChannelValueChange {
+export interface ChannelValueChangeNotify {
   ioChannelId: string;
   /** Kanalın bağlı olduğu cihaz — node bazında yeniden çizim için. */
   deviceId: string;
@@ -19,15 +19,15 @@ export interface ChannelValueChange {
   updatedAt: string;
 }
 
-export interface DeviceStatusChange {
+export interface DeviceStatusChangeNotify {
   deviceId: string;
   /** Null = bilinmiyor (canlılık kanıtı yok; arayüzde `deviceStatusLabel`). `Offline` (0) ile AYNI ŞEY DEĞİL. */
   statusId: DeviceStatus | null;
   lastSeen: string | null;
 }
 
-export interface CabinetStatusChange {
-  cabinetId: string;
+export interface AutomationStatusChangeNotify {
+  automationId: string;
   statusId: DeviceStatus | null;
   lastSeen: string | null;
   scadaLastIngestAt: string | null;
@@ -38,7 +38,7 @@ export interface CabinetStatusChange {
  *
  * Üstteki üç olaydan **farklı bir sebeple** var: onlar sahadan gelen değişimi
  * taşır, bu ise bir kullanıcının yaptığı işi. Komutu gönderen sonucu zaten HTTP
- * yanıtında alır; bu yayın aynı kabini izleyen **diğerleri** için.
+ * yanıtında alır; bu yayın aynı otomasyonu izleyen **diğerleri** için.
  *
  * **Gönderen de bu olayı alır.** Sunucu grubun tamamına yayınlıyor ve gönderenin
  * bağlantısı da o grupta; ayıklama istemcide, `commandId` üzerinden yapılır.
@@ -46,12 +46,11 @@ export interface CabinetStatusChange {
  * Gövde `DeviceCommandResultDto`'nun ALT KÜMESİDİR (`payloadJson`, `sentAt`,
  * `elapsedMs` yok) — bu yüzden doğrudan geçmiş listesine eklenmez.
  */
-export interface CommandCompleted {
+export interface CommandCompletedNotify {
   commandId: string;
   deviceId: string;
   ioChannelId: string | null;
   channelNumber: number | null;
-  commandType: DeviceCommandType;
   status: CommandStatus;
   resultMessage: string | null;
   respondedAt: string | null;
@@ -59,11 +58,11 @@ export interface CommandCompleted {
 }
 
 /**
- * Kabinin kart okuyucusunda kart okutuldu (`POST /api/Scada/card`). Kabinler ekranındaki "Kart tanımlama" penceresi bunu
+ * Otomasyonun kart okuyucusunda kart okutuldu (`POST /api/Scada/card`). Otomasyonlar ekranındaki "Kart tanımlama" penceresi bunu
  * dinler. Kart tanımsız da olsa gelir; modüllerin okumayı nasıl işlediğinden bağımsızdır.
  */
-export interface CardRead {
-  cabinetId: string;
+export interface CardReadNotify {
+  automationId: string;
   /** SCADA'nın gönderdiği ham kart numarası. */
   cardId: string;
   /** Kart aktif bir kullanıcıya tanımlıysa sahibi; değilse `null`. */
@@ -84,7 +83,7 @@ export interface CardRead {
 export const DiagramHubEvents = {
   channelValuesChanged: 'ChannelValuesChanged',
   deviceStatusChanged: 'DeviceStatusChanged',
-  cabinetStatusChanged: 'CabinetStatusChanged',
+  automationStatusChanged: 'AutomationStatusChanged',
   commandCompleted: 'CommandCompleted',
   cardRead: 'CardRead'
 } as const;
@@ -93,7 +92,7 @@ export const DiagramHubEvents = {
 export const DiagramHubMethods = {
   subscribe: 'Subscribe',
   unsubscribe: 'Unsubscribe',
-  /** Tüm kabinlerin durum özeti (harita, kabin listesi). Bu gruba yalnızca `CabinetStatusChanged` gider, o da durum DEĞİŞİNCE. */
-  subscribeCabinets: 'SubscribeCabinets',
-  unsubscribeCabinets: 'UnsubscribeCabinets'
+  /** Tüm otomasyonların durum özeti (harita, otomasyon listesi). Bu gruba yalnızca `AutomationStatusChanged` gider, o da durum DEĞİŞİNCE. */
+  subscribeAutomations: 'SubscribeAutomations',
+  unsubscribeAutomations: 'UnsubscribeAutomations'
 } as const;

@@ -3,7 +3,6 @@ using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
 using Scadex.Model.Entities;
 using Scadex.Model.Enums;
-using Scadex.Model.ProjectEntities;
 using Dir = Scadex.Model.Enums.EntityEnums.PinDirection;
 using Fn = Scadex.Model.Enums.EntityEnums.PinFunction;
 using Side = Scadex.Model.Enums.EntityEnums.HandleSide;
@@ -18,7 +17,7 @@ public class AppDbContext : IdentityDbContext<User, Role, Guid>
     }
 
     public DbSet<Company> Companies { get; set; }
-    public DbSet<Cabinet> Cabinets { get; set; }
+    public DbSet<Automation> Automations { get; set; }
     public override DbSet<User> Users { get; set; }
     public override DbSet<Role> Roles { get; set; }
     public DbSet<RolePermission> RolePermissions { get; set; }
@@ -37,12 +36,8 @@ public class AppDbContext : IdentityDbContext<User, Role, Guid>
     public DbSet<Camera> Cameras { get; set; }
     public DbSet<ControlCard> ControlCards { get; set; }
     public DbSet<PcDevice> PcDevices { get; set; }
-    public DbSet<CameraCapture> CameraCaptures { get; set; }
     public DbSet<ChannelEvent> ChannelEvents { get; set; }
-    public DbSet<CameraCaptureSetting> CameraCaptureSettings { get; set; }
     public DbSet<RefreshToken> RefreshTokens { get; set; }
-    public DbSet<Log> Logs { get; set; }
-    public DbSet<Archive> Archives { get; set; }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -52,18 +47,18 @@ public class AppDbContext : IdentityDbContext<User, Role, Guid>
         {
             c.ToTable("Company");
             c.HasKey(c => c.Id);
-            c.HasMany(c => c.Cabinets).WithOne(c => c.Company).HasForeignKey(c => c.CompanyId).OnDelete(DeleteBehavior.Restrict);
+            c.HasMany(c => c.Automations).WithOne(c => c.Company).HasForeignKey(c => c.CompanyId).OnDelete(DeleteBehavior.Restrict);
             c.HasMany(c => c.Users).WithOne(u => u.Company).HasForeignKey(u => u.CompanyId).OnDelete(DeleteBehavior.Restrict);
         });
-        modelBuilder.Entity<Cabinet>(c =>
+        modelBuilder.Entity<Automation>(c =>
         {
-            c.ToTable("Cabinet");
+            c.ToTable("Automation");
             c.HasKey(c => c.Id);
-            c.HasMany(c => c.Devices).WithOne(d => d.Cabinet).HasForeignKey(d => d.CabinetId).OnDelete(DeleteBehavior.Restrict);
-            c.HasMany(c => c.DiagramAnnotations).WithOne(d => d.Cabinet).HasForeignKey(d => d.CabinetId).OnDelete(DeleteBehavior.Restrict);
-            c.HasMany(c => c.Connections).WithOne(c => c.Cabinet).HasForeignKey(c => c.CabinetId).OnDelete(DeleteBehavior.Restrict);
+            c.HasMany(c => c.Devices).WithOne(d => d.Automation).HasForeignKey(d => d.AutomationId).OnDelete(DeleteBehavior.Restrict);
+            c.HasMany(c => c.DiagramAnnotations).WithOne(d => d.Automation).HasForeignKey(d => d.AutomationId).OnDelete(DeleteBehavior.Restrict);
+            c.HasMany(c => c.Connections).WithOne(c => c.Automation).HasForeignKey(c => c.AutomationId).OnDelete(DeleteBehavior.Restrict);
 
-            // Restriction: Aynı isimde aktif iki kabin olamaz; pasif kabin olabilir.
+            // Restriction: Aynı isimde aktif iki otomasyon olamaz; pasif otomasyon olabilir.
             c.HasIndex(c => new { c.CompanyId, c.Name }).IsUnique().HasFilter("[IsActive] = 1");
         });
         modelBuilder.Entity<User>(u =>
@@ -110,7 +105,7 @@ public class AppDbContext : IdentityDbContext<User, Role, Guid>
                 t.HasCheckConstraint("CK_Connection_DistinctPins", "[SourcePinId] <> [TargetPinId]");
             });
             c.HasKey(c => c.Id);
-            c.HasIndex(c => c.CabinetId);
+            c.HasIndex(c => c.AutomationId);
 
             // Restriction: Silinmemiş iki tane pin bağlantısı en fazla bir tane olabilir.
             c.HasIndex(c => new { c.SourcePinId, c.TargetPinId }).IsUnique().HasFilter("[IsDeleted] = 0");
@@ -124,10 +119,10 @@ public class AppDbContext : IdentityDbContext<User, Role, Guid>
 
             i.HasMany(i => i.Pins).WithOne(p => p.IoChannel).HasForeignKey(p => p.IoChannelId).OnDelete(DeleteBehavior.Restrict);
             i.HasMany(i => i.DeviceCommands).WithOne(d => d.IoChannel).HasForeignKey(d => d.IoChannelId).OnDelete(DeleteBehavior.Restrict);
-            i.HasOne(i => i.Cabinet).WithMany().HasForeignKey(i => i.CabinetId).OnDelete(DeleteBehavior.Restrict);
+            i.HasOne(i => i.Automation).WithMany().HasForeignKey(i => i.AutomationId).OnDelete(DeleteBehavior.Restrict);
 
-            // Restriction: Bir kabinde ayni kanal numarasi en fazla bir tane olabilir; pasif kanallar serbesttir.
-            i.HasIndex(i => new { i.CabinetId, i.Direction, i.ChannelNumber }).IsUnique().HasFilter("[IsDeleted] = 0");
+            // Restriction: Bir otomasyonda ayni kanal numarasi en fazla bir tane olabilir; pasif kanallar serbesttir.
+            i.HasIndex(i => new { i.AutomationId, i.Direction, i.ChannelNumber }).IsUnique().HasFilter("[IsDeleted] = 0");
 
             i.HasQueryFilter(f => !f.IsDeleted);
         });
@@ -152,7 +147,7 @@ public class AppDbContext : IdentityDbContext<User, Role, Guid>
         {
             c.ToTable("CanvasSettings");
             c.HasKey(c => c.Id);
-            c.HasOne(c => c.Cabinet).WithOne(c => c.CanvasSettings).HasForeignKey<CanvasSettings>(c => c.CabinetId).OnDelete(DeleteBehavior.Cascade);
+            c.HasOne(c => c.Automation).WithOne(c => c.CanvasSettings).HasForeignKey<CanvasSettings>(c => c.AutomationId).OnDelete(DeleteBehavior.Cascade);
         });
         modelBuilder.Entity<ComponentTemplate>(c =>
         {
@@ -200,7 +195,6 @@ public class AppDbContext : IdentityDbContext<User, Role, Guid>
             c.HasKey(c => c.DeviceId);
             c.Property(c => c.DeviceId).ValueGeneratedNever();
             c.HasOne(c => c.Device).WithOne(d => d.Camera).HasForeignKey<Camera>(c => c.DeviceId).OnDelete(DeleteBehavior.Restrict);
-            c.HasMany(c => c.Captures).WithOne(p => p.Camera).HasForeignKey(p => p.CameraId).OnDelete(DeleteBehavior.Restrict);
         });
         modelBuilder.Entity<ControlCard>(c =>
         {
@@ -221,20 +215,14 @@ public class AppDbContext : IdentityDbContext<User, Role, Guid>
 
             p.Property(p => p.CredentialHash).HasMaxLength(64);
         });
-        modelBuilder.Entity<CameraCapture>(p =>
-        {
-            p.ToTable("CameraCapture");
-            p.HasKey(p => p.Id);
-            p.HasOne(p => p.RequestedByUser).WithMany().HasForeignKey(p => p.RequestedByUserId).OnDelete(DeleteBehavior.Restrict);
-            p.HasIndex(p => new { p.CameraId, p.CapturedAtUtc });
-        });
+        // CameraCapture / CameraCaptureSettings: CameraManagement modülünün şemasındadır (cameramanagement).
         modelBuilder.Entity<ChannelEvent>(e =>
         {
             e.ToTable("ChannelEvent");
             e.HasKey(e => e.Id);
             e.HasOne(e => e.IoChannel).WithMany(i => i.ChannelEvents).HasForeignKey(e => e.IoChannelId).OnDelete(DeleteBehavior.Restrict);
-            e.HasOne(e => e.Cabinet).WithMany(c => c.ChannelEvents).HasForeignKey(e => e.CabinetId).OnDelete(DeleteBehavior.Restrict);
-            e.HasIndex(e => new { e.CabinetId, e.OccurredAtUtc });
+            e.HasOne(e => e.Automation).WithMany(c => c.ChannelEvents).HasForeignKey(e => e.AutomationId).OnDelete(DeleteBehavior.Restrict);
+            e.HasIndex(e => new { e.AutomationId, e.OccurredAtUtc });
             e.HasIndex(e => new { e.IoChannelId, e.OccurredAtUtc });
         });
         modelBuilder.Entity<DeviceStatus>(d =>
@@ -243,7 +231,7 @@ public class AppDbContext : IdentityDbContext<User, Role, Guid>
             d.HasKey(d => d.Id);
             // Id'ler DeviceStatus enum degerlerine sabitlenmistir
             d.Property(d => d.Id).ValueGeneratedNever();
-            d.HasMany(d => d.Cabinets).WithOne(c => c.DeviceStatus).HasForeignKey(c => c.DeviceStatusId).OnDelete(DeleteBehavior.Restrict);
+            d.HasMany(d => d.Automations).WithOne(c => c.DeviceStatus).HasForeignKey(c => c.DeviceStatusId).OnDelete(DeleteBehavior.Restrict);
             d.HasMany(d => d.Devices).WithOne(d => d.DeviceStatus).HasForeignKey(d => d.DeviceStatusId).OnDelete(DeleteBehavior.Restrict);
         });
         modelBuilder.Entity<DeviceType>(d =>
@@ -259,16 +247,7 @@ public class AppDbContext : IdentityDbContext<User, Role, Guid>
             r.HasKey(r => r.Id);
             r.HasOne(r => r.User).WithMany(u => u.RefreshTokens).HasForeignKey(r => r.UserId).OnDelete(DeleteBehavior.Cascade);
         });
-        modelBuilder.Entity<Log>(l =>
-        {
-            l.ToTable("ProjectLogs");
-            l.HasKey(l => l.Id);
-        });
-        modelBuilder.Entity<Archive>(a =>
-        {
-            a.ToTable("ProjectArchives");
-            a.HasKey(a => a.Id);
-        });
+
         modelBuilder.Entity<IdentityUserClaim<Guid>>(entity =>
         {
             entity.ToTable("UserClaims");
@@ -434,13 +413,6 @@ public class AppDbContext : IdentityDbContext<User, Role, Guid>
             },
             new Permission
             {
-                Id = (int)EntityEnums.Permission.AcknowledgeAlarm,
-                Code = nameof(EntityEnums.Permission.AcknowledgeAlarm),
-                DisplayName = "Alarm kabul et",
-                Category = "Alarm"
-            },
-            new Permission
-            {
                 Id = (int)EntityEnums.Permission.ManageUsers,
                 Code = nameof(EntityEnums.Permission.ManageUsers),
                 DisplayName = "Kullanıcı ve rolleri yönet",
@@ -459,20 +431,6 @@ public class AppDbContext : IdentityDbContext<User, Role, Guid>
                 Code = nameof(EntityEnums.Permission.ViewCamera),
                 DisplayName = "Kamera görüntüle",
                 Category = "Diagram"
-            },
-            new Permission
-            {
-                Id = (int)EntityEnums.Permission.ExportData,
-                Code = nameof(EntityEnums.Permission.ExportData),
-                DisplayName = "Veri dışarı aktar",
-                Category = "Data"
-            },
-            new Permission
-            {
-                Id = (int)EntityEnums.Permission.ManageWorkflow,
-                Code = nameof(EntityEnums.Permission.ManageWorkflow),
-                DisplayName = "İş akışı yönet",
-                Category = "Admin"
             },
             new Permission
             {
@@ -526,22 +484,6 @@ public class AppDbContext : IdentityDbContext<User, Role, Guid>
         );
         #endregion
 
-        #region AYARLAR (tip basina TEK SATIR)
-        // Degerler Business.Settings icindeki siniflarin varsayilanlariyla AYNI olmali:
-        // satir yoksa servis sinif varsayilanlarina duser. Ikisi ayrisirsa "ayni kurulum farkli davraniyor" hatasi cikar.
-        // Medya gecidi ayarlari burada DEGIL, appsettings.json > MediaGateway'dedir (mediamtx.yml ile elle senkron).
-        modelBuilder.Entity<CameraCaptureSetting>().HasData(new CameraCaptureSetting
-        {
-            Id = CameraCaptureSetting.SingleRowId,
-            SnapshotTimeoutMs = 5000,
-            SnapshotCacheSeconds = 3,
-            CaptureRoot = "uploads/captures",
-            CaptureRetentionDays = 30,
-            MaxClipDurationSec = 600,
-            ClipFinalizeGraceMs = 3000
-        });
-        #endregion
-
         #region RolePermision
         modelBuilder.Entity<RolePermission>().HasData(
             new RolePermission
@@ -562,11 +504,6 @@ public class AppDbContext : IdentityDbContext<User, Role, Guid>
             new RolePermission
             {
                 RoleId = new Guid("7138ec51-4f9e-4afd-b61b-5a9a4584f5da"),
-                PermissionId = (int)EntityEnums.Permission.AcknowledgeAlarm
-            },
-            new RolePermission
-            {
-                RoleId = new Guid("7138ec51-4f9e-4afd-b61b-5a9a4584f5da"),
                 PermissionId = (int)EntityEnums.Permission.ManageUsers
             },
             new RolePermission
@@ -578,16 +515,6 @@ public class AppDbContext : IdentityDbContext<User, Role, Guid>
             {
                 RoleId = new Guid("7138ec51-4f9e-4afd-b61b-5a9a4584f5da"),
                 PermissionId = (int)EntityEnums.Permission.ViewCamera
-            },
-            new RolePermission
-            {
-                RoleId = new Guid("7138ec51-4f9e-4afd-b61b-5a9a4584f5da"),
-                PermissionId = (int)EntityEnums.Permission.ExportData
-            },
-            new RolePermission
-            {
-                RoleId = new Guid("7138ec51-4f9e-4afd-b61b-5a9a4584f5da"),
-                PermissionId = (int)EntityEnums.Permission.ManageWorkflow
             },
             new RolePermission
             {
@@ -687,11 +614,11 @@ public class AppDbContext : IdentityDbContext<User, Role, Guid>
     //     SVG'lerde data-pin noktalariyla ayni sabittir. Gorseli degistiren seed'i de degistirir.
     // Gorseller Scadex.WebAPI/wwwroot/templates/system/ altindadir (UseStaticFiles servis eder).
     //
-    // KANALLAR. IoChannel adresi (Direction, ChannelNumber) kabin genelinde tekildir ve UI'da yeniden
-    // numaralandirilamaz; ayni kabine konacak sablonlarin araliklari cakisirsa kayit 400 doner.
+    // KANALLAR. IoChannel adresi (Direction, ChannelNumber) otomasyon genelinde tekildir ve UI'da yeniden
+    // numaralandirilamaz; ayni otomasyona konacak sablonlarin araliklari cakisirsa kayit 400 doner.
     //   - Cikis uzayi duz ve ortaktir: role 1-16, LED 17-24 (LED n -> 16 + n).
     //   - Kontrol modulunun kart ustu IN1-2 / OUT1-2 uclari KANALSIZDIR: PDF'teki gibi giris ve
-    //     cikis modulleriyle ayni kabinde 1-2 numaralari cakisirdi.
+    //     cikis modulleriyle ayni otomasyonda 1-2 numaralari cakisirdi.
     //   - Analog: A1 sicaklik, A2 nem (referans proje eslemesi, scada_communication_guide.md
     //     bolum 5), A3 / A4 akim olcme.
     //   - Ayni adresi paylasan pinler tek kanaldir ve kanal adi OrderBy(Name) ile ILK pinin adidir.

@@ -8,7 +8,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Field, FieldLabel } from '@/components/ui/field';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Skeleton } from '@/components/ui/skeleton';
-import { useCabinets } from '@/hooks/use-cabinets';
+import { useAutomations } from '@/hooks/use-automations';
 import { cn, formatUtcDateTime } from '@/lib/utils';
 import { CloseSessionDialog } from '../../components/close-session-dialog';
 import { SessionFlagBadges, SessionOperatorList, SessionPhaseBadge, SessionStatusBadge } from '../../components/session-badges';
@@ -182,7 +182,7 @@ function LiveSessionCard({ session, elapsedSec, onClose }: { session: OperatorSe
 
 function SessionHistory() {
   const navigate = useNavigate();
-  const cabinets = useCabinets();
+  const cabinets = useAutomations();
   const authorities = useSignalAuthorities();
   const operators = useSignalOperators();
 

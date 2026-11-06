@@ -1,13 +1,10 @@
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Scadex.Business.Settings;
-using Scadex.Business.Utils.CameraProtocolProfile;
-using Scadex.Business.Utils.CameraProtocolProfile.Resolver;
 using Scadex.Core.Utils.ResultPattern;
 using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
-using static Scadex.Model.Enums.EntityEnums;
 
 namespace Scadex.Business.Utils.MediaGateway;
 
@@ -15,14 +12,12 @@ public class MediaMtxGateway : IMediaGateway
 {
     private readonly IHttpClientFactory _httpClientFactory;
     private readonly MediaGatewaySettings _mediaGatewaySettings;
-    private readonly ICameraProtocolProfileResolver _profileResolver;
     private readonly ILogger<MediaMtxGateway> _logger;
 
-    public MediaMtxGateway(IHttpClientFactory httpClientFactory, IOptions<MediaGatewaySettings> settings, ICameraProtocolProfileResolver profileResolver, ILogger<MediaMtxGateway> logger)
+    public MediaMtxGateway(IHttpClientFactory httpClientFactory, IOptions<MediaGatewaySettings> settings, ILogger<MediaMtxGateway> logger)
     {
         _httpClientFactory = httpClientFactory;
         _mediaGatewaySettings = settings.Value;
-        _profileResolver = profileResolver;
         _logger = logger;
     }
 
@@ -38,11 +33,9 @@ public class MediaMtxGateway : IMediaGateway
 
 
     /// <inheritdoc/>
-    public async Task<Result> EnsureLivePathAsync(CameraEndpoint camera, StreamProfile profile, CancellationToken cancellationToken = default)
+    public async Task<Result> EnsureSourcePathAsync(string pathName, string sourceUrl, CancellationToken cancellationToken = default)
     {
-        var payload = BuildLivePathPayload(camera, profile);
-
-        var pathName = IMediaGateway.LivePathName(camera.Id, profile);
+        var payload = BuildSourcePathPayload(sourceUrl);
 
         var httpClient = CreateConfiguredClient();
 
@@ -78,7 +71,7 @@ public class MediaMtxGateway : IMediaGateway
         }
         catch (HttpRequestException exception)
         {
-            // Kamera degil, MediaMTX ayakta degil.  
+            // Kaynak degil, MediaMTX ayakta degil.
             _logger.LogError(exception, "Medya gecidine ulasilamadi ({BaseAddress})", httpClient.BaseAddress);
             return Result.Failure(description: "Medya geçidine ulaşılamıyor. MediaMTX çalışmıyor olabilir.");
         }
@@ -90,9 +83,8 @@ public class MediaMtxGateway : IMediaGateway
     }
 
     /// <inheritdoc/>
-    public async Task<Result> DeleteLivePathIfStaleAsync(CameraEndpoint camera, StreamProfile profile, CancellationToken cancellationToken = default)
+    public async Task<Result> DeleteSourcePathIfStaleAsync(string pathName, string sourceUrl, CancellationToken cancellationToken = default)
     {
-        var pathName = IMediaGateway.LivePathName(camera.Id, profile);
         var httpClient = CreateConfiguredClient();
 
         try
@@ -106,7 +98,7 @@ public class MediaMtxGateway : IMediaGateway
                 return Result.Failure(description: $"Medya geçidi yolu okunamadı: {await ReadErrorAsync(getResponse, cancellationToken)}");
 
             var current = await getResponse.Content.ReadFromJsonAsync<JsonElement>(cancellationToken);
-            if (MatchesDesiredConfig(current, BuildLivePathPayload(camera, profile)))
+            if (MatchesDesiredConfig(current, BuildSourcePathPayload(sourceUrl)))
                 return Result.Success();
         }
         catch (Exception exception) when (exception is not OperationCanceledException || !cancellationToken.IsCancellationRequested)
@@ -280,11 +272,11 @@ public class MediaMtxGateway : IMediaGateway
 
 
     #region Helpers
-    /// <summary> Canli yolun istenen yapilandirmasi; hem kurma hem "eskimis mi" karsilastirmasi AYNI govdeyi kullanir. </summary>
-    private Dictionary<string, object?> BuildLivePathPayload(CameraEndpoint camera, StreamProfile profile) => new()
+    /// <summary> Kaynakli yolun istenen yapilandirmasi; hem kurma hem "eskimis mi" karsilastirmasi AYNI govdeyi kullanir. </summary>
+    private Dictionary<string, object?> BuildSourcePathPayload(string sourceUrl) => new()
     {
-        ["source"] = _profileResolver.Resolve(camera.Brand).BuildRtspUrl(camera, profile),
-        // Talep uzerine baglan: izleyicisi olmayan bir kamera icin RTSP oturumu acik tutulmaz "SourceOnDemandCloseAfterSec" saniye sonra RTSP oturumu kapatilir.
+        ["source"] = sourceUrl,
+        // Talep uzerine baglan: izleyicisi olmayan bir kaynak icin RTSP oturumu acik tutulmaz "SourceOnDemandCloseAfterSec" saniye sonra RTSP oturumu kapatilir.
         ["sourceOnDemand"] = true,
         ["sourceOnDemandCloseAfter"] = $"{_mediaGatewaySettings.SourceOnDemandCloseAfterSec}s",
         ["rtspTransport"] = _mediaGatewaySettings.RtspTransport
@@ -330,7 +322,7 @@ public class MediaMtxGateway : IMediaGateway
 
     /// <summary>
     /// MediaMtx geçidindeki path ile gondermek istedigimiz path alanlarınıyla aynı değerlerde mi?
-    /// Camera ip, port, kullanıcı adı, şifre gibi bilgiler veritabanında degistiginde hedef path bulunsa bile MediaMtx'de güncellenir tutarlılık sağlanır.
+    /// Kaynak adresi (ör. kameranın ip, port, kullanıcı adı, şifresi) degistiginde hedef path bulunsa bile MediaMtx'de güncellenir tutarlılık sağlanır.
     /// Aksi takdirde MediaMTX eski bilgilerle baglanmaya calisir ve zaman asimina duserek baglantiyi keser.
     /// </summary>
     private static bool MatchesDesiredConfig(JsonElement current, Dictionary<string, object?> desired)

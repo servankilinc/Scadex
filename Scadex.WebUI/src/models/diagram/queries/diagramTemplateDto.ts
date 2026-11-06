@@ -4,7 +4,7 @@ import type { DeviceType } from '@/models/enums';
 /**
  * Cihazın çözümlenmiş şablon ÖZETİ — node'un görsel spec'i.
  *
- * Her cihaza gömülü gelir; böylece şablon pasife alınsa bile kabin doğru boyut
+ * Her cihaza gömülü gelir; böylece şablon pasife alınsa bile otomasyon doğru boyut
  * ve renkle render olur ve graf, palet çağrısına bağımlı olmaz.
  * Şablonun pinleri burada YOK — cihazın gerçek pinleri `DiagramDeviceDto.pins`'te.
  */

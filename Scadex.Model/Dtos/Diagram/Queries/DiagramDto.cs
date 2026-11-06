@@ -1,11 +1,10 @@
 using Scadex.Core.Model;
-using Scadex.Model.Dtos.Diagram.Queries.Items;
 
 namespace Scadex.Model.Dtos.Diagram.Queries;
 
 public class DiagramDto : IDto
 {
-    public DiagramCabinetDto Cabinet { get; set; } = null!;
+    public DiagramAutomationDto Automation { get; set; } = null!;
     public ICollection<DiagramDeviceDto> Devices { get; set; } = [];
     public ICollection<DiagramConnectionDto> Connections { get; set; } = [];
     public ICollection<DiagramAnnotationItemDto> Annotations { get; set; } = [];

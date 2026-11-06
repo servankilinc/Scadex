@@ -44,21 +44,21 @@ public sealed class EntityLifecycleInterceptor : SaveChangesInterceptor
         var entries = context.ChangeTracker.Entries().ToList();
 
         // 1. Validate Immutability
-        var immutableEntries = entries.Where(e => e.Entity is IImmutableEntity && e.Entity is not IProjectEntity && (e.State == EntityState.Modified || e.State == EntityState.Deleted));
+        var immutableEntries = entries.Where(e => e.Entity is IImmutableEntity && (e.State == EntityState.Modified || e.State == EntityState.Deleted));
         foreach (var entry in immutableEntries)
         {
             throw new InvalidOperationException($"Entity of type '{entry.Metadata.Name}' with ID '{entry.Property("Id").CurrentValue ?? "unknown"}' is immutable (System Locked) and cannot be updated or deleted.");
         }
 
         // 2. Validate Activatable
-        var activatableEntries = entries.Where(e => e.Entity is IActivatableEntity && e.Entity is not IProjectEntity && e.State == EntityState.Deleted);
+        var activatableEntries = entries.Where(e => e.Entity is IActivatableEntity && e.State == EntityState.Deleted);
         foreach (var entry in activatableEntries)
         {
             throw new InvalidOperationException($"Entity of type '{entry.Metadata.Name}' with ID '{entry.Property("Id").CurrentValue ?? "unknown"}' cannot be deleted. It can only be deactivated by setting IsActive = false.");
         }
 
         // 3. Apply Soft Delete
-        var softDeletableEntries = entries.Where(e => e.Entity is ISoftDeletableEntity && e.Entity is not IProjectEntity && e.State == EntityState.Deleted);
+        var softDeletableEntries = entries.Where(e => e.Entity is ISoftDeletableEntity && e.State == EntityState.Deleted);
 
         if (softDeletableEntries.Any())
         {

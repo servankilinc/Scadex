@@ -17,12 +17,14 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\Modules\RemoteDesk\Scadex.RemoteDesk\Scadex.RemoteDesk.csproj" />
     <ProjectReference Include="..\Scadex.Business\Scadex.Business.csproj" />
-    
-	<!-- MODULES -->
-    <ProjectReference Include="..\Scadex.Signalization\Scadex.Signalization.csproj" />
-    <!-- MODULES -->
+
+    <!-- MODULES (yetenek) -->
+    <ProjectReference Include="..\Modules\CameraManagement\Scadex.CameraManagement\Scadex.CameraManagement.csproj" />
+    <ProjectReference Include="..\Modules\RemoteDesk\Scadex.RemoteDesk\Scadex.RemoteDesk.csproj" />
+
+    <!-- SOLUTIONS (çözüm) -->
+    <ProjectReference Include="..\Solutions\Signalization\Scadex.Signalization\Scadex.Signalization.csproj" />
   </ItemGroup>
 
   <ItemGroup>

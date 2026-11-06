@@ -11,7 +11,7 @@ import type { PcListItemDto } from '../models/pc';
 /**
  * PC listesi — `/remote-desk/pcs`.
  *
- * Aktif ve tipi "Bilgisayar" (`DeviceType.Pc`) olan cihazlar. PC eklemek için ayrı bir ekran YOK: cihaz kabin diyagramına
+ * Aktif ve tipi "Bilgisayar" (`DeviceType.Pc`) olan cihazlar. PC eklemek için ayrı bir ekran YOK: cihaz otomasyon diyagramına
  * çizilir, özellik panelinde kimlik bilgisi (Basic Auth: cihaz Id'si + sır) üretilir ve PC'deki istemciye girilir (RemoteDesk.md § 5).
  */
 export default function RemoteDeskPcs() {
@@ -21,7 +21,7 @@ export default function RemoteDeskPcs() {
   const filtered = useMemo(() => {
     const term = search.trim().toLocaleLowerCase('tr');
     if (!term) return pcs.data ?? [];
-    return (pcs.data ?? []).filter(pc => [pc.deviceName, pc.cabinetName].some(v => v?.toLocaleLowerCase('tr').includes(term)));
+    return (pcs.data ?? []).filter(pc => [pc.deviceName, pc.automationName].some(v => v?.toLocaleLowerCase('tr').includes(term)));
   }, [pcs.data, search]);
 
   const connected = pcs.data?.filter(pc => pc.isConnected).length ?? 0;
@@ -32,7 +32,7 @@ export default function RemoteDeskPcs() {
       <div>
         <h1 className='text-lg font-semibold'>PC Ekranları</h1>
         <p className='text-sm text-muted-foreground'>
-          Kabin diyagramlarındaki bilgisayarlar. İzlemek için PC'de Scadex RemoteDesk istemcisi çalışmalı ve diyagramda üretilen kimlik bilgisi
+          Otomasyon diyagramlarındaki bilgisayarlar. İzlemek için PC'de Scadex RemoteDesk istemcisi çalışmalı ve diyagramda üretilen kimlik bilgisi
           istemcinin ayarlarına girilmiş olmalı. İzlenen PC'nin ekranında bunu belirten bir uyarı görünür.
         </p>
       </div>
@@ -40,7 +40,7 @@ export default function RemoteDeskPcs() {
       <div className='flex flex-wrap items-center gap-3'>
         <div className='relative w-full max-w-xs'>
           <SearchIcon className='pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground' />
-          <Input className='pl-8' placeholder='PC, kabin…' value={search} onChange={e => setSearch(e.target.value)} />
+          <Input className='pl-8' placeholder='PC, otomasyon…' value={search} onChange={e => setSearch(e.target.value)} />
         </div>
         {pcs.data && (
           <Badge variant='outline'>
@@ -97,7 +97,7 @@ function PcRow({ pc }: { pc: PcListItemDto }) {
           <MonitorIcon className='size-4 text-muted-foreground' />
           {pc.deviceName}
         </div>
-        <div className='text-xs text-muted-foreground'>{pc.cabinetName}</div>
+        <div className='text-xs text-muted-foreground'>{pc.automationName}</div>
       </td>
       <td>{pc.hasCredential ? <Badge variant='secondary'>Ayarlı</Badge> : <Badge variant='outline'>Kimlik bilgisi yok</Badge>}</td>
       <td>

@@ -45,12 +45,12 @@ public static class EntityEnums
         /// <summary>
         /// Kart okuyucu — kart ID'sini gönderen modül.
         /// Kendi ingest endpoint'i vardır çünkü taşıdığı veri bir kanal değeri değildir:
-        /// <c>POST /api/Scada/card</c> ile <c>{ cardId, timestampUtc }</c> gelir; kabin, ingest'teki gibi
+        /// <c>POST /api/Scada/card</c> ile <c>{ cardId, timestampUtc }</c> gelir; otomasyon, ingest'teki gibi
         /// isteği gönderen kontrol modülünün Basic Auth kimliğinden çözülür.
         /// Kart ID'si IoChannel'a yazılmaz ve ChannelEvent'a gitmez kart ID'si bir ölçüm değildir.
         /// </summary>
         CardReader = 10,
-        /// <summary>Şebeke girişi — kabine dışarıdan gelen 220 AC beslemenin başladığı nokta. Pinleri L / N / PE'dir.</summary>
+        /// <summary>Şebeke girişi — otomasyona dışarıdan gelen 220 AC beslemenin başladığı nokta. Pinleri L / N / PE'dir.</summary>
         Mains = 11,
         /// <summary> Sigorta / devre kesici — referans diyagramdaki "ŞEBEKE", "220V ÇIKIŞ" ve "LAMBA" şalterleri. </summary>
         CircuitBreaker = 12,
@@ -105,12 +105,9 @@ public static class EntityEnums
         LED_Cathode = 9,
         /// <summary>Dijital giriş sinyali.</summary>
         Signal_In = 10,
-        /// <summary>Dijital çıkış sinyali.</summary>
-        Signal_Out = 11,
         /// <summary>Analog giriş.</summary>
         Analog_In = 12,
-        /// <summary>Kuru kontak (Dry Contact).</summary>
-        DryContact = 13,
+
         /// <summary>Faz (220 AC).</summary>
         Line_L = 14,
         /// <summary>Nötr (220 AC).</summary>
@@ -133,17 +130,6 @@ public static class EntityEnums
     }
 
 
-
-    /// <summary> Kablo fiziksel türü. </summary>
-    public enum WireType
-    {
-        Power = 0,
-        Signal = 1,
-        DataRS485 = 2,
-        DataEthernet = 3,
-        Relay = 4,
-        Sensor = 5
-    }
 
     /// <summary> Kablo çizim stili (UI). </summary>
     public enum LineStyle
@@ -194,17 +180,6 @@ public static class EntityEnums
 
 
 
-    /// <summary>
-    /// SCADA'ya gönderilen kontrol isteğinin türü — <c>PayloadJson</c>'ın hangi şemayla okunacağını ve hangi endpoint'e gidileceğini belirler.
-    /// Komut yolu güvenliğinin sağlar: yetki kontrolü ("bu kullanıcı çıkış sürebilir mi?") ve doğrulama ("hedef kanalın Direction'ı Output mu?") bu alana bakarak yapılır. 
-    /// </summary>
-    public enum DeviceCommandType
-    {
-        /// <summary>Çıkış kanalını kalıcı olarak sürer (röle, LED). Payload: { "Value": 1 }.</summary>
-        SetOutput = 1
-    }
-
-
     /// <summary> SCADA'ya gönderilen komutun sonucu. Kuyruk olmadığı için "Pending" ve "Cancelled" durumları YOKTUR. </summary>
     public enum CommandStatus
     {
@@ -220,14 +195,17 @@ public static class EntityEnums
 
 
     /// <summary>
-    /// Kanal değerindeki değişimi kim fark etti — <c>ChannelChangedNotification.Source</c> ve <c>ChannelEvent.Source</c>.
+    /// Kanal değerindeki değişimi kim fark etti — <c>ChannelChangedEvent.Source</c> ve <c>ChannelEvent.Source</c>.
     /// <see cref="Sync"/>'te değişimin ne zaman olduğu bilinmez; <c>OccurredAtUtc</c> yalnızca fark edildiği andır.
     /// </summary>
     public enum ChannelChangeSource
     {
         /// <summary> SCADA değişimi kendisi bildirdi (<c>POST /api/Scada/ingest</c>). </summary>
         Ingest = 1,
-        /// <summary> Scadex'in başarılı çıkış komutu. <c>ChannelEvent</c>'e yazılmaz — komutun kaydı <c>DeviceCommand</c>'dadır. </summary>
+        /// <summary>
+        /// Scadex'in başarılı çıkış komutu. Kanalın değerini değiştirdiyse <c>ChannelEvent</c>'e de yazılır (2026-10-31); komutun kendisinin
+        /// kaydı <c>DeviceCommand</c>'dadır.
+        /// </summary>
         Command = 2,
         /// <summary> Karttan okuma (<c>/status</c>) kayıtlı değerden farklı çıktı. Çıkışta bu, rölenin son komuttan sapmasıdır. </summary>
         Sync = 3
@@ -247,33 +225,20 @@ public static class EntityEnums
         Hikvision = 1
     }
 
-    /// <summary> Yakalanan kamera kaydının cinsi. </summary>
-    public enum CaptureType
-    {
-        /// <summary>Tek kare.</summary>
-        Snapshot = 1,
-        /// <summary>Kısa video klip.</summary>
-        Clip = 2
-    }
-
-    public enum CaptureStatus
-    {
-        /// <summary>İstek alındı, dosya henüz depoda değil.</summary>
-        Pending = 1,
-        /// <summary>Dosya depoda, indirilebilir.</summary>
-        Available = 2,
-        /// <summary>Alınamadı..</summary>
-        Failed = 3
-    }
+    // CaptureType / CaptureStatus (kare/klip çekimi) CameraManagement modülündedir: Scadex.CameraManagement.Model.Enums.
 
 
     /// <summary> Kullanıcı izin türleri. </summary>
     public enum Permission
     {
-        /// <summary> Kabin diyagramını açıp izleyebilir (canlı değerler, komut geçmişi). </summary>
+        /// <summary> Otomasyon diyagramını açıp izleyebilir (canlı değerler, komut geçmişi). </summary>
         ViewDiagram = 0,
 
-        /// <summary> Diyagramı düzenleyip kaydedebilir (cihaz, kablo, not, tuval ayarı). İzlemeden ve komuttan ayrıdır. </summary>
+        /// <summary>
+        /// Diyagramı düzenleyip kaydedebilir (cihaz, kablo, not, tuval ayarı). İzlemeden ve komuttan ayrıdır. Kontrol kartının MAC'i ve
+        /// SCADA adresi/zaman aşımı da kartın cihaz formundan bu izinle yazılır (2026-11-04, kullanıcı kararı): adresi değiştirmek
+        /// telemetriyi ve kumandayı başka bir adrese yönlendirir.
+        /// </summary>
         EditDiagram = 1,
 
         /// <summary>
@@ -282,26 +247,21 @@ public static class EntityEnums
         /// </summary>
         ControlOutput = 2,
 
-        /// <summary> Alarmı görüp kabul edebilir </summary>
-        AcknowledgeAlarm = 3,
+        // 3 (AcknowledgeAlarm) 2026-10-31'de kaldırıldı — ucu yoktu. Numara yeniden kullanılmaz.
 
         /// <summary> Kullanıcı ve rol yönetimi </summary>
         ManageUsers = 4,
 
         /// <summary>
-        /// Sistem ve kabin yapılandırması: SCADA adresi, zaman aşımı, şablon kütüphanesi.
-        /// <c>Cabinet.ScadaBaseUrl</c>'i değiştirmek tüm telemetriyi ve kumandayı başka bir adrese yönlendirir.
+        /// Sistem ve otomasyon yapılandırması: otomasyon, firma, kamera, şablon kütüphanesi, ayarlar. SCADA adresi 2026-11-04'ten beri
+        /// otomasyonda değil kontrol kartındadır ve <see cref="EditDiagram"/> ile yazılır.
         /// </summary>
         ConfigureSystem = 5,
 
         /// <summary> Kamera görüntüsü izleyebilir </summary>
         ViewCamera = 6,
 
-        /// <summary> Önemli raporları görebilir ve dışa aktarabilir. </summary>
-        ExportData = 7,
-
-        /// <summary> Otomasyon iş akışlarını tanımlar ve düzenler </summary>
-        ManageWorkflow = 8,
+        // 7 (ExportData) ve 8 (ManageWorkflow) 2026-10-31'de kaldırıldı — ucu yoktu. Numaralar yeniden kullanılmaz.
 
         /// <summary> Geçiş kartı tanımlama, yetkilendirme ve iptal etme </summary>
         ManageAccessCards = 9,

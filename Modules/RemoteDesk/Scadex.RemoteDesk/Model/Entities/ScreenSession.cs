@@ -5,7 +5,7 @@ namespace Scadex.RemoteDesk.Model.Entities;
 
 /// <summary>
 /// Bir PC monitörünün bir yayın ömrü (istemcide bir FFmpeg). (PC, monitör) başına aynı anda en fazla bir açık oturum olur.
-/// Cihazın adı/kabini/MAC'i buraya KOPYALANMAZ — her zaman çekirdekteki <c>Device</c>'tan okunur.
+/// Cihazın adı/otomasyonu/MAC'i buraya KOPYALANMAZ — her zaman çekirdekteki <c>Device</c>'tan okunur.
 /// </summary>
 public class ScreenSession : IEntity
 {

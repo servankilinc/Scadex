@@ -76,7 +76,7 @@ export interface SignalDoorSwitchChangedMessage {
 /**
  * Kabinin kart okuyucusuna kart okutuldu ve motor sonucu belirledi. Yalnızca o kabinin grubuna gelir.
  *
- * Kartı ve sahibini taşır (2026-10-13; alan adları çekirdeğin `CardRead`'iyle aynı): sanal kabinin "Kart okuyucu" satırı kimin
+ * Kartı ve sahibini taşır (2026-10-13; alan adları çekirdeğin `CardReadNotify`'iyle aynı): sanal kabinin "Kart okuyucu" satırı kimin
  * okuttuğunu listeyi açmadan gösterir. Kurum / iç kapı adı için liste yine `card-reads` ucundan okunur. Açık oturum yokken reddedilen
  * kart da yayınlanır ama DB'ye yazılmadığı için listede görünmez.
  */

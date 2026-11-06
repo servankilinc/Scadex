@@ -1,16 +1,21 @@
 <Solution>
   <Folder Name="/Modules/" />
+  <Folder Name="/Modules/CameraManagement/">
+    <Project Path="Modules/CameraManagement/Scadex.CameraManagement/Scadex.CameraManagement.csproj" />
+  </Folder>
   <Folder Name="/Modules/RemoteDesk/">
     <Project Path="Modules/RemoteDesk/Scadex.RemoteDesk.Contracts/Scadex.RemoteDesk.Contracts.csproj" Id="f71d45c1-28aa-4838-b24f-a03628cdb097" />
     <Project Path="Modules/RemoteDesk/Scadex.RemoteDesk.Windows/Scadex.RemoteDesk.Windows.csproj" Id="abe179f5-1189-49e4-bcd4-32e924df37cc" />
     <Project Path="Modules/RemoteDesk/Scadex.RemoteDesk.Windows.Service/Scadex.RemoteDesk.Windows.Service.csproj" />
     <Project Path="Modules/RemoteDesk/Scadex.RemoteDesk/Scadex.RemoteDesk.csproj" Id="7bc18dc1-f901-48e5-91cc-973c3f4e43de" />
   </Folder>
-  <Folder Name="/Modules/Signalization/" />
+  <Folder Name="/Solutions/" />
+  <Folder Name="/Solutions/Signalization/">
+    <Project Path="Solutions/Signalization/Scadex.Signalization/Scadex.Signalization.csproj" Id="80c89038-9fcd-48a4-b8d3-f1d4dcc19862" />
+  </Folder>
   <Project Path="Scadex.Business/Scadex.Business.csproj" />
   <Project Path="Scadex.Core/Scadex.Core.csproj" />
   <Project Path="Scadex.DataAccess/Scadex.DataAccess.csproj" />
   <Project Path="Scadex.Model/Scadex.Model.csproj" />
-  <Project Path="Scadex.Signalization/Scadex.Signalization.csproj" Id="80c89038-9fcd-48a4-b8d3-f1d4dcc19862" />
   <Project Path="Scadex.WebAPI/Scadex.WebAPI.csproj" />
 </Solution>

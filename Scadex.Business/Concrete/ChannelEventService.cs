@@ -9,11 +9,12 @@ using Scadex.Core.Utils.Pagination;
 using Scadex.Core.Utils.ResultPattern;
 using Scadex.Core.Utils.Validation;
 using Scadex.DataAccess.UoW;
+using Scadex.Model;
 using Scadex.Model.Dtos.ChannelEvent.Queries;
-using Scadex.Model.Dtos.Realtime.Queries;
-using Scadex.Model.Dtos.Scada.Commands;
-using Scadex.Model.Dtos.Scada.Events;
 using Scadex.Model.Entities;
+using Scadex.Model.Realtime.Events;
+using Scadex.Model.Realtime.Notifications;
+using Scadex.Model.Scada.Commands;
 using ChannelChangeSource = Scadex.Model.Enums.EntityEnums.ChannelChangeSource;
 using DeviceStatus = Scadex.Model.Enums.EntityEnums.DeviceStatus;
 using PinDirection = Scadex.Model.Enums.EntityEnums.PinDirection;
@@ -25,19 +26,19 @@ public partial class ChannelEventService : IChannelEventService
     private readonly IUnitOfWork _unitOfWork;
     private readonly IValidationService _validationService;
     private readonly IDiagramNotifier _notifier;
-    private readonly ICabinetStatusService _cabinetStatusService;
+    private readonly IAutomationStatusService _automationStatusService;
     private readonly ILogger<ChannelEventService> _logger;
     private readonly IMapper _mapper;
     private readonly IEnumerable<IScadaEventObserver> _observers;
     private readonly IOutputPolarityResolver _polarityResolver;
     private readonly IScadaCommandGateway _scadaCommandGateway;
 
-    public ChannelEventService(IUnitOfWork unitOfWork, IValidationService validationService, IDiagramNotifier notifier, ICabinetStatusService cabinetStatusService, ILogger<ChannelEventService> logger, IMapper mapper, IEnumerable<IScadaEventObserver> observers, IOutputPolarityResolver polarityResolver, IScadaCommandGateway scadaCommandGateway)
+    public ChannelEventService(IUnitOfWork unitOfWork, IValidationService validationService, IDiagramNotifier notifier, IAutomationStatusService automationStatusService, ILogger<ChannelEventService> logger, IMapper mapper, IEnumerable<IScadaEventObserver> observers, IOutputPolarityResolver polarityResolver, IScadaCommandGateway scadaCommandGateway)
     {
         _unitOfWork = unitOfWork;
         _validationService = validationService;
         _notifier = notifier;
-        _cabinetStatusService = cabinetStatusService;
+        _automationStatusService = automationStatusService;
         _logger = logger;
         _mapper = mapper;
         _observers = observers;
@@ -52,17 +53,17 @@ public partial class ChannelEventService : IChannelEventService
         if (!validationResult.IsValid)
             return Result<PaginationResponse<ChannelEventDto>>.Validation(validationResult.Failures, description: "Validation failed for ChannelEventQueryRequest");
 
-        var cabinetExists = await _unitOfWork.Cabinets.IsExistAsync(
-            where: c => c.Id == request.CabinetId,
+        var automationExists = await _unitOfWork.Automations.IsExistAsync(
+            where: c => c.Id == request.AutomationId,
             cancellationToken: cancellationToken
         );
 
-        if (!cabinetExists)
-            return Result<PaginationResponse<ChannelEventDto>>.NotFound(description: "Kabin bulunamadi");
+        if (!automationExists)
+            return Result<PaginationResponse<ChannelEventDto>>.NotFound(description: "Otomasyon bulunamadi");
 
         var page = await _unitOfWork.ChannelEvents.GetPagedAsync(
             _mapper.ConfigurationProvider,
-            request.CabinetId,
+            request.AutomationId,
             request.IoChannelId,
             request.FromUtc,
             request.ToUtc,
@@ -73,7 +74,7 @@ public partial class ChannelEventService : IChannelEventService
     }
 
     /// <inheritdoc />
-    public async Task<Result> IngestAsync(Guid cabinetId, ScadaIngestRequest request, CancellationToken cancellationToken = default)
+    public async Task<Result> IngestAsync(Guid automationId, ScadaIngestRequest request, CancellationToken cancellationToken = default)
     {
         // 1) Validation
         var validationResult = await _validationService.ValidateAsync(request, cancellationToken);
@@ -82,32 +83,35 @@ public partial class ChannelEventService : IChannelEventService
 
 
         // 2) Ayrıştırma kontrolü
-        if (!ScadaPinAddress.CheckAndParseIngestPin(request.Type, out var direction))
+        if (!ScadaPinAddress.CheckAndParsePin(request.Type, out var direction))
             return Result.Failure("Gecersiz tip", "Invalid signal type");
 
-        // 3) Kabin, isteği gönderen kontrol kartının kimliğinden gelir (DeviceId/MAC header'ı, controller); burada yalnızca durumu denetlenir.
-        // 4) Kabin kontrolü
-        var cabinet = await _unitOfWork.Cabinets.GetAsync(
-            where: c => c.Id == cabinetId && c.IsActive,
+        // 3) Otomasyon, isteği gönderen kontrol kartının kimliğinden gelir (DeviceId/MAC header'ı, controller); burada yalnızca durumu denetlenir.
+        // 4) Otomasyon kontrolü
+        var automation = await _unitOfWork.Automations.GetAsync(
+            where: c => c.Id == automationId && c.IsActive,
             tracking: true,
             cancellationToken: cancellationToken
         );
-        if (cabinet == null)
-            return Result.NotFound(description: "Kabin bulunamadi veya pasif durumda");
-        if (!cabinet.ScadaIsEnabled)
-            return Result.Failure($"Bu kabinde({cabinet.Id}) SCADA kapalı.");
+        if (automation == null)
+            return Result.NotFound(description: "Otomasyon bulunamadi veya pasif durumda");
+        var card = await _unitOfWork.ControlCards.GetActiveForAutomationAsync(automation.Id, tracking: true, cancellationToken);
+        if (card == null)
+            return Result.Failure($"Bu otomasyonda({automation.Id}) kontrol kartı yok.");
+        if (!card.ScadaIsEnabled)
+            return Result.Failure($"Bu otomasyonda({automation.Id}) SCADA kapalı.");
 
 
-        // 5) Kart haberleşiyor canlılık kanıtıdır. Kontrol modülünü (SCADA kartı) Online'a çek, Cabinet.LastSeen'i yenile, gerekirse kabini yeniden hesaplar.
+        // 5) Kart haberleşiyor canlılık kanıtıdır. Kontrol modülünü (SCADA kartı) Online'a çek, Automation.LastSeen'i yenile, gerekirse otomasyonu yeniden hesaplar.
         var now = DateTime.UtcNow;
-        cabinet.ScadaLastIngestAt = now;
-        await _cabinetStatusService.RecordScadaContactAsync(cabinet.Id, cancellationToken);
+        card.ScadaLastIngestAt = now;
+        await _automationStatusService.RecordScadaContactAsync(automation.Id, cancellationToken);
 
 
         // 6) Kanal kontrolü
         var channel = await _unitOfWork.IoChannels.GetAsync(
             where: c =>
-                c.CabinetId == cabinet.Id &&
+                c.AutomationId == automation.Id &&
                 c.Direction == direction &&
                 c.ChannelNumber == request.ChannelNumber &&
                 c.IsEnabled,
@@ -116,8 +120,8 @@ public partial class ChannelEventService : IChannelEventService
         );
         if (channel == null)
         {
-            _logger.LogWarning($"Kabin {cabinet.Id}: {ScadaPinAddress.Format(direction, request.ChannelNumber)} pini tanimsiz (ya da devre disi); telemetri atlandi.");
-            await PublishCabinetHeartbeatAsync(cabinet, cancellationToken);
+            _logger.LogWarning($"Otomasyon {automation.Id}: {ScadaPinAddress.Format(direction, request.ChannelNumber)} pini tanimsiz (ya da devre disi); telemetri atlandi.");
+            await PublishAutomationHeartbeatAsync(automation, card, cancellationToken);
             return Result.Success();
         }
 
@@ -129,17 +133,17 @@ public partial class ChannelEventService : IChannelEventService
         );
         if (!deviceExists)
         {
-            _logger.LogWarning($"Kabin {cabinet.Id}: Cihaz({channel.DeviceId}) bulunamadi; telemetri atlandi.");
-            await PublishCabinetHeartbeatAsync(cabinet, cancellationToken);
+            _logger.LogWarning($"Otomasyon {automation.Id}: Cihaz({channel.DeviceId}) bulunamadi; telemetri atlandi.");
+            await PublishAutomationHeartbeatAsync(automation, card, cancellationToken);
             return Result.Success();
         }
 
 
-        // 8) Değer değiştiyse kanala yazılır, ChannelEvent eklenir, client'lara ve dış modüllere bildirilir. Kabindeki ScadaLastIngestAt da aynı SaveChanges'te yazılır.
-        await ApplyChannelValuesAsync(cabinet.Id, [new ChannelWrite(channel, request.Value, request.TimestampUtc ?? now)], ChannelChangeSource.Ingest, now, cancellationToken);
+        // 8) Değer değiştiyse kanala yazılır, ChannelEvent eklenir, client'lara ve dış modüllere bildirilir. Kartın ScadaLastIngestAt'i de aynı SaveChanges'te yazılır.
+        await ApplyChannelValuesAsync(automation.Id, [new ChannelWrite(channel, request.Value, request.TimestampUtc ?? now)], ChannelChangeSource.Ingest, now, cancellationToken);
 
-        // 9) Kabin gövdesi (ScadaLastIngestAt, LastSeen) her ingest'te değişir
-        await PublishCabinetHeartbeatAsync(cabinet, cancellationToken);
+        // 9) Otomasyonun LastSeen'i ve kartın ScadaLastIngestAt'i her ingest'te değişir
+        await PublishAutomationHeartbeatAsync(automation, card, cancellationToken);
 
         return Result.Success();
     }
@@ -154,7 +158,7 @@ public partial class ChannelEventService : IChannelEventService
     /// Değişen yoksa da <c>SaveChanges</c> çağrılır: çağıranın takipli diğer değişiklikleri (ör. <c>ScadaLastIngestAt</c>) yazılsın.
     /// </summary>
     /// <returns> Değişen kanal sayısı. </returns>
-    private async Task<int> ApplyChannelValuesAsync(Guid cabinetId, IReadOnlyCollection<ChannelWrite> writes, ChannelChangeSource source, DateTime now, CancellationToken cancellationToken)
+    private async Task<int> ApplyChannelValuesAsync(Guid automationId, IReadOnlyCollection<ChannelWrite> writes, ChannelChangeSource source, DateTime now, CancellationToken cancellationToken)
     {
         var changed = writes.Where(w => !string.Equals(w.Channel.CurrentValue, w.Value, StringComparison.Ordinal)).ToList();
 
@@ -164,8 +168,8 @@ public partial class ChannelEventService : IChannelEventService
             ? new Dictionary<Guid, PolarityResolution>()
             : await _polarityResolver.ResolveManyAsync(outputIds, cancellationToken);
 
-        var valueChanges = new List<ChannelValueChange>(changed.Count);
-        var notifications = new List<ChannelChangedNotification>(changed.Count);
+        var valueChanges = new List<ChannelValueChangeNotify>(changed.Count);
+        var notifications = new List<ChannelChangedEvent>(changed.Count);
 
         foreach (var (channel, value, occurredAtUtc) in changed)
         {
@@ -173,7 +177,7 @@ public partial class ChannelEventService : IChannelEventService
             channel.CurrentValue = value;
             channel.ValueUpdatedAt = now;
 
-            valueChanges.Add(new ChannelValueChange
+            valueChanges.Add(new ChannelValueChangeNotify
             {
                 IoChannelId = channel.Id,
                 DeviceId = channel.DeviceId,
@@ -182,9 +186,9 @@ public partial class ChannelEventService : IChannelEventService
                 UpdatedAt = now
             });
 
-            notifications.Add(new ChannelChangedNotification
+            notifications.Add(new ChannelChangedEvent
             {
-                CabinetId = cabinetId,
+                AutomationId = automationId,
                 IoChannelId = channel.Id,
                 DeviceId = channel.DeviceId,
                 Direction = channel.Direction,
@@ -210,7 +214,7 @@ public partial class ChannelEventService : IChannelEventService
                 _unitOfWork.ChannelEvents.Add(new ChannelEvent
                 {
                     IoChannelId = channel.Id,
-                    CabinetId = cabinetId,
+                    AutomationId = automationId,
                     Value = value,
                     PreviousValue = previousValue,
                     OccurredAtUtc = occurredAtUtc,
@@ -220,8 +224,8 @@ public partial class ChannelEventService : IChannelEventService
             }
 
             if (isOutputDrift)
-                _logger.LogWarning("Kabin {CabinetId}: {Address} çıkışı kayıtlı değerden farklı — Scadex {Previous}, kart {Value} bildirdi",
-                    cabinetId, ScadaPinAddress.Format(channel.Direction, channel.ChannelNumber), previousValue ?? "bilinmiyor", value);
+                _logger.LogWarning("Otomasyon {AutomationId}: {Address} çıkışı kayıtlı değerden farklı — Scadex {Previous}, kart {Value} bildirdi",
+                    automationId, ScadaPinAddress.Format(channel.Direction, channel.ChannelNumber), previousValue ?? "bilinmiyor", value);
         }
 
         // Değişiklikler kalıcı olarak yazılır
@@ -229,7 +233,7 @@ public partial class ChannelEventService : IChannelEventService
 
         // Kalıcı olarak yazılan değerler client'lara bildirilir
         if (valueChanges.Count > 0)
-            await _notifier.ChannelValuesChangedAsync(cabinetId, valueChanges, cancellationToken);
+            await _notifier.ChannelValuesChangedAsync(automationId, valueChanges, cancellationToken);
 
         // Değişen kanallar Scadex'in dış modüllerine (dinleyicilere) yayınlanır
         foreach (var notification in notifications)
@@ -249,16 +253,16 @@ public partial class ChannelEventService : IChannelEventService
     }
 
     /// <summary>
-    /// Kabin "StatusId" degismese bile govdesindeki "ScadaLastIngestAt", "LastSeen" her ingest'te degistigi icin kabini
-    /// izleyenlere (diyagram) bildirilir. Tum kabinler grubuna GITMEZ — o grup yalnizca durum degisince haberdar edilir.
+    /// Otomasyon "StatusId" degismese bile "LastSeen"i ve kartin "ScadaLastIngestAt"i her ingest'te degistigi icin otomasyonu
+    /// izleyenlere (diyagram) bildirilir. Tum otomasyonlar grubuna GITMEZ — o grup yalnizca durum degisince haberdar edilir.
     /// </summary>
-    private Task PublishCabinetHeartbeatAsync(Cabinet cabinet, CancellationToken cancellationToken) =>
-        _notifier.CabinetStatusChangedAsync(new CabinetStatusChange
+    private Task PublishAutomationHeartbeatAsync(Automation automation, ControlCard card, CancellationToken cancellationToken) =>
+        _notifier.AutomationStatusChangedAsync(new AutomationStatusChangeNotify
         {
-            CabinetId = cabinet.Id,
-            StatusId = (DeviceStatus?)cabinet.DeviceStatusId,
-            LastSeen = cabinet.LastSeen,
-            ScadaLastIngestAt = cabinet.ScadaLastIngestAt
+            AutomationId = automation.Id,
+            StatusId = (DeviceStatus?)automation.DeviceStatusId,
+            LastSeen = automation.LastSeen,
+            ScadaLastIngestAt = card.ScadaLastIngestAt
         }, cancellationToken);
     #endregion
 }

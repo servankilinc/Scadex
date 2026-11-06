@@ -15,7 +15,7 @@ import {
   ReportStat,
   ReportStatGrid
 } from '@/components/custom/report';
-import { useCabinets } from '@/hooks/use-cabinets';
+import { useAutomations } from '@/hooks/use-automations';
 import { downloadCsv } from '@/lib/csv-export';
 import { REPORT_ALL, toDateTimeLocal, useReportParams } from '@/lib/report-params';
 import { useSessionSummary } from '../../hooks/use-operator-sessions';
@@ -77,7 +77,7 @@ export default function SessionReport() {
   const tab: BreakdownTab = rawTab === 'authority' || rawTab === 'cabinet' ? rawTab : 'operator';
   const isFiltered = FILTER_KEYS.some(key => params.has(key));
 
-  const cabinets = useCabinets();
+  const cabinets = useAutomations();
   const operators = useSignalOperators();
   const authorities = useSignalAuthorities();
 

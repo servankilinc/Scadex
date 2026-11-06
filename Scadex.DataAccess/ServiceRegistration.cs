@@ -14,7 +14,7 @@ public static class ServiceRegistration
     public static IServiceCollection AddDataAccessServices(this IServiceCollection services, IConfiguration configuration)
     {
         services.AddScoped<ICompanyRepository, CompanyRepository>();
-        services.AddScoped<ICabinetRepository, CabinetRepository>();
+        services.AddScoped<IAutomationRepository, AutomationRepository>();
         services.AddScoped<IUserRepository, UserRepository>();
         services.AddScoped<IRoleRepository, RoleRepository>();
         services.AddScoped<IRolePermissionRepository, RolePermissionRepository>();
@@ -31,12 +31,10 @@ public static class ServiceRegistration
         services.AddScoped<ICameraRepository, CameraRepository>();
         services.AddScoped<IControlCardRepository, ControlCardRepository>();
         services.AddScoped<IPcDeviceRepository, PcDeviceRepository>();
-        services.AddScoped<ICameraCaptureRepository, CameraCaptureRepository>();
         services.AddScoped<IChannelEventRepository, ChannelEventRepository>();
         services.AddScoped<IDeviceStatusRepository, DeviceStatusRepository>();
         services.AddScoped<IDeviceTypeRepository, DeviceTypeRepository>();
         services.AddScoped<IRefreshTokenRepository, RefreshTokenRepository>();
-        services.AddScoped<ICameraCaptureSettingRepository, CameraCaptureSettingRepository>();
 
         #region DB CONTEXT
         services.AddSingleton<AuditInterceptor>();
@@ -45,7 +43,6 @@ public static class ServiceRegistration
         {
             opt.UseSqlServer(configuration.GetConnectionString("Database"))
                .AddInterceptors(serviceProvider.GetRequiredService<AuditInterceptor>())
-               // .AddInterceptors(serviceProvider.GetRequiredService<ArchiveInterceptor>())
                .AddInterceptors(serviceProvider.GetRequiredService<EntityLifecycleInterceptor>());
         });
         #endregion

@@ -14,11 +14,12 @@ export type {
   DiagramLayoutRequest,
   DiagramDeleteRequest
 } from './commands/diagramCommands';
+export { SCADA_MIN_TIMEOUT_MS } from './commands/diagramCommands';
 
 // Queries — sunucu ciktisi, saf interface
 export type { PointDto } from './queries/pointDto';
 export type { DiagramDto } from './queries/diagramDto';
-export type { DiagramCabinetDto } from './queries/diagramCabinetDto';
+export type { DiagramAutomationDto } from './queries/diagramAutomationDto';
 export type { DiagramDeviceDto, DiagramCameraDto, DiagramControlCardDto, DiagramPcDeviceDto } from './queries/diagramDeviceDto';
 export type { DiagramTemplateDto } from './queries/diagramTemplateDto';
 export type { DiagramPinDto } from './queries/diagramPinDto';
